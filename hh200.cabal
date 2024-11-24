@@ -19,10 +19,11 @@ common warnings
 executable hh200
     import:           warnings
     main-is:          Main.hs
-    -- other-modules:
+    other-modules:    Vm
     -- other-extensions:
     build-depends:
-        base ^>=4.17.2.0
+        -- base ^>=4.17.2.0
+        base ^>=4.19.1.0
       , bytestring
       , http-conduit
       , aeson
