@@ -19,7 +19,7 @@ common warnings
 executable hh200
     import:           warnings
     main-is:          Main.hs
-    other-modules:    Vm
+    other-modules:    Types, Vm, Disk
     -- other-extensions:
     build-depends:
         -- base ^>=4.17.2.0
@@ -32,5 +32,9 @@ executable hh200
       , unordered-containers
       , optparse-applicative
       , hashtables
+      , toml-parser
+      , template-haskell
+      , text
+      -- , llvm-codegen   -- doesn't install out of the box
     hs-source-dirs:   app
     default-language: GHC2021

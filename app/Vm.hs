@@ -15,92 +15,111 @@ import qualified Data.ByteString       as S8
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.Yaml             as Yaml
 import           Network.HTTP.Simple
+-- import Types (Instr (..))
+import Types
 
-type HttpMethod = S8.ByteString  -- "GET" "POST"
+type HttpMethod = S8.ByteString  -- "get" "post"
 type ExpectCode = Int
-type HttpVerb = String
 type Url = String
 type Terminal = Bool
 type Vm = (HttpVerb, Url, ExpectCode, [Instr], Terminal)
 
-class State a where
-    isTerminal :: a -> Bool
-    topInstr :: IO a -> IO Instr
+class VmT a where
+    setTerminal :: IO a -> IO a
+    peekInstr :: IO a -> IO Instr
     popInstr :: IO a -> IO a
     setVerb :: IO a -> HttpVerb -> IO a
     setExpectCode :: IO a -> ExpectCode -> IO a
+    executeVerb :: IO a -> IO a
+    httpClientCall :: IO a -> IO (CodesMatch, a)
 
-instance State Vm where
-    isTerminal (_, _, _, _, b) = b
+instance VmT Vm where
+    setTerminal ioVm = do
+        (e0, e1, e2, e3, e4) <- ioVm
+        return (e0, e1, e2, e3, True)
+
     setVerb ioVm v = do
         (_, e1, e2, e3, e4) <- ioVm
         return (v, e1, e2, e3, e4)
     setExpectCode ioVm c = do
         (e0, e1, _, e3, e4) <- ioVm
         return (e0, e1, c, e3, e4)
-    topInstr ioVm = do
+    peekInstr ioVm = do
         (_, _, _, instrs, _) <- ioVm
         return $ head instrs
+
     popInstr ioVm = do
         (e0, e1, e2, instrs, e4) <- ioVm
         return (e0, e1, e2, tail instrs, e4)
 
-data Instr
-    = NOP
-    | IV
-    | IC
-    | IH
-    | OV String
+    -- ??: httpClientCall type signature may communicate the Vm instances that are
+    -- interested in invoking HTTP calls.
+    --
+    -- (_, _, _, X : rest, False)
+    httpClientCall ioVm = do
+        (verb, url, expectCode, instrs, terminal) <- ioVm
+        let invalidState = False  -- ??: can wait until integration tests
+        if invalidState
+            then do return $ (False, (verb, url, expectCode, tail instrs, True))
+            else do
+                baseRequest <- parseRequest url
+                let request = setRequestMethod verb
+                            $ setRequestQueryString [("key", Just "val")]
+                            $ setRequestBodyLBS "todo"
+                            $ baseRequest
+                resp <- httpJSON request
+
+                let respBody = getResponseBody resp :: Value
+
+                next <- popInstr ioVm
+                return $ (getResponseStatusCode resp == expectCode, next)
+
+    -- Execute machine's state.
+    executeVerb ioVm = do
+        -- Whether state's ExpectCode matches actual response's status code.
+        (codesMatch, next) <- httpClientCall ioVm
+        case codesMatch of
+            True -> return next
+            False -> setTerminal ioVm
+
+vmNew :: Vm
+vmNew = ("get", "", 200, [], False)
 
 vmDefault :: IO Vm
 vmDefault = do return ("get", "", 200, [], False)
 
+vmFromk :: Policy -> [Instr] -> IO Vm
+vmFromk Policy { maxReruns, maxRetriesPerCall, timeMillisPerCall } instrs = do
+    return ("get", "", 200, instrs, False)
+
 vmFrom :: [Instr] -> IO Vm
-vmFrom hhirInstrs = do return ("get", "", 200, hhirInstrs, False)
+vmFrom instrs = do return ("get", "", 200, instrs, False)
 
-vmVerb :: Vm -> HttpVerb
-vmVerb (i, _, _, _, _) = i
-vmUrl :: Vm -> Url
-vmUrl (_, j, _, _, _) = j
-vmExpect :: Vm -> ExpectCode
-vmExpect (_, _, k, _, _) = k
-vmInstrs :: Vm -> [Instr]
-vmInstrs (_, _, _, l, _) = l
-vmTerminal :: Vm -> Terminal
-vmTerminal (_, _, _, _, m) = m
+-- vmVerb :: Vm -> HttpVerb
+-- vmVerb (i, _, _, _, _) = i
+-- vmUrl :: Vm -> Url
+-- vmUrl (_, j, _, _, _) = j
+-- vmExpect :: Vm -> ExpectCode
+-- vmExpect (_, _, k, _, _) = k
+-- vmInstrs :: Vm -> [Instr]
+-- vmInstrs (_, _, _, l, _) = l
+-- vmTerminal :: Vm -> Terminal
+-- vmTerminal (_, _, _, _, m) = m
 
--- -- Instr: override verb
--- overrideVerb :: IO Vm -> HttpVerb -> IO Vm
--- overrideVerb ioVm x = do
---     vm <- ioVm
---     return (x, vmUrl vm, vmExpect vm, vmInstrs vm, vmTerminal vm)
-
--- -- Instr: override expect_code
--- overrideExpectCode :: IO Vm -> ExpectCode -> IO Vm
--- overrideExpectCode ioVm x = do
---     vm <- ioVm
---     return (vmVerb vm, vmUrl vm, x, vmInstrs vm, vmTerminal vm)
-
--- Progress by executing top Instr. IO is necessary because HTTP calls can be performed when stepping.
+-- Progress by executing top Instr.
 step :: IO Vm -> IO Vm
 step ioVm = do
-    instr <- topInstr ioVm
+    instr <- peekInstr ioVm
     go instr where
-        go IV = setVerb ioVm "get"
-        go IC = setExpectCode ioVm 200
-        go NOP = popInstr ioVm
-        go _ = vmDefault
+        go NOP    = popInstr ioVm
+        go IV     = setVerb ioVm "get"
+        go IC     = setExpectCode ioVm 200
+        go (OV s) = setVerb ioVm s
+        go X      = executeVerb ioVm
+        go _      = vmDefault
 
-    -- unused <- ioPost HM.empty (method (vmVerb vm)) "http://httpbin.org/patch"
-    -- unused <- ioPost HM.empty (method (vmVerb vm)) (vmUrl vm)
-
-step _ = vmDefault
-
-method :: String -> S8.ByteString
-method s = C8.pack s
-
-type Vars = HM.HashMap String String
-ioPost :: Vars -> HttpMethod -> Url -> IO Int
+type CodesMatch = Bool
+ioPost :: Vars -> HttpMethod -> Url -> IO CodesMatch
 ioPost _ methd url = do
     -- request' <- parseRequest (methd ++ url)
     request' <- parseRequest url
@@ -121,7 +140,7 @@ ioPost _ methd url = do
     print $ getResponseHeader "Content-Type" response
     C8.putStrLn $ Yaml.encode (getResponseBody response :: Value)
 
-    return 200
+    return False
 
 -- Virtual machine is final if previous state set it to be Terminal
 -- or if there's no [Instr] left.

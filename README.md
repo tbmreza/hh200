@@ -1,6 +1,6 @@
 # hh200
 summary: an imperative language that has first support for http requests
-extensions: .hhs, .hhir, 
+extensions: .hhs (script), .hhsm (machine code), .hhbc (machine code binary)
 features: formatter, interpreted or standalone bin,
     parse/export standard curl invocation, smart caching, some compatibility with hurl, 
     "declare header for every requests",
@@ -13,23 +13,26 @@ flags: hh200 hello.hhs --verbose, --no-cache, --version
 subcommands: hh200 check hello.hhs, build-portable, format, parse curl.txt, 
 env: SLUG=100 hh200 hello.hhs
 
-### hh200 check hello.hhs --dump > hello.hhir
+### hh200 check hello.hhs > hello.hhsm
 parse :: filepath -> ast
 
-### hh200 run hello.hhir
-eval :: ast -> env -> hhir
+### hh200 run hello.hhsm
+eval :: ast -> env -> hhsm
 
-## hhir
+## hhsm iset
 goal: assert a property of an http response
-instructions:
-    init verb (get),
-    init headers,
-    override verb,
-    override a header,
-    override expect_code,
-    revert headers,
-    set parametrized_url,
-    run,
+instructions: v, h, c, u (resource)  i, o, r, s (action)
+    IV: init verb get
+    IC: init expect_code
+    IH: init headers
+    OV: override verb (String)
+    OH: override a header (Map)
+    OC: override expect_code (Int)
+    RV: revert verb
+    RH: revert headers
+    RC: revert expect_code
+    SU: set parametrized_url (String)
+    X : run
 
 type HttpMethod = String
 mut VM {
@@ -44,7 +47,7 @@ mut VM {
 get, { "body": 12 }, headers, parametrized_url
 status_code, jsonpath
 
-### example hhir program
+### example hhsm program
 http://localhost:8787/product/1222/first
 
 
@@ -53,7 +56,7 @@ HTTP 201
 ....
 
 ```
-init verb (get)
+init verb get
 init expect_code 200
 
 set parametrized_url
@@ -71,4 +74,6 @@ run  vm.json_string <- response.body, vm.expect_code == response.code
 ```
 
 
-### hh200 build-portable hello.hhir -o hello.exe
+
+## Acknowledgments
+- https://github.com/glguy/toml-parser (ISC license)

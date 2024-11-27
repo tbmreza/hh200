@@ -3,18 +3,13 @@
 
 module Main where
 
-import           Data.Aeson            (Value)
-import qualified Data.ByteString       as S8
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.Yaml             as Yaml
-import qualified Data.Attoparsec.ByteString as A (Parser)
-import qualified Data.Attoparsec.ByteString.Char8 as AC8
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import           Options.Applicative
-import           System.IO (Handle, hIsEOF, withFile, IOMode(ReadMode), hGetLine)
 
-import           Vm (vmRun, vmFrom, Vm, vmDefault, Instr (..))
+-- import           Vm (vmRun, vmFrom, Vm, vmDefault, Instr (..))
+import           Vm
+import           Disk (load)
 
 data Args = Args
     { hello      :: String
@@ -47,90 +42,33 @@ main = cli =<< execParser opts
      <> header "Run hh200 scripts"
      )
 
--- module Disk
--- -- unit
--- -- hhsmParse :: FilePath -> [Instr]
--- -- vmFrom $ hhsmParse tmp.hhsm
---
-type HhsmSource = String
---
--- -- -- load "examples/hhsm/hello.hhsm"
-
-
-load :: HhsmSource -> IO [Instr]
-load path = withFile path ReadMode $ \handle -> do
-    processLines handle []
-
-parseLn :: String -> IO Instr
-parseLn line = do return NOP
-
-processLines :: Handle -> [Instr] -> IO [Instr]
-processLines handle acc = do
-    eof <- hIsEOF handle
-    if eof
-        then return (reverse acc)
-        else do
-            line <- hGetLine handle
-            parsed <- parseLn line
-            processLines handle (parsed : acc)
-
-            -- return $ parseLn line
-
-
--- processLines :: Handle -> IO ()
--- processLines handle = do
---     eof <- hIsEOF handle
---     if eof
---         then return ()
---         else do
---             line <- hGetLine handle
---             parseLn line
---             processLines handle
---
--- -- parseLn "IV\n"
--- parseLn :: String -> IO Instr
--- parseLn line = do
---  return NOP
-
-
-
--- module Disk
-
 cli :: Args -> IO ()
 -- ??:
--- sourcePath as main position arg
 -- theoretical max size of Vm interpreting infinitely long .hhs script
--- warn if file path doesn't end with .hhir
+-- logger
+-- unit "http://httpbin.org/patch"
 
--- hh200 run out.hhir
+-- hh200 compile --io examples/hello.hhs [--specs specs.aimfor.toml]
 cli (Args sourcePath False n) = do
-    instrs <- load sourcePath
-    vm <- vmFrom instrs
-    vmRun vm
-    -- putStrLn $ "Hellokkk, " ++ sourcePath ++ replicate n '!'
+    -- -- ok:
+    -- instrs <- load sourcePath
+    -- vm <- vmFrom instrs
+    -- vmRun vm
 
--- hh200 check examples/hello.hhs > out.hhir
+    -- overridePolicies |> vmFrom |> vm compile (|> if !io writeToDisk else vmRun)
+    --
+    -- overridePolicies :: CfgSource -> IO Policy
+    -- vmFrom :: Policy -> [Instr] -> IO Vm
+    -- vmCompile :: IO Vm -> HhsmTree
+    -- vmRun :: HhsmTree -> IO ()
+    putStrLn "hereeeok"
+
+-- hh200 interactive
 cli (Args sourcePath True n) = do
     putStrLn "hh200 check examples/hello.hhs > out.hhir"
 
-cli _ = return ()
+-- cli _ = return ()
 
-
-
-isWs :: Char -> Bool
-isWs ' ' = True
-isWs ',' = True
-isWs '\n' = True
-isWs '\r' = True
-isWs '\t' = True
-isWs _ = False
-
-ws :: A.Parser ()
-ws = AC8.skipWhile isWs
-
-comment :: A.Parser ()
-comment =
-    ws >> AC8.char '#' >> AC8.skipWhile (/= '\n')
 
 
 emptyMap :: HM.HashMap String Int
