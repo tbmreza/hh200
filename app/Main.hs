@@ -9,7 +9,8 @@ import           Options.Applicative
 
 -- import           Vm (vmRun, vmFrom, Vm, vmDefault, Instr (..))
 import           Vm
-import           Disk (load)
+-- import           Disk (load)
+import           Disk
 
 data Args = Args
     { hello      :: String
@@ -47,21 +48,29 @@ cli :: Args -> IO ()
 -- theoretical max size of Vm interpreting infinitely long .hhs script
 -- logger
 -- unit "http://httpbin.org/patch"
+-- prop: methods only invoked by fit states
 
 -- hh200 compile --io examples/hello.hhs [--specs specs.aimfor.toml]
 cli (Args sourcePath False n) = do
-    -- -- ok:
-    -- instrs <- load sourcePath
-    -- vm <- vmFrom instrs
-    -- vmRun vm
+    instrs <- parseHhs sourcePath
+    policy <- overridePolicies sourcePath
+    final <- vmRun $ vmFrom policy instrs
 
-    -- overridePolicies |> vmFrom |> vm compile (|> if !io writeToDisk else vmRun)
+    -- overridePolicies |> vmFrom |> vmCompile (|> if !io writeToDisk else vmRun)
     --
-    -- overridePolicies :: CfgSource -> IO Policy
-    -- vmFrom :: Policy -> [Instr] -> IO Vm
-    -- vmCompile :: IO Vm -> HhsmTree
-    -- vmRun :: HhsmTree -> IO ()
-    putStrLn "hereeeok"
+    --              Hhsm -> Vm -> ()
+    --            Policy ->
+    --     
+    -- Source -> [Instr] -> Vm -> ()
+    --            Policy ->
+    --
+    -- Hhsm and [Instr] not quite aliases because .hhbc
+    -- type Source = FilePath ending with .hhs
+    -- type UserCfg = FilePath ending with .toml
+    -- parseHhs :: Source -> IO [Instr]    overridePolicies :: CfgSource -> Policy
+    -- vmFrom :: Policy -> [Instr] -> Vm
+    -- vmRun :: IO Vm -> IO Vm
+    return ()
 
 -- hh200 interactive
 cli (Args sourcePath True n) = do
@@ -77,15 +86,10 @@ emptyMap = HM.empty
 
 type HttpCode = Int
 
-type HashTable k v = H.BasicHashTable k v
-
 type HttpVerb = String
-type Headers = HashTable String String
 
-hdrs :: IO Headers
-hdrs = do
-    tbl <- H.new
-    return tbl
+-- type HashTable k v = H.BasicHashTable k v
+-- type Headers = HashTable String String
 
 type Terminal = Bool
-type Url = String
+-- type Url = String

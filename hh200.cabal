@@ -25,7 +25,12 @@ executable hh200
         -- base ^>=4.17.2.0
         base ^>=4.19.1.0
       , bytestring
+      -- ??: may be too high level if lower http-* suffices
       , http-conduit
+      , http-types
+      , http-client
+      , http-client-tls
+
       , aeson
       , yaml
       , attoparsec
@@ -35,6 +40,5 @@ executable hh200
       , toml-parser
       , template-haskell
       , text
-      -- , llvm-codegen   -- doesn't install out of the box
     hs-source-dirs:   app
     default-language: GHC2021

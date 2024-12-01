@@ -25,6 +25,9 @@ locust:
 	# # Then, C2 is retried {max_retries_per_call} times.
 	# # Then, the whole index.hhs is run {max_reruns} more times.
 
+help:
+	cabal build -j4
+	dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --help
 
 debug:
 	cabal build -j4

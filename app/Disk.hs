@@ -3,6 +3,7 @@
 module Disk (
     load
   , Instr
+  , overridePolicies
 ) where
 
 -- import           Data.Aeson            (Value)

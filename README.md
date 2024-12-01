@@ -24,14 +24,13 @@ goal: assert a property of an http response
 instructions: v, h, c, u (resource)  i, o, r, s (action)
     IV: init verb get
     IC: init expect_code
-    IH: init headers
-    OV: override verb (String)
-    OH: override a header (Map)
-    OC: override expect_code (Int)
     RV: revert verb
     RH: revert headers
     RC: revert expect_code
+    OV: override verb (String)
+    OC: override expect_code (Int)
     SU: set parametrized_url (String)
+    SH: override a header (Map)
     X : run
 
 type HttpMethod = String

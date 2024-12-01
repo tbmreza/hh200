@@ -1,20 +1,34 @@
 {-# Language DuplicateRecordFields, OverloadedStrings #-}
 module Types where
 
-import qualified Data.ByteString as S8
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashTable.IO as H
+import qualified Data.ByteString as S
 import GHC.Generics (Generic)
 import Toml.Schema
+import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
 
-type HttpVerb = S8.ByteString
+type Source = FilePath  -- ??: ending with .hhs
+
+type HttpVerb = S.ByteString
+
+type HashTable k v = H.BasicHashTable k v
+type Headers = HashTable String String
+type ExpectCode = Int
+type Url = String
 
 data Instr
     = NOP
     | IV
     | IC
-    | IH
     | OV HttpVerb
+    | OC ExpectCode
+    | SU Url
+    | SH HeaderName [S.ByteString]  -- ??:
     | X
+
+-- setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
+-- let hlInput = setRequestHeader "Content-Type" ["application/x-yaml"] $ ""
 
 type Vars = HM.HashMap String Integer
 
