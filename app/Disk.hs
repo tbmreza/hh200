@@ -1,23 +1,17 @@
 {-# Language OverloadedStrings #-}
 
-module Disk (
-    load
-  , Instr
-  , overridePolicies
-) where
+module Disk where
+-- module Disk (
+--     load
+--   , Instr
+--   , overridePolicies
+-- ) where
 
--- import           Data.Aeson            (Value)
--- import qualified Data.ByteString       as S8
--- import qualified Data.ByteString.Char8 as C8
--- import qualified Data.Yaml             as Yaml
--- import           System.IO (Handle, hIsEOF, withFile, IOMode(ReadMode), hGetLine)
 import           System.IO
--- import Types (Instr (..))
 import Types
 
 import qualified Data.Attoparsec.ByteString as A (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as AC8
--- import Toml (decode)
 import Toml
 -- import QuoteStr (quoteStr)
 import Language.Haskell.TH (Exp(LitE), ExpQ, Lit(StringL))
@@ -26,14 +20,26 @@ import Data.List ( stripPrefix )
 import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 
--- -- unit
--- -- hhsmParse :: FilePath -> [Instr]
--- -- vmFrom $ hhsmParse tmp.hhsm
---
+import System.Log.FastLogger
+import System.Log.FastLogger.Date
+import Control.Monad (forM_)
+import Control.Concurrent (threadDelay)
+import Data.Time.LocalTime (getZonedTime)
+
+-- Function to set up and create a logger
+-- ??: better lib https://github.com/freckle/blammo/tree/main/Blammo
+setupLogger :: IO LoggerSet
+setupLogger = do
+    -- Create a logger that writes to a file with log rotation
+    loggerSet <- newFileLoggerSet defaultBufSize "./logs/app.log"
+    
+    -- -- Optional: Add a date formatter
+    -- dateTimeFormatter <- newDateFormatter "%Y-%m-%d %H:%M:%S"
+    
+    return loggerSet
+
 type HhsmSource = FilePath
 type CfgSource = FilePath  -- prop: "ends with .toml"
---
--- -- -- load "examples/hhsm/hello.hhsm"
 
 
 load :: HhsmSource -> IO [Instr]

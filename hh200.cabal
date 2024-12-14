@@ -1,44 +1,107 @@
 cabal-version:      3.4
 name:               hh200
-version:            0.1.0.0
--- synopsis:
--- description:
+version:            0.0.1
 license:            MIT
 license-file:       LICENSE
 author:             Reza
 maintainer:         rezahandzalah@gmail.com
--- copyright:
 category:           Language
 build-type:         Simple
--- extra-doc-files:    CHANGELOG.md
--- extra-source-files:
 
-common warnings
-    ghc-options: -Wall
+common settings
+    default-language:       GHC2021
+    default-extensions:     OverloadedStrings
+    ghc-options:            -Wall
+    build-depends:          base ^>=4.19.1.0
+                          , aeson
+                          , yaml
+                          , hashtables
+                          , toml-parser
+                          , http-types
+                          , http-conduit
+                          , http-client
+                          , http-client-tls
+                          , bytestring
+                          , unordered-containers
 
+library
+    import:             settings
+    exposed-modules:    Hh200.Cli
+                      , Hh200.Vm
+                      , Hh200.Types
+    hs-source-dirs:     app
+    -- ??
+    build-depends:      optparse-applicative
+                      -- , aeson
+
+-----------
+--  CLI  --
+-----------
 executable hh200
-    import:           warnings
+    import:           settings
     main-is:          Main.hs
-    other-modules:    Types, Vm, Disk
+    other-modules:    Types, Vm, Disk, Paths_hh200
     -- other-extensions:
     build-depends:
-        -- base ^>=4.17.2.0
-        base ^>=4.19.1.0
-      , bytestring
+        -- -- base ^>=4.17.2.0
+        -- base ^>=4.19.1.0
+      -- , bytestring
       -- ??: may be too high level if lower http-* suffices
-      , http-conduit
-      , http-types
-      , http-client
-      , http-client-tls
+      -- , http-types
+      -- , http-conduit
+      -- , http-client
+      -- , http-client-tls
 
-      , aeson
-      , yaml
+      -- , yaml
       , attoparsec
-      , unordered-containers
+      -- , unordered-containers
       , optparse-applicative
-      , hashtables
-      , toml-parser
+      -- , hashtables
+      -- , toml-parser
       , template-haskell
       , text
+      , fast-logger
+      , time
     hs-source-dirs:   app
-    default-language: GHC2021
+
+------------------
+--  test-suite  --
+------------------
+test-suite hh200-test
+    -- Import common warning flags.
+    import:           settings
+
+    -- Base language which the package is written in.
+    -- default-language: GHC2021
+
+    -- Modules included in this executable, other than Main.
+    other-modules:    Paths_hh200
+                    , Hh200.Cli
+                    , Hh200.Vm
+                    , Hh200.Types
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+
+    -- The interface type and version of the test suite.
+    type:             exitcode-stdio-1.0
+
+    -- Directories containing source files.
+    hs-source-dirs:   test
+                    -- ??: exclude when hh200 is published
+                    , app
+
+    -- The entrypoint to the test suite.
+    main-is:          Main.hs
+
+    -- Test dependencies.
+    build-depends:
+        base ^>=4.19.1.0
+      , hh200
+      , tasty
+      , tasty-golden
+      , bytestring
+      , tasty-hunit
+      -- ??
+      , optparse-applicative
+    -- build-depends:      optparse-applicative

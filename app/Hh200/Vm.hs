@@ -1,14 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-
-module Vm (
-    Instr (..),
-    Vm,
-    step,
-    parseHhs,
-    vmDefault,
-    vmFrom,
-    vmRun
-) where
+module Hh200.Vm where
 
 import Control.Monad (unless)
 import           Data.Aeson            (Value)
@@ -18,17 +8,14 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.Yaml             as Yaml
 import           Network.HTTP.Simple
 -- import Types (Instr (..))
-import Types
+import Hh200.Types
 
 import qualified Network.HTTP.Client as H
--- import qualified Network.HTTP.Client.TLS as H
--- import qualified Network.HTTP.Types as H
 
-type HttpMethod = S8.ByteString  -- "get" "post"
+type HttpMethod = S8.ByteString  -- "GET" "POST"
 -- type ExpectCode = Int
 type Terminal = Bool
-type Vm = (HttpVerb, RequestHeaders, Url, ExpectCode, [Instr], Terminal)  -- ??
--- type Vm = (HttpVerb, Url, ExpectCode, [Instr], Terminal)
+type Vm = (HttpVerb, RequestHeaders, Url, ExpectCode, [Instr], Terminal)
 
 class VmT a where
     setTerminal :: IO a -> IO a
@@ -40,6 +27,7 @@ class VmT a where
     setParametrizedUrl :: IO a -> Url -> IO a
     executeVerb :: IO a -> IO a
     httpClientCall :: IO a -> IO (CodesMatch, a)
+    hcc :: IO a -> IO (CodesMatch, a)
 
 instance VmT Vm where
     setTerminal ioVm = do
@@ -79,24 +67,41 @@ instance VmT Vm where
     -- setRequestHeaders x req = req { H.requestHeaders = x }
 
     -- Objective: http://localhost:8787/product/1222/first
-    -- with ("get", [], url, 200, X : rest, False)
+    -- with ("GET", [], url, 200, X : rest, False)
+    --
+    -- State progression handled at callsite.
+
+    hcc ioVm = do
+        (verb, headers, url, expectCode, instrs, terminal) <- ioVm
+        build <- parseRequest url
+        let req = build { H.method = verb
+                        -- , H.requestBody = RequestBodyLBS $ encode requestObject
+                        , H.requestHeaders = headers
+                        }
+
+        resp <- httpLBS req
+        -- putStrLn $ show req
+
+        next <- ioVm
+        return (getResponseStatusCode resp == expectCode, next)
+
     httpClientCall ioVm = do
         (verb, headers, url, expectCode, instrs, terminal) <- ioVm
         build <- parseRequest url
         let req = build
                 {
-                H.method = verb,
+                H.method = verb
                 -- , H.requestBody = RequestBodyLBS $ encode requestObject
                 -- ,
-                H.requestHeaders = headers
+
+                , H.requestHeaders = headers
+
                 -- H.requestHeaders = [ ("Content-Type", "application/json; charset=utf-8") ]
                 }
         -- Script isn't always expressing concerns about responses that it is receiving, so
         -- we're picking lazy ByteString on the assumption that it gives better performance
         -- on average than the strict one. Probably we'll end up providing both (or neither).
         performed <- httpLBS req
-
-        let codesMatch = expectCode == getResponseStatusCode performed
 
         -- let hlInput = setRequestHeader "Content-Type" ["application/x-yaml"] $ ""
         --
@@ -116,12 +121,15 @@ instance VmT Vm where
         --
         --         next <- popInstr ioVm
         --         return $ (getResponseStatusCode resp == expectCode, next)
-        next <- popInstr ioVm
-        return (codesMatch, next)
+        -- next <- popInstr ioVm
+        -- next <- popInstr ioVm
+        next <- ioVm
+        return (getResponseStatusCode performed == expectCode, next)
 
     -- Whether state's ExpectCode matches actual response's status code.
 
     -- Execute machine's state.
+    -- popInstr on success and continue, otherwise stop everything gracefully
     executeVerb ioVm = do
         -- Whether state is fit for httpClientCall.
         (e0, e1, e2, e3, instrs, e5) <- ioVm
@@ -173,12 +181,12 @@ hreg _ = ()
 
 
 vmDefault :: IO Vm
-vmDefault = do return ("get", [], "", 200, [], False)
+vmDefault = do return ("GET", [], "", 200, [], False)
 
 vmFrom :: Policy -> [Instr] -> IO Vm
 vmFrom Policy { maxReruns, maxRetriesPerCall, timeMillisPerCall } instrs = do
-    return ("get", [], "", 200, [], False)
-    -- return ("get", [], "", 200, instrs, False)
+    return ("GET", [], "", 200, [], False)
+    -- return ("GET", [], "", 200, instrs, False)
 
 -- Progress by executing top Instr.
 step :: IO Vm -> IO Vm
@@ -190,7 +198,7 @@ step ioVm = do
             vmDefault
         Just instr -> go instr where
             go NOP    = popInstr ioVm
-            go IV     = setVerb ioVm "get"
+            go IV     = setVerb ioVm "GET"
             go IC     = setExpectCode ioVm 200
             go (OV s) = setVerb ioVm s
             go (OC s) = setExpectCode ioVm s

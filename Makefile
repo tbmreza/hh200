@@ -1,3 +1,7 @@
+reg:
+	cabal test
+	cabal run -j4 hh200 -- --version
+
 test:
 	hh200 compile --io examples/hello.hhs [--policies specs.aimfor.toml]        # prints warnings to std err, or test on the outside world (dynamically-checked programming style) [override policies]
 	hh200 compile examples/index.hhs [--policies specs.aimfor.toml] > out.hhsm  # prints warnings to std err [override policies], or hhsm source to std out (indirectable)
@@ -29,7 +33,11 @@ help:
 	cabal build -j4
 	dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --help
 
-debug:
-	cabal build -j4
-	# dist-newstyle/build/x86_64-linux/ghc-9.4.7/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --hello examples/hhsm/hello.hhsm --enthusiasm 3
-	dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --hello examples/hhsm/hello.hhsm --enthusiasm 3
+download:
+	cabal run -j4 hh200 -- --hello examples/debug.hhs download https://httpbin.org/latest.apk
+
+run:
+	cabal run -j4 hh200 -- examples/debug.hhs
+
+# # dist-newstyle/build/x86_64-linux/ghc-9.4.7/...
+# dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --hello examples/debug.hhs
