@@ -1,12 +1,15 @@
 {-# Language DuplicateRecordFields #-}
 module Hh200.Types where
 
+import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import qualified Data.ByteString as S
 import GHC.Generics (Generic)
 import Toml.Schema
 import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
+
+type HttpMethod = S8.ByteString  -- "GET" "POST"
 
 type Source = FilePath  -- ??: ending with .hhs
 

@@ -13,6 +13,8 @@ common settings
     default-extensions:     OverloadedStrings
     ghc-options:            -Wall
     build-depends:          base ^>=4.19.1.0
+                          , base-compat
+                          , text
                           , aeson
                           , yaml
                           , hashtables
@@ -59,7 +61,7 @@ executable hh200
       -- , hashtables
       -- , toml-parser
       , template-haskell
-      , text
+      -- , text
       , fast-logger
       , time
     hs-source-dirs:   app
@@ -100,7 +102,7 @@ test-suite hh200-test
       , hh200
       , tasty
       , tasty-golden
-      , bytestring
+      -- , bytestring
       , tasty-hunit
       -- ??
       , optparse-applicative
