@@ -72,18 +72,16 @@ downstream = do
     let reply = Coord { x = 123.4, y = 20 }
     BS.putStrLn (encode reply)
 
-
 class VmT a where
     setTerminal :: IO a -> IO a
-    -- peekInstr :: IO a -> IO Instr
     peekInstr :: IO a -> IO (Maybe Instr)
-    popInstr :: IO a -> IO a
+    -- popInstr :: IO a -> IO a
+    popInstr :: IO a -> IO (Maybe InternalError, a)
     setVerb :: IO a -> HttpVerb -> IO a
     setExpectCode :: IO a -> ExpectCode -> IO a
     setParametrizedUrl :: IO a -> Url -> IO a
     executeVerb :: IO a -> IO a
     httpClientCall :: IO a -> IO (CodesMatch, a)
-    -- hcc :: IO a -> IO (CodesMatch, a)
 
 instance VmT Vm where
     setTerminal ioVm = do
@@ -110,11 +108,17 @@ instance VmT Vm where
 
     popInstr ioVm = do
         (e0, e1, e2, e3, e4, instrs, e6) <- ioVm
-        return (e0, e1, e2, e3, e4, tail instrs, e6)  -- ??: warn unreachable partial fn tail
 
-    -- ??: httpClientCall type signature may communicate the Vm instances that are
-    -- interested in invoking HTTP calls.
-    --
+        return $ case instrs of
+            -- has err: no tail
+            [] -> (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
+            _ -> (Nothing, (e0, e1, e2, e3, e4, tail instrs, e6))
+
+    -- popInstr ioVm = do
+    --     (e0, e1, e2, e3, e4, instrs, e6) <- ioVm
+    --     return (e0, e1, e2, e3, e4, tail instrs, e6)
+
+
     -- (_, _, _, X : rest, False)
     -- setRequestMethod :: S.ByteString -> H.Request -> H.Request
     -- setRequestMethod x req = req { H.method = x }
@@ -153,6 +157,7 @@ instance VmT Vm where
 
     -- Execute machine's state.
     -- popInstr on success and continue, otherwise stop everything gracefully
+    -- ??: unfit state is an error, communicate that
     executeVerb ioVm = do
         -- Whether state is fit for httpClientCall.
         (e0, e1, e2, e3, e4, instrs, e6) <- ioVm
@@ -163,45 +168,9 @@ instance VmT Vm where
                 return next
             _ -> do
                 putStrLn "todo warn: should be unreachable"
-                next <- popInstr ioVm
+                -- next <- popInstr ioVm
+                (_, next) <- popInstr ioVm
                 return next
-
--- hreqy :: Maybe H.Request
--- hreqy = Just defaultRequest
-hreg :: H.Request -> ()
--- hreg _ = ()
-hreg _ = ()
--- hreqy = Just H.Request
---         { host = "localhost"
---         , port = 80
---         , secure = False
---         , requestHeaders = []
---         , path = "/"
---         , queryString = S8.empty
---         , requestBody = RequestBodyLBS L.empty
---         , method = "GET"
---         , proxy = Nothing
---         , hostAddress = Nothing
---         , rawBody = False
---         , decompress = browserDecompress
---         , redirectCount = 10
---         , checkResponse = \_ _ -> return ()
---         , responseTimeout = ResponseTimeoutDefault
---         , cookieJar = Just Data.Monoid.mempty
---         , requestVersion = W.http11
---         , onRequestBodyException = \se ->
---             case E.fromException se of
---                 Just (_ :: IOException) -> return ()
---                 Nothing -> throwIO se
---         , requestManagerOverride = Nothing
---         , shouldStripHeaderOnRedirect = const False
---         , shouldStripHeaderOnRedirectIfOnDifferentHostOnly = False
---         , proxySecureMode = ProxySecureWithConnect
---         , redactHeaders = Set.singleton "Authorization"
---         , earlyHintHeadersReceived = \_ -> return ()
---         }
-
-
 
 vmDefault :: IO Vm
 vmDefault = do return ("GET", [], "", "", 200, [], False)
@@ -219,12 +188,14 @@ step ioVm = do
             putStrLn "todo warn: bunreachable"
             vmDefault
         Just instr -> go instr where
-            go NOP    = popInstr ioVm
-            go IV     = setVerb ioVm "GET"
-            go IC     = setExpectCode ioVm 200
-            go (OV s) = setVerb ioVm s
-            go (OC s) = setExpectCode ioVm s
-            go (SU s) = setParametrizedUrl ioVm s
+            go IV     = setVerb ioVm "GET"         -- infallible
+            go IC     = setExpectCode ioVm 200     -- infallible
+            go (OV s) = setVerb ioVm s             -- infallible
+            go (OC s) = setExpectCode ioVm s       -- infallible
+            go (SU s) = setParametrizedUrl ioVm s  -- infallible
+            go NOP    = do
+                (_, next) <- popInstr ioVm
+                return next
             go X      = executeVerb ioVm
 
 type CodesMatch = Bool
@@ -258,24 +229,8 @@ isFinal (_, _, _, _, _, _, True) = True
 isFinal (_, _, _, _, _, [], _) = True
 isFinal _ = False
 
--- vmRun :: Vm -> IO ()
--- vmRun vm = do
---     putStrLn "todo run"
-
--- isFinalk :: IO Vm -> IO Bool
--- isFinalk ioVm = do
---     (_, _, _, _, instrs, terminal) <- ioVm
---     return $ case (instrs, terminal) of
---         (_, True) -> True
---         ([], _) -> True
---         _ -> False
-
 parseHhs :: Source -> IO [Instr]
 parseHhs _ = do
-    -- ??:
-    -- POST http://httpbin.org/anything; HTTP 201
-    -- return [SV, SU "http://httpbin.org/anything", SC, X] where X next is clean if not terminal
-
     let sourceNotValid = False
     if sourceNotValid
         then do
@@ -291,7 +246,9 @@ parseHhs _ = do
 
 vmRun :: IO Vm -> IO Vm
 vmRun ioVm = do
+    -- PICKUP if err throw exception
+    -- (err, state) <- step ioVm
     state <- step ioVm
     if isFinal state
-        then do return state
-        else vmRun $ do return state
+        then return state
+        else vmRun $ return state

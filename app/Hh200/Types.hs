@@ -9,6 +9,9 @@ import GHC.Generics (Generic)
 import Toml.Schema
 import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
 
+data InternalError = OutOfBounds
+    deriving (Show, Eq)
+
 type HttpMethod = S8.ByteString  -- "GET" "POST"
 
 type Source = FilePath  -- ??: ending with .hhs
