@@ -6,6 +6,8 @@ module Hh200.Vm where
 import Prelude.Compat
 import GHC.Generics (Generic)
 
+import Control.Exception (Exception, throwIO)
+
 import Control.Monad (unless)
 import           Data.Aeson            (FromJSON, ToJSON, Value, eitherDecode, encode, decode)
 import qualified Data.HashMap.Strict   as HM
@@ -74,23 +76,29 @@ downstream = do
 
 class VmT a where
     setTerminal :: IO a -> IO a
-    peekInstr :: IO a -> IO (Maybe Instr)
-    -- popInstr :: IO a -> IO a
-    popInstr :: IO a -> IO (Maybe InternalError, a)
-    setVerb :: IO a -> HttpVerb -> IO a
+    peekInstr :: a -> Maybe Instr
+    -- peekInstr :: IO a -> IO (Maybe Instr)
+    popInstr :: a -> (Maybe InternalError, a)
+    setVerb :: a -> HttpVerb -> a
+    -- setVerb :: IO a -> HttpVerb -> IO a
     setExpectCode :: IO a -> ExpectCode -> IO a
     setParametrizedUrl :: IO a -> Url -> IO a
-    executeVerb :: IO a -> IO a
-    httpClientCall :: IO a -> IO (CodesMatch, a)
+    -- executeVerb :: IO a -> IO a
+    executeVerb :: a -> IO (Maybe InternalError, a)
+    -- httpClientCall :: IO a -> IO (CodesMatch, a)
+    httpClientCall :: a -> IO (CodesMatch, a)
 
 instance VmT Vm where
     setTerminal ioVm = do
         (e0, e1, e2, e3, e4, e5, _) <- ioVm
         return (e0, e1, e2, e3, e4, e5, True)
 
-    setVerb ioVm v = do
-        (_, e1, e2, e3, e4, e5, e6) <- ioVm
-        return (v, e1, e2, e3, e4, e5, e6)
+    setVerb (_, e1, e2, e3, e4, e5, e6) v =
+        (v, e1, e2, e3, e4, e5, e6)
+
+    -- setVerb ioVm v = do
+    --     (_, e1, e2, e3, e4, e5, e6) <- ioVm
+    --     return (v, e1, e2, e3, e4, e5, e6)
 
     setParametrizedUrl ioVm u = do
         (e0, e1, _, e3, e4, e5, e6) <- ioVm
@@ -100,24 +108,15 @@ instance VmT Vm where
         (e0, e1, e2, e3, _, e5, e6) <- ioVm
         return (e0, e1, e2, e3, c, e5, e6)
 
-    peekInstr ioVm = do
-        (_, _, _, _, _, instrs, _) <- ioVm
-        return $ case instrs of
+    peekInstr (_, _, _, _, _, instrs, _) =
+        case instrs of
             [] -> Nothing
             instrs -> Just $ head instrs
 
-    popInstr ioVm = do
-        (e0, e1, e2, e3, e4, instrs, e6) <- ioVm
-
-        return $ case instrs of
-            -- has err: no tail
+    popInstr (e0, e1, e2, e3, e4, instrs, e6) = do
+        case instrs of
             [] -> (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
             _ -> (Nothing, (e0, e1, e2, e3, e4, tail instrs, e6))
-
-    -- popInstr ioVm = do
-    --     (e0, e1, e2, e3, e4, instrs, e6) <- ioVm
-    --     return (e0, e1, e2, e3, e4, tail instrs, e6)
-
 
     -- (_, _, _, X : rest, False)
     -- setRequestMethod :: S.ByteString -> H.Request -> H.Request
@@ -129,12 +128,9 @@ instance VmT Vm where
     -- Objective: http://localhost:8787/product/1222/first
     -- with ("GET", [], url, 200, X : rest, False)
     --
-    -- State progression handled at callsite.
 
-    -- hcc ioVm = do
-    httpClientCall ioVm = do
-        (verb, headers, url, raw, expectCode, instrs, terminal) <- ioVm
-        -- (verb, headers, url, expectCode, instrs, terminal) <- ioVm
+    -- State progression handled at callsite.
+    httpClientCall (verb, headers, url, raw, expectCode, instrs, terminal) = do
         build <- parseRequest url
         let req = build { H.method = verb
                         -- , H.requestBody = RequestBodyLBS $ encode requestObject
@@ -142,9 +138,6 @@ instance VmT Vm where
                         -- H.requestHeaders = [ ("Content-Type", "application/json; charset=utf-8") ]
                         , H.requestHeaders = headers
                         }
-
-        -- putStrLn $ show req
-
         -- Script isn't always expressing concerns about responses that it is receiving, so
         -- we're picking lazy ByteString on the assumption that it gives better performance
         -- on average than the strict one. Probably we'll end up providing both (or neither).
@@ -152,25 +145,52 @@ instance VmT Vm where
 
         putStrLn $ BS.unpack $ getResponseBody resp
 
-        next <- ioVm
-        return (getResponseStatusCode resp == expectCode, next)
+        -- next <- ioVm
+        return (getResponseStatusCode resp == expectCode, (verb, headers, url, raw, expectCode, instrs, terminal))
 
-    -- Execute machine's state.
-    -- popInstr on success and continue, otherwise stop everything gracefully
-    -- ??: unfit state is an error, communicate that
-    executeVerb ioVm = do
-        -- Whether state is fit for httpClientCall.
-        (e0, e1, e2, e3, e4, instrs, e6) <- ioVm
-        case (e0, e1, e2, e3, e4, instrs, e6) of
-            -- The only caller at the moment is `step ioVm`.
-            (e0, e1, e2, e3, e4, _xHeaded, False) -> do
-                (codesMatch, next) <- httpClientCall ioVm
-                return next
+    -- httpClientCall ioVm = do
+    --     (verb, headers, url, raw, expectCode, instrs, terminal) <- ioVm
+    --     -- (verb, headers, url, expectCode, instrs, terminal) <- ioVm
+    --     build <- parseRequest url
+    --     let req = build { H.method = verb
+    --                     -- , H.requestBody = RequestBodyLBS $ encode requestObject
+    --                     , H.requestBody = RequestBodyLBS raw
+    --                     -- H.requestHeaders = [ ("Content-Type", "application/json; charset=utf-8") ]
+    --                     , H.requestHeaders = headers
+    --                     }
+    --
+    --     -- putStrLn $ show req
+    --
+    --     -- Script isn't always expressing concerns about responses that it is receiving, so
+    --     -- we're picking lazy ByteString on the assumption that it gives better performance
+    --     -- on average than the strict one. Probably we'll end up providing both (or neither).
+    --     resp <- httpLBS req
+    --
+    --     putStrLn $ BS.unpack $ getResponseBody resp
+    --
+    --     next <- ioVm
+    --     return (getResponseStatusCode resp == expectCode, next)
+
+
+    -- popInstr to bump state on success, otherwise also do required housekeeping.
+    --
+    executeVerb (e0, e1, e2, e3, e4, instr:rest, e6) = do
+        case instr of
+            X -> do
+                called <- httpClientCall (e0, e1, e2, e3, e4, instr:rest, e6)
+                triage called
             _ -> do
-                putStrLn "todo warn: should be unreachable"
-                -- next <- popInstr ioVm
-                (_, next) <- popInstr ioVm
-                return next
+                return (Just Todo, (e0, e1, e2, e3, e4, instr:rest, e6))
+
+            where
+                triage (True, state)  = do
+                    return $ popInstr state
+
+                triage (False, state)  = do
+                    -- ??: some housekeeping on unexpected http response
+                    return $ popInstr state
+
+    executeVerb (e0, e1, e2, e3, e4, [], e6) = return (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
 
 vmDefault :: IO Vm
 vmDefault = do return ("GET", [], "", "", 200, [], False)
@@ -179,24 +199,60 @@ vmFrom :: Policy -> [Instr] -> IO Vm
 vmFrom Policy { maxReruns, maxRetriesPerCall, timeMillisPerCall } instrs = do
     return ("GET", [], "", "", 200, [], False)
 
--- Progress by executing top Instr.
-step :: IO Vm -> IO Vm
+step :: IO Vm -> IO (Maybe InternalError, Vm)
 step ioVm = do
-    peeked <- peekInstr ioVm
-    case peeked of
-        Nothing -> do
-            putStrLn "todo warn: bunreachable"
-            vmDefault
+    state <- ioVm
+    case peekInstr state of
+        Nothing ->
+            -- Should have been unreachable.
+            return (Just OutOfBounds, state)
         Just instr -> go instr where
-            go IV     = setVerb ioVm "GET"         -- infallible
-            go IC     = setExpectCode ioVm 200     -- infallible
-            go (OV s) = setVerb ioVm s             -- infallible
-            go (OC s) = setExpectCode ioVm s       -- infallible
-            go (SU s) = setParametrizedUrl ioVm s  -- infallible
-            go NOP    = do
-                (_, next) <- popInstr ioVm
-                return next
-            go X      = executeVerb ioVm
+            go IV =
+                return (ok, setVerb state "GET")
+            go NOP =
+                return $ popInstr state
+            go X =
+                executeVerb state
+            go _ =
+                return (Just Todo, state)
+
+    -- return (Nothing, setVerbk state "POST")
+
+    -- peeked <- peekInstr ioVm
+    -- case peeked of
+    --     Nothing -> do
+    --         putStrLn "todo warn: bunreachable"
+    --         vmDefault
+    --     Just instr -> go instr where
+    --         go IV     = setVerb ioVm "GET"         -- infallible
+    --         go IC     = setExpectCode ioVm 200     -- infallible
+    --         go (OV s) = setVerb ioVm s             -- infallible
+    --         go (OC s) = setExpectCode ioVm s       -- infallible
+    --         go (SU s) = setParametrizedUrl ioVm s  -- infallible
+    --         go NOP    = do
+    --             (_, next) <- popInstr ioVm
+    --             return next
+    --         go X      = executeVerb ioVm
+
+-- -- Progress by executing top Instr.
+-- step :: IO Vm -> IO Vm
+-- step ioVm = do
+--     peeked <- peekInstr ioVm
+--     case peeked of
+--         Nothing -> do
+--             putStrLn "todo warn: bunreachable"
+--             vmDefault
+--         Just instr -> go instr where
+--             go IV     = setVerb ioVm "GET"         -- infallible
+--             go IC     = setExpectCode ioVm 200     -- infallible
+--             go (OV s) = setVerb ioVm s             -- infallible
+--             go (OC s) = setExpectCode ioVm s       -- infallible
+--             go (SU s) = setParametrizedUrl ioVm s  -- infallible
+--             go NOP    = do
+--                 (_, next) <- popInstr ioVm
+--                 return next
+--             go X      = executeVerb ioVm
+
 
 type CodesMatch = Bool
 ioPost :: Vars -> HttpMethod -> Url -> IO CodesMatch
@@ -238,17 +294,11 @@ parseHhs _ = do
             return []
         else do return [SU "http://httpbin.org/anything", X]
 
--- untilIO :: (a -> IO Bool) -> (a -> a) -> a -> a
--- untilIO p f = go
---   where
---     go x | p x          = x
---          | otherwise    = go (f x)
-
 vmRun :: IO Vm -> IO Vm
 vmRun ioVm = do
-    -- PICKUP if err throw exception
-    -- (err, state) <- step ioVm
-    state <- step ioVm
-    if isFinal state
-        then return state
-        else vmRun $ return state
+    (err, state) <- step ioVm
+    case err of
+        Just _ -> throwIO TerribleException
+        Nothing -> if isFinal state
+            then return state
+            else vmRun $ return state

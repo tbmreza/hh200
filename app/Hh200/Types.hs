@@ -8,9 +8,17 @@ import qualified Data.ByteString as S
 import GHC.Generics (Generic)
 import Toml.Schema
 import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
+import Control.Exception (Exception, throwIO)
 
 data InternalError = OutOfBounds
+                   | Todo
     deriving (Show, Eq)
+ok :: Maybe a
+ok = Nothing
+
+data TerribleException = TerribleException deriving (Show)
+-- newtype TerribleException = TerribleException String deriving (Show)
+instance Exception TerribleException
 
 type HttpMethod = S8.ByteString  -- "GET" "POST"
 

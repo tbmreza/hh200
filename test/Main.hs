@@ -37,46 +37,47 @@ goldenTest = goldenVsString "Process Data Test" "test/golden/version.golden" $ d
     let input = "example"
     return $ processData input
 
-t1 :: TestTree
-t1 = testCase "POST with body" $ do
-    echo <- preloadGet
-    res <- httpClientCall preloadGet
-    let expected = (True, echo)
-    let actual = res
-    assertEqual "" expected actual where
-        preloadGet :: IO Vm
-        preloadGet = do return ("POST", [], "http://localhost:9999/router.php", "body string...", 200, [X], False)
-
-t2 :: TestTree
-t2 = testCase "Get 200 from httpbin." $ do
-    echo <- preloadGet
-    res <- httpClientCall preloadGet
-    let expected = (True, echo)
-    let actual = res
-    assertEqual "" expected actual where
-        preloadGet :: IO Vm
-        -- preloadGet = do return ("GET", [], "http://httpbin.org/anything", "", 200, [X], False)
-        -- preloadGet = do return ("GET", [], "http://localhost:9999", "", 404, [X], False)
-        preloadGet = do return ("GET", [], "http://httpbin.org/get", "", 200, [X], False)
-
-t3 :: TestTree
-t3 = testCase "fallible vm method: popInstr success" $ do
-    let input = do return    ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [X], False) :: IO Vm
-    actual <- popInstr input
-    let expected = (Nothing, ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [], False))
-
-    assertEqual "" expected actual
-
-t4 :: TestTree
-t4 = testCase "fallible vm method: popInstr error" $ do
-    actual <- popInstr unfitVm  -- ??: if this is lazy
-    -- expect unchanged next and error message
-    inner <- unfitVm
-    let expected = (Just OutOfBounds, inner)
-
-    assertEqual "" expected actual where
-        unfitVm :: IO Vm
-        unfitVm = do return ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [], False)
+-- -- ??: unwrap httpClientCall
+-- t1 :: TestTree
+-- t1 = testCase "POST with body" $ do
+--     echo <- preloadGet
+--     res <- httpClientCall preloadGet
+--     let expected = (True, echo)
+--     let actual = res
+--     assertEqual "" expected actual where
+--         preloadGet :: IO Vm
+--         preloadGet = do return ("POST", [], "http://localhost:9999/router.php", "body string...", 200, [X], False)
+--
+-- t2 :: TestTree
+-- t2 = testCase "Get 200 from httpbin." $ do
+--     echo <- preloadGet
+--     res <- httpClientCall preloadGet
+--     let expected = (True, echo)
+--     let actual = res
+--     assertEqual "" expected actual where
+--         preloadGet :: IO Vm
+--         -- preloadGet = do return ("GET", [], "http://httpbin.org/anything", "", 200, [X], False)
+--         -- preloadGet = do return ("GET", [], "http://localhost:9999", "", 404, [X], False)
+--         preloadGet = do return ("GET", [], "http://httpbin.org/get", "", 200, [X], False)
+--
+-- t3 :: TestTree
+-- t3 = testCase "fallible vm method: popInstr success" $ do
+--     let input = do return    ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [X], False) :: IO Vm
+--     actual <- popInstr input
+--     let expected = (Nothing, ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [], False))
+--
+--     assertEqual "" expected actual
+--
+-- t4 :: TestTree
+-- t4 = testCase "fallible vm method: popInstr error" $ do
+--     actual <- popInstr unfitVm  -- ??: if this is lazy
+--     -- expect unchanged next and error message
+--     inner <- unfitVm
+--     let expected = (Just OutOfBounds, inner)
+--
+--     assertEqual "" expected actual where
+--         unfitVm :: IO Vm
+--         unfitVm = do return ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [], False)
 
 unitTests :: TestTree
 -- unitTests = testGroup "Unit tests" [t1, t2, t3, t4]
