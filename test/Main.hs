@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Exception
 import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
@@ -19,12 +20,37 @@ main = defaultMain tests
 -- 1. `vmRun`ning a successful `toVm` output must be guaranteed. In other words, Vm module implements
 --    internal error type thrown as an exception that's impossible to trigger by any user scripts.
 -- 2. `toVm` failure communicates what the compiler sees problematic about its input.
-t0 :: TestTree
-t0 = testCase "case fails if vmRun throws" $ do
-    let input = do return    ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [X], False) :: IO Vm
-    _ <- vmRun input
-    return ()
--- ??: tasty assert correct exception is thrown "vmRun throws expected exception"
+
+p1 :: TestTree
+p1 = testGroup "vmRun may throw" [
+
+    testCase "vmRun non-throw" $ do
+        let runnable = ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [X], False)
+        result <- try (vmRun runnable) :: IO (Either TerribleException Vm)
+        case result of
+            Right _ -> assertBool "" True
+            Left _ -> assertFailure ""
+
+  , testCase "vmRun throws" $ do
+        result <- try (vmRun ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [], False)) :: IO (Either TerribleException Vm)
+        case result of
+            Left _ -> assertBool "" True  -- ??: show the exception
+            Right _ -> assertFailure ""
+
+        return ()
+    ]
+
+p2 :: TestTree
+p2 = testGroup "reliable toVm" [
+
+    testCase "valid user script" $ do
+        case True of
+            True -> assertBool "" True
+            False -> assertFailure ""
+
+  , testCase "invalid user script" $ do
+        return ()
+    ]
 
 tests :: TestTree
 tests = testGroup "Tests" [goldenTest, unitTests]
@@ -37,7 +63,6 @@ goldenTest = goldenVsString "Process Data Test" "test/golden/version.golden" $ d
     let input = "example"
     return $ processData input
 
--- -- ??: unwrap httpClientCall
 -- t1 :: TestTree
 -- t1 = testCase "POST with body" $ do
 --     echo <- preloadGet
@@ -70,7 +95,7 @@ goldenTest = goldenVsString "Process Data Test" "test/golden/version.golden" $ d
 --
 -- t4 :: TestTree
 -- t4 = testCase "fallible vm method: popInstr error" $ do
---     actual <- popInstr unfitVm  -- ??: if this is lazy
+--     actual <- popInstr unfitVm
 --     -- expect unchanged next and error message
 --     inner <- unfitVm
 --     let expected = (Just OutOfBounds, inner)
@@ -80,7 +105,6 @@ goldenTest = goldenVsString "Process Data Test" "test/golden/version.golden" $ d
 --         unfitVm = do return ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [], False)
 
 unitTests :: TestTree
--- unitTests = testGroup "Unit tests" [t1, t2, t3, t4]
-unitTests = testGroup "Unit tests" [t0]
+unitTests = testGroup "Unit tests" [p1, p2]
 
 -- 10 @?= 10

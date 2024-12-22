@@ -14,10 +14,6 @@ import qualified Data.HashMap.Strict   as HM
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as BS
 
--- import Data.ByteString.Internal.Type
--- import qualified Data.ByteString       as S8
--- import qualified Data.ByteString.Char8 as C8
-
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -199,6 +195,22 @@ vmFrom :: Policy -> [Instr] -> IO Vm
 vmFrom Policy { maxReruns, maxRetriesPerCall, timeMillisPerCall } instrs = do
     return ("GET", [], "", "", 200, [], False)
 
+stepk :: Vm -> IO (Maybe InternalError, Vm)
+stepk state = do
+    case peekInstr state of
+        Nothing ->
+            -- Should have been unreachable.
+            return (Just OutOfBounds, state)
+        Just instr -> go instr where
+            go IV =
+                return (ok, setVerb state "GET")
+            go NOP =
+                return $ popInstr state
+            go X =
+                executeVerb state
+            go _ =
+                return (Just Todo, state)
+
 step :: IO Vm -> IO (Maybe InternalError, Vm)
 step ioVm = do
     state <- ioVm
@@ -215,24 +227,6 @@ step ioVm = do
                 executeVerb state
             go _ =
                 return (Just Todo, state)
-
-    -- return (Nothing, setVerbk state "POST")
-
-    -- peeked <- peekInstr ioVm
-    -- case peeked of
-    --     Nothing -> do
-    --         putStrLn "todo warn: bunreachable"
-    --         vmDefault
-    --     Just instr -> go instr where
-    --         go IV     = setVerb ioVm "GET"         -- infallible
-    --         go IC     = setExpectCode ioVm 200     -- infallible
-    --         go (OV s) = setVerb ioVm s             -- infallible
-    --         go (OC s) = setExpectCode ioVm s       -- infallible
-    --         go (SU s) = setParametrizedUrl ioVm s  -- infallible
-    --         go NOP    = do
-    --             (_, next) <- popInstr ioVm
-    --             return next
-    --         go X      = executeVerb ioVm
 
 -- -- Progress by executing top Instr.
 -- step :: IO Vm -> IO Vm
@@ -294,11 +288,25 @@ parseHhs _ = do
             return []
         else do return [SU "http://httpbin.org/anything", X]
 
-vmRun :: IO Vm -> IO Vm
-vmRun ioVm = do
-    (err, state) <- step ioVm
-    case err of
-        Just _ -> throwIO TerribleException
-        Nothing -> if isFinal state
+-- PICKUP
+-- toVm ::  Maybe Vm
+toVm ::  Vm
+toVm = ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [X], False)
+
+vmRun :: Vm -> IO Vm
+vmRun vm = do
+    fwd <- stepk vm
+    case fwd of
+        (Just _, _) -> throwIO TerribleException
+        (Nothing, state) -> if isFinal state
             then return state
-            else vmRun $ return state
+            else vmRun state
+
+-- vmRun :: IO Vm -> IO Vm
+-- vmRun ioVm = do
+--     (err, state) <- step ioVm
+--     case err of
+--         Just _ -> throwIO TerribleException
+--         Nothing -> if isFinal state
+--             then return state
+--             else vmRun $ return state
