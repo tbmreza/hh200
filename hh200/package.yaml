@@ -1,0 +1,75 @@
+name:                hh200
+version:             0.1.0.0
+github:              "tbmreza/hh200"
+license:             BSD-3-Clause
+author:              "Reza Handzalah"
+maintainer:          "rezahandzalah@gmail.com"
+copyright:           "2025 Reza"
+
+extra-source-files:
+- README.md
+- CHANGELOG.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+category:            Language
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/tbmreza/hh200#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- optparse-applicative
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wmissing-export-lists
+- -Wmissing-home-modules
+- -Wpartial-fields
+- -Wredundant-constraints
+
+library:
+  source-dirs: src
+  default-extensions:
+  - OverloadedStrings
+  dependencies:
+  - bytestring
+  - hashtables
+  - unordered-containers
+  - text
+
+  - http-types
+  - http-conduit
+  - http-client
+  - http-client-tls
+  - toml-parser
+  - yaml
+  - aeson
+
+executables:
+  hh200:  # `ls ~/.local/bin/` checks if `stack install` succeed.
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - hh200
+
+tests:
+  hh200-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - hh200
