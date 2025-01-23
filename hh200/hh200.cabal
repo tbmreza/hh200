@@ -49,6 +49,7 @@ library
     , http-conduit
     , http-types
     , optparse-applicative
+    , split
     , text
     , toml-parser
     , unordered-containers

@@ -21,6 +21,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy as L
+import           Data.List (unsnoc)
+import           Data.List.Split (splitOn)
 
 import           Network.HTTP.Client
 import qualified Network.HTTP.Client as H
@@ -30,8 +32,15 @@ import           Network.HTTP.Types.Status (statusCode)
 
 import Hh200.Types
 
-downloadFile :: String -> String -> IO ()
-downloadFile url outputPath = do
+filenamePartOrDefault :: String -> String
+filenamePartOrDefault url =
+    let splitted = splitOn "/" url in
+    case unsnoc splitted of
+        Nothing -> "out"  -- ??: if default turns out to be common enough case, maybe name the file with timestamp
+        Just (_, part) -> part
+
+downloadFile :: String -> IO ()
+downloadFile url = do
   manager <- newManager tlsManagerSettings
   request <- parseRequest url
   bracket
@@ -40,7 +49,7 @@ downloadFile url outputPath = do
     (\response -> do
       let status = responseStatus response
       if statusCode status == 200
-        then withFile outputPath WriteMode (\handle -> L.hPut handle (responseBody response))
+        then withFile (filenamePartOrDefault url) WriteMode (\handle -> L.hPut handle (responseBody response))
         else putStrLn ("Failed to download file. Status code: " ++ show status)
     )
 

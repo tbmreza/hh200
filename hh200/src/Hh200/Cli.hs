@@ -43,10 +43,11 @@ go (Args (Just s) _) = do
 type Ast = ()
 -- Hardcode url to download here.
 interp :: Ast -> IO ()
-interp _ = do
-    -- ??: out file name is the last meaningful slice of url
+interp prog = do
     -- ... downloadFile "https://..." "out.apk"  -- ??: https tls
-    () <- downloadFile "http://mobile-apps.paracorpgroup.com/nova/rc/nova%20v1.1.0-rc-sprint12.6.apk" "out.apk"
+    -- () <- downloadFile "http://mobile-apps.paracorpgroup.com/nova/rc/nova%20v1.1.0-rc-sprint12.6.apk"
+    () <- downloadFile "https://httpbin.org/image/png"
+    
     return ()
 
 -- parseFile :: FilePath -> IO (Either ParseError Ast)

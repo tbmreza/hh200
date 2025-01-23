@@ -43,6 +43,7 @@ library:
   - hashtables
   - unordered-containers
   - text
+  - split
 
   - http-types
   - http-conduit
