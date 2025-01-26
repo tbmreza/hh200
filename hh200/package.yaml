@@ -39,6 +39,7 @@ library:
   default-extensions:
   - OverloadedStrings
   dependencies:
+  - array
   - bytestring
   - hashtables
   - unordered-containers

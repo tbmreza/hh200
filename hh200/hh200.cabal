@@ -29,7 +29,9 @@ library
       Hh200.Cli
       Hh200.Types
       Hh200.Vm
+      L
       Lib
+      P
   other-modules:
       Paths_hh200
   autogen-modules:
@@ -41,6 +43,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       aeson
+    , array
     , base >=4.7 && <5
     , bytestring
     , hashtables

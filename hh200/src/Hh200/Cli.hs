@@ -9,6 +9,10 @@ import Options.Applicative
 
 import Paths_hh200
 import Hh200.Vm (downloadFile)
+import L
+import P
+-- import Lexer (lexer)
+-- import Parser (parser)
 
 data Args = Args
     { source  :: Maybe String
@@ -26,10 +30,22 @@ cli = go =<< execParser opts where
                   <> short 'V'
                   <> help "Print version info and exit" )
 
+
 go :: Args -> IO ()
 
 -- hh200 --version
-go (Args _ True) = putStrLn $ showVersion Paths_hh200.version
+-- go (Args _ True) = putStrLn $ showVersion Paths_hh200.version  -- ok
+go (Args _ True) = do
+    -- input <- getContents
+    -- ok:  ?? tasty
+    -- stack exec hh200 -- --version
+    -- [Print (VarRef "z")]
+    -- let input = "print 200;"
+    -- let input = "HTTP 201"
+    let input = "POST httpbin"
+    let tokens = alexScanTokens input
+    let ast = parse tokens
+    print ast
 
 -- hh200 input.hhs
 go (Args (Just s) _) = do
@@ -38,12 +54,18 @@ go (Args (Just s) _) = do
     -- FilePath ->        Ast -> IO ()
     --          parseFile     interpret
     -- httpClientCall "https://httpbin.org/anything"
-    interp ()
+    -- print $ parser $ lexer "\\x. y x"  -- ok
+    -- print $ parser $ lexer "POSTx. y x"
+    -- print $ parser $ lexer "POST y"
+    -- print $ parser $ lexer "x"  -- ok
+    interp ()  -- ok
+
 
 type Ast = ()
 -- Hardcode url to download here.
 interp :: Ast -> IO ()
 interp prog = do
+    -- let tokens = lexer "POST https://httpbin.org/image/png"  -- ok
     -- ... downloadFile "https://..." "out.apk"  -- ??: https tls
     -- () <- downloadFile "http://mobile-apps.paracorpgroup.com/nova/rc/nova%20v1.1.0-rc-sprint12.6.apk"
     () <- downloadFile "https://httpbin.org/image/png"
