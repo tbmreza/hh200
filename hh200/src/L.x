@@ -6,11 +6,30 @@ module L where
 
 $digit = 0-9
 $alpha = [a-zA-Z]
+$hex = [0-9a-fA-F]
+$urlchar = [$alpha $digit \+ \- \. \_ \~ \! \$ \& \' \( \) \* \+ \, \; \= \:]
+
 
 tokens :-
-    "HTTP"              { \_ -> TokenX }
-    [Gg][Ee][Tt]        { \s -> TokenStr s }
-    [Pp][Oo][Ss][Tt]    { \s -> TokenStr s }
+    "HTTP"                  { \_ -> Skip }
+    [Gg][Ee][Tt]
+  | [Pp][Oo][Ss][Tt]
+  | [Pp][Uu][Tt]            { \s -> TMethod s }
+
+    ---------
+    -- URL --
+    ---------
+    $alpha [$alpha $digit \+ \- \.]* ":"   { \s -> URLScheme (init s) }
+
+    -- Authority = userinfo + host + port
+    "//" [^ \/\?\#]*                       { \s -> URLAuthority (drop 2 s) }
+
+    "/" ($urlchar|"%"$hex$hex)*            { \s -> URLPath s }
+
+    \? ($urlchar|"%"$hex$hex|\/|\?)*       { \s -> URLQuery (tail s) }
+
+    \# ($urlchar|"%"$hex$hex|\/|\?)*       { \s -> URLFragment (tail s) }
+
 
     $white+                    ;
     "--".*                     ;
@@ -34,7 +53,12 @@ data Token
     | TokenLParen
     | TokenRParen
 
-    | TokenX
-    | TokenStr  String
+    | Skip
+    | TMethod  String
+    | URLScheme String    -- https
+    | URLAuthority String -- example.com:8080
+    | URLPath String      -- /path
+    | URLQuery String     -- key=value&key2=value2  ??
+    | URLFragment String  -- section1  ??
     deriving (Show)
 }

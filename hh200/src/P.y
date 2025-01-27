@@ -18,8 +18,14 @@ import L
     '('     { TokenLParen }
     ')'     { TokenRParen }
 
-    httpUpper  { TokenX }
-    method     { TokenStr $$ }
+    scheme     { URLScheme $$ }
+    authority  { URLAuthority $$ }
+    path       { URLPath $$ }
+    query      { URLQuery $$ }
+    fragment   { URLAuthority $$ }
+
+    httpUpper  { Skip }
+    method     { TMethod $$ }
 %%
 
 Program : Statements                { $1 }
@@ -29,14 +35,29 @@ Statements : Statement              { [$1] }
 
 Statement : var '=' Expr ';'        { Assign $1 $3 }
           | print Expr ';'          { Print $2 }
-          | httpUpper Expr          { Response $2 }  -- HTTP 201
+          | httpUpper Expr          { Response $2 }        -- HTTP 201
           | method Expr             { RequestLine $1 $2 }  -- POST http://httpbin.org
 
 Expr : int                          { IntLit $1 }
-     | var                          { VarRef $1 }
+
+     -- | scheme authority paths queries fragments  { Url $1 $2 $3 $4 $5 }
+
+     -- | scheme authority  { Url $1 $2 [] Nothing Nothing }
+     | scheme authority paths { Url $1 $2 $3 Nothing Nothing }
+
+     -- | var                          { VarRef $1 }
      | Expr op Expr                 { BinOp $2 $1 $3 }
      | '(' Expr ')'                 { $2 }
 
+
+paths : path paths      { $1 : $2 }
+      | {- empty -}     { [] }
+
+queries : query         { Just $1 }
+        | {- empty -}   { Nothing }
+
+fragments : fragment    { Just $1 }
+          | {- empty -} { Nothing }
 
 {
 data Statement 
@@ -51,6 +72,8 @@ data Expr
     = IntLit  Int
     | VarRef  String
     | BinOp   String Expr Expr
+
+    | Url  String String [String] (Maybe String) (Maybe String)
     deriving (Show)
 
 parseError :: [Token] -> a
