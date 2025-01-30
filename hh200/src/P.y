@@ -42,7 +42,6 @@ Expr : int                          { IntLit $1 }
 
      -- | scheme authority paths queries fragments  { Url $1 $2 $3 $4 $5 }
 
-     -- | scheme authority  { Url $1 $2 [] Nothing Nothing }
      | scheme authority paths { Url $1 $2 $3 Nothing Nothing }
 
      -- | var                          { VarRef $1 }

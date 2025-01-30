@@ -51,6 +51,7 @@ library
     , http-client-tls
     , http-conduit
     , http-types
+    , mtl
     , optparse-applicative
     , split
     , text
@@ -88,4 +89,6 @@ test-suite hh200-test
       base >=4.7 && <5
     , hh200
     , optparse-applicative
+    , tasty
+    , tasty-hunit
   default-language: Haskell2010

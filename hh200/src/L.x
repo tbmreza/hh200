@@ -14,6 +14,7 @@ tokens :-
     "HTTP"                  { \_ -> Skip }
     [Gg][Ee][Tt]
   | [Pp][Oo][Ss][Tt]
+  | [Pp][Aa][Tt][Cc][Hh]
   | [Pp][Uu][Tt]            { \s -> TMethod s }
 
     ---------

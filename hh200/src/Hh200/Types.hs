@@ -41,10 +41,8 @@ data Instr = NOP
            | SU Url
            | SH HeaderName [S.ByteString]  -- ??:
            | X
+           | HARDCODE
     deriving (Show, Eq)
-
--- instance Eq Instr where
-
 
 -- setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
 -- let hlInput = setRequestHeader "Content-Type" ["application/x-yaml"] $ ""

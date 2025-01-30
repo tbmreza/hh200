@@ -11,6 +11,7 @@ import GHC.Generics (Generic)
 import System.IO (withFile, IOMode(WriteMode))
 import Control.Exception (bracket, Exception, throwIO)
 import Control.Monad (unless)
+import Control.Monad.Identity
 
 import           Data.Aeson (FromJSON, ToJSON, Value, eitherDecode, encode, decode)
 import           Data.ByteString.Lazy (ByteString)
@@ -56,8 +57,7 @@ downloadFile url = do
 type Terminal = Bool
 type RawString = ByteString
 type Vm = (HttpVerb, RequestHeaders, Url, RawString, ExpectCode, [Instr], Terminal)
--- -- type Vm = (HttpVerb, RequestHeaders, Url, ExpectCode, [Instr], Terminal)
---
+
 -- -- -- type MaybeJson = String
 -- -- -- screen :: String -> IO MaybeJson
 -- -- -- screen :: Text -> IO Text
@@ -110,46 +110,42 @@ class VmT a where
     httpClientCall :: a -> IO (CodesMatch, a)
 
 instance VmT Vm where
---     setTerminal ioVm = do
---         (e0, e1, e2, e3, e4, e5, _) <- ioVm
---         return (e0, e1, e2, e3, e4, e5, True)
---
---     setVerb (_, e1, e2, e3, e4, e5, e6) v =
---         (v, e1, e2, e3, e4, e5, e6)
---
---     -- setVerb ioVm v = do
---     --     (_, e1, e2, e3, e4, e5, e6) <- ioVm
---     --     return (v, e1, e2, e3, e4, e5, e6)
---
---     setParametrizedUrl ioVm u = do
---         (e0, e1, _, e3, e4, e5, e6) <- ioVm
---         return (e0, e1, u, e3, e4, e5, e6)
---
---     setExpectCode ioVm c = do
---         (e0, e1, e2, e3, _, e5, e6) <- ioVm
---         return (e0, e1, e2, e3, c, e5, e6)
---
---     peekInstr (_, _, _, _, _, instrs, _) =
---         case instrs of
---             [] -> Nothing
---             instrs -> Just $ head instrs
---
---     popInstr (e0, e1, e2, e3, e4, instrs, e6) = do
---         case instrs of
---             [] -> (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
---             _ -> (Nothing, (e0, e1, e2, e3, e4, tail instrs, e6))
---
---     -- (_, _, _, X : rest, False)
---     -- setRequestMethod :: S.ByteString -> H.Request -> H.Request
---     -- setRequestMethod x req = req { H.method = x }
---     --
---     -- setRequestHeaders :: H.RequestHeaders -> H.Request -> H.Request
---     -- setRequestHeaders x req = req { H.requestHeaders = x }
---
---     -- Objective: http://localhost:8787/product/1222/first
---     -- with ("GET", [], url, 200, X : rest, False)
---     --
---
+    setTerminal ioVm = do
+        (e0, e1, e2, e3, e4, e5, _) <- ioVm
+        return (e0, e1, e2, e3, e4, e5, True)
+
+    setVerb (_, e1, e2, e3, e4, e5, e6) v =
+        (v, e1, e2, e3, e4, e5, e6)
+
+    setParametrizedUrl ioVm u = do
+        (e0, e1, _, e3, e4, e5, e6) <- ioVm
+        return (e0, e1, u, e3, e4, e5, e6)
+
+    setExpectCode ioVm c = do
+        (e0, e1, e2, e3, _, e5, e6) <- ioVm
+        return (e0, e1, e2, e3, c, e5, e6)
+
+    peekInstr (_, _, _, _, _, instrs, _) =
+        case instrs of
+            [] -> Nothing
+            instrs -> Just $ head instrs
+
+    popInstr (e0, e1, e2, e3, e4, instrs, e6) = do
+        case instrs of
+            [] -> (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
+            _ -> (Nothing, (e0, e1, e2, e3, e4, tail instrs, e6))
+
+    -- (_, _, _, X : rest, False)
+    -- setRequestMethod :: S.ByteString -> H.Request -> H.Request
+    -- setRequestMethod x req = req { H.method = x }
+    --
+    -- setRequestHeaders :: H.RequestHeaders -> H.Request -> H.Request
+    -- setRequestHeaders x req = req { H.requestHeaders = x }
+
+    -- Objective: http://localhost:8787/product/1222/first
+    -- with ("GET", [], url, 200, X : rest, False)
+    --
+
     -- State progression handled at callsite.
     httpClientCall (verb, headers, url, raw, expectCode, instrs, terminal) = do
         build <- parseRequest url
@@ -169,49 +165,58 @@ instance VmT Vm where
         -- next <- ioVm
         return (getResponseStatusCode resp == expectCode, (verb, headers, url, raw, expectCode, instrs, terminal))
 
---     -- popInstr to bump state on success, otherwise also do required housekeeping.
---     --
---     executeVerb (e0, e1, e2, e3, e4, instr:rest, e6) = do
---         case instr of
---             X -> do
---                 called <- httpClientCall (e0, e1, e2, e3, e4, instr:rest, e6)
---                 triage called
---             _ -> do
---                 return (Just Todo, (e0, e1, e2, e3, e4, instr:rest, e6))
---
---             where
---                 triage (True, state)  = do
---                     return $ popInstr state
---
---                 triage (False, state)  = do
---                     -- ??: some housekeeping on unexpected http response
---                     return $ popInstr state
---
---     executeVerb (e0, e1, e2, e3, e4, [], e6) = return (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
---
+    -- popInstr to bump state on success, otherwise also do required housekeeping.
+    --
+    executeVerb (e0, e1, e2, e3, e4, instr:rest, e6) = do
+        case instr of
+            HARDCODE -> do  -- ??:
+                called <- downloadFile e2
+                -- return (Nothing, (e0, e1, e2, e3, e4, instr:rest, e6))
+                return (Nothing, (e0, e1, e2, e3, e4, instr:rest, True))
+            X -> do
+                called <- httpClientCall (e0, e1, e2, e3, e4, instr:rest, e6)
+                triage called
+            _ -> do
+                return (Just Todo, (e0, e1, e2, e3, e4, instr:rest, e6))
+
+            where
+                triage (True, state) = do
+                    return $ popInstr state
+
+                triage (False, state) = do
+                    -- ??: some housekeeping on unexpected http response
+                    return $ popInstr state
+
+                -- triage _ = do  -- ??:
+                --     return (Nothing, s)
+
+    executeVerb (e0, e1, e2, e3, e4, [], e6) = return (Just OutOfBounds, (e0, e1, e2, e3, e4, [], e6))
+
 -- vmDefault :: IO Vm
 -- vmDefault = do return ("GET", [], "", "", 200, [], False)
 --
 -- vmFrom :: Policy -> [Instr] -> IO Vm
 -- vmFrom Policy { maxReruns, maxRetriesPerCall, timeMillisPerCall } instrs = do
 --     return ("GET", [], "", "", 200, [], False)
---
--- stepk :: Vm -> IO (Maybe InternalError, Vm)
--- stepk state = do
---     case peekInstr state of
---         Nothing ->
---             -- Should have been unreachable.
---             return (Just OutOfBounds, state)
---         Just instr -> go instr where
---             go IV =
---                 return (ok, setVerb state "GET")
---             go NOP =
---                 return $ popInstr state
---             go X =
---                 executeVerb state
---             go _ =
---                 return (Just Todo, state)
---
+
+stepk :: Vm -> IO (Maybe InternalError, Vm)
+stepk state = do
+    case peekInstr state of
+        Nothing ->
+            -- Should have been unreachable.
+            return (Just OutOfBounds, state)
+        Just instr -> go instr where
+            go IV =
+                return (ok, setVerb state "GET")
+            go NOP =
+                return $ popInstr state
+            go X =
+                executeVerb state
+            go HARDCODE =
+                executeVerb state
+            go _ =
+                return (Just Todo, state)
+
 -- step :: IO Vm -> IO (Maybe InternalError, Vm)
 -- step ioVm = do
 --     state <- ioVm
@@ -293,20 +298,27 @@ isFinal _ = False
 -- toVm :: FilePath -> Maybe Vm
 -- toVm _ = Just ("OPTIONS", [], "http://localhost:9999/ignore.php", "ignore...", 200, [X], False)
 --
--- vmRun :: Vm -> IO Vm
--- vmRun vm = do
---     fwd <- stepk vm
---     case fwd of
---         (Just _, _) -> throwIO TerribleException
---         (Nothing, state) -> if isFinal state
---             then return state
---             else vmRun state
+
+-- type Eval1 alpha  =   Identity alpha
 --
--- -- vmRun :: IO Vm -> IO Vm
--- -- vmRun ioVm = do
--- --     (err, state) <- step ioVm
--- --     case err of
--- --         Just _ -> throwIO TerribleException
--- --         Nothing -> if isFinal state
--- --             then return state
--- --             else vmRun $ return state
+-- runEval1 :: Eval1 alpha -> alpha
+-- runEval1 ev = runIdentity ev
+--
+-- eval1                   ::  Env -> Exp -> Eval1 Value
+--
+-- runEval5            ::  Env -> Integer -> Eval5 alpha -> ((Either String alpha, [String]), Integer)
+-- runEval5 env st ev  =
+--     runIdentity (runStateT (runWriterT (runExceptT (runReaderT ev env))) st)
+--
+-- eval5               ::  Exp -> Eval5 Value
+-- data VmState = FinalVm | LiveVm
+-- eval :: VmState -> Eval VmState
+
+vmRun :: Vm -> IO Vm
+vmRun vm = do
+    fwd <- stepk vm
+    case fwd of
+        (Just _, _) -> throwIO TerribleException
+        (Nothing, state) -> if isFinal state
+            then return state
+            else vmRun state

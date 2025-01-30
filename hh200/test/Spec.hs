@@ -21,7 +21,8 @@ t = testGroup "syntax" [
         print ast
 
   , testCase "" $ do
-        let input = "POST http://localhost:9999/user/12"
+        -- let input = "POST http://localhost:9999/user/12"
+        let input = "get http://httpbin.org/anything"
         let tokens = alexScanTokens input
         let ast = parse tokens
         print ast

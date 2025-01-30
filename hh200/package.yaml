@@ -39,6 +39,7 @@ library:
   default-extensions:
   - OverloadedStrings
   dependencies:
+  - mtl
   - array
   - bytestring
   - hashtables
@@ -75,3 +76,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - hh200
+    - tasty
+    - tasty-hunit
