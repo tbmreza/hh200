@@ -46,6 +46,7 @@ library:
   - unordered-containers
   - text
   - split
+  - ghc
 
   - http-types
   - http-conduit

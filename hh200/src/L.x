@@ -2,6 +2,39 @@
 module L where
 }
 
+-- <hurl-file> ::= <request>*
+-- 
+-- <request> ::= <request-line>
+              -- <headers>?
+              -- <body>?
+              -- <response>*
+-- 
+-- <request-line> ::= <method> <space> <url>
+-- 
+-- <method> ::= "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "PATCH"
+-- 
+-- <url> ::= <scheme> "://" <host> <path>?
+-- 
+-- <headers> ::= <header> ("\n" <header>)*
+-- 
+-- <header> ::= <header-name> ":" <header-value>
+-- 
+-- <body> ::= <json-body> | <xml-body> | <raw-body>
+-- 
+-- <response> ::= "HTTP/" <version> <space> <status-code>
+               -- <headers>?
+               -- <body-check>?
+-- 
+-- <status-code> ::= <integer>
+-- 
+-- <body-check> ::= <json-check> | <xml-check> | <string-check>
+-- 
+-- <json-check> ::= "jsonpath" <string>
+               -- | "jsonpath" <predicate>
+-- 
+-- <version> ::= "1.0" | "1.1" | "2.0"
+
+
 %wrapper "basic"
 
 $digit = 0-9

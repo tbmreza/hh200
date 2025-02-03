@@ -42,6 +42,7 @@ data Instr = NOP
            | SH HeaderName [S.ByteString]  -- ??:
            | X
            | HARDCODE
+           | ASSERT_CODE
     deriving (Show, Eq)
 
 -- setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request

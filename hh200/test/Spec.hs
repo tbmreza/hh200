@@ -3,6 +3,8 @@ import Test.Tasty.HUnit
 import L
 import P
 
+import Hh200.Cli (interpret)
+
 main = defaultMain t
 
 t :: TestTree
@@ -32,5 +34,16 @@ t = testGroup "syntax" [
         let tokens = alexScanTokens input
         let ast = parse tokens
         print ast
+
+  , testCase "callable" $ do
+        let input = "get http://httpbin.org/anything HTTP 201"
+        let tokens = alexScanTokens input
+        let ast = parse tokens
+        print ast
+
+    -- testGroup "main loop"
+
+  , testCase "interpret statements terminates" $ do
+        interpret []
 
     ]

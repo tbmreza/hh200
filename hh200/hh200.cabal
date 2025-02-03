@@ -46,6 +46,7 @@ library
     , array
     , base >=4.7 && <5
     , bytestring
+    , ghc
     , hashtables
     , http-client
     , http-client-tls
