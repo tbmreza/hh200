@@ -100,10 +100,11 @@ instance VmT Vm where
 -- ??: Effects of http, reporting, concurrency, throwing,
 step :: Vm -> IO (Maybe InternalError, Vm)
 step state = do
+    print "step..."
+    let (e0, e1, e2, e3, e4, e5, e6) = state
     case peekInstr state of
         Nothing ->
-            -- Should have been unreachable.
-            return (Just OutOfBounds, state)
+            return (Nothing, ("", [], "", "", 0, [], True))
         Just instr -> go instr where
             go NOP =
                 return $ popInstr state
@@ -115,6 +116,10 @@ step state = do
                 clientError <- httpClientCall state
                 -- ??: match clientError, maybe bubble it up
                 return $ popInstr state
+
+            go (MATCH_CODES n) =
+                -- ??: report span of status code literal
+                return (Nothing, (e0, e1, e2, e3, e4, e5, True))
 
             go _ =
                 return (Just Todo, state)
@@ -147,7 +152,7 @@ vmRun :: Vm -> IO Vm
 vmRun vm = do
     fwd <- step vm
     case fwd of
-        (Just _, _) -> throwIO TerribleException
+        (Just _err, _) -> throwIO TerribleException
         (Nothing, state) -> if isFinal state
             then return state
             else vmRun state

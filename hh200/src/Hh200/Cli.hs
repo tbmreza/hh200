@@ -66,6 +66,7 @@ go (Args (Just s) _) = do
 interpret :: [Statement] -> IO ()
 interpret program = do  -- program = [RequestLine{..}, Response{..}]
     -- type Vm = (HttpVerb, RequestHeaders, Url, RawString, ExpectCode, [Instr], Terminal)
+    -- type Vm = (HttpVerb, RequestHeaders, Url, RawString, Maybe ResponseCode, [Instr], Terminal)
 
     let vmInit = ("GET", [], "http://", "ignore...", 200, [], True)
 
@@ -77,7 +78,7 @@ interpret program = do  -- program = [RequestLine{..}, Response{..}]
     loadStatement :: Statement -> Vm -> Vm
     loadStatement stmt acc = case (acc, stmt) of
         ((r1, r2, r3, r4, r5, r6, r7),
-         RequestLine l1 (Url l21 l22 l23_ps l24_q l25_f)) -> (pack l1, [], r3 ++ l22 ++ concat l23_ps, r4, r5, HARDCODE:r6, False)
+         RequestLine l1 (Url l21 l22 l23_ps l24_q l25_f)) -> (pack l1, [], r3 ++ l22 ++ concat l23_ps, r4, r5, X:r6, False)
 
         ((r1, r2, r3, r4, r5, r6, r7),
-         Response (IntLit t1)) ->                            (r1, r2, r3, r4, r5, ASSERT_CODE:r6, False)
+         Response (IntLit t1)) ->                            (r1, r2, r3, r4, r5, (MATCH_CODES t1):r6, False)

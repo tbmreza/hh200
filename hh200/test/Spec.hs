@@ -45,5 +45,11 @@ t = testGroup "syntax" [
 
   , testCase "interpret statements terminates" $ do
         interpret []
+        interpret [Response (IntLit 201)]
+
+        -- | scheme authority paths { Url $1 $2 $3 Nothing Nothing }
+        -- Url  String String [String] (Maybe String) (Maybe String)
+        interpret [RequestLine "get" (Url "http" "localhost:9999" [] Nothing Nothing)]
+        interpret [RequestLine "get" (Url "http" "localhost:9999" [] Nothing Nothing), Response (IntLit 201)]
 
     ]
