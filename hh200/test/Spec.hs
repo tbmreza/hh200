@@ -28,6 +28,11 @@ t = testGroup "syntax" [
         let tokens = alexScanTokens input
         let ast = parse tokens
         print ast
+  , testCase "baru" $ do
+        let input = "get http://localhost:8000/dashboard"
+        let tokens = alexScanTokens input
+        let ast = parse tokens
+        print ast
 
   , testCase "" $ do
         let input = "HTTP 201"
