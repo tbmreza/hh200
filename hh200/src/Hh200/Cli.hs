@@ -9,16 +9,11 @@ import Data.ByteString.Char8 (pack)
 import Data.Version (showVersion)
 import Options.Applicative
 
-import GHC.Utils.Error
-import qualified GHC.Utils.Outputable
-import GHC.Driver.Ppr
-import GHC.Data.FastString
-import GHC.Types.SrcLoc
-
 import Paths_hh200
 import Hh200.Vm (vmRun, Vm)
 import Hh200.Types
 import L
+-- import P ( Expr(..) )
 import P
 
 data Args = Args
@@ -46,7 +41,8 @@ go (Args _ True) = putStrLn $ showVersion Paths_hh200.version
 -- hh200 input.hhs
 go (Args (Just s) _) = do
     program <- parseFile s
-    print program
+    -- print program
+    -- ??: ideate on VM instructions, memory, concurrency/parallelism
 
     interpret program where
 
@@ -77,8 +73,9 @@ interpret program = do  -- program = [RequestLine{..}, Response{..}]
 
     loadStatement :: Statement -> Vm -> Vm
     loadStatement stmt acc = case (acc, stmt) of
-        ((r1, r2, r3, r4, r5, r6, r7),
-         RequestLine l1 (Url l21 l22 l23_ps l24_q l25_f)) -> (pack l1, [], r3 ++ l22 ++ concat l23_ps, r4, r5, X:r6, False)
+        -- ((r1, r2, r3, r4, r5, r6, r7),
+        --  RequestLine l1 (Url l21 l22 l23_ps l24_q l25_f)) -> (pack l1, [], r3 ++ l22 ++ concat l23_ps, r4, r5, X:r6, False)
 
         ((r1, r2, r3, r4, r5, r6, r7),
+         -- ??: provide via L and P
          Response (IntLit t1)) ->                            (r1, r2, r3, r4, r5, (MATCH_CODES t1):r6, False)

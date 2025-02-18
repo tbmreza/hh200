@@ -1,6 +1,8 @@
 {-# Language DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFunctor #-}
+
 module Hh200.Types where
 
 import qualified Data.ByteString       as S8
@@ -102,3 +104,20 @@ instance FromValue Policy where
         <*> optKey "time_millis_per_call"
         )
 
+-- Simple source position
+data Pos = Pos 
+    { line :: !Int
+    , col  :: !Int 
+    } deriving (Eq, Show)
+
+-- Source span with start and end positions
+data Span = Span 
+    { spanStart :: !Pos
+    , spanEnd   :: !Pos 
+    } deriving (Eq, Show)
+
+-- Location-annotated value
+data Located a = Located 
+    { location :: !Span
+    , unLoc    :: a 
+    } deriving (Show, Functor)

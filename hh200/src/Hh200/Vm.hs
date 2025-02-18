@@ -13,6 +13,12 @@ import Control.Exception (bracket, Exception, throwIO)
 import Control.Monad (unless)
 import Control.Monad.Identity
 
+-- import GHC.Utils.Error
+-- import qualified GHC.Utils.Outputable
+-- import GHC.Driver.Ppr
+-- import GHC.Data.FastString
+import GHC.Types.SrcLoc
+
 import           Data.Aeson (FromJSON, ToJSON, Value, eitherDecode, encode, decode)
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -97,10 +103,9 @@ instance VmT Vm where
                 Just (_, part) -> part
 
 
--- ??: Effects of http, reporting, concurrency, throwing,
+-- Effects of http, reporting, concurrency, throwing,
 step :: Vm -> IO (Maybe InternalError, Vm)
 step state = do
-    print "step..."
     let (e0, e1, e2, e3, e4, e5, e6) = state
     case peekInstr state of
         Nothing ->
@@ -117,8 +122,8 @@ step state = do
                 -- ??: match clientError, maybe bubble it up
                 return $ popInstr state
 
-            go (MATCH_CODES n) =
-                -- ??: report span of status code literal
+            -- go (MATCH_CODES n proneTokenStartEnd) = do  -- ??
+            go (MATCH_CODES n) = do
                 return (Nothing, (e0, e1, e2, e3, e4, e5, True))
 
             go _ =
@@ -156,3 +161,4 @@ vmRun vm = do
         (Nothing, state) -> if isFinal state
             then return state
             else vmRun state
+
