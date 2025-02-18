@@ -10,50 +10,42 @@ main = defaultMain t
 t :: TestTree
 t = testGroup "syntax" [
 
-    testCase "" $ do
-        let input = "print 201;"
-        let tokens = alexScanTokens input
-        let ast = parse tokens
-        print ast
-
-  , testCase "" $ do
-        let input = "POST https://example.com"
-        let tokens = alexScanTokens input
-        let ast = parse tokens
-        print ast
-
-  , testCase "" $ do
-        -- let input = "POST http://localhost:9999/user/12"
-        let input = "get http://httpbin.org/anything"
-        let tokens = alexScanTokens input
-        let ast = parse tokens
-        print ast
-  , testCase "baru" $ do
-        let input = "get http://localhost:8000/dashboard"
-        let tokens = alexScanTokens input
-        let ast = parse tokens
-        print ast
-
-  , testCase "" $ do
-        let input = "HTTP 201"
-        let tokens = alexScanTokens input
-        let ast = parse tokens
-        print ast
-
-  , testCase "callable" $ do
-        let input = "get http://httpbin.org/anything HTTP 201"
-        let tokens = alexScanTokens input
-        let ast = parse tokens
-        print ast
+  --   testCase "" $ do
+  --       let input = "print 201;"
+  --       let tokens = alexScanTokens input
+  --       let ast = parse tokens
+  --       print ast
+  --
+  -- , testCase "" $ do
+  --       let input = "POST https://example.com"
+  --       let tokens = alexScanTokens input
+  --       let ast = parse tokens
+  --       print ast
+  --
+  -- , testCase "" $ do
+  --       -- let input = "POST http://localhost:9999/user/12"
+  --       let input = "get http://httpbin.org/anything"
+  --       let tokens = alexScanTokens input
+  --       let ast = parse tokens
+  --       print ast
+  --
+  -- , testCase "" $ do
+  --       let input = "HTTP 201"
+  --       let tokens = alexScanTokens input
+  --       let ast = parse tokens
+  --       print ast
+  --
+  -- , testCase "callable" $ do
+  --       let input = "get http://httpbin.org/anything HTTP 201"
+  --       let tokens = alexScanTokens input
+  --       let ast = parse tokens
+  --       print ast
 
     -- testGroup "main loop"
 
-  , testCase "interpret statements terminates" $ do
+    testCase "interpret statements terminates" $ do
         interpret []
         interpret [Response (IntLit 201)]
-
-        -- | scheme authority paths { Url $1 $2 $3 Nothing Nothing }
-        -- Url  String String [String] (Maybe String) (Maybe String)
         interpret [RequestLine "get" (Url "http" "localhost:9999" [] Nothing Nothing)]
         interpret [RequestLine "get" (Url "http" "localhost:9999" [] Nothing Nothing), Response (IntLit 201)]
 
