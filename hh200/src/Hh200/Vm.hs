@@ -115,7 +115,7 @@ step state = do
                 return $ popInstr state
 
             go (SH "" []) =
-                return (Nothing, state)  -- ??: spread RequestHeaders
+                return (Nothing, state)
 
             go X = do
                 clientError <- httpClientCall state

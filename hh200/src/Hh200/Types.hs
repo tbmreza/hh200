@@ -41,7 +41,7 @@ data Instr = NOP
            | OV HttpVerb
            | OC ExpectCode
            | SU Url
-           | SH HeaderName [S.ByteString]  -- ??:
+           | SH HeaderName [S.ByteString]
            | X
            | MATCH_CODES Int
     deriving (Show, Eq)

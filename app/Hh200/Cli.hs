@@ -36,7 +36,6 @@ args = Args
 --     in
 --     execParser opts >>= cli
 --
--- ??: use this block to pass args to cli in golden
 main' :: IO ()
 main' = cli' =<< execParser opts
   where

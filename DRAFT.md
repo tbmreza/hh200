@@ -135,3 +135,16 @@ php -f router.php -S localhost:9999
 
 -- ??:
 -- theoretical peak size of Vm interpreting infinitely long .hhs script
+
+
+### Parser anew recipe
+
+stack new ...
+dependencies add array
+    stack test
+L.x starter from https://github.com/haskell/alex/blob/master/examples/Tokens_posn.x
+    alex ...
+    use alexScanTokens :: String -> [token]
+P.y starter from https://github.com/haskell/alex/blob/master/examples/tiny.y
+    happy ... --ghc
+    parse $ alexScanTokens "let k"

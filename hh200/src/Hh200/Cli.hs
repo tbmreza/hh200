@@ -42,21 +42,20 @@ go (Args _ True) = putStrLn $ showVersion Paths_hh200.version
 go (Args (Just s) _) = do
     program <- parseFile s
     -- print program
-    -- ??: ideate on VM instructions, memory, concurrency/parallelism
+    -- ??:
+    -- concurrency/parallelism
+    -- profiling (computation, memory,)
+    -- ideate on VM instructions
 
     interpret program where
 
     parseFile :: FilePath -> IO [Statement]
     parseFile filePath = do
         content <- readFile filePath
-        let ast = parse $ alexScanTokens content  -- ??: handle (monadic?) fallible alexScanTokens "lexical error" https://github.com/haskell/alex/blob/7b5585326bed26265f924d4b87b5a1fe0456e4b8/data/AlexWrappers.hs#L471
+        let ast = parse $ alexScanTokens content
         return ast
 
--- ??: assert response statusCode
---     withPolicy
---     handle panics: network/http, lexer,
---     reporting with spans: reuse GHC
---
+
 -- Perform side effects (reporting or http) intended by program source.
 -- Some of concurrency/parallelism semantics probably communicated by `interpret`'s signature.
 interpret :: [Statement] -> IO ()
@@ -73,9 +72,8 @@ interpret program = do  -- program = [RequestLine{..}, Response{..}]
 
     loadStatement :: Statement -> Vm -> Vm
     loadStatement stmt acc = case (acc, stmt) of
-        -- ((r1, r2, r3, r4, r5, r6, r7),
-        --  RequestLine l1 (Url l21 l22 l23_ps l24_q l25_f)) -> (pack l1, [], r3 ++ l22 ++ concat l23_ps, r4, r5, X:r6, False)
+        ((r1, r2, r3, r4, r5, r6, r7),
+         RequestLine l1 (Url l21 l22 l23_ps l24_q l25_f)) -> (pack l1, [], r3 ++ l22 ++ concat l23_ps, r4, r5, X:r6, False)
 
         ((r1, r2, r3, r4, r5, r6, r7),
-         -- ??: provide via L and P
          Response (IntLit t1)) ->                            (r1, r2, r3, r4, r5, (MATCH_CODES t1):r6, False)
