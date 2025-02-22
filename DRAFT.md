@@ -1,11 +1,49 @@
 # hh200
 ```
 summary: an imperative language that has first support for http requests
+summary: statically checked dsl for testing http servers
 extensions: .hhs (script), .hhsm (machine code), .hhbc (machine code binary)
 features: formatter, interpreted or standalone bin,
     parse/export standard curl invocation, smart caching, some compatibility with hurl, 
     "declare header for every requests",
 lang: for-loops, if-conditionals, process.env, parallel clients,
+
+components:
+- expression grammar    haskell generated lexer/parser with source-location error
+- virtual machine       instruction set, time space manager, garbage collector
+- symbollic executor
+
+symbollic execution of http testing script
+    stress testing          (standard lib, recipes)
+    foresee effects on sut  (composable callables)
+    report effects
+    fastforward/rewind      (model of the real world)
+
+
+hh200-lang is an objectification of a software person specializing in HTTP systems testing.
+Any number of times during the day, the thought "Let me hit this URL with such params real quick," forms in their brain.
+A number of times, after analyzing the insights they have further gathered, "Let's see if this web service is going to endure the test scenario that I have devised."
+hh200-lang is not innovative by implementing what weren't possible with general purpose languages before. Also see hurl, who's been the inspiration for this project.
+Nothing in theory stands in the way of this tool to being a full programming language (examples/fibonacci.hhs, examples/factorial.hhs).
+
+That being said, it's a modest tool for expressing _what HTTP calls to make and how_.
+To that end, materially speaking, this repo is home to the following components:
+-  The Hh200 Instruction Set specification document.
+  ...implemented by...
+- `.hhs` script frontend reference implementation (in haskell using conventional parser generators).
+  ...provides input to...
+- Hh200 compiler to core Erlang, wrapped with familiar package manager interface.
+
+
+"what calls to make and how"
+building-blocks:
+lexer/parser with source-location error
+parallel/concurrency as provided by haskell
+PICKUP
+compile to core erlang
+abstract interpreter
+
+
 ```
 
 
@@ -148,3 +186,9 @@ L.x starter from https://github.com/haskell/alex/blob/master/examples/Tokens_pos
 P.y starter from https://github.com/haskell/alex/blob/master/examples/tiny.y
     happy ... --ghc
     parse $ alexScanTokens "let k"
+
+# ??:
+# GET, POST releases-65rb.pages.dev/state  { "rgrid": "v1.1.0" }
+# so in appium rgrid we can:
+# # download-apk.hhs
+# GET releases-65rb.pages.dev/state  url="https://mobile-apps.paragoncorp.com/nova/v1.1.0.apk"  https://mobile-apps.paracorpgroup.com/nova/rc/nova%20v1.1.0-rc-sprint12.6.apk
