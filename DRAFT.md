@@ -8,9 +8,9 @@ usecases      stress testing (massive parallelism, pretty execution reports),
 others:       can read a subset of hurl
 
 
-hh200 is an objectification of a software person specializing in HTTP systems testing.
-Any number of times in a day, the thought "Let me hit this URL with such params real quick," forms in their brain.
-Perhaps, after analyzing the insights they have further gathered, "Let's see if this web service is going to endure the test scenario that I have devised."
+hh200 is a tool for testing HTTP servers. From "Let me hit this URL with such params
+real quick," to "Let's see if this web service is enduring such & such test scenario",
+hh200 was born for such developer occurrences.
 
 hh200 the language is a modest tool for expressing _what HTTP calls to make and how_.
 It is not innovative by enabling what weren't possible with general purpose languages before. Also see hurl, who's been the inspiration for this project.
@@ -20,9 +20,17 @@ This repo is home to the following components:
 
 -  The Hh200 Instruction Set specification document.
   ...implemented by...
-- `.hhs` script frontend reference implementation (in haskell using conventional parser generators).
+- `.hhs` script frontend reference implementation (using conventional parser generators).
   ...provides input to...
 - Hh200 compiler to core Erlang, wrapped with familiar package manager interface `hh200`.
+
+## Erlang
+$ erl
+Erlang/OTP 25 [erts-13.1.5] [source] [64-bit] [smp:20:20] [ds:20:20:10] [async-threads:1] [jit:ns]
+Eshell V13.1.5
+
+Erlang/OTP 27 [erts-15.2.2] [source] [64-bit] [smp:20:20] [ds:20:20:10] [async-threads:1] [jit:ns]
+Eshell V15.2.2
 
 
 "what calls to make and how" building-blocks:
@@ -32,6 +40,37 @@ compile to core erlang and programming in it
 abstract interpreter or symbolic executor
 
 
+strategy: how to call callables
+    probably a selling point to have it hotreloading erlang-style
+callable: what to call
+    partial and reads from environment
+    { method, url }
+
+"pass json-parsed response to later callables"
+
+parse to erlang Abstract Format
+execute a callable in a process
+    
+update context/environment from a process
+    client-server app
+    a dictionary<key, JsonString>  as rebar3 project: mcontext dictionary
+distribute erlang's runtime
+    erlang Release https://www.erlang.org/doc/system/release_structure
+    as cemerlang/ with makefile: .core building blocks
+
+{get,"http://localhost:9999/hello"}  -- set callable
+{http,404}                           -- httpc
+
+
+{get,{"http://localhost:9999/user?search=~a",["reza"]}}  -- interpolation, capture
+{http,200}
+{capture,{reza_id,21}}
+
+{delete,{"http://localhost:9999/user/{{reza_id}}",{ctx}}}  -- read ctx
+{http,200}
+
+            % scan :: String -> [Token]
+            % scan _ = do ... erl_scan:string ... return []
 ```
 
 
