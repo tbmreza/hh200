@@ -39,9 +39,6 @@ interp(Env, Lines) ->
             io:format("~p~n", [Result]),
             NewEnv
         end, Env, Lines)
-    % catch error:Reason ->
-    %     io:format("Error interpreting line: ~p~n", [Reason])
-    % end.
     catch 
         error:Reason:Stacktrace ->
             % Extract line number from stacktrace
@@ -106,12 +103,15 @@ eval(Expr, Env) ->
                                           orelse Method == patch
                                           orelse Method == options
                                           orelse Method == head ->
-            {Env, maps:put(callable,
-                           #{
-                             method => Method,
-                             url => fmt_url(Env, Url)
-                            },
-                           Env)};
+            {Env,
+             maps:put(callable,
+                      #{
+                        method => Method,
+                        url => fmt_url(Env, Url),
+                        % Empty tuples as nil; use empty map %{} of empty json object.
+                        body => {}
+                       },
+                      Env)};
 
 
         {value, {capture, Pairs}, _NewBindings} ->
@@ -127,41 +127,36 @@ eval(Expr, Env) ->
 
 
         % Set callable body.
-        {value, {json, Str}, _NewBindings} ->
-            % ?? static-check: httpc doesn't allow json body for get requests.
-            % {unimplemented, Env};
-            CallableWithBody = maps:put(body, Str, maps:get(callable, Env)),
+        {value, {json, Obj}, _NewBindings} ->
+            CallableWithBody = maps:put(body, Obj, maps:get(callable, Env)),
             NewEnv = maps:put(callable, CallableWithBody, Env),
 
             {maps:get(callable, NewEnv), NewEnv};
 
 
+        % Invariants: callable,
         {value, {http, ExpectCode}, _NewBindings} ->
-            #{method := Method, url := Url} =
-                maps:get(callable, Env, #{method => get, url => "http://localhost:9999/unreachableP"}),
+            #{method := SMethod,
+              url := SUrl,
+              body := SBody
+             } = maps:get(callable, Env),
 
-            ContentType = "application/json",
-            Headers = [{"Content-Type", ContentType}],
-            JsonBody = maps:get(callable_body,
-                                Env,
-                                "{\"name\":\"John\",\"age\":31}"),
+            R = case SMethod of
+                Method when Method == post orelse Method == patch ->
+                    case SBody of
+                        {} ->
+                            % ??: log info: post/patch without content,
+                            {SUrl, [], [], []};
+                        Obj ->
+                            ContentType = "application/json",
+                            Headers = [{"Content-Type", ContentType}],
+                            {SUrl, Headers, ContentType, json:format(SBody)}
+                    end;
+                _ ->
+                    {SUrl, []}
+            end,
 
-            % case catch httpc:request(post, {Url, Headers, ContentType, JsonBody}, [], []) of
-            % ??: POST, PATCH not ok
-            case catch httpc:request(Method, {Url, []}, [], []) of
-                {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
-                    Result = Code == ExpectCode,
-                    {Result, maps:put(response,
-                                      #{
-                                        headers => Headers,
-                                        body => Body
-                                       },
-                                      Env)};
-                V ->
-                    % {hh200_panicked, Env}
-                    {V, Env}
-
-            end;
+            io_req(Env, ExpectCode, SMethod, R);
 
 
         {value, Result, NewBindings} ->
@@ -178,9 +173,24 @@ eval(Expr, Env) ->
 
 
 
-% eval(Expr) -> eval(Expr, #{}).
-
 update_env(Env, Bindings) -> lists:foldl(
     fun({K, V}, Acc)-> maps:put(K, V, Acc) end,
     Env,
     Bindings).
+
+
+io_req(Env, ExpectCode, Method, R) ->  % -> {Result, NewEnv}
+    case catch httpc:request(Method, R, [], []) of
+        {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
+            Result = Code == ExpectCode,
+            {Result,
+             maps:put(response,
+                      #{
+                        headers => Headers,
+                        body => Body
+                       },
+                      Env)};
+        V ->
+            {V, Env}
+
+    end.
