@@ -49,15 +49,11 @@ interp(Env, Lines) ->
 
 
 
+-spec fmt_url(integer(), integer()) -> integer().  % ??
 fmt_url(_Env, Url) ->
     case Url of
         {fmt, Template, Exprs} ->
-            % ??: what ast is enabled after this; case E is term eval else ident
-            % Exprs:
-            % ["polate"]  ok
-            % ["dir", "child"]  ok
-            % [{var,user_id}]
-            % eval until it's list of string/digit literals.
+            % ??: eval until it's list of string/digit literals.
 
             Args = Exprs,
             % [Z0|_] = Exprs,
@@ -124,16 +120,25 @@ eval(Expr, Env) ->  % -> IO NewEnv
 
             R = case SMethod of
                 Method when Method == post orelse Method == patch ->
+                    ContentType = "application/json",
+                    Headers = [{"Content-Type", ContentType}],
                     case SBody of
                         {} ->
-                            % ??: log info: post/patch without content,
+                            ct:print("INFO: post/patch without content!"),
                             {SUrl, [], [], []};
-                        Obj ->
-                            ContentType = "application/json",
-                            Headers = [{"Content-Type", ContentType}],
+
+                        % When SBody is a list of chars (string):
+                        _ when is_list(SBody) ->
+                            % ??: read json path in SBody
+                            {SUrl, Headers, ContentType, json:format(#{username => <<"admin">>, password => <<"1234">>})}
+                            ;
+
+                        % When SBody is a map:
+                        % _ when not is_list(SBody) ->
+                        _ ->
                             {SUrl, Headers, ContentType, json:format(SBody)}
                     end;
-                _ ->
+                _HeadOptionsGet ->
                     {SUrl, []}
             end,
 
@@ -164,6 +169,9 @@ io_req(Env, ExpectCode, Method, R) ->  % -> {Result, NewEnv}
     case catch httpc:request(Method, R, [], []) of
         {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
             Result = Code == ExpectCode,
+            if not Result ->
+                ct:print("expected: ~p, got: ~p~n", [ExpectCode, Code]); true -> nil
+            end,
             {Result,
              maps:put(response,
                       #{

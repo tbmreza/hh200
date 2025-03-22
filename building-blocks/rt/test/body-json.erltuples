@@ -1,0 +1,7 @@
+{post, "https://bivi-backend-staging.paradev.io/v2/login"}
+{json, #{username => <<"admin">>, password => <<"1234">>}}
+{http,401}
+
+{post, "http://localhost:9999/user"}
+{json, "/home/tbmreza/gh/hh200/building-blocks/rt/test/asset.json"}
+{http, 200}

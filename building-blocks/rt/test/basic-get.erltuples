@@ -1,11 +1,11 @@
 {get, "http://localhost:9999/user"}
-{http, 404}
+{http, 200}
 {capture,[{user_id,3}]}
 {forget,[response, callable]}
 
 {get, {fmt, "http://localhost:9999/~s", ["polate"]}}
-{http,404}
+{http,200}
 
 {get, {fmt, "http://localhost:9999/~s/~s", ["dir", "child"]}}
-{http,404}
+{http,200}
 {var,user_id}
