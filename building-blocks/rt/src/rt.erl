@@ -87,7 +87,7 @@ fmt_url(_Env, Url) ->
         _ -> Url
     end.
 
-% Triggering ops: http, req_size_lim, {
+% Triggering ops: http, probe_valid_size, {
 content_json() -> "application/json".
 headers() -> [{"Content-Type", content_json()}].
 % }
@@ -97,7 +97,7 @@ eval(Expr, Env) ->  % -> IO NewEnv
     {ok, Tokens, _} = erl_scan:string(Expr ++ "."),
     {ok, ParsedExpr} = erl_parse:parse_exprs(Tokens),
 
-    % Triggering ops: http, req_size_lim, {
+    % Triggering ops: http, probe_valid_size, {
     ContentType = "application/json",
     Headers = [{"Content-Type", ContentType}],
     % }
@@ -149,57 +149,17 @@ eval(Expr, Env) ->  % -> IO NewEnv
 
 
         {value, {http, ExpectCode}, _NewBindings} ->
-            % #{method := SMethod,
-            %   url := SUrl,
-            %   body := SBody
-            %  } = maps:get(callable, Env),
-            %
-            % R = case SMethod of
-            %     Method when Method == post orelse Method == patch ->
-            %         % ContentType = "application/json",
-            %         % Headers = [{"Content-Type", ContentType}],
-            %         case SBody of
-            %             {} ->
-            %                 ct:print("INFO: post/patch without content!"),
-            %                 {SUrl, [], [], []};
-            %
-            %             {path, P} ->
-            %                 case catch file:read_file(P) of
-            %                     {ok, Content} ->
-            %                         {SUrl, Headers, ContentType, Content};
-            %                     _ ->
-            %                         ct:print("WARN: failed reading file at path=~p", [P]),
-            %                         {SUrl, [], [], []}
-            %                 end;
-            %
-            %             % When SBody is a list of chars (string):
-            %             _ when is_list(SBody) ->
-            %                 {SUrl, Headers, ContentType, json:format(#{username => <<"admin">>, password => <<"1234">>})}
-            %                 ;
-            %
-            %             % When SBody is a map:
-            %             % _ when not is_list(SBody) ->
-            %             _ ->
-            %                 ct:print("INFO: ??"),
-            %                 {SUrl, Headers, ContentType, json:format(SBody)}
-            %         end;
-            %     _HeadOptionsGet ->
-            %         {SUrl, []}
-            % end,
-            % io_req(Env, ExpectCode, SMethod, R);
-
-            io_req2(Env, ExpectCode);
+            io_req(Env, ExpectCode);
 
 
-        % req_size_lim initially sends ExpectMinBytes, expecting ExpectCode.
-        % If it results in unmatching codes, return false.
+        % probe_valid_size initially sends ExpectMinBytes, expecting ExpectCode.
+        % If even that results in unmatching codes, return false.
         %
-        % Otherwise, try again with (ExpectMinBytes div 10 + 1 ~= 10%) size
-        % (i.e. `ls -l` file size, not `du -h` block size) increase.
-        % If it results in unmatching codes, return the last size that succeeded.
-        %
-        % The iteration stops when the size gets to 2x of ExpectMinBytes.
-        {value, {req_size_lim, ExpectMinBytes, ExpectCode}, _NewBindings} ->  % {false | Bytes, NewEnv}
+        % Otherwise, try again with (ExpectMinBytes div 10 + 1 ~= 10%) size (i.e.
+        % `ls -l` file size, not `du -h` block size) increase.
+        % At one point it results in unmatching codes, return the last size that succeeded.
+        % (Or capped at double of ExpectMinBytes).
+        {value, {probe_valid_size, ExpectMinBytes, ExpectCode}, _NewBindings} ->  % {false | Bytes, NewEnv}
             #{
               % method := SMethod,
               % url := SUrl,
@@ -207,7 +167,28 @@ eval(Expr, Env) ->  % -> IO NewEnv
              } = maps:get(callable, Env),
 
             case SBody of
-                {mut, Path} -> ct:print("INFO: modifying provided file at Path=~p", [Path]);
+                {mut, Path, Position} ->
+                    Tenth = ExpectMinBytes div 10 + 1,
+
+                    ct:print("INFO: modifying provided file at Path=~p", [Path]),
+                    LastSize = meet_expect_min_bytes(ExpectMinBytes, Path, Position, Tenth),
+
+                    {Code, NewEnv} = io_req(Env, ExpectCode),
+                    if Code =/= ExpectCode ->
+                        {false, Env};
+
+                    true ->
+                        H = fun H(CodesDidMatch, LastSize, E)-> case CodesDidMatch of
+                            false ->
+                                {min(2 * ExpectMinBytes, LastSize), E};
+                            _ ->
+                                insert_at_position(Path, lists:duplicate(Tenth, "k"), Position),  % ??: assert sizes before after insertion
+                                {Code, NewEnv} = io_req(E, ExpectCode),
+                                H(Code == ExpectCode, file_size_or_panic(Path), NewEnv)
+                            end
+                        end,
+                        H(true, LastSize, Env)
+                    end;
 
                 {path, Path} ->
                     ct:print("WARN: unmet invariant of mutable file path, using provided file once."),
@@ -220,7 +201,7 @@ eval(Expr, Env) ->  % -> IO NewEnv
                             _ -> false
                         end,
 
-                    {Code, NewEnv} = io_req2r(Env, ExpectCode),
+                    {Code, NewEnv} = io_req(Env, ExpectCode),
 
                     if FileMeetsExpectMinBytes and (Code == ExpectCode) ->
                         {ExpectMinBytes, Env};
@@ -232,50 +213,6 @@ eval(Expr, Env) ->  % -> IO NewEnv
                     ct:print("ERROR: unmet invariant of mutable file path"),
                     {false, Env}
             end;
-
-
-
-            % stash:
-            % #{method := SMethod,
-            %   url := SUrl,
-            %   body := SBody
-            %  } = maps:get(callable, Env),
-            %
-            % R = case SMethod of
-            %     Method when Method == post orelse Method == patch ->
-            %         % ContentType = "application/json",
-            %         % Headers = [{"Content-Type", ContentType}],
-            %         case SBody of
-            %             {} ->
-            %                 ct:print("INFO: post/patch without content!"),
-            %                 {SUrl, [], [], []};
-            %
-            %             % When SBody is a list of chars (string):
-            %             _ when is_list(SBody) ->
-            %                 {SUrl, Headers, ContentType, json:format(#{username => <<"admin">>, password => <<"1234">>})}
-            %                 ;
-            %
-            %             % When SBody is a map:
-            %             % _ when not is_list(SBody) ->
-            %             _ ->
-            %                 {SUrl, Headers, ContentType, json:format(SBody)}
-            %         end;
-            %     _HeadOptionsGet ->
-            %         {SUrl, []}
-            % end,
-            %
-            % {Code, NewEnv} = io_req(Env, ExpectCode, SMethod, R),
-            % % case of
-            % %   413 TooLarge or 504 50x Gateway or Error -> {false, NewEnv}
-            % %   _ -> H(ExpectMinBytes, Stride)
-            % case Code of
-            %     % 401 ->
-            %     Code when Code == 401 orelse Code == 504 ->
-            %         Bytes = 109,
-            %         ct:print("~p~n", [Bytes]),
-            %         {Bytes, NewEnv};
-            %     _ -> {todo, NewEnv}
-            % end;
 
 
         {value, Result, NewBindings} ->
@@ -290,16 +227,6 @@ eval(Expr, Env) ->  % -> IO NewEnv
             {Result, Env}
     end.
 
-
-% H(AccBytes, Stride) ->
-%     case io_req_of_size of
-%       nok -> AccBytes;
-%       _ ->   
-%           insert_at_position("/home/tbmreza/gh/hh200/building-blocks/rt/asset.json",
-%               lists:duplicate(Stride, "a"),
-%               9)
-%           H(AccBytes + Stride, Stride)
-%     end.
 
 % ??: par or c ffi
 insert_at_position(Filename, InsertString, Position) ->
@@ -325,7 +252,7 @@ update_env(Env, Bindings) -> lists:foldl(
     Bindings).
 
 
-io_req2r(Env, ExpectCode) ->  % -> {Code, NewEnv}
+io_req(Env, ExpectCode) ->  % -> {Code, NewEnv}
     #{method := SMethod,
       url := SUrl,
       body := SBody
@@ -337,6 +264,15 @@ io_req2r(Env, ExpectCode) ->  % -> {Code, NewEnv}
                 {} ->
                     ct:print("INFO: post/patch without content!"),
                     {SUrl, [], [], []};
+
+                {mut, P, _} ->
+                    case catch file:read_file(P) of
+                        {ok, Content} ->
+                            {SUrl, headers(), content_json(), Content};
+                        _ ->
+                            ct:print("WARN: failed reading file at path=~p", [P]),
+                            {SUrl, [], [], []}
+                    end;
 
                 {path, P} ->
                     case catch file:read_file(P) of
@@ -355,7 +291,7 @@ io_req2r(Env, ExpectCode) ->  % -> {Code, NewEnv}
                 % When SBody is a map:
                 % _ when not is_list(SBody) ->
                 _ ->
-                    ct:print("INFO: ??"),
+                    ct:print("INFO: ???"),
                     {SUrl, headers(), content_json(), json:format(SBody)}
             end;
         _HeadOptionsGet ->
@@ -379,75 +315,20 @@ io_req2r(Env, ExpectCode) ->  % -> {Code, NewEnv}
 
     end.
 
-io_req2(Env, ExpectCode) ->  % -> {Code, NewEnv}
-    #{method := SMethod,
-      url := SUrl,
-      body := SBody
-     } = maps:get(callable, Env),
 
-    R = case SMethod of
-        Method when Method == post orelse Method == patch ->
-            case SBody of
-                {} ->
-                    ct:print("INFO: post/patch without content!"),
-                    {SUrl, [], [], []};
+file_size_or_panic(Path) ->
+    {ok, Tup} = file:read_file_info(Path),
+    [file_info, Size | _] = tuple_to_list(Tup),
+    Size.
 
-                {path, P} ->
-                    case catch file:read_file(P) of
-                        {ok, Content} ->
-                            {SUrl, headers(), content_json(), Content};
-                        _ ->
-                            ct:print("WARN: failed reading file at path=~p", [P]),
-                            {SUrl, [], [], []}
-                    end;
 
-                % When SBody is a list of chars (string):
-                _ when is_list(SBody) ->
-                    {SUrl, headers(), content_json(), json:format(#{username => <<"admin">>, password => <<"1234">>})}
-                    ;
 
-                % When SBody is a map:
-                % _ when not is_list(SBody) ->
-                _ ->
-                    ct:print("INFO: ??"),
-                    {SUrl, headers(), content_json(), json:format(SBody)}
-            end;
-        _HeadOptionsGet ->
-            {SUrl, []}
+meet_expect_min_bytes(ExpectMinBytes, Path, Position, Stride) ->
+    H = fun H(Size)-> case Size of
+        Size when Size >= ExpectMinBytes -> Size;
+        _ ->
+            insert_at_position(Path, lists:duplicate(Stride, "k"), Position),
+            H(file_size_or_panic(Path))
+        end
     end,
-    case catch httpc:request(SMethod, R, [], []) of
-        {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
-            if Code =/= ExpectCode ->
-                ct:print("expected: ~p, got: ~p~n", [ExpectCode, Code]); true -> nil
-            end,
-            {Code,
-             maps:put(response,
-                      #{
-                        headers => Headers,
-                        body => Body
-                       },
-                      Env)};
-        V ->
-            ct:print("got: ~p~n", [V]),
-            {false, Env}
-
-    end.
-
-io_req(Env, ExpectCode, Method, R) ->  % -> {Code, NewEnv}
-    case catch httpc:request(Method, R, [], []) of
-        {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
-            if Code =/= ExpectCode ->
-                ct:print("expected: ~p, got: ~p~n", [ExpectCode, Code]); true -> nil
-            end,
-            {Code,
-             maps:put(response,
-                      #{
-                        headers => Headers,
-                        body => Body
-                       },
-                      Env)};
-        V ->
-            ct:print("got: ~p~n", [V]),
-            {false, Env}
-
-    end.
+    H(file_size_or_panic(Path)).
