@@ -17,6 +17,12 @@ import Control.Exception (Exception, throwIO)
 data InternalError = OutOfBounds
                    | Todo
     deriving (Show, Eq)
+
+data HhError = LibError
+             | SystemError
+             | PointableError
+    deriving (Show)
+
 ok :: Maybe a
 ok = Nothing
 
@@ -35,16 +41,16 @@ type Headers = HashTable String String
 type ExpectCode = Int
 type Url = String
 
-data Instr = NOP
-           | IV
-           | IC
-           | OV HttpVerb
-           | OC ExpectCode
-           | SU Url
-           | SH HeaderName [S.ByteString]
-           | X
-           | MATCH_CODES Int
-    deriving (Show, Eq)
+-- data Instr = NOP
+--            | IV
+--            | IC
+--            | OV HttpVerb
+--            | OC ExpectCode
+--            | SU Url
+--            | SH HeaderName [S.ByteString]
+--            | X
+--            | MATCH_CODES Int
+--     deriving (Show, Eq)
 
 -- setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
 -- let hlInput = setRequestHeader "Content-Type" ["application/x-yaml"] $ ""

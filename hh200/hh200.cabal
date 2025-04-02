@@ -27,8 +27,8 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
+      Hh200.Etf
       Hh200.Types
-      Hh200.Vm
       L
       Lib
       P
