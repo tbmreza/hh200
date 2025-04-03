@@ -57,6 +57,7 @@ library
     , split
     , text
     , toml-parser
+    , transformers
     , unordered-containers
     , yaml
   default-language: Haskell2010
@@ -74,6 +75,7 @@ executable hh200
       base >=4.7 && <5
     , hh200
     , optparse-applicative
+    , transformers
   default-language: Haskell2010
 
 test-suite hh200-test
@@ -92,4 +94,5 @@ test-suite hh200-test
     , optparse-applicative
     , tasty
     , tasty-hunit
+    , transformers
   default-language: Haskell2010

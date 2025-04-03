@@ -1,6 +1,7 @@
 {
 module P where
 
+import Control.Monad.Trans.Except
 import L
 }
 %name parse
@@ -29,21 +30,19 @@ import L
 
 %%
 
-E : Statements  { $1 }
+Program : Statements  { $1 }
 
 Statements : Statement             { [$1] }
            | Statements Statement  { $1 ++ [$2] }
 
-Statement  : method Expr            { RequestLine $1 $2 }
-
-           | http_version_status { $1 }
+Statement  : http_version_status { $1 }
            | request_line { $1 }
 
 
-Expr       :  scheme authority paths { Url $1 $2 $3 Nothing Nothing }
 
 
-request_line : method s "\n"  { Request { method = $1, url = "" } }
+request_line : method s "\n"  { Request { method = $1, url = $2 } }
+             | method s       { Request { method = $1, url = $2 } }
 
 http_version_status : kwHttp sep d sep d d  { Response { version = Just (read ($3 ++ $5) :: Float), status = (read $6 :: Int) } }
                     | kwHttp sep d d        { Response { version = Just (read $3 :: Float), status = (read $4 :: Int) } }
@@ -68,18 +67,14 @@ fragments : fragment    { Just $1 }
 
 {
 
-data Statement = RequestLine  String Expr
-               | Request { method :: String, url :: String }
+data Statement = Request  { method :: String, url :: String }
                | Response { version :: Maybe Float, status :: Int }
-    deriving (Show)
-
-data Expr = IntLit  Int
-          | Url     String String [String] (Maybe String) (Maybe String)
-    deriving (Show)
+    deriving (Show, Eq)
 
 
 parseError :: [Token] -> E a
-parseError tokens = failE "Parse error"
+-- parseError tokens = failE "Parse error"
+parseError tokens = failE $ "Parse error on tokens: " ++ show tokens
 
 data E a = ParseOk a | ParseFailed String
 
