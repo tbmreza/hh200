@@ -1,7 +1,9 @@
 -module(basic_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -export([all/0]).
--export([test1/1, test2/1, test3/1]).
+-export([test1/1]).
+-export([test2/1]).
+-export([test3/1]).
  
 all() -> [test1,test2,test3].
  
@@ -22,4 +24,4 @@ test2(_Config) ->
 
 
 test3(_Config) ->
-    ok = rt:start("/home/tbmreza/gh/hh200/building-blocks/rt/test/basic-get.erltuples").
+    ok = rt:start_("/home/tbmreza/gh/hh200/hh200/unittest.etf").
