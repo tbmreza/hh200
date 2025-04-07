@@ -64,6 +64,29 @@ erlCall args = do
         (\e -> return $ "[Hh200.Cli] " ++ show (e :: SomeException))
     putStrLn res
 
+erlEval :: [String] -> IO ()
+erlEval words = do
+    let replInputNone = ""
+    res <- catch
+        (readProcess "echo" words replInputNone)
+        (\e -> return $ "[Hh200.Cli] " ++ show (e :: SomeException))
+    putStrLn res
+
+chainCommands :: IO ()
+chainCommands = do
+    let cmd1 = "echo"
+    let args1 = ["A=111,A."]  -- this invocation doesn't have access to running node's bindings
+    let cmd2 = "erl_call"
+    let args2 = ["-sname", "hh200", "-e"]
+
+    -- Construct the full command with a pipe
+    let fullCommand = cmd1 ++ " " ++ unwords args1 ++ " | " ++ cmd2 ++ " " ++ unwords args2
+
+    res <- catch
+        (readProcess "bash" ["-c", fullCommand] "")
+        (\e -> return $ "[Hh200.Cli] " ++ show (e :: SomeException))
+    putStrLn res
+
 
 go :: Args -> IO ()
 
@@ -77,7 +100,16 @@ go Args { call = True } =
     -- erlCall ["-sname", "hh200", "-setcookie", "ZTDCNMUDFQEYFLUVJUAT"]
     -- erlCall ["-sname", "hh200"]
     -- erlRepl ["-sname", "hh200"] "{."
-    erlCall ["-sname", "hh200", "-a", "rt dbg"]
+
+    -- -- rt:dbg() to an already running node
+    -- erlCall ["-sname", "hh200", "-a", "rt dbg"]
+
+    -- erlCall ["-sname", "hh200", "-e", "X=1,Y=2,{X,Y}"]
+    -- erlCall ["-sname", "hh200", "-e", "X=1,Y=2,{X,Y}."]
+    -- echo "X=1,Y=2,{X,Y}." | erl_call -sname hh200 -e
+    -- erlEval ["X=1,Y=2,{X,Y}.", "|", "erl_call", "-sname", "hh200", "-e"]
+
+    chainCommands
 
 -- -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 -- go (Args (Just s) _) = do
