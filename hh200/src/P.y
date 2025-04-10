@@ -42,19 +42,22 @@ Program : Statements  { $1 }
 Statements : Statement             { [$1] }
            | Statements Statement  { $1 ++ [$2] }
 
-Statement  : http_version_status { $1 }
-           | request_line { $1 }
+Statement  : http_version_status_ln { $1 }
+           | request_ln { $1 }
            | config_section { $1 }
            | sect { $1 }
 
 
 
+http_version_status_ln : http_version_status "\n"  { $1 }
+                       | http_version_status       { $1 }
+
 http_version_status : kwHttp "/" d "." d status_codes  { Response { version = Just (read ($3 ++ $5) :: Float), status = $6 } }
                     | kwHttp "/" d       status_codes  { Response { version = Just (read $3 :: Float), status = $4 } }
                     | kwHttp             status_codes  { Response { version = Nothing, status = $2 } }
 
-request_line : method s "\n"  { Request { method = $1, url = $2 } }
-             | method s       { Request { method = $1, url = $2 } }
+request_ln : method s "\n"  { Request { method = $1, url = $2 } }
+           | method s       { Request { method = $1, url = $2 } }
 
 sect : "[" kwConfig "]"  { Section { name = $2, binds = [] } }
 
@@ -62,6 +65,8 @@ config_section : "[" kwConfig "]" "\n"
     identifier ":" filepath "\n"
     identifier ":" identifier
                     { Config { output = $7, outputExists = $11 } }
+
+ln : "\n" { "\n" }
 
 kwHttp : "http" { "http" }
        | "HTTP" { "HTTP" }

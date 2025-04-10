@@ -57,15 +57,24 @@ t = testGroup "syntax" [
         -- mapM_ doAssertParse (caseReqLine ++ caseVerStatus)
         mapM_ doAssertParse ["GET https://example.com\n", "GET https://example.com"]
 
-  -- , testCase "parse multiline string" $ do
-  --       let caseReqLine =   "GET https://example.com\nHTTP 200"
-  --       let stmts = [
-  --               P.Request { method = "GET", url = "https://example.com" },
-  --               P.Response { version = Nothing, status = [200] }
-  --               ] :: [P.Statement]
-  --
-  --       assertBool "data struct equality" (toStatements caseReqLine == Just stmts)
-  --
+  , testCase "parse url" $ do
+        let str = "GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI"
+        let stmts = [
+                P.Request { method = "GET", url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI" }
+                ] :: [P.Statement]
+
+        assertBool "data struct equality" (toStatements str == Just stmts)
+        -- mapM_ doAssertParse [str]
+
+  , testCase "parse multiline string" $ do
+        let caseReqLine = "GET https://example.com\nHTTP 200"
+        let stmts = [
+                P.Request { method = "GET", url = "https://example.com" },
+                P.Response { version = Nothing, status = [200] }
+                ] :: [P.Statement]
+
+        assertBool "data struct equality" (toStatements caseReqLine == Just stmts)
+
   -- , testCase "parse and write etf" $ do
   --       let caseReqLine =   "GET http://localhost:9999/yy\nHTTP 200"
   --       let t = asListTerm (fromJust $ toStatements caseReqLine)
@@ -82,12 +91,30 @@ t = testGroup "syntax" [
 
   , testCase "section" $ do
         -- let cases = ["[Options]"]  ??: lexer conflict with options the method
-        -- let cases = ["[Config]", "[Config]", "[Config]"]  -- ok
-        -- let cases = ["[Config]\noutput:"]
-        -- let cases = ["[Config]\noutput: /home/tbmreza/test.jpg\n"]
-        let cases = ["[Config]\noutput: /home/tbmreza/test.jpg\noutput-exists: overwrite"]
-        -- PICKUP assert eq
-        mapM_ doAssertParse cases
+        let c = [Config { output = "/home/tbmreza/test.jpg", outputExists = "overwrite" }]
+        let sect = "[Config]\noutput: /home/tbmreza/test.jpg\noutput-exists: overwrite"
+
+        assertBool "data struct equality" (toStatements sect == Just c)
+
+  , testCase "response+section" $ do
+        let c = [
+                P.Response { version = Nothing, status = [200] }
+              , P.Config { output = "/home/tbmreza/test.jpg", outputExists = "overwrite" }
+                ]
+        let sect = "HTTP 200\n[Config]\noutput: /home/tbmreza/test.jpg\noutput-exists: overwrite"
+        assertBool "data struct equality" (toStatements sect == Just c)
+        -- mapM_ doAssertParse [sect]
+
+  , testCase "request+response+section" $ do
+        let str = "GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI\nHTTP 200\n[Config]\noutput: /home/tbmreza/test.jpg\noutput-exists: overwrite"
+        let c = [
+                P.Request { method = "GET", url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI" }
+              , P.Response { version = Nothing, status = [200] }
+              , P.Config { output = "/home/tbmreza/test.jpg", outputExists = "overwrite" }
+                ]
+
+        assertBool "data struct equality" (toStatements str == Just c)
+
 
 -- let caseVerStatus = ["HTTP/1.1 200", "HTTP/1 200", "HTTP 200", "HTTP [200]"]
 
