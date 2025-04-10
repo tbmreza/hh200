@@ -21,8 +21,10 @@ description:         Please see the README on GitHub at <https://github.com/tbmr
 
 dependencies:
 - base >= 4.7 && < 5
-- optparse-applicative
+- text
 - transformers
+- process
+- optparse-applicative
 
 ghc-options:
 - -Wall

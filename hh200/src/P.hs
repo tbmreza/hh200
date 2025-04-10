@@ -33,48 +33,59 @@ import Control.Monad (ap)
 
 -- parser produced by Happy Version 2.1.4
 
-data HappyAbsSyn t5 t6 t7 t8
+data HappyAbsSyn t5 t6 t7 t8 t9 t10 t11
         = HappyTerminal (Token)
         | HappyErrorToken Happy_Prelude.Int
         | HappyAbsSyn5 t5
         | HappyAbsSyn6 t6
         | HappyAbsSyn7 t7
         | HappyAbsSyn8 t8
+        | HappyAbsSyn9 t9
+        | HappyAbsSyn10 t10
+        | HappyAbsSyn11 t11
 
 {-# NOINLINE happyTokenStrings #-}
-happyTokenStrings = ["int","httpUpper","%eof"]
+happyTokenStrings = ["httpUpper","method","scheme","authority","path","query","fragment","%eof"]
 
 happyActOffsets :: HappyAddr
-happyActOffsets = HappyA# "\x04\x00\x00\x00\x04\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
+happyActOffsets = HappyA# "\x05\x00\x00\x00\x05\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
 
 happyGotoOffsets :: HappyAddr
-happyGotoOffsets = HappyA# "\x01\x00\x00\x00\x03\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
+happyGotoOffsets = HappyA# "\x01\x00\x00\x00\x08\x00\x00\x00\x0a\x00\x00\x00\x00\x00\x00\x00\x0b\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0d\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
 
 happyDefActions :: HappyAddr
-happyDefActions = HappyA# "\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xfb\xff\xff\xff\xfa\xff\xff\xff\xfc\xff\xff\xff"#
+happyDefActions = HappyA# "\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfa\xff\xff\xff\xf9\xff\xff\xff\x00\x00\x00\x00\xfb\xff\xff\xff\xfc\xff\xff\xff\xf6\xff\xff\xff\xf8\xff\xff\xff\xf6\xff\xff\xff\xf7\xff\xff\xff"#
 
 happyCheck :: HappyAddr
-happyCheck = HappyA# "\xff\xff\xff\xff\x00\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x04\x00\x00\x00\x03\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\xff\xff\xff\xff\x03\x00\x00\x00\xff\xff\xff\xff"#
+happyCheck = HappyA# "\xff\xff\xff\xff\x00\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x09\x00\x00\x00\x04\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x05\x00\x00\x00\x02\x00\x00\x00\x06\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\xff\xff\xff\xff\x04\x00\x00\x00\x04\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"#
 
 happyTable :: HappyAddr
-happyTable = HappyA# "\x00\x00\x00\x00\x05\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\xff\xff\xff\xff\x05\x00\x00\x00\x08\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00"#
+happyTable = HappyA# "\x00\x00\x00\x00\x06\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x09\x00\x00\x00\xff\xff\xff\xff\x0a\x00\x00\x00\x05\x00\x00\x00\x06\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x0d\x00\x00\x00\x0b\x00\x00\x00\x0f\x00\x00\x00\x0a\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00\x0d\x00\x00\x00\x0f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"#
 
-happyReduceArr = Happy_Data_Array.array (1, 5) [
+happyReduceArr = Happy_Data_Array.array (1, 13) [
         (1 , happyReduce_1),
         (2 , happyReduce_2),
         (3 , happyReduce_3),
         (4 , happyReduce_4),
-        (5 , happyReduce_5)
+        (5 , happyReduce_5),
+        (6 , happyReduce_6),
+        (7 , happyReduce_7),
+        (8 , happyReduce_8),
+        (9 , happyReduce_9),
+        (10 , happyReduce_10),
+        (11 , happyReduce_11),
+        (12 , happyReduce_12),
+        (13 , happyReduce_13)
         ]
 
 happyRuleArr :: HappyAddr
-happyRuleArr = HappyA# "\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x01\x00\x00\x00"#
+happyRuleArr = HappyA# "\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\x04\x00\x00\x00\x02\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x05\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00"#
 
 happyCatchStates :: [Happy_Prelude.Int]
 happyCatchStates = []
 
-happy_n_terms = 5 :: Happy_Prelude.Int
-happy_n_nonterms = 4 :: Happy_Prelude.Int
+happy_n_terms = 10 :: Happy_Prelude.Int
+happy_n_nonterms = 7 :: Happy_Prelude.Int
 
 happy_n_starts = 1 :: Happy_Prelude.Int
 
@@ -118,16 +129,90 @@ happyReduction_4 _ _  = notHappyAtAll
 
 #if __GLASGOW_HASKELL__ >= 710
 #endif
-happyReduce_5 = happySpecReduce_1  3# happyReduction_5
-happyReduction_5 (HappyTerminal (TokenInt happy_var_1))
-         =  HappyAbsSyn8
-                 (IntLit happy_var_1
+happyReduce_5 = happySpecReduce_2  2# happyReduction_5
+happyReduction_5 (HappyAbsSyn8  happy_var_2)
+        (HappyTerminal (METHOD _ happy_var_1))
+         =  HappyAbsSyn7
+                 (RequestLine happy_var_1 happy_var_2
         )
-happyReduction_5 _  = notHappyAtAll 
+happyReduction_5 _ _  = notHappyAtAll 
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_6 = happySpecReduce_1  3# happyReduction_6
+happyReduction_6 _
+         =  HappyAbsSyn8
+                 (IntLit 1
+        )
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_7 = happySpecReduce_3  3# happyReduction_7
+happyReduction_7 (HappyAbsSyn9  happy_var_3)
+        (HappyTerminal (URL_AUTHORITY _ happy_var_2))
+        (HappyTerminal (URL_SCHEME _ happy_var_1))
+         =  HappyAbsSyn8
+                 (Url happy_var_1 happy_var_2 happy_var_3 Nothing Nothing
+        )
+happyReduction_7 _ _ _  = notHappyAtAll 
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_8 = happySpecReduce_2  4# happyReduction_8
+happyReduction_8 (HappyAbsSyn9  happy_var_2)
+        (HappyTerminal (URL_PATH _ happy_var_1))
+         =  HappyAbsSyn9
+                 (happy_var_1 : happy_var_2
+        )
+happyReduction_8 _ _  = notHappyAtAll 
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_9 = happySpecReduce_0  4# happyReduction_9
+happyReduction_9  =  HappyAbsSyn9
+                 ([]
+        )
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_10 = happySpecReduce_1  5# happyReduction_10
+happyReduction_10 (HappyTerminal (URL_QUERY _ happy_var_1))
+         =  HappyAbsSyn10
+                 (Just happy_var_1
+        )
+happyReduction_10 _  = notHappyAtAll 
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_11 = happySpecReduce_0  5# happyReduction_11
+happyReduction_11  =  HappyAbsSyn10
+                 (Nothing
+        )
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_12 = happySpecReduce_1  6# happyReduction_12
+happyReduction_12 (HappyTerminal (URL_AUTHORITY _ happy_var_1))
+         =  HappyAbsSyn11
+                 (Just happy_var_1
+        )
+happyReduction_12 _  = notHappyAtAll 
+
+#if __GLASGOW_HASKELL__ >= 710
+#endif
+happyReduce_13 = happySpecReduce_0  6# happyReduction_13
+happyReduction_13  =  HappyAbsSyn11
+                 (Nothing
+        )
 
 happyTerminalToTok term = case term of {
-        TokenInt happy_dollar_dollar -> 2#;
-        Skip -> 3#;
+        SKIP happy_dollar_dollar -> 2#;
+        METHOD _ happy_dollar_dollar -> 3#;
+        URL_SCHEME _ happy_dollar_dollar -> 4#;
+        URL_AUTHORITY _ happy_dollar_dollar -> 5#;
+        URL_PATH _ happy_dollar_dollar -> 6#;
+        URL_QUERY _ happy_dollar_dollar -> 7#;
+        URL_AUTHORITY _ happy_dollar_dollar -> 8#;
         _ -> -1#;
         }
 {-# NOINLINE happyTerminalToTok #-}
@@ -136,53 +221,88 @@ happyLex kend  _kmore []       = kend notHappyAtAll []
 happyLex _kend kmore  (tk:tks) = kmore (happyTerminalToTok tk) tk tks
 {-# INLINE happyLex #-}
 
-happyNewToken action sts stk = happyLex (\tk -> happyDoAction 4# notHappyAtAll action sts stk) (\i tk -> happyDoAction i tk action sts stk)
+happyNewToken action sts stk = happyLex (\tk -> happyDoAction 9# notHappyAtAll action sts stk) (\i tk -> happyDoAction i tk action sts stk)
 
-happyReport 4# tk explist resume tks = happyReport' tks explist resume
+happyReport 9# tk explist resume tks = happyReport' tks explist resume
 happyReport _ tk explist resume tks = happyReport' (tk:tks) explist (\tks -> resume (Happy_Prelude.tail tks))
 
 
-newtype HappyIdentity a = HappyIdentity a
-happyIdentity = HappyIdentity
-happyRunIdentity (HappyIdentity a) = a
-
-instance Happy_Prelude.Functor HappyIdentity where
-    fmap f (HappyIdentity a) = HappyIdentity (f a)
-
-instance Applicative HappyIdentity where
-    pure  = HappyIdentity
-    (<*>) = ap
-instance Happy_Prelude.Monad HappyIdentity where
-    return = pure
-    (HappyIdentity p) >>= q = q p
-
-happyThen :: () => (HappyIdentity a) -> (a -> (HappyIdentity b)) -> (HappyIdentity b)
-happyThen = (Happy_Prelude.>>=)
-happyReturn :: () => a -> (HappyIdentity a)
-happyReturn = (Happy_Prelude.return)
-happyThen1 m k tks = (Happy_Prelude.>>=) m (\a -> k a tks)
+happyThen :: () => (E a) -> (a -> (E b)) -> (E b)
+happyThen = (thenE)
+happyReturn :: () => a -> (E a)
+happyReturn = (returnE)
+happyThen1 m k tks = (thenE) m (\a -> k a tks)
 happyFmap1 f m tks = happyThen (m tks) (\a -> happyReturn (f a))
-happyReturn1 :: () => a -> b -> (HappyIdentity a)
-happyReturn1 = \a tks -> (Happy_Prelude.return) a
-happyReport' :: () => [(Token)] -> [Happy_Prelude.String] -> ([(Token)] -> (HappyIdentity a)) -> (HappyIdentity a)
-happyReport' = (\tokens expected resume -> HappyIdentity Happy_Prelude.$ (parseError) tokens)
+happyReturn1 :: () => a -> b -> (E a)
+happyReturn1 = \a tks -> (returnE) a
+happyReport' :: () => [(Token)] -> [Happy_Prelude.String] -> ([(Token)] -> (E a)) -> (E a)
+happyReport' = (\tokens expected resume -> (parseError) tokens)
 
-happyAbort :: () => [(Token)] -> (HappyIdentity a)
+happyAbort :: () => [(Token)] -> (E a)
 happyAbort = Happy_Prelude.error "Called abort handler in non-resumptive parser"
 
-parse tks = happyRunIdentity happySomeParser where
+parse tks = happySomeParser where
  happySomeParser = happyThen (happyParse 0# tks) (\x -> case x of {HappyAbsSyn5 z -> happyReturn z; _other -> notHappyAtAll })
 
 happySeq = happyDontSeq
 
 
-data Statement 
-    = Response  Expr
-data Expr 
-    = IntLit  Int
+data Statement = Response     Expr
+               | RequestLine  String Expr
+    deriving (Show)
+
+data Expr = IntLit  Int
+          | Url     String String [String] (Maybe String) (Maybe String)
+    deriving (Show)
 
 parseError :: [Token] -> a
 parseError _ = error "Parse error"
+-- parseError tokens = failE "Parse error"
+
+
+type LineNumber = Int
+type P a = String -> LineNumber -> ParseResult a
+data E a = Ok a | Failed String
+data ParseResult a = ParseOk a | ParseFailed String
+
+
+thenP :: P a -> (a -> P b) -> P b
+m `thenP` k = \s ->
+   case m s of
+       Ok a     -> k a s
+       Failed e -> Failed e
+
+returnP :: a -> P a
+returnP a = \s -> Ok a
+
+failP :: String -> P a
+failP err = \s -> Failed err
+
+catchP :: P a -> (String -> P a) -> P a
+catchP m k = \s ->
+   case m s of
+      Ok a     -> Ok a
+      Failed e -> k e s
+
+
+thenE :: E a -> (a -> E b) -> E b
+m `thenE` k =
+   case m of
+       Ok a     -> k a
+       Failed e -> Failed e
+
+returnE :: a -> E a
+returnE a = Ok a
+
+failE :: String -> E a
+failE err = Failed err
+
+catchE :: E a -> (String -> E a) -> E a
+catchE m k =
+   case m of
+      Ok a     -> Ok a
+      Failed e -> k e
+-- %monad { P } { thenP } { returnP }
 -- $Id: GenericTemplate.hs,v 1.26 2005/01/14 14:47:22 simonmar Exp $
 
 #if !defined(__GLASGOW_HASKELL__)

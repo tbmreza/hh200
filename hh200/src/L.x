@@ -3,9 +3,11 @@ module L where
 }
 %wrapper "posn"
 
-$alpha = [a-zA-Z]
 $white = [\ \t]
 $newline = [\n\r]
+$alpha = [a-zA-Z]
+$digit = [0-9]
+$path = [$alpha $digit \\ \/ \- \_ \.]
 
 tokens :-
     $white+   ;
@@ -19,35 +21,54 @@ tokens :-
   | [Oo][Pp][Tt][Ii][Oo][Nn][Ss]
   | [Hh][Ee][Aa][Dd]              { tok (\p s -> METHOD p s) }
 
-    HTTP    { tok (\p _ -> KW_HTTP p) }
-    [0-9]+  { tok (\p s -> DIGITS p s) }
-    [\.\/]  { tok (\p _ -> SYN p) }
+    \[       { tok (\p _ -> LIST_OPN p) }
+    \]       { tok (\p _ -> LIST_CLS p) }
+    :        { tok (\p _ -> COLON p) }
+    HTTP     { tok (\p _ -> KW_HTTP p) }
+    Config   { tok (\p _ -> KW_CONFIG p) }
+    $digit+  { tok (\p s -> DIGITS p s) }
+    [\.\/]   { tok (\p _ -> SEP p) }
 
     http [.]*  { tok (\p s -> RAW p s) }
 
+    [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
+
+    $path+     { tok (\p s -> PATH p s) }
+
+
+
 
 {
+
 tok f p s = f p s
 
-data Token = SYN      AlexPosn
-           | DIGITS   AlexPosn String
-           | METHOD   AlexPosn String  -- GET
-           | VERSION  AlexPosn String  -- HTTP/1.1
-           | STATUS   AlexPosn Int     -- 500
+data Token =
+    LN  AlexPosn  -- (token line terminator)
 
-           | KW_HTTP   AlexPosn
+  | DIGITS      AlexPosn String
+  | IDENTIFIER  AlexPosn String
 
-           | URL_SCHEME     AlexPosn String -- https
-           | URL_AUTHORITY  AlexPosn String -- example.com:8080
-           | URL_PATH       AlexPosn String -- /path
-           | URL_QUERY      AlexPosn String -- key=value&key2=value2
-           | URL_FRAGMENT   AlexPosn String -- section1
+  | SEP      AlexPosn         -- /
+  | METHOD   AlexPosn String  -- GET
+  | VERSION  AlexPosn String  -- HTTP/1.1
+  | STATUS   AlexPosn Int     -- 500
 
-           | LN  AlexPosn  -- (token line terminator)
+  | LIST_OPN  AlexPosn
+  | LIST_CLS  AlexPosn
+  | COLON     AlexPosn
 
-           | RAW   AlexPosn String
+  | KW_HTTP    AlexPosn
+  | KW_CONFIG  AlexPosn
 
-    deriving (Eq, Show)
+  | URL_SCHEME     AlexPosn String -- https
+  | URL_AUTHORITY  AlexPosn String -- example.com:8080
+  | URL_PATH       AlexPosn String -- /path
+  | URL_QUERY      AlexPosn String -- key=value&key2=value2
+  | URL_FRAGMENT   AlexPosn String -- section1
+
+  | PATH  AlexPosn String
+  | RAW   AlexPosn String
+  deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
 }
