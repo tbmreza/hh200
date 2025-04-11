@@ -1,14 +1,15 @@
 -module(rt).
 
 -export([start_/1]).
+-export([eval_/2]).
 -export([fmt_url/2]).
-% -export([start/1]).
 -export([boot/1]).
 -export([interval/1]).
-% -export([interp/2]).
 -export([insert_at_position/3]).
-
 -export([par/1]).
+-export([dbg/0]).
+
+dbg() -> {hehee}.
 
 % ??: read up .app.src looking to create sub rt module
 par(Path) ->
@@ -27,7 +28,7 @@ par(Path) ->
               fun(W)-> W =/= [] end,
               string:split(Content, "\n", all)),
 
-    interp_(#{}, Binary),
+    walk(#{}, Binary),
 
     % {ok, StatusCode, RespHeaders, ClientRef} = hackney:request(Method, URL,
     %                                                         Headers, Payload,
@@ -51,6 +52,22 @@ boot(Path) ->  % -> Lines
       string:split(Content, "\n", all)).
 
 % Start haskell-analyzed .etf program.
+-spec
+start_etf(binary()) -> any().
+start_etf(Path) ->
+    {ok, B} = file:read_file(Path)
+  , Prog = binary_to_term(B)
+
+  , case Prog of
+        [_ | _] ->
+            application:start(inets),
+            application:start(ssl),
+            walk(#{}, Prog);
+        _ -> ct:print("WARN: empty program")
+    end
+
+  , ct:print("done").
+
 start_(Path) ->
     {ok, B} = file:read_file(Path)
   , Prog = binary_to_term(B)
@@ -60,7 +77,7 @@ start_(Path) ->
             ct:print("NOT MT"),
             application:start(inets),
             application:start(ssl),
-            interp_(#{}, Prog);
+            walk(#{}, Prog);
         _ -> ct:print("WARN: empty program")
     end
 
@@ -70,26 +87,17 @@ start_(Path) ->
     %     [_ | _] ->
     %         application:start(inets),
     %         application:start(ssl),
-    %         interp_(#{}, Prog);
+    %         walk(#{}, Prog);
     %     _ -> ct:print("WARN: empty program")
     % end.
 
 
-% start(ErltuplesPath) ->
-%     application:start(inets),  % exception: {noproc, _}
-%     application:start(ssl),
-%     {ok, Binary} = file:read_file(ErltuplesPath),
-%     Content = unicode:characters_to_list(Binary),
-%     Lines = lists:filter(
-%               fun(W)-> W =/= [] end,
-%               string:split(Content, "\n", all)),
-%     interp(#{}, Lines),
-%     ok.
-
-interp_(Env, Prog) ->
+-spec
+walk(map(), term()) -> map().
+walk(Env, Prog) ->
     try lists:foldl(
         fun(E, AccEnv)->
-            {Result, NewEnv} = eval_(E, AccEnv),  % ??: eval(Tokens, AccEnv), % scanner FFI to erlang tuples
+            {Result, NewEnv} = eval_(E, AccEnv),
             ct:print("~p~n", [Result]),
             io:format("~p~n", [Result]),
             NewEnv
@@ -121,7 +129,8 @@ interp_(Env, Prog) ->
             Env
     end.
 
--spec fmt_url(integer(), integer()) -> integer().  % ??
+-spec
+fmt_url(map(), term()) -> binary().
 fmt_url(_Env, Url) ->
     case Url of
         {fmt, Template, Exprs} ->
@@ -141,10 +150,71 @@ fmt_url(_Env, Url) ->
 
 % Triggering ops: http, probe_valid_size, {
 content_json() -> "application/json".
+
 headers() -> [{"Content-Type", content_json()}].
 % }
 
-% Env keys: callable, response
+% Unmet invariants when applying request specifications were handled
+% statically parser-side.
+-spec
+with_request_spec(map(), term()) -> map().
+with_request_spec(Env, R) ->
+    {Method, Url} = R,
+    maps:put(
+      callable,
+      #{
+        method => Method,
+        url => fmt_url(Env, Url),
+        % Empty tuples as nil; use empty map %{} of empty json object.
+        body => {}
+       },
+      Env).
+
+-spec
+handle_fresh(atom(), binary()) -> binary().
+handle_fresh(Opt, Path) ->
+    case Opt of
+        fresh -> "?? todo";
+        _ -> Path
+    end.
+
+-spec
+file_exists(binary()) -> bool().
+file_exists(Output) ->
+    true.
+
+-spec
+try_response_spec(map(), term()) -> {atom(), map()}.
+try_response_spec(Env, R) ->
+    % overwrite | warn | error | fresh
+    {ExpectCodes, Output, OutputExistsOpt} = R,
+
+    NewEnv = maps:put(
+      then,
+      #{
+        expect_codes => ExpectCodes,
+        output => handle_fresh(OutputExistsOpt, Output)
+       },
+      Env),
+
+    AlreadyExists = file_exists(Output),
+    case OutputExistsOpt of
+        error when AlreadyExists ->
+            ct:print("ERROR: Output already exists."),
+            {ineffective_callable, NewEnv};
+        warn when AlreadyExists ->
+            ct:print("WARN: Output already exists; overwriting."),
+            {ok, NewEnv};
+        _ -> {ok, NewEnv}
+    end.
+
+
+% Env keys:
+% callable::{method, url, headers, body},
+% response::{headers, body, status_code},
+% then::{expect_codes, filepath}  ??: filepath/output
+-spec
+eval_(term(), map()) -> {any(), map()}.
 eval_(Expr, Env) ->  % -> IO NewEnv
     % Triggering ops: http, probe_valid_size, {
     ContentType = "application/json",
@@ -152,6 +222,26 @@ eval_(Expr, Env) ->  % -> IO NewEnv
     % }
 
     case Expr of
+        % {callable, {Method, Url}, {}} when
+        {callable, {Method, Url}, ResponseSpec} when
+              Method == get
+       orelse Method == post
+       orelse Method == put
+       orelse Method == delete
+       orelse Method == patch
+       orelse Method == options
+       orelse Method == head ->
+
+            case try_response_spec(with_request_spec(Env, {Method, Url}), ResponseSpec) of
+                {ok, E} -> do_call(E);
+                Els -> Els
+            end;
+
+
+        {callable, RequestSpec, {ExpectCodes, Filepath}} ->
+            ct:print("WARN: unexpected method"),
+            {err, Env};
+       
         % see 3 responses in server log after interpreting {par, 3, [{post, url}...{http, 200}]}
         {par, N, Prog} ->
             ct:print("PAR EVAL ??"),
@@ -203,6 +293,7 @@ eval_(Expr, Env) ->  % -> IO NewEnv
 
 
         {http, ExpectCode} ->
+            % Env ExpectCodes
             io_req(Env, ExpectCode)
             ;
 
@@ -423,7 +514,10 @@ eval_(Expr, Env) ->  % -> IO NewEnv
 %     end.
 
 
-% ??: par or c ffi
+% ??: c ffi
+% no quick "getting started" (no simple gcc) yet for this. maybe do everything via rebar3
+-spec
+insert_at_position(list(char()), list(char()), integer()) -> ok.
 insert_at_position(Filename, InsertString, Position) ->
     % Read the file content
     {ok, Binary} = file:read_file(Filename),
@@ -441,14 +535,86 @@ insert_at_position(Filename, InsertString, Position) ->
     file:close(FileRef).
 
 
+-spec
+update_env(map(), list()) -> map().
 update_env(Env, Bindings) -> lists:foldl(
     fun({K, V}, Acc)-> maps:put(K, V, Acc) end,
     Env,
     Bindings).
 
+-spec
+do_call(map()) -> {any(), map()}.
+do_call(Env) ->  % -> {Code, NewEnv}
+    {200, Env}.
 
-% par_io_req(Env, ExpectCode) ->
+-spec
+do_req(map()) -> {any(), map()}.
+do_req(Env) ->  % -> {Code, NewEnv}
+    #{method := SMethod,
+      url := SUrl,
+      body := SBody
+     } = maps:get(callable, Env),
 
+    R = case SMethod of
+        Method when Method == post orelse Method == patch ->
+            case SBody of
+                {} ->
+                    ct:print("INFO: post/patch without content!"),
+                    {SUrl, [], [], []};
+
+                {mut, P, _} ->
+                    case catch file:read_file(P) of
+                        {ok, Content} ->
+                            {SUrl, headers(), content_json(), Content};
+                        _ ->
+                            ct:print("WARN: failed reading file at path=~p", [P]),
+                            {SUrl, [], [], []}
+                    end;
+
+                {path, P} ->
+                    case catch file:read_file(P) of
+                        {ok, Content} ->
+                            {SUrl, headers(), content_json(), Content};
+                        _ ->
+                            ct:print("WARN: failed reading file at path=~p", [P]),
+                            {SUrl, [], [], []}
+                    end;
+
+                % When SBody is a list of chars (string):
+                _ when is_list(SBody) ->
+                    {SUrl, headers(), content_json(), json:format(#{username => <<"admin">>, password => <<"1234">>})}
+                    ;
+
+                % When SBody is a map:
+                % _ when not is_list(SBody) ->
+                _ ->
+                    ct:print("INFO: unimplemented"),
+                    {SUrl, headers(), content_json(), json:format(SBody)}
+            end;
+        _HeadOptionsGet ->
+            {SUrl, []}
+    end,
+    ExpectCodes = [200],
+    case catch httpc:request(SMethod, R, [], []) of
+        {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
+            AsExpected = lists:member(Code, ExpectCodes),
+            if AsExpected ->
+                ct:print("expected: ~p, got: ~p~n", [ExpectCodes, Code]); true -> nil
+            end,
+            {Code,
+             maps:put(response,
+                      #{
+                        headers => Headers,
+                        body => Body
+                       },
+                      Env)};
+        V ->
+            ct:print("got: ~p~n", [V]),
+            {false, Env}
+
+    end.
+-spec
+io_req(map(), any()) -> {any(), map()}.
 io_req(Env, ExpectCode) ->  % -> {Code, NewEnv}
     #{method := SMethod,
       url := SUrl,
@@ -488,7 +654,7 @@ io_req(Env, ExpectCode) ->  % -> {Code, NewEnv}
                 % When SBody is a map:
                 % _ when not is_list(SBody) ->
                 _ ->
-                    ct:print("INFO: ???"),
+                    ct:print("INFO: unimplemented"),
                     {SUrl, headers(), content_json(), json:format(SBody)}
             end;
         _HeadOptionsGet ->
@@ -496,7 +662,8 @@ io_req(Env, ExpectCode) ->  % -> {Code, NewEnv}
     end,
     case catch httpc:request(SMethod, R, [], []) of
         {ok, {{_Version, Code, _ReasonPhrase}, Headers, Body}} ->
-            if Code =/= ExpectCode ->
+            AsExpected = lists:member(Code, [ExpectCode]),  % ??
+            if AsExpected ->
                 ct:print("expected: ~p, got: ~p~n", [ExpectCode, Code]); true -> nil
             end,
             {Code,
@@ -520,7 +687,7 @@ file_size_or_panic(Path) ->
 
 
 
-% Test via `hh200 input.hhs` where
+% Test via `hh200 examples/probe.hhs` where
 % ```hhs
 % POST http://localhost:9999/413.php
 % probe_valid_size {ExpectMinBytes} {ExpectCode}

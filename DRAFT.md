@@ -1,7 +1,7 @@
 # hh200
 ```
 summary:      statically checked dsl for testing http servers
-extensions:   .hhs (script), 
+extensions:   .hhs (script), .etf (external term format)
 usecases      stress testing (massive parallelism, pretty execution reports),
   (features): quick call (interpreter, user profile),
               programming assistant (lsp, symbolic executor)
@@ -12,17 +12,14 @@ hh200 is a tool for testing HTTP servers. From "Let me hit this URL with such pa
 real quick," to "Let's see if this web service is enduring such & such test scenario",
 hh200 was born for such developer occurrences.
 
-hh200 the language is a modest tool for expressing _what HTTP calls to make and how_.
-It is not innovative by enabling what weren't possible with general purpose languages before. Also see hurl, who's been the inspiration for this project.
-Nevertheless, nothing should prevent this tool from being used like a full-fledged programming language (examples/fibonacci.hhs, examples/factorial.hhs).
+hh200 the language expresses _what HTTP calls to make and how_.
+It is not innovative by enabling what weren't possible with general purpose languages before.
+Also see the state of hurl, which has been the inspiration for this project.
 
 This repo is home to the following components:
+a runtime in erlang
+an LR grammar
 
--  The Hh200 Instruction Set specification document.
-  ...implemented by...
-- `.hhs` script frontend reference implementation (using conventional parser generators).
-  ...provides input to...
-- Hh200 compiler to core Erlang, wrapped with familiar package manager interface `hh200`.
 
 ## Erlang
 $ erl
@@ -35,8 +32,7 @@ Eshell V15.2.2
 
 "what calls to make and how" building-blocks:
 lexer/parser with source-location error
-parallel/concurrency as provided by haskell, core erlang
-compile to core erlang and programming in it
+parallel/concurrency as provided by haskell, erlang
 abstract interpreter or symbolic executor
 
 
@@ -106,7 +102,7 @@ until 4 step 1
 let url = https://httpbin.org/anything?page=2&lim=10
 let method = GET
 
-callable login =  # captures visible variables
+callable login =
     { "body": 12 }
 
 {{login}}
@@ -197,6 +193,7 @@ php -f router.php -S localhost:9999
 
 ## Acknowledgments
 - https://github.com/glguy/toml-parser (ISC license)
+- hackney
 
 
 
@@ -212,8 +209,55 @@ P.y starter from https://github.com/haskell/alex/blob/master/examples/tiny.y
     happy ... --ghc
     parse $ alexScanTokens "let k"
 
-# ??:
-# GET, POST releases-65rb.pages.dev/state  { "rgrid": "v1.1.0" }
-# so in appium rgrid we can:
-# # download-apk.hhs
-# GET releases-65rb.pages.dev/state  url="https://mobile-apps.paragoncorp.com/nova/v1.1.0.apk"  https://mobile-apps.paracorpgroup.com/nova/rc/nova%20v1.1.0-rc-sprint12.6.apk
+
+Release 0.0.0-proto
+- etf encoder
+- OTP 27 requirement
+
+```
+erl -compile interpreter.erl && erl -run interpreter
+erl -run interpreter
+```
+
+{patch, "http://localhost:9999/ls"}
+{http,404}
+
+{post, "https://bivi-backend-dev.paradev.io/v2/login"}
+{json, #{username => "wardah.21", password => "ptiuser1234"}}
+{http,404}
+
+
+
+
+
+{patch, "http://localhost:9999/z"}
+{json, #{username => <<"wardah.21">>, password => "ptiuser1234"}}
+{http,404}
+
+
+
+curl -X POST https://bivi-backend-staging.paradev.io/v2/login \
+     -H "Content-Type: application/json" \
+     -d "$(head -c 1048576 </dev/zero | tr '\0' 'a')"  
+
+
+curl -X POST -H "Content-Type: application/json" -d '{"data": "'$(python -c "print('x' * 10**6)")'"}' https://bivi-backend-staging.paradev.io/v2/login
+curl -X POST -H "Content-Type: application/json" --data-binary @payload.json https://bivi-backend-staging.paradev.io/v2/login
+
+"/home/tbmreza/gh/hh200/building-blocks/etf/output.etf"
+
+??:
+what to do with http version information
+suite manager:
+  erlang watch .etf changes
+  view reports
+  parse config values
+  cli-app: stack run reads .hhs to change .etf; rebar3 ct
+
+data Policy = Policy {
+    maxReruns :: Maybe Int,
+    maxRetriesPerCall :: Maybe Int,
+    timeMillisPerCall :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+https://hurl.dev/docs/request.html#structure

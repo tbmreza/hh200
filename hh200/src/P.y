@@ -96,6 +96,10 @@ numbers : d          { [read $1] }
         | numbers d  { $1 ++ [read $2] }
 
 {
+-- ??: parse time filepath checking (maybe fresh name)
+-- callable : request_ln http_version_status_ln config_section  { Callable }
+--          | request_ln http_version_status_ln                 { Callable { method, url, body, output } }
+-- {callable, get, <<>>, <<>>, <<>>}
 
 data Statement = Request { method :: String, url :: String }
                | Response { version :: Maybe Float, status :: [Int] }
