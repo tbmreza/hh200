@@ -1,2 +1,2 @@
-http://httpbin.org/anything
+GET http://httpbin.org/anything
 HTTP 200
