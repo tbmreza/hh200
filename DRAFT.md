@@ -247,12 +247,10 @@ curl -X POST -H "Content-Type: application/json" --data-binary @payload.json htt
 "/home/tbmreza/gh/hh200/building-blocks/etf/output.etf"
 
 ??:
-what to do with http version information
 suite manager:
   erlang watch .etf changes
   view reports
   parse config values
-  cli-app: stack run reads .hhs to change .etf; rebar3 ct
 
 data Policy = Policy {
     maxReruns :: Maybe Int,
@@ -261,3 +259,52 @@ data Policy = Policy {
     } deriving (Eq, Show, Generic)
 
 https://hurl.dev/docs/request.html#structure
+
+
+
+
+STATIC PHASE
+
+On sight, if outputs exist and warn/error
+
+callable { deps: [name], name }
+
+Provision how many parallel clients are needed and which callables go to
+which clients
+	If then-prefixes is empty, spawn new client. The callable's dependants shall reuse that same client
+	clients<name, client_id>
+	If callable has deps, find clients.dep
+
+
+[callable]
+
+
+
+PRE SWEEP or exit clients
+
+At least 1 callable has empty then-prefixes
+
+Assert we have write permissions at output paths
+
+[callable]
+worker(init())
+
+
+FIRST SWEEP
+
+Callable is called if Acc.callstack contains callable.deps
+callable { been_called: true, err_stack: [] }
+
+If a callable has err, re-sweep with new env/world (fs, network)
+
+
+SECOND SWEEP
+
+Re-evaluate an unsuccessful callable before sweeping
+
+Send exit to clients
+
+
+
+maybe low prio -- makedo:
+sequentially, if there's undefined vars (Captures section) -- crash-first
