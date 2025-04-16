@@ -8,84 +8,69 @@ import L
 %tokentype { Token }
 %error { parseError }
 %token
-    s           { RAW _ $$ }
     d           { DIGITS _ $$ }
     identifier  { IDENTIFIER _ $$ }
     filepath    { PATH _ $$ }
 
-    "\n"       { LN _ }
+    "\n"        { LN _ }
 
-    "/"        { SEP _ }
-    "."        { SEP _ }
-    ","        { SEP _ }
-    ":"        { COLON _ }
-    "["        { LIST_OPN _ }
-    "]"        { LIST_CLS _ }
-    "http"     { KW_HTTP _ }
-    "HTTP"     { KW_HTTP _ }
-    "Config"   { KW_CONFIG _ }
+    "/"         { SEP _ }
+    "."         { SEP _ }
+    ","         { SEP _ }
+    ":"         { COLON _ }
+    "\""        { QUOTE _ }
+    "["         { LIST_OPN _ }
+    "]"         { LIST_CLS _ }
+    "then"      { KW_THEN _ }
+    "http"      { KW_HTTP _ }
+    "HTTP"      { KW_HTTP _ }
+    "Config"    { KW_CONFIG _ }
 
-    method     { METHOD _ $$ }
+    method      { METHOD _ $$ }
 
-    scheme     { URL_SCHEME _ $$ }
-    authority  { URL_AUTHORITY _ $$ }
-    path       { URL_PATH _ $$ }
-    query      { URL_QUERY _ $$ }
-    fragment   { URL_AUTHORITY _ $$ }
+    url         { URL _ $$ }
+    s           { QUOTED _ $$ }
+
 
 %monad { E } { thenE } { returnE }
 
 %%
 
-Program : Statements  { $1 }
+Program : Callables  { $1 }
 
-Statements : Statement             { [$1] }
-           | Statements Statement  { $1 ++ [$2] }
+Callables : Callable            { [$1] }
+          | Callables Callable  { $1 ++ [$2] }
 
-Statement  : http_version_status_ln { $1 }
-           | request_ln { $1 }
-           | config_section { $1 }
-           | sect { $1 }
+Callable : deps "then" dep request_ln
+     { Callable
+         { deps = $1
+         , name = $3
+         , request = $4
+         , response = Resp { codes = [], output = []}
+         , been_called = False
+         , err_stack = []
+         }
+     }
 
+dep : s "\n"  { $1 }
+    | s       { $1 }
 
+deps :: { [String] }
+deps : dep       { [$1] }
+     | deps dep  { $1 ++ [$2] }
+
+request_ln : method url "\n"  { Req { method = $1, url = $2, headers = [], payload = "", opts = [] } }
+           | method url       { Req { method = $1, url = $2, headers = [], payload = "", opts = [] } }
 
 http_version_status_ln : http_version_status "\n"  { $1 }
                        | http_version_status       { $1 }
 
-http_version_status : kwHttp "/" d "." d status_codes  { Response { version = Just (read ($3 ++ $5) :: Float), status = $6 } }
-                    | kwHttp "/" d       status_codes  { Response { version = Just (read $3 :: Float), status = $4 } }
-                    | kwHttp             status_codes  { Response { version = Nothing, status = $2 } }
-
-request_ln : method s "\n"  { Request { method = $1, url = $2 } }
-           | method s       { Request { method = $1, url = $2 } }
-
-sect : "[" kwConfig "]"  { Section { name = $2, binds = [] } }
-
-config_section : "[" kwConfig "]" "\n"
-    identifier ":" filepath "\n"
-    identifier ":" identifier
-                    { Config { output = $7, outputExists = $11 } }
-
-ln : "\n" { "\n" }
+http_version_status : kwHttp "/" d "." d status_codes  { Nothing }
+                    | kwHttp "/" d       status_codes  { Nothing }
+                    | kwHttp             status_codes  { Nothing }
 
 kwHttp : "http" { "http" }
        | "HTTP" { "HTTP" }
-
-kwConfig : "Config" { "Config" }
-
-
-
-paths :: { [String] }
-paths : path paths      { $1 : $2 }
-      | {- empty -}     { [] }
-
-queries :: { Maybe String }
-queries : query         { Just $1 }
-        | {- empty -}   { Nothing }
-
-fragments :: { Maybe String }
-fragments : fragment    { Just $1 }
-          | {- empty -} { Nothing }
 
 status_codes :: { [Int] }
 status_codes : "[" numbers "]"  { $2 }
@@ -96,18 +81,46 @@ numbers : d          { [read $1] }
         | numbers d  { $1 ++ [read $2] }
 
 {
--- ??: parse time filepath checking (maybe fresh name)
--- callable : request_ln http_version_status_ln config_section  { Callable }
---          | request_ln http_version_status_ln                 { Callable { method, url, body, output } }
--- {callable, get, <<>>, <<>>, <<>>}
 
-data Statement = Request { method :: String, url :: String }
-               | Response { version :: Maybe Float, status :: [Int] }
-               | Section { name :: String, binds :: [String] }
+    -- T = [{{deps, []},
+    --       "login",
+    --       {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
+    --       {resp, 200, {output, <<"outfile">>}},
+    --       {been_called, false},
+    --       {err_stack, []}}],
 
-               | Config { output :: String, outputExists :: String }
--- Statement::Config (section name not a free text)
--- [Config] output: /home/tbmreza/test.jpg \n output-exists: overwrite  # overwrite | warn | error | fresh
+-- ??: when to interpret Config section
+-- "login" then "checkin"
+-- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
+-- HTTP 200
+-- [Config]
+-- output: /home/tbmreza/test.jpg
+-- output-exists: overwrite  # overwrite | warn | error | fresh
+
+data Callable = Callable {
+      deps :: [String]
+    , name :: String
+    , request :: Req
+    , response :: Resp
+    , been_called :: Bool
+    , err_stack :: [String]
+    }
+    deriving (Show, Eq)
+
+data Req = Req {
+      method :: String
+    , url :: String
+    , headers :: [String]
+    , payload :: String
+    , opts :: [String]
+    }
+    deriving (Show, Eq)
+
+
+data Resp = Resp {
+      codes :: [Int]
+    , output :: [String]
+    }
     deriving (Show, Eq)
 
 

@@ -24,18 +24,20 @@ tokens :-
     \[       { tok (\p _ -> LIST_OPN p) }
     \]       { tok (\p _ -> LIST_CLS p) }
     :        { tok (\p _ -> COLON p) }
+    \"       { tok (\p _ -> QUOTE p) }
+
+
+    then     { tok (\p _ -> KW_THEN p) }
     HTTP     { tok (\p _ -> KW_HTTP p) }
     Config   { tok (\p _ -> KW_CONFIG p) }
     $digit+  { tok (\p s -> DIGITS p s) }
     [\.\/]   { tok (\p _ -> SEP p) }
 
-    http [.]*  { tok (\p s -> RAW p s) }
-
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
-    $path+     { tok (\p s -> PATH p s) }
-
-
+    $path+                    { tok (\p s -> PATH p s) }
+    http $printable+          { tok (\p s -> URL p s) }
+    \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
 
 
 {
@@ -56,18 +58,16 @@ data Token =
   | LIST_OPN  AlexPosn
   | LIST_CLS  AlexPosn
   | COLON     AlexPosn
+  | QUOTE     AlexPosn
 
+  | KW_THEN    AlexPosn
   | KW_HTTP    AlexPosn
   | KW_CONFIG  AlexPosn
 
-  | URL_SCHEME     AlexPosn String -- https
-  | URL_AUTHORITY  AlexPosn String -- example.com:8080
-  | URL_PATH       AlexPosn String -- /path
-  | URL_QUERY      AlexPosn String -- key=value&key2=value2
-  | URL_FRAGMENT   AlexPosn String -- section1
 
-  | PATH  AlexPosn String
-  | RAW   AlexPosn String
+  | PATH    AlexPosn String
+  | URL     AlexPosn String
+  | QUOTED  AlexPosn String
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p

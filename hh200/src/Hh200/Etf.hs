@@ -1,4 +1,3 @@
--- module Hh200.Etf (wr) where
 module Hh200.Etf where
 
 import qualified Data.ByteString as BS
@@ -99,11 +98,3 @@ writeTermToFile filepath term = do
     putStrLn $ "Term written to ./" ++ filepath
 
 asBinaryTerm s = BinaryTerm $ BS.pack $ map (fromIntegral . fromEnum) s
-
-parsed :: Term
-parsed =
-    ListTerm [
-        TupleTerm [AtomTerm "post", asBinaryTerm "http://localhost:9999/413-Content-Too-Large.php"]
-      , TupleTerm [AtomTerm "json", TupleTerm [AtomTerm "mut", asBinaryTerm "/home/tbmreza/gh/hh200/building-blocks/rt/asset.json", IntegerTerm 9]]
-      , TupleTerm [AtomTerm "probe_valid_size", IntegerTerm 4100, IntegerTerm 200]
-      ]
