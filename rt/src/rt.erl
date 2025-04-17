@@ -2,12 +2,16 @@
 
 -export([
     start/0
+  , start_etf/1
   , worker/1
 ]).
 
+% true = some_empty_thenprefs(Prog),
+% true = check_w_permissions(Prog),
+% Env = #{callstack => ["login"]},
+% io:format("~p: Got hello from ~p~n", [self(), Callable]),
+% clients<name, client_id>
 start() ->
-	% clients<name, client_id>
-    % ManagedPs = maps:put(Name, Pid, #{}).
     application:ensure_all_started(hackney),
     Pid1 = spawn(?MODULE, worker, [#{callstack => []}]),
     Pid1.
@@ -33,7 +37,7 @@ find_client(Clients, CallableDeps) ->
     H(CallableDeps).
 
 -spec
-send_exit(map()) -> true.
+send_exit(map()) -> ok.
 send_exit(Clients) ->
     lists:foreach(fun(Pid)->
         case is_process_alive(Pid) of
@@ -44,35 +48,36 @@ send_exit(Clients) ->
         end
     end, maps:values(Clients)).
 
-    % Env = #{callstack => ["login"]},
 % Start haskell-analyzed .etf program.
-% -spec
-% start_etf(binary()) -> any().
+-spec
+start_etf(binary()) -> any().
 start_etf(Path) ->
     {ok, B} = file:read_file(Path),
     Prog = binary_to_term(B),
-    true = some_empty_thenprefs(Prog),
-    true = check_w_permissions(Prog),
 
-    % case Prog of
-    %     [_ | _] ->
-    %         % If callable has deps, find clients.dep
-    %         % walk(#{}, Prog);
-    %     _ ->
-    %         % If then-prefixes is empty, spawn new client.
-    %         ct:print("WARN: empty program")
-    % end,
+    % PICKUP
+    % first sweep: call if deps are called
+    lists:foreach(fun(C)->
+        Deps = callable_deps(C),
+        ct:print("~p", [Deps])
+    end, Prog),
 
-    Callable =
-        {{deps, []}, "login",
-         {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
-         {been_called, false}, {err_stack, []}},
+    % second sweep: call if err_stack not empty
 
-    Clients = add_client(#{}, "login"),
-
-    find_client(Clients, callable_deps(Callable)) ! {do_call, Callable},
-
-    ok.
+    % Clients = add_client(#{}, "login"),
+    %
+    % FinalAcc = lists:foreach(fun(Callable)->
+    %     Pid = case callable_deps(Callable) of
+    %         [] -> maps:get(callable_name(Callable), Clients);
+    %         _ -> find_client(Clients, callable_deps(Callable))
+    %     end,
+    %     Pid ! {do_call, Callable}
+    % end, Prog_),
+    %
+    % FinalAcc,
+    %
+    % % ??: check consistency with callstack
+    send_exit(#{}).
 
 -spec
 some_empty_thenprefs(list(term())) -> boolean().
@@ -90,16 +95,15 @@ init_acc() -> #{callstack => []}.
 
 -spec
 callable_deps(term()) -> list(binary()).
-callable_deps({{deps, Deps}, _, _, _, _}) -> Deps.
+callable_deps({{deps, Deps}, _, _, _, _, _}) -> Deps.
 
 -spec
 callable_name(term()) -> binary().
-callable_name({_, Name, _, _, _}) -> Name.
+callable_name({_, Name, _, _, _, _}) -> Name.
 
 -spec
 worker(map()) -> map().
 worker(Acc) ->
-    % io:format("~p: Got hello from ~p~n", [self(), Callable]),
     receive
         {done} -> Acc;
         % Callable is called if Acc.callstack contains callable.deps

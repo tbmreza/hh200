@@ -11,19 +11,15 @@ import P
 import Hh200.Etf
 import qualified Hh200.Etf as Etf
 
--- toStatements :: String -> Maybe [P.Statement]
-toStatements content = do
+toProgram :: String -> [P.Callable]
+toProgram content = do
     let tokensOrPanic = alexScanTokens content
     let tokens = tokensOrPanic
 
     case parse tokens of
-        ParseOk a -> Just a
-        _ -> Nothing
+        ParseOk a -> a
+        _ -> []
 
-data Cble = Cble { deps :: [String] }
-
-toCallables :: String -> Maybe [Cble]
-toCallables _ = Nothing
 
 doAssertParse :: String -> IO ()
 doAssertParse content = do
@@ -34,8 +30,6 @@ doAssertParse content = do
         ParseFailed msg -> assertBool msg False
         _ -> assertBool "" True
 
-methodAtom :: String -> Etf.Term
-methodAtom m = AtomTerm $ (map Char.toLower) m
 
 -- -- asTupleTerm :: P.Statement -> IO Etf.Term  -- ??: dynamic (don't return Maybe) with logging
 -- asTupleTerm :: P.Statement -> Etf.Term
@@ -48,9 +42,7 @@ methodAtom m = AtomTerm $ (map Char.toLower) m
 -- asListTerm :: [P.Statement] -> Etf.Term
 -- asListTerm stmts = ListTerm $ map asTupleTerm stmts
 
-parsed :: Etf.Term
-parsed =
-    -- ListTerm [
+-- ListTerm [
     --     TupleTerm [AtomTerm "post", asBinaryTerm "http://localhost:9999/413-Content-Too-Large.php"]
     --   , TupleTerm [AtomTerm "json", TupleTerm [AtomTerm "mut", asBinaryTerm "/home/tbmreza/gh/hh200/building-blocks/rt/asset.json", IntegerTerm 9]]
     --   , TupleTerm [AtomTerm "probe_valid_size", IntegerTerm 4100, IntegerTerm 200]
@@ -58,25 +50,44 @@ parsed =
 
     --   {deps, []}
     -- ListTerm [
-    --     TupleTerm [AtomTerm "deps", ListTerm []]
-    --   ]
+        --     TupleTerm [AtomTerm "deps", ListTerm []]
+        --   ]
 
-    -- T = [{{deps, []},
-    --       "login",
-    --       {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
-    --       {resp, 200, {output, <<"outfile">>}},
-    --       {been_called, false},
-    --       {err_stack, []}}],
+methodAtom :: String -> Etf.Term
+methodAtom m = AtomTerm $ (map Char.toLower) m
 
-    ListTerm [
-        TupleTerm [
-            TupleTerm [AtomTerm "deps", ListTerm []],
-            asBinaryTerm "login"],
-            TupleTerm [AtomTerm "req", AtomTerm "post", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []],
-            TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "outfile"]],
-            TupleTerm [AtomTerm "been_called", AtomTerm "false"],
-            TupleTerm [AtomTerm "err_stack", ListTerm []]
-      ]
+parsed :: Etf.Term
+-- [
+--  {
+--   {deps, []},
+--   "login",
+--   {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
+--   {resp, 200, {output, <<"outfile">>}},
+--   {been_called, false},
+--   {err_stack, []}
+--  },
+--  ...
+-- ],
+parsed =
+    ListTerm
+        [ TupleTerm
+            [ TupleTerm [AtomTerm "deps", ListTerm []]
+            , asBinaryTerm "login"
+            , TupleTerm [AtomTerm "req", AtomTerm "get", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []]
+            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm []]
+            , TupleTerm [AtomTerm "been_called", AtomTerm "false"]
+            , TupleTerm [AtomTerm "err_stack", ListTerm []]
+            ]
+        , TupleTerm
+            [ TupleTerm [AtomTerm "deps", ListTerm [asBinaryTerm "login"]]
+            , asBinaryTerm "download image"
+            , TupleTerm [AtomTerm "req", AtomTerm "post", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []]
+            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "outfile"]]
+            , TupleTerm [AtomTerm "been_called", AtomTerm "false"]
+            , TupleTerm [AtomTerm "err_stack", ListTerm []]
+            ]
+        ]
+
 
 main = defaultMain t
 
@@ -85,6 +96,14 @@ t = testGroup "syntax" [
     testCase "parse string" $ do
         let str = "\"log in\" \"auth\" then \"sellout\" \n post http://localhost:9999/p \n HTTP [200 201] (\"home/pat.jpg\" overwrite)"
         mapM_ doAssertParse [str]
+
+  -- ??: assert FAIL with message
+  , testCase "parse # in url fragments and comments" $ do
+        let str = "http://wikipedia.org/wiki/Google_Chrome#okk\n section#commented"
+        mapM_ doAssertParse [str]
+
+  , testCase "??" $ do
+        Etf.writeTermToFile "temp.etf" parsed
 
 
 --     testCase "parse string" $ do
@@ -102,7 +121,7 @@ t = testGroup "syntax" [
 --                 P.Request { method = "GET", url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI" }
 --                 ] :: [P.Statement]
 --
---         assertBool "data struct equality" (toStatements str == Just stmts)
+--         assertBool "data struct equality" (toProgram str == Just stmts)
 --         -- mapM_ doAssertParse [str]
 --
 --   , testCase "parse multiline string" $ do
@@ -112,17 +131,17 @@ t = testGroup "syntax" [
 --                 P.Response { version = Nothing, status = [200] }
 --                 ] :: [P.Statement]
 --
---         assertBool "data struct equality" (toStatements caseReqLine == Just stmts)
+--         assertBool "data struct equality" (toProgram caseReqLine == Just stmts)
 --
 --
 --   , testCase "parse and write etf" $ do
 --         let str = "GET http://localhost:9999/p\nHTTP 200"
---         let t = asListTerm (fromJust $ toStatements str)
+--         let t = asListTerm (fromJust $ toProgram str)
 --         Etf.writeTermToFile "unittest.etf" t
 --
 --   , testCase "??" $ do
 --         let str = "\"login\" then \"checkin\""
---         let t = asListTerm (fromJust $ toStatements str)
+--         let t = asListTerm (fromJust $ toProgram str)
 --         assertBool "" True
 --         -- Etf.writeTermToFile "unittest.etf" t
 --
@@ -140,7 +159,7 @@ t = testGroup "syntax" [
 --         let c = [Config { output = "/home/tbmreza/test.jpg", outputExists = "overwrite" }]
 --         let sect = "[Config]\noutput: /home/tbmreza/test.jpg\noutput-exists: overwrite"
 --
---         assertBool "data struct equality" (toStatements sect == Just c)
+--         assertBool "data struct equality" (toProgram sect == Just c)
 --
 --   , testCase "response+section" $ do
 --         let c = [
@@ -148,7 +167,7 @@ t = testGroup "syntax" [
 --               , P.Config { output = "/home/tbmreza/test.jpg", outputExists = "overwrite" }
 --                 ]
 --         let sect = "HTTP 200\n[Config]\noutput: /home/tbmreza/test.jpg\noutput-exists: overwrite"
---         assertBool "data struct equality" (toStatements sect == Just c)
+--         assertBool "data struct equality" (toProgram sect == Just c)
 --         -- mapM_ doAssertParse [sect]
 --
 --   , testCase "request+response+section" $ do
@@ -159,7 +178,7 @@ t = testGroup "syntax" [
 --               , P.Config { output = "/home/tbmreza/test.jpg", outputExists = "overwrite" }
 --                 ]
 --
---         assertBool "data struct equality" (toStatements str == Just c)
+--         assertBool "data struct equality" (toProgram str == Just c)
 --
 --
 -- -- let caseVerStatus = ["HTTP/1.1 200", "HTTP/1 200", "HTTP 200", "HTTP [200]"]

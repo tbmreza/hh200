@@ -5,6 +5,10 @@
 hh200 grammar builds on [hurl's](https://hurl.dev/docs/grammar.html), which we're going to just trust to be consistent with
 its parser implementation (a [handwritten](https://github.com/Orange-OpenSource/hurl/blob/master/packages/hurl_core/src/parser/primitives.rs) recursive descent parser).
 
+### Syntax decision notes
+URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters-in-strings
+
+
 ### Host system dependencies
 - alex == 3.5.2.0
 - happy == 2.1.4

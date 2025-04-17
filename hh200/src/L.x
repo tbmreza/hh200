@@ -11,6 +11,7 @@ $path = [$alpha $digit \\ \/ \- \_ \.]
 
 tokens :-
     $white+   ;
+    "#".*     ;
     $newline  { tok (\p _ -> LN p) }
 
     [Gg][Ee][Tt]
@@ -38,7 +39,7 @@ tokens :-
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
     $path+                    { tok (\p s -> PATH p s) }
-    http $printable+          { tok (\p s -> URL p s) }
+    http [$printable # \#]+   { tok (\p s -> URL p s) }
     \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
 
 

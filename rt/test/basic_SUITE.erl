@@ -6,7 +6,22 @@
 ]).
 all() -> [test1].
 
-test1(_Config) -> 1 = 1.
+test1(_Config) ->
+    rt:start_etf("/home/tbmreza/gh/hh200/hh200/temp.etf"),
+    1 = 1.
+
+% test1(_Config) ->
+%     T = [{{deps, []}, "login",
+%           {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
+%           {resp, 200, {output, <<"outfile">>}},
+%           {been_called, false}, {err_stack, []}}],
+%
+%     {ok, A} = file:read_file("/home/tbmreza/gh/hh200/hh200/unittest.etf"),
+%     {ok, B} = file:read_file("/home/tbmreza/gh/hh200/hh200/bunittest.etf"),
+%     ProgA = binary_to_term(A),
+%     ProgB = binary_to_term(B),
+%     ProgA = ProgB.
+
 
 % -export([test1/1]).
 % -export([test2/1]).
