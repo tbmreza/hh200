@@ -21,6 +21,8 @@ tokens :-
   | [Oo][Pp][Tt][Ii][Oo][Nn][Ss]
   | [Hh][Ee][Aa][Dd]              { tok (\p s -> METHOD p s) }
 
+    \(       { tok (\p _ -> PAREN_OPN p) }
+    \)       { tok (\p _ -> PAREN_CLS p) }
     \[       { tok (\p _ -> LIST_OPN p) }
     \]       { tok (\p _ -> LIST_CLS p) }
     :        { tok (\p _ -> COLON p) }
@@ -55,10 +57,12 @@ data Token =
   | VERSION  AlexPosn String  -- HTTP/1.1
   | STATUS   AlexPosn Int     -- 500
 
-  | LIST_OPN  AlexPosn
-  | LIST_CLS  AlexPosn
-  | COLON     AlexPosn
-  | QUOTE     AlexPosn
+  | PAREN_OPN  AlexPosn
+  | PAREN_CLS  AlexPosn
+  | LIST_OPN   AlexPosn
+  | LIST_CLS   AlexPosn
+  | COLON      AlexPosn
+  | QUOTE      AlexPosn
 
   | KW_THEN    AlexPosn
   | KW_HTTP    AlexPosn

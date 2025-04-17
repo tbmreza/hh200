@@ -1,5 +1,8 @@
+"login"
 GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
 HTTP 200
-[Config]
-output: /home/tbmreza/test.jpg
-output-exists: overwrite  # overwrite | warn | error | fresh
+
+
+"login" then "download image"
+GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
+HTTP [200 201] ("/home/tbmreza/test.jpg" fresh)

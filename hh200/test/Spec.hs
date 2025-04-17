@@ -83,10 +83,7 @@ main = defaultMain t
 t :: TestTree
 t = testGroup "syntax" [
     testCase "parse string" $ do
-        let str = "\"log in\" \"auth\" then \"sellout\" \n post http://localhost:9999/p"
-        -- let str = "\"log in\" then"
-        -- let stmts = []
-        -- assertBool "data struct equality" (toStatements str == Just stmts)
+        let str = "\"log in\" \"auth\" then \"sellout\" \n post http://localhost:9999/p \n HTTP [200 201] (\"home/pat.jpg\" overwrite)"
         mapM_ doAssertParse [str]
 
 

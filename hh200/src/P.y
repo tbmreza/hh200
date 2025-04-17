@@ -19,6 +19,8 @@ import L
     ","         { SEP _ }
     ":"         { COLON _ }
     "\""        { QUOTE _ }
+    "("         { PAREN_OPN _ }
+    ")"         { PAREN_CLS _ }
     "["         { LIST_OPN _ }
     "]"         { LIST_CLS _ }
     "then"      { KW_THEN _ }
@@ -41,12 +43,12 @@ Program : Callables  { $1 }
 Callables : Callable            { [$1] }
           | Callables Callable  { $1 ++ [$2] }
 
-Callable : deps "then" dep request_ln
+Callable : deps "then" dep request_ln response_ln
      { Callable
          { deps = $1
          , name = $3
          , request = $4
-         , response = Resp { codes = [], output = []}
+         , response = $5
          , been_called = False
          , err_stack = []
          }
@@ -62,12 +64,25 @@ deps : dep       { [$1] }
 request_ln : method url "\n"  { Req { method = $1, url = $2, headers = [], payload = "", opts = [] } }
            | method url       { Req { method = $1, url = $2, headers = [], payload = "", opts = [] } }
 
-http_version_status_ln : http_version_status "\n"  { $1 }
-                       | http_version_status       { $1 }
+response_ln : http_version_status config_output "\n"  { Resp { codes = $1, output = $2 } }
+            | http_version_status config_output       { Resp { codes = $1, output = $2 } }
 
-http_version_status : kwHttp "/" d "." d status_codes  { Nothing }
-                    | kwHttp "/" d       status_codes  { Nothing }
-                    | kwHttp             status_codes  { Nothing }
+            | http_version_status "\n"  { Resp { codes = $1, output = []} }
+            | http_version_status       { Resp { codes = $1, output = [] } }
+
+config_output :: { [String] }
+config_output : "(" s identifier ")" "\n"  { [$2, $3] }
+              | "(" s identifier ")"       { [$2, $3] }
+
+              | "(" s ")" "\n"  { [$2] }
+              | "(" s ")"       { [$2] }
+
+              | "(" ")" "\n"  { [] }
+              | "(" ")"       { [] }
+
+http_version_status : kwHttp "/" d "." d status_codes  { $6 }
+                    | kwHttp "/" d       status_codes  { $4 }
+                    | kwHttp             status_codes  { $2 }
 
 kwHttp : "http" { "http" }
        | "HTTP" { "HTTP" }
@@ -89,13 +104,12 @@ numbers : d          { [read $1] }
     --       {been_called, false},
     --       {err_stack, []}}],
 
+-- HTTP [200 201] ("/home/tbmreza/test.jpg" overwrite)
+-- HTTP [200 201] ("/home/tbmreza/test.jpg")
+-- HTTP 200 ("/home/tbmreza/test.jpg")
 -- ??: when to interpret Config section
 -- "login" then "checkin"
 -- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
--- HTTP 200
--- [Config]
--- output: /home/tbmreza/test.jpg
--- output-exists: overwrite  # overwrite | warn | error | fresh
 
 data Callable = Callable {
       deps :: [String]
