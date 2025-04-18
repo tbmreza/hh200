@@ -17,24 +17,44 @@ start() ->
     Pid1.
 
 
--spec
-add_client(map(), binary()) -> map().
+% -spec
+% add_client(map(), binary()) -> .
 add_client(Clients, CallableName) ->
     Pid = spawn(?MODULE, worker, [init_acc()]),
-    maps:put(CallableName, Pid, Clients).
+    {Pid, maps:put(CallableName, Pid, Clients)}.
 
 
 -spec
-find_client(map(), list(binary())) -> pid().
-find_client(Clients, CallableDeps) ->
+find_dep_client_or_add(map(), term()) -> {pid(), map()}.
+find_dep_client_or_add(Clients, Callable) ->
+    Deps = callable_deps(Callable),
     H = fun H(Deps)->
-        [Dep | Rest] = Deps,
-        case catch maps:get(Dep, Clients) of
-            {badkey, _} -> H(Rest);
-            V -> V
+        case Deps of
+            [] ->
+                add_client(Clients, callable_name(Callable));
+            [Dep | Rest] ->
+                case maps:get(Dep, Clients, default) of
+                    default ->
+                        case Rest of
+                            [] -> add_client(Clients, callable_name(Callable));
+                            _ ->  H(Rest)
+                        end;
+                    Pid -> {Pid, Clients}
+                end
         end
     end,
-    H(CallableDeps).
+    H(Deps).
+
+-spec
+client_for(map(), term()) -> {pid(), map()}.
+client_for(Clients, Callable) ->
+    Name = callable_name(Callable),
+    case maps:get(Name, Clients, default) of
+        default ->
+            find_dep_client_or_add(Clients, Callable);
+        Pid ->
+            {Pid, Clients}
+    end.
 
 -spec
 send_exit(map()) -> ok.
@@ -54,30 +74,36 @@ start_etf(binary()) -> any().
 start_etf(Path) ->
     {ok, B} = file:read_file(Path),
     Prog = binary_to_term(B),
+    [C, D] = Prog,
 
-    % PICKUP
-    % first sweep: call if deps are called
-    lists:foreach(fun(C)->
-        Deps = callable_deps(C),
-        ct:print("~p", [Deps])
-    end, Prog),
+    % {Pida, Clts} = client_for(#{<<"login">> => 9}, C),
+    % ct:print("got: ~p", [Clts]),
 
-    % second sweep: call if err_stack not empty
+    {SweptProg, {Clients}} = lists:mapfoldl(fun(C, {Clients})->
+        {Pid, NewClients} = client_for(Clients, C),
+        Pid ! {maybe_call, C, self()},
 
-    % Clients = add_client(#{}, "login"),
-    %
-    % FinalAcc = lists:foreach(fun(Callable)->
-    %     Pid = case callable_deps(Callable) of
-    %         [] -> maps:get(callable_name(Callable), Clients);
-    %         _ -> find_client(Clients, callable_deps(Callable))
-    %     end,
-    %     Pid ! {do_call, Callable}
-    % end, Prog_),
-    %
-    % FinalAcc,
-    %
+        receive
+            {res, Callable} ->
+                % Callable
+                ct:print("received: ~p", [Callable])
+        after 2000 ->
+            ct:print("Timed out waiting for message~n")
+        end,
+        {C, {NewClients}}
+    end, {#{}}, Prog),
+
+    % first sweep: call if all deps in Acc.callstack      | regardless Callable.err_stack
+    % map Prog                 worker maybe_call       -> Prog (err_stack)
+
+    % second sweep: call if Callable.err_stack not empty  | regardless Acc.callstack
+    % foldl Prog, case Callable.err_stack worker call  -> Acc
+
+
     % % ??: check consistency with callstack
+    ct:print("INFO: sending exit to clients"),
     send_exit(#{}).
+
 
 -spec
 some_empty_thenprefs(list(term())) -> boolean().
@@ -86,8 +112,6 @@ some_empty_thenprefs(Prog) -> true.
 -spec
 check_w_permissions(list(term())) -> boolean().
 check_w_permissions(Prog) -> true.
-
-
 
 -spec
 init_acc() -> map().
@@ -105,32 +129,41 @@ callable_name({_, Name, _, _, _, _}) -> Name.
 worker(map()) -> map().
 worker(Acc) ->
     receive
-        {done} -> Acc;
-        % Callable is called if Acc.callstack contains callable.deps
+        {result} -> Acc;
 
-        {do_call, Callable} ->
-            Called = maps:get(callstack, Acc),
-            IsReady = lists:member(callable_name(Callable), Called),
-            case IsReady of
-                true ->
-                    {_, Name, _, _, _} = do_call(Callable),
-                    Updated = maps:put(callstack, Called ++ Name, Acc),
-                    worker(Updated);
-                false ->
-                    ct:print("INFO: callable not ready"),
-                    worker(Acc)
-            end;
+        % Second sweep.
+        {call, Callable} -> worker(Acc);
+
+        {maybe_call, Callable, From} ->
+            Deps = callable_deps(Callable),
+            Callstack = maps:get(callstack, Acc),
+            DepsCalled = lists:all(fun(Dep)-> lists:member(Dep, Callstack) end, Deps),
+
+            NewAcc = case DepsCalled of
+                true -> do_call(Acc, Callable);
+                _ ->
+                    ct:print("INFO: skipped calling on first sweep"),
+                    Acc
+            end,
+            ct:print("From=~p", [From]),
+            ct:print("Callable=~p", [Callable]),
+            From ! {res, Callable},
+            worker(NewAcc);
 
 
         Unexpected ->
+            ct:print("WARN: unexpected worker args"),
             worker(Acc)
     end.
 
 -spec
-do_call(term()) -> term().
-do_call({Deps, Name, {req, Method, URL, Headers, Payload, Options}, _BeenCalled, {err_stack, ErrStack}}) ->
-    Errs = case hackney:request(Method, URL, Headers, Payload, Options) of
-        {ok, _Rest} -> [];
-        _ -> [internal_err_hackney]
-    end,
-    {Deps, Name, Method, {been_called, true}, {err_stack, Errs ++ ErrStack}}.
+do_call(map(), term()) -> map().
+do_call(Acc, Callable) ->
+    % {Deps, Name, {req, Method, URL, Headers, Payload, Options}, {err_stack, ErrStack}} = Callable,
+    % Errs = case hackney:request(Method, URL, Headers, Payload, Options) of
+    %     {ok, _Rest} -> [];
+    %     _ -> [internal_err_hackney]
+    % end,
+    % {Deps, Name, Method, {err_stack, Errs ++ ErrStack}}.
+    Old = maps:get(callstack, Acc),
+    maps:put(callstack, Old ++ callable_name(Callable), Acc).
