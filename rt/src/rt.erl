@@ -8,9 +8,6 @@
 
 % true = some_empty_thenprefs(Prog),
 % true = check_w_permissions(Prog),
-% Env = #{callstack => ["login"]},
-% io:format("~p: Got hello from ~p~n", [self(), Callable]),
-% clients<name, client_id>
 start() ->
     application:ensure_all_started(hackney),
     Pid1 = spawn(?MODULE, worker, [#{callstack => []}]),
@@ -76,33 +73,41 @@ start_etf(Path) ->
     Prog = binary_to_term(B),
     [C, D] = Prog,
 
-    % {Pida, Clts} = client_for(#{<<"login">> => 9}, C),
-    % ct:print("got: ~p", [Clts]),
-
-    {SweptProg, {Clients}} = lists:mapfoldl(fun(C, {Clients})->
+    Clients1 = lists:foldl(fun(C, Clients)->
         {Pid, NewClients} = client_for(Clients, C),
-        Pid ! {maybe_call, C, self()},
+        Pid ! {call_1st, C, self()},
+        NewClients
+    end, #{}, Prog),
 
-        receive
-            {res, Callable} ->
-                % Callable
-                ct:print("received: ~p", [Callable])
-        after 2000 ->
-            ct:print("Timed out waiting for message~n")
-        end,
-        {C, {NewClients}}
-    end, {#{}}, Prog),
+    Prog1 = join([], length(Prog)),
 
-    % first sweep: call if all deps in Acc.callstack      | regardless Callable.err_stack
-    % map Prog                 worker maybe_call       -> Prog (err_stack)
+    % first sweep:  call if all deps in Acc.callstack
 
-    % second sweep: call if Callable.err_stack not empty  | regardless Acc.callstack
-    % foldl Prog, case Callable.err_stack worker call  -> Acc
+    % second sweep: call if name not in callstack OR Callable.err_stack not empty
 
+    Clients2 = lists:foldl(fun(C, Clients)->
+        {Pid, NewClients} = client_for(Clients, C),
+        Pid ! {call_2nd, C, self()},
+        NewClients
+    end, Clients1, Prog1),
+
+    % ??: property: length(Prog1) == length(Prog2)
+    Prog2 = join([], length(Prog1)),
 
     % % ??: check consistency with callstack
+    % property: length(callstack) == length(Prog2)
+    % property: Clients2 contains Clients1
     ct:print("INFO: sending exit to clients"),
-    send_exit(#{}).
+    send_exit(Clients2).
+
+join(List, 0) -> List;
+join(List, N) ->
+    receive
+        {res, Callable} ->
+            join(List ++ [Callable], N - 1)
+    after 15000 ->
+        ct:print("ERROR: unannotated long response or process")
+    end.
 
 
 -spec
@@ -126,28 +131,44 @@ callable_name(term()) -> binary().
 callable_name({_, Name, _, _, _, _}) -> Name.
 
 -spec
+callable_errstack(term()) -> list().
+callable_errstack({_, _, _, _, _, Errs}) -> Errs.
+
+-spec
 worker(map()) -> map().
 worker(Acc) ->
     receive
-        {result} -> Acc;
-
-        % Second sweep.
-        {call, Callable} -> worker(Acc);
-
-        {maybe_call, Callable, From} ->
-            Deps = callable_deps(Callable),
+        {call_2nd, C, From} ->
             Callstack = maps:get(callstack, Acc),
-            DepsCalled = lists:all(fun(Dep)-> lists:member(Dep, Callstack) end, Deps),
-
-            NewAcc = case DepsCalled of
-                true -> do_call(Acc, Callable);
+            Name = callable_name(C),
+            ErrStackNotEmpty = case callable_errstack(C) of
+                [] -> false;
+                _ -> true
+            end,
+            HasChance = not lists:member(Name, Callstack) or ErrStackNotEmpty,
+            case HasChance of
+                true -> do_call(Acc, C);
                 _ ->
                     ct:print("INFO: skipped calling on first sweep"),
                     Acc
             end,
-            ct:print("From=~p", [From]),
-            ct:print("Callable=~p", [Callable]),
-            From ! {res, Callable},
+            From ! {res, C},
+            worker(Acc);
+
+        {call_1st, C, From} ->
+            Callstack = maps:get(callstack, Acc),
+            % PICKUP debug print starting from here
+            % ct:print("Callstack=~p", [Callstack]),
+            Deps = callable_deps(C),
+            DepsBeenCalled = lists:all(fun(Dep)-> lists:member(Dep, Callstack) end, Deps),
+
+            NewAcc = case DepsBeenCalled of
+                true -> do_call(Acc, C);
+                _ ->
+                    ct:print("INFO: skipped calling on first sweep"),
+                    Acc
+            end,
+            From ! {res, C},
             worker(NewAcc);
 
 
