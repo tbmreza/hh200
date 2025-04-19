@@ -1,21 +1,17 @@
 -module(rt).
 
--export([
-    start/0
+-export(
+  [ start/0
   , start_etf/1
   , worker/1
 ]).
 
-% true = some_empty_thenprefs(Prog),
-% true = check_w_permissions(Prog),
 start() ->
-    application:ensure_all_started(hackney),
-    Pid1 = spawn(?MODULE, worker, [#{callstack => []}]),
-    Pid1.
+    ok.
 
 
-% -spec
-% add_client(map(), binary()) -> .
+-spec
+add_client(map(), binary()) -> {pid(), map()}.
 add_client(Clients, CallableName) ->
     Pid = spawn(?MODULE, worker, [init_acc()]),
     {Pid, maps:put(CallableName, Pid, Clients)}.
@@ -24,7 +20,6 @@ add_client(Clients, CallableName) ->
 -spec
 find_dep_client_or_add(map(), term()) -> {pid(), map()}.
 find_dep_client_or_add(Clients, Callable) ->
-    Deps = callable_deps(Callable),
     H = fun H(Deps)->
         case Deps of
             [] ->
@@ -40,7 +35,7 @@ find_dep_client_or_add(Clients, Callable) ->
                 end
         end
     end,
-    H(Deps).
+    H(callable_deps(Callable)).
 
 -spec
 client_for(map(), term()) -> {pid(), map()}.
@@ -71,7 +66,9 @@ start_etf(binary()) -> any().
 start_etf(Path) ->
     {ok, B} = file:read_file(Path),
     Prog = binary_to_term(B),
-    [C, D] = Prog,
+
+    true = some_empty_thenprefs(Prog),
+    true = check_w_permissions(Prog),
 
     Clients1 = lists:foldl(fun(C, Clients)->
         {Pid, NewClients} = client_for(Clients, C),
@@ -92,7 +89,7 @@ start_etf(Path) ->
     end, Clients1, Prog1),
 
     % ??: property: length(Prog1) == length(Prog2)
-    Prog2 = join([], length(Prog1)),
+    _Prog2 = join([], length(Prog1)),
 
     % % ??: check consistency with callstack
     % property: length(callstack) == length(Prog2)
@@ -112,11 +109,11 @@ join(List, N) ->
 
 -spec
 some_empty_thenprefs(list(term())) -> boolean().
-some_empty_thenprefs(Prog) -> true.
+some_empty_thenprefs(_Prog) -> true.
 
 -spec
 check_w_permissions(list(term())) -> boolean().
-check_w_permissions(Prog) -> true.
+check_w_permissions(_Prog) -> true.
 
 -spec
 init_acc() -> map().
@@ -124,19 +121,20 @@ init_acc() -> #{callstack => []}.
 
 -spec
 callable_deps(term()) -> list(binary()).
-callable_deps({{deps, Deps}, _, _, _, _, _}) -> Deps.
+callable_deps({{deps, Deps}, _, _, _, _}) -> Deps.
 
 -spec
 callable_name(term()) -> binary().
-callable_name({_, Name, _, _, _, _}) -> Name.
+callable_name({_, Name, _, _, _}) -> Name.
 
 -spec
 callable_errstack(term()) -> list().
-callable_errstack({_, _, _, _, _, Errs}) -> Errs.
+callable_errstack({_, _, _, _, Errs}) -> Errs.
 
 -spec
 worker(map()) -> map().
 worker(Acc) ->
+    application:ensure_all_started(hackney),
     receive
         {call_2nd, C, From} ->
             Callstack = maps:get(callstack, Acc),
@@ -147,7 +145,7 @@ worker(Acc) ->
             end,
             HasChance = not lists:member(Name, Callstack) or ErrStackNotEmpty,
             case HasChance of
-                true -> do_call(Acc, C);
+                true -> do_call(Acc, C, call_2nd);
                 _ ->
                     ct:print("INFO: skipped calling on first sweep"),
                     Acc
@@ -157,13 +155,11 @@ worker(Acc) ->
 
         {call_1st, C, From} ->
             Callstack = maps:get(callstack, Acc),
-            % PICKUP debug print starting from here
-            % ct:print("Callstack=~p", [Callstack]),
             Deps = callable_deps(C),
             DepsBeenCalled = lists:all(fun(Dep)-> lists:member(Dep, Callstack) end, Deps),
 
             NewAcc = case DepsBeenCalled of
-                true -> do_call(Acc, C);
+                true -> do_call(Acc, C, call_1st);
                 _ ->
                     ct:print("INFO: skipped calling on first sweep"),
                     Acc
@@ -172,19 +168,23 @@ worker(Acc) ->
             worker(NewAcc);
 
 
-        Unexpected ->
+        _Unexpected ->
             ct:print("WARN: unexpected worker args"),
             worker(Acc)
     end.
 
 -spec
-do_call(map(), term()) -> map().
-do_call(Acc, Callable) ->
-    % {Deps, Name, {req, Method, URL, Headers, Payload, Options}, {err_stack, ErrStack}} = Callable,
-    % Errs = case hackney:request(Method, URL, Headers, Payload, Options) of
-    %     {ok, _Rest} -> [];
-    %     _ -> [internal_err_hackney]
-    % end,
-    % {Deps, Name, Method, {err_stack, Errs ++ ErrStack}}.
+do_call(map(), term(), atom()) -> map().
+do_call(Acc, {Deps, Name, {req, Method, URL, Headers, Payload, Options}, Resp, {err_stack, ErrStack}}, Caller) ->
+    ct:print("do_call by ~p", [Caller]),
+    Errs = case catch hackney:request(Method, URL, Headers, Payload, Options) of
+        {ok, _Rest} -> [];
+        _ -> [internal_err_hackney]
+    end,
+
     Old = maps:get(callstack, Acc),
-    maps:put(callstack, Old ++ callable_name(Callable), Acc).
+    maps:put(callstack, Old ++ [Name], Acc);
+
+do_call(Acc, Callable, Caller) ->
+    ct:print("WARN: unexpected Callable"),
+    Acc.

@@ -63,7 +63,6 @@ parsed :: Etf.Term
 --   "login",
 --   {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
 --   {resp, 200, {output, <<"outfile">>}},
---   {been_called, false},
 --   {err_stack, []}
 --  },
 --  ...
@@ -75,7 +74,6 @@ parsed =
             , asBinaryTerm "login"
             , TupleTerm [AtomTerm "req", AtomTerm "get", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []]
             , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm []]
-            , TupleTerm [AtomTerm "been_called", AtomTerm "false"]
             , TupleTerm [AtomTerm "err_stack", ListTerm []]
             ]
         , TupleTerm
@@ -83,7 +81,6 @@ parsed =
             , asBinaryTerm "download image"
             , TupleTerm [AtomTerm "req", AtomTerm "post", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []]
             , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "outfile"]]
-            , TupleTerm [AtomTerm "been_called", AtomTerm "false"]
             , TupleTerm [AtomTerm "err_stack", ListTerm []]
             ]
         ]
