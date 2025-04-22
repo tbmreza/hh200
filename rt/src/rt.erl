@@ -1,5 +1,7 @@
 -module(rt).
 
+-include_lib("kernel/include/file.hrl").  % #file_info
+
 -export(
   [ start/0
   , start_etf/1
@@ -67,35 +69,36 @@ start_etf(Path) ->
     {ok, B} = file:read_file(Path),
     Prog = binary_to_term(B),
 
-    true = some_empty_thenprefs(Prog),
     true = check_w_permissions(Prog),
 
+    % Clients1 = lists:foldl(fun(C, Clients)->
+    %     {Pid, NewClients} = client_for(Clients, C),
+    %     Pid ! {call_1st, C, self()},
+    %     NewClients
+    % end, #{}, Prog),
     Clients1 = lists:foldl(fun(C, Clients)->
+        % ct:print("C=~p", [C]),
         {Pid, NewClients} = client_for(Clients, C),
         Pid ! {call_1st, C, self()},
         NewClients
     end, #{}, Prog),
 
-    Prog1 = join([], length(Prog)),
+    Prog1 = join([], length(Prog)).
 
-    % first sweep:  call if all deps in Acc.callstack
-
-    % second sweep: call if name not in callstack OR Callable.err_stack not empty
-
-    Clients2 = lists:foldl(fun(C, Clients)->
-        {Pid, NewClients} = client_for(Clients, C),
-        Pid ! {call_2nd, C, self()},
-        NewClients
-    end, Clients1, Prog1),
-
-    % ??: property: length(Prog1) == length(Prog2)
-    _Prog2 = join([], length(Prog1)),
-
-    % % ??: check consistency with callstack
-    % property: length(callstack) == length(Prog2)
-    % property: Clients2 contains Clients1
-    ct:print("INFO: sending exit to clients"),
-    send_exit(Clients2).
+    % Clients2 = lists:foldl(fun(C, Clients)->
+    %     {Pid, NewClients} = client_for(Clients, C),
+    %     Pid ! {call_2nd, C, self()},
+    %     NewClients
+    % end, Clients1, Prog1),
+    %
+    % % ??: property: length(Prog1) == length(Prog2)
+    % _Prog2 = join([], length(Prog1)),
+    %
+    % % % ??: check consistency with callstack
+    % % property: length(callstack) == length(Prog2)
+    % % property: Clients2 contains Clients1
+    % ct:print("INFO: sending exit to clients"),
+    % send_exit(Clients2).
 
 join(List, 0) -> List;
 join(List, N) ->
@@ -107,9 +110,6 @@ join(List, N) ->
     end.
 
 
--spec
-some_empty_thenprefs(list(term())) -> boolean().
-some_empty_thenprefs(_Prog) -> true.
 
 -spec
 check_w_permissions(list(term())) -> boolean().
@@ -158,13 +158,14 @@ worker(Acc) ->
             Deps = callable_deps(C),
             DepsBeenCalled = lists:all(fun(Dep)-> lists:member(Dep, Callstack) end, Deps),
 
-            NewAcc = case DepsBeenCalled of
-                true -> do_call(Acc, C, call_1st);
+            {NewC, NewAcc} = case DepsBeenCalled of
+                true ->
+                    do_call(Acc, C, call_1st);
                 _ ->
                     ct:print("INFO: skipped calling on first sweep"),
-                    Acc
+                    {C, Acc}
             end,
-            From ! {res, C},
+            From ! {res, NewC},
             worker(NewAcc);
 
 
@@ -173,17 +174,152 @@ worker(Acc) ->
             worker(Acc)
     end.
 
--spec
-do_call(map(), term(), atom()) -> map().
-do_call(Acc, {Deps, Name, {req, Method, URL, Headers, Payload, Options}, Resp, {err_stack, ErrStack}}, Caller) ->
-    ct:print("do_call by ~p", [Caller]),
-    Errs = case catch hackney:request(Method, URL, Headers, Payload, Options) of
-        {ok, _Rest} -> [];
-        _ -> [internal_err_hackney]
+% -spec
+% do_call(map(), term(), atom()) -> .
+do_call(Acc
+      , { Deps
+        , Name
+        , {req, Method, URL, Headers, Payload, Options} = Req
+        , {resp, Codes, {output, RespOutputPath, RespOutputMode}} = Resp
+        , {err_stack, ErrStack}
+        } = C
+      , Caller) ->
+    % ct:print("do_call by ~p: ~p", [Caller, C]),
+
+            % case file:write_file("/home/tbmreza/gh/hh200/rt/img.jpg", Body) of
+    % https://hexdocs.pm/hackney/hackney.html#request/5
+    NewErrs = case catch hackney:request(Method, URL, Headers, Payload, Options) of
+        {ok, Code, _Headers, Ref} ->
+            % {HasContents, CannotWrite} = case file:read_file_info(RespOutputPath, []) of
+            %      {error, _} ->
+            %         {false, true};
+            %      {ok, FileInfo} ->
+            %         #file_info{size = S, access = Access} = FileInfo,
+            %
+            %         {S > 0, (Access == read) or (Access == none)}
+            % end,
+            % ct:print("got: ~p  ~p", [HasContents, CannotWrite]),
+
+
+            % ?? overwrite: can you overwrite a file whose permission is not write
+
+
+            WriteOrInternalErr =
+                fun WriteOrInternalErr(P)->
+                    {P, false}
+                end,
+
+
+            F =
+                fun F(P)->
+                    {P, false}
+                end,
+
+
+            % fresh:  % ??: relevant write permission becomes that of Dir instead of user specified path
+            % p  ->  {FreshFilename, false = ExistNonZero?}  ->             write_or_internal_err(FreshFilename)
+
+            % Fresh file name if need be.
+            {FreshFilename, _False} = F(RespOutputPath),
+            case fresh of
+                fresh ->
+                    ct:print("INFO: writing to FreshFilename"),
+                    % WriteOrInternalErr(FreshFilename)
+                    ErrStack;
+                warn ->
+                    ct:print("INFO: file_already_exists"),
+                    ErrStack;
+                error ->
+                    % case of
+                    ct:print("INFO: marking testcase as FAIL"),
+                    ErrStack
+            end;
+
+            % overwrite:
+            % p  ->  ExistNonZero?                           then log("overwriting at RespOutputPath"); write_or_internal_err(p)
+            %                                                else                                       write_or_internal_err(p)
+
+            % warn:
+            % p  ->  ExistNonZero?                           then log("file_already_exists"); write_or_internal_err(p)
+            %                                                else                             write_or_internal_err(p)
+
+            % error:
+            % p  ->  ExistNonZero?                           then log("marking testcase as FAIL")
+
+
+
+
+            % case {CannotWrite, RespOutputMode} of
+            %     {true =  ThatWeCannotWrite, error} ->
+            %         % 
+            %     ErrStack ++ [user_err_output__write_access];
+            %
+            %     {false = ThatWeCanTryWriting, Either} when Either == error orelse Either == warn ->
+            %         case Either of
+            %             error ->
+            %                 ErrStack ++ [user_err_output__on_exist];
+            %             warn ->
+            %                 ct:print("WARN: "),
+            %                 ErrStack
+            %         end;
+            %         % ErrStack ++ [user_err_output__on_exist];
+            %     _ -> ErrStack
+            % end;
+
+
+            % overwrite | fresh | warn | error
+            % overwrite
+            % {ok, Body} = hackney:body(Ref),
+            % case file:write_file(RespOutputPath, Body) of
+            %     {error, R} -> ct:print("Reason: ~p", [R]);
+            %     _ -> ct:print("INFO: overwritten file contents of byte_size ~p", [byte_size(Body)])
+            % end,
+
+            % % error
+            % {ok, Body} = hackney:body(Ref),
+            % case file:write_file(RespOutputPath, Body, [exclusive]) of
+            %     {error, eexist} ->
+            %         % This path of execution is presumably very rare because the file_info change must have
+            %         % happened between static analysis (up until etf writing) and the very above
+            %         % line of runtime code.
+            %         %
+            %         % In this case at this point, the request has already been made and the response from s.u.t
+            %         % parsed; what's left to be done is marking the whole callable red.
+            %         ErrStack ++ [user_err_output_mode]; user_err_output_onexist
+            %     _ ->
+            %         ct:print("INFO: written file contents of byte_size ~p", [byte_size(Body)]),
+            %         ErrStack
+            % end;
+
+            % fresh
+            % {ok, Body} = hackney:body(Ref),
+            % fun try_exclusive_write(P)
+            %   case file:write_file(P, Body, [exclusive]) of
+            %     {error, eexist} -> try_exclusive_write(P ++ 0)
+            %     _ -> INFO: written...
+            %
+            % try_exclusive_write(AbsFilePath),
+            % case file:write_file("/home/tbmreza/gh/hh200/rt/img.jpg", Body, [exclusive]) of
+            %     {error, eexist} ->
+            %         ct:print("Reason: eexist!");
+            %     _ ->
+            %         ct:print("INFO: written file contents of byte_size ~p", [byte_size(Body)])
+            % end,
+            % ct:print("INFO: user-specified output file name didn't exist yet; skipped generating fresh name"),
+
+        _ -> ErrStack ++ [internal_err__hackney]
     end,
 
+    NewC =
+        { Deps
+        , Name
+        , {req, Method, URL, Headers, Payload, Options}
+        , Resp
+        , {err_stack, NewErrs}
+        },
+
     Old = maps:get(callstack, Acc),
-    maps:put(callstack, Old ++ [Name], Acc);
+    {NewC, maps:put(callstack, Old ++ [Name], Acc)};
 
 do_call(Acc, Callable, Caller) ->
     ct:print("WARN: unexpected Callable"),

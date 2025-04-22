@@ -56,6 +56,19 @@ doAssertParse content = do
 methodAtom :: String -> Etf.Term
 methodAtom m = AtomTerm $ (map Char.toLower) m
 
+parsed1 :: Etf.Term
+parsed1 =
+    ListTerm
+        [ TupleTerm
+            [ TupleTerm [AtomTerm "deps", ListTerm []]
+            , asBinaryTerm "download image.jpg"
+            , TupleTerm [AtomTerm "req", AtomTerm "get", asBinaryTerm "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI", ListTerm [], asBinaryTerm "", ListTerm []]
+            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "/home/tbmreza/gh/hh200/rt/img.jpg", AtomTerm "overwrite"]]
+            , TupleTerm [AtomTerm "err_stack", ListTerm []]
+            ]
+        ]
+
+
 parsed :: Etf.Term
 -- [
 --  {
@@ -100,7 +113,7 @@ t = testGroup "syntax" [
         mapM_ doAssertParse [str]
 
   , testCase "??" $ do
-        Etf.writeTermToFile "temp.etf" parsed
+        Etf.writeTermToFile "temp.etf" parsed1
 
 
 --     testCase "parse string" $ do
