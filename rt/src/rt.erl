@@ -71,11 +71,6 @@ start_etf(Path) ->
 
     true = check_w_permissions(Prog),
 
-    % Clients1 = lists:foldl(fun(C, Clients)->
-    %     {Pid, NewClients} = client_for(Clients, C),
-    %     Pid ! {call_1st, C, self()},
-    %     NewClients
-    % end, #{}, Prog),
     Clients1 = lists:foldl(fun(C, Clients)->
         % ct:print("C=~p", [C]),
         {Pid, NewClients} = client_for(Clients, C),
@@ -204,13 +199,20 @@ do_call(Acc
             % ?? overwrite: can you overwrite a file whose permission is not write
 
 
-            WriteOrInternalErr =
-                fun WriteOrInternalErr(P)->
-                    {P, false}
+            WriteBodyOrInternalErr =  % -> ErrStack
+                fun WriteBodyOrInternalErr(P, ErrStack)->
+                    {ok, Body} = hackney:body(Ref),
+                    case file:write_file(P, Body) of
+                        {error, R} ->
+                            ErrStack ++ [internal_err__fs];
+                        _ ->
+                            ct:print("INFO: written file contents of byte_size ~p", [byte_size(Body)]),
+                            ErrStack
+                    end
                 end,
 
 
-            F =
+            F =  % ??
                 fun F(P)->
                     {P, false}
                 end,
@@ -221,22 +223,31 @@ do_call(Acc
 
             % Fresh file name if need be.
             {FreshFilename, _False} = F(RespOutputPath),
-            case fresh of
+
+            case RespOutputMode of
                 fresh ->
                     ct:print("INFO: writing to FreshFilename"),
-                    % WriteOrInternalErr(FreshFilename)
-                    ErrStack;
+                    WriteBodyOrInternalErr(FreshFilename, ErrStack);
                 warn ->
                     ct:print("INFO: file_already_exists"),
                     ErrStack;
                 error ->
-                    % case of
+                    % ??: eexist:
+                    % This path of execution is presumably very rare because the file_info change must have
+                    % happened between static analysis (up until etf writing) and the very above
+                    % line of runtime code.
+                    %
+                    % In this case at this point, the request has already been made and the response from s.u.t
+                    % parsed; what's left to be done is marking the whole callable red.
                     ct:print("INFO: marking testcase as FAIL"),
+                    ErrStack;
+                overwrite ->
+                    ct:print("INFO: overwriting ~p", [RespOutputPath]),
                     ErrStack
             end;
 
             % overwrite:
-            % p  ->  ExistNonZero?                           then log("overwriting at RespOutputPath"); write_or_internal_err(p)
+            % p  ->  ExistNonZero?                           then log("overwriting RespOutputPath"); write_or_internal_err(p)
             %                                                else                                       write_or_internal_err(p)
 
             % warn:
@@ -247,24 +258,6 @@ do_call(Acc
             % p  ->  ExistNonZero?                           then log("marking testcase as FAIL")
 
 
-
-
-            % case {CannotWrite, RespOutputMode} of
-            %     {true =  ThatWeCannotWrite, error} ->
-            %         % 
-            %     ErrStack ++ [user_err_output__write_access];
-            %
-            %     {false = ThatWeCanTryWriting, Either} when Either == error orelse Either == warn ->
-            %         case Either of
-            %             error ->
-            %                 ErrStack ++ [user_err_output__on_exist];
-            %             warn ->
-            %                 ct:print("WARN: "),
-            %                 ErrStack
-            %         end;
-            %         % ErrStack ++ [user_err_output__on_exist];
-            %     _ -> ErrStack
-            % end;
 
 
             % overwrite | fresh | warn | error
@@ -279,12 +272,6 @@ do_call(Acc
             % {ok, Body} = hackney:body(Ref),
             % case file:write_file(RespOutputPath, Body, [exclusive]) of
             %     {error, eexist} ->
-            %         % This path of execution is presumably very rare because the file_info change must have
-            %         % happened between static analysis (up until etf writing) and the very above
-            %         % line of runtime code.
-            %         %
-            %         % In this case at this point, the request has already been made and the response from s.u.t
-            %         % parsed; what's left to be done is marking the whole callable red.
             %         ErrStack ++ [user_err_output_mode]; user_err_output_onexist
             %     _ ->
             %         ct:print("INFO: written file contents of byte_size ~p", [byte_size(Body)]),
