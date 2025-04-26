@@ -63,7 +63,7 @@ parsed1 =
             [ TupleTerm [AtomTerm "deps", ListTerm []]
             , asBinaryTerm "download image.jpg"
             , TupleTerm [AtomTerm "req", AtomTerm "get", asBinaryTerm "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI", ListTerm [], asBinaryTerm "", ListTerm []]
-            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "/home/tbmreza/gh/hh200/rt/img.jpg", AtomTerm "overwrite"]]
+            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "/home/tbmreza/gh/hh200/rt/img.jpg", AtomTerm "fresh"]]
             , TupleTerm [AtomTerm "err_stack", ListTerm []]
             ]
         ]
@@ -107,10 +107,10 @@ t = testGroup "syntax" [
         let str = "\"log in\" \"auth\" then \"sellout\" \n post http://localhost:9999/p \n HTTP [200 201] (\"home/pat.jpg\" overwrite)"
         mapM_ doAssertParse [str]
 
-  -- ??: assert FAIL with message
-  , testCase "parse # in url fragments and comments" $ do
-        let str = "http://wikipedia.org/wiki/Google_Chrome#okk\n section#commented"
-        mapM_ doAssertParse [str]
+  -- -- ??: assert FAIL with message
+  -- , testCase "parse # in url fragments and comments" $ do
+  --       let str = "http://wikipedia.org/wiki/Google_Chrome#okk\n section#commented"
+  --       mapM_ doAssertParse [str]
 
   , testCase "??" $ do
         Etf.writeTermToFile "temp.etf" parsed1

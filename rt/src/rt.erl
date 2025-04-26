@@ -169,8 +169,29 @@ worker(Acc) ->
             worker(Acc)
     end.
 
+bump_filename(AbsFilePath) ->
+    Input = binary_to_list(AbsFilePath),
+
+    H =
+        fun H(P, N)->
+            Exists = case file:read_file_info(P, []) of
+                {error, _} -> false;
+                _ -> true
+            end,
+            case Exists of
+                false ->
+                    P;
+                true ->
+                    % ??: case EndsWith (d)
+                    Bumped = P ++ io_lib:format(" (~p)", [N]),
+                    H(lists:flatten(Bumped), N + 1)
+            end
+        end,
+    H(Input, 1).
+
 % -spec
 % do_call(map(), term(), atom()) -> .
+% stack test && ~/.cache/rebar3/bin/rebar3 ct -v
 do_call(Acc
       , { Deps
         , Name
@@ -186,18 +207,15 @@ do_call(Acc
     NewErrs = case catch hackney:request(Method, URL, Headers, Payload, Options) of
         {ok, Code, _Headers, Ref} ->
             % {HasContents, CannotWrite} = case file:read_file_info(RespOutputPath, []) of
-            %      {error, _} ->
-            %         {false, true};
             %      {ok, FileInfo} ->
             %         #file_info{size = S, access = Access} = FileInfo,
             %
             %         {S > 0, (Access == read) or (Access == none)}
             % end,
-            % ct:print("got: ~p  ~p", [HasContents, CannotWrite]),
 
 
             % ?? overwrite: can you overwrite a file whose permission is not write
-
+            % ??: relevant write permission becomes that of Dir instead of user specified path
 
             WriteBodyOrInternalErr =  % -> ErrStack
                 fun WriteBodyOrInternalErr(P, ErrStack)->
@@ -211,23 +229,23 @@ do_call(Acc
                     end
                 end,
 
+            % F =    
+            %     fun F(P)->
+            %         IsFresh = false,
+            %         {RespOutputPath, IsFresh}
+            %     end,
 
-            F =  % ??
-                fun F(P)->
-                    {P, false}
-                end,
 
-
-            % fresh:  % ??: relevant write permission becomes that of Dir instead of user specified path
+            % fresh:
             % p  ->  {FreshFilename, false = ExistNonZero?}  ->             write_or_internal_err(FreshFilename)
 
-            % Fresh file name if need be.
-            {FreshFilename, _False} = F(RespOutputPath),
 
             case RespOutputMode of
                 fresh ->
-                    ct:print("INFO: writing to FreshFilename"),
-                    WriteBodyOrInternalErr(FreshFilename, ErrStack);
+                    % Fresh file name if need be.
+                    Bumped = bump_filename(RespOutputPath),
+                    ct:print("INFO: writing to ~p", [Bumped]),
+                    WriteBodyOrInternalErr(Bumped, ErrStack);
                 warn ->
                     ct:print("INFO: file_already_exists"),
                     ErrStack;
