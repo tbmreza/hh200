@@ -1,0 +1,10 @@
+"authentication"
+POST https://bivi-backend-staging.paradev.io/v2/login
+{ "username": "{{username}}", "password": "{{password}}" }
+HTTP [200 201]
+[Captures]
+TOKEN = $.data.token
+
+"authentication" then "get before"
+GET https://bivi-backend-staging.paradev.io/v2/report/sellout?project_id=3&brand=Wardah%2CEm
+Authorization: Bearer {{TOKEN}}
