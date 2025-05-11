@@ -1,4 +1,6 @@
-Copyright (c) 2024 Reza
+MIT License
+
+Copyright (c) Reza Handzalah.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -18,3 +20,24 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+CITATION
+
+If you use this software in your research, please cite:
+
+[Your Name], *Project Title*, Version 1.0, 2025. DOI: [DOI link]  
+Available at: https://github.com/yourusername/yourproject
+
+BibTeX:
+
+@misc{yourproject2025,
+  author       = {[Your Name]},
+  title        = {{Project Title}},
+  year         = {2025},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/yourusername/yourproject}},
+  doi          = {[DOI link]}
+}
