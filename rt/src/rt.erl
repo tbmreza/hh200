@@ -16,6 +16,7 @@ start() ->
 add_client(map(), binary()) -> {pid(), map()}.
 add_client(Clients, CallableName) ->
     Pid = spawn(?MODULE, worker, [init_acc()]),
+    Ref = erlang:monitor(process, Pid),
     {Pid, maps:put(CallableName, Pid, Clients)}.
 
 
@@ -72,7 +73,6 @@ start_etf(Path) ->
     true = check_w_permissions(Prog),
 
     Clients1 = lists:foldl(fun(C, Clients)->
-        % ct:print("C=~p", [C]),
         {Pid, NewClients} = client_for(Clients, C),
         Pid ! {call_1st, C, self()},
         NewClients
@@ -169,22 +169,38 @@ worker(Acc) ->
             worker(Acc)
     end.
 
-bump_filename(AbsFilePath) ->
-    Input = binary_to_list(AbsFilePath),
+incr_parens_digit(String) ->
+    case re:run(String, "(.*)\\((\\d+)\\)$", [{capture, all_but_first, list}]) of
+        {match, [Head, DigitStr]} ->
+            Digit = list_to_integer(DigitStr),
+            Res =
+                lists:flatten(
+                    io_lib:format(
+                        "~s(~p)",
+                        [ string:substr(String, 1, length(String) - length(DigitStr) - 2)
+                        , Digit + 1
+                        ])),
+            Res;
+        nomatch ->
+            Res = lists:flatten(String ++ " (1)"),
+            Res
+    end.
 
+bump_filename(Input) ->
     H =
         fun H(P, N)->
             Exists = case file:read_file_info(P, []) of
                 {error, _} -> false;
-                _ -> true
+                _ ->
+                    ct:print("INFO: ~p exists", [P]),
+                    true
             end,
             case Exists of
                 false ->
                     P;
                 true ->
-                    % ??: case EndsWith (d)
-                    Bumped = P ++ io_lib:format(" (~p)", [N]),
-                    H(lists:flatten(Bumped), N + 1)
+                    Res = incr_parens_digit(P),
+                    H(Res, N + 1)
             end
         end,
     H(Input, 1).
@@ -199,8 +215,7 @@ do_call(Acc
         , {resp, Codes, {output, RespOutputPath, RespOutputMode}} = Resp
         , {err_stack, ErrStack}
         } = C
-      , Caller) ->
-    % ct:print("do_call by ~p: ~p", [Caller, C]),
+      , Caller) -> % ct:print("by ~p: ~p", [Caller, C]),
 
             % case file:write_file("/home/tbmreza/gh/hh200/rt/img.jpg", Body) of
     % https://hexdocs.pm/hackney/hackney.html#request/5
@@ -243,7 +258,7 @@ do_call(Acc
             case RespOutputMode of
                 fresh ->
                     % Fresh file name if need be.
-                    Bumped = bump_filename(RespOutputPath),
+                    Bumped = bump_filename(binary_to_list(RespOutputPath)),
                     ct:print("INFO: writing to ~p", [Bumped]),
                     WriteBodyOrInternalErr(Bumped, ErrStack);
                 warn ->

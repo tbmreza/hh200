@@ -6,7 +6,9 @@
 ]).
 all() -> [test1].
 
+% ??: how can we reuse ct for summarizing hh200 script results
 test1(_Config) ->
+    % ct:print("S=~p", [S]),
     rt:start_etf("/home/tbmreza/gh/hh200/hh200/temp.etf"),
     1 = 1.
 
