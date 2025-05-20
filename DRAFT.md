@@ -1,11 +1,30 @@
 # hh200
 ```
-summary:      statically checked dsl for testing http servers
+summary:      statically-checked dsl for testing http servers
 extensions:   .hhs (script), .etf (external term format)
 usecases      stress testing (massive parallelism, pretty execution reports),
   (features): quick call (interpreter, user profile),
               programming assistant (lsp, symbolic executor)
 others:       can read a subset of hurl
+
+## Parser
+Alex + Happy. monarch for syntax highlighting (maybe replace Alex if it makes sense).
+
+## Finding first counter-example fast
+### Flow interpreter
+### Web UI
+
+By default, hh200 opens the web browser for you to view the test execution live status and results.
+hh200 the language is designed to be self-contained in the semantics that it can express, which should
+allow the status dashboard to be a strictly read-only UI. We think that a dashboard that can control
+the runtime deemphasizes even if slightly the urgency of a full DSL for the task.
+
+As a bonus from this design decision, we prevent a class of test execution non-determinism.
+[locust] is a popular existing tool whose web UI might inspire you to think otherwise, and you should
+feel free to implement an "Edit" button in the dashboard if you find any use for that.
+
+[locust]: https://locust.io
+
 
 
 hh200 is a tool for testing HTTP servers. From "Let me hit this URL with such params
@@ -305,6 +324,12 @@ Re-evaluate an unsuccessful callable before sweeping
 Send exit to clients
 
 
+- [X] LR parser
+- [ ] agent parallelism phase 1 (4 agents)
+    - file reading built into the syntax
+    - counter-example and summary printing: Duration; Request string repr; 
+- [ ] agent parallelism benchmark
+- [ ] `stack test -- localhost.hhs # opens localhost:44200`  "haskell serve real time data to localhost"
+- [ ] `stack test -- localhost.hhs --no-browser` cli arg
+- [ ] `hh200 prgn-nova-regression.hhs` debian packaging
 
-maybe low prio -- makedo:
-sequentially, if there's undefined vars (Captures section) -- crash-first
