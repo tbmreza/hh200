@@ -323,6 +323,22 @@ Re-evaluate an unsuccessful callable before sweeping
 
 Send exit to clients
 
+## Erlang runtime (abandoned idea, unproductive overhead to our goal that is getting to first counter-example fast instead of being fault tolerant)
+### Development
+The shell might interfere with how we interact with `/bin/erl_call` sometimes, for example with the
+out-of-context message "erl_call:.:{N}: not enough arguments". Use another shell or look closer to
+what your shell does every step of the way.
+
+```sh
+erl -sname hh200 -setcookie $(cat ~/.erlang.cookie)
+epmd -names
+erl_call -sname hh200 -a 'init stop'
+```
+erl_call -n hh200 -c $(cat ~/.erlang.cookie) -e rt:dbg().
+erl_call -sname hh200 -a 'rt dbg []'
+erl_call -sname hh200 -c $(cat ~/.erlang.cookie) -a 'rt dbg []'
+
+
 
 - [X] LR parser
 - [ ] agent parallelism phase 1 (4 agents)

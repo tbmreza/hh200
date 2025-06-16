@@ -37,17 +37,23 @@ stack purge  # rm -rf .stack-work
 stack run
 ```
 
-## Erlang runtime
-### Development
-The shell might interfere with how we interact with `/bin/erl_call` sometimes, for example with the
-out-of-context message "erl_call:.:{N}: not enough arguments". Use another shell or look closer to
-what your shell does every step of the way.
+## Modelling parallel test users
 
-```sh
-erl -sname hh200 -setcookie $(cat ~/.erlang.cookie)
-epmd -names
-erl_call -sname hh200 -a 'init stop'
+Haskell distinguishes between parallelism—executing computations simultaneously to improve
+performance—and concurrency—managing multiple independent computations that may interact,
+such as through I/O or shared resources.
+
+hh200 doesn't try to speak in the same granularity as haskell or any concurrency-supporting
+programming languages. We could reexport haskell's semantics with our syntax; this option
+is always option for future implementations of hh200. But for now when we say "HTTP server
+test with parallel users", we are thinking about a specific semantics for the following
+example program:
+
 ```
-erl_call -n hh200 -c $(cat ~/.erlang.cookie) -e rt:dbg().
-erl_call -sname hh200 -a 'rt dbg []'
-erl_call -sname hh200 -c $(cat ~/.erlang.cookie) -a 'rt dbg []'
+#! ["user1", "user2"] row
+
+"download image.jpg"
+GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
+HTTP [200 201] ("/downloads/img-{{row}}.jpg" fresh)
+
+```
