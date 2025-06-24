@@ -111,6 +111,8 @@ go Args { call = True } =
 
     chainCommands
 
+go _ = return ()
+
 -- -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 -- go (Args (Just s) _) = do
 --     let o = "output.etf"
