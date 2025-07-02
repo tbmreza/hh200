@@ -43,11 +43,11 @@ Haskell distinguishes between parallelism—executing computations simultaneousl
 performance—and concurrency—managing multiple independent computations that may interact,
 such as through I/O or shared resources.
 
-hh200 doesn't try to speak in the same granularity as haskell or any concurrency-supporting
-programming languages. We could reexport haskell's semantics with our syntax; this option
-is always option for future implementations of hh200. But for now when we say "HTTP server
-test with parallel users", we are thinking about a specific semantics for the following
-example program:
+hh200 doesn't try to speak in the same granularity as haskell or any parallelism-supporting
+programming languages. We could reexport our host language's semantics with our syntax;
+this option is always option for future implementations of hh200. But for now when we say
+"HTTP server test with parallel users", we are thinking about a specific semantics for the
+following example program:
 
 ```
 #! ["user1", "user2"] row

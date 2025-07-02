@@ -8,8 +8,11 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import L
 import P
-import Hh200.Etf
-import qualified Hh200.Etf as Etf
+
+import qualified Data.ByteString.Lazy.Char8 as L8
+
+import Control.Monad.Reader
+import Hh200.Types
 
 toProgram :: String -> [P.Callable]
 toProgram content = do
@@ -31,17 +34,6 @@ doAssertParse content = do
         _ -> assertBool "" True
 
 
--- -- asTupleTerm :: P.Statement -> IO Etf.Term  -- ??: dynamic (don't return Maybe) with logging
--- asTupleTerm :: P.Statement -> Etf.Term
--- asTupleTerm s =
---     case s of
---         P.Request { method, url } -> TupleTerm [methodAtom method, asBinaryTerm url]
---         -- P.Response { version, status } -> TupleTerm [AtomTerm "http", IntegerTerm status]  -- ??
---         P.Response { version, status } -> TupleTerm [AtomTerm "http"]
-
--- asListTerm :: [P.Statement] -> Etf.Term
--- asListTerm stmts = ListTerm $ map asTupleTerm stmts
-
 -- ListTerm [
     --     TupleTerm [AtomTerm "post", asBinaryTerm "http://localhost:9999/413-Content-Too-Large.php"]
     --   , TupleTerm [AtomTerm "json", TupleTerm [AtomTerm "mut", asBinaryTerm "/home/tbmreza/gh/hh200/building-blocks/rt/asset.json", IntegerTerm 9]]
@@ -53,51 +45,10 @@ doAssertParse content = do
         --     TupleTerm [AtomTerm "deps", ListTerm []]
         --   ]
 
-methodAtom :: String -> Etf.Term
-methodAtom m = AtomTerm $ (map Char.toLower) m
-
-parsed1 :: Etf.Term
-parsed1 =
-    ListTerm
-        [ TupleTerm
-            [ TupleTerm [AtomTerm "deps", ListTerm []]
-            , asBinaryTerm "download image.jpg"
-            , TupleTerm [AtomTerm "req", AtomTerm "get", asBinaryTerm "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI", ListTerm [], asBinaryTerm "", ListTerm []]
-            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "/home/tbmreza/gh/hh200/rt/img.jpg", AtomTerm "fresh"]]
-            , TupleTerm [AtomTerm "err_stack", ListTerm []]
-            ]
-        ]
-
-
-parsed :: Etf.Term
--- [
---  {
---   {deps, []},
---   "login",
---   {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
---   {resp, 200, {output, <<"outfile">>}},
---   {err_stack, []}
---  },
---  ...
--- ],
-parsed =
-    ListTerm
-        [ TupleTerm
-            [ TupleTerm [AtomTerm "deps", ListTerm []]
-            , asBinaryTerm "login"
-            , TupleTerm [AtomTerm "req", AtomTerm "get", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []]
-            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm []]
-            , TupleTerm [AtomTerm "err_stack", ListTerm []]
-            ]
-        , TupleTerm
-            [ TupleTerm [AtomTerm "deps", ListTerm [asBinaryTerm "login"]]
-            , asBinaryTerm "download image"
-            , TupleTerm [AtomTerm "req", AtomTerm "post", asBinaryTerm "http://localhost:9999/p", ListTerm [], asBinaryTerm "", ListTerm []]
-            , TupleTerm [AtomTerm "resp", IntegerTerm 200, TupleTerm [AtomTerm "output", asBinaryTerm "outfile"]]
-            , TupleTerm [AtomTerm "err_stack", ListTerm []]
-            ]
-        ]
-
+prog :: HttpM ()
+prog = do
+    json <- httpGet "https://httpbin.org/json"
+    liftIO $ putStrLn $ "GET response: " ++ take 100 (L8.unpack json)
 
 main = defaultMain t
 
@@ -107,18 +58,17 @@ t = testGroup "syntax" [
         let str = "\"log in\" \"auth\" then \"sellout\" \n post http://localhost:9999/p \n HTTP [200 201] (\"home/pat.jpg\" overwrite)"
         mapM_ doAssertParse [str]
 
+  , testCase "http client" $ do
+        _ <- runHttpM prog
+        return ()
+
   -- -- ??: assert FAIL with message
   -- , testCase "parse # in url fragments and comments" $ do
   --       let str = "http://wikipedia.org/wiki/Google_Chrome#okk\n section#commented"
   --       mapM_ doAssertParse [str]
 
-  , testCase "??" $ do
-        Etf.writeTermToFile "temp.etf" parsed1
-
-
 --     testCase "parse string" $ do
 --         -- let caseReqLine =   ["GET https://example.com\n", "GET https://example.com"]
---         -- ??: revive version sep
 --         -- let caseVerStatus = ["HTTP/1.1 200", "HTTP/1 200", "HTTP 200"]
 --         -- let caseVerStatus = ["HTTP/1 200", "HTTP 200"]
 --
@@ -143,17 +93,6 @@ t = testGroup "syntax" [
 --
 --         assertBool "data struct equality" (toProgram caseReqLine == Just stmts)
 --
---
---   , testCase "parse and write etf" $ do
---         let str = "GET http://localhost:9999/p\nHTTP 200"
---         let t = asListTerm (fromJust $ toProgram str)
---         Etf.writeTermToFile "unittest.etf" t
---
---   , testCase "??" $ do
---         let str = "\"login\" then \"checkin\""
---         let t = asListTerm (fromJust $ toProgram str)
---         assertBool "" True
---         -- Etf.writeTermToFile "unittest.etf" t
 --
 --   -- , testCase "parse section string" $ do
 --   --       let caseCapturesSec =   "[Captures]\nnext_id: 12"
@@ -200,7 +139,6 @@ t = testGroup "syntax" [
 --   --       print tokens
 --   --
 --   --       case parse tokens of
---   --           -- ParseOk a ->       Etf.writeTermToFile o $ asListTerm a
 --   --           ParseOk a ->       print "parse ok!"
 --   --           ParseFailed msg -> print msg
 --

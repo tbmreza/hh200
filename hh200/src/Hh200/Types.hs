@@ -14,6 +14,104 @@ import Toml.Schema
 import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
 import Control.Exception (Exception, throwIO)
 
+-- mod Cl {
+import Network.HTTP.Client
+import Network.HTTP.Client.TLS
+import Network.HTTP.Types.Status (statusCode)
+import qualified Data.ByteString.Lazy.Char8 as L8
+
+import Network.HTTP.Types.Status
+import Network.HTTP.Types.Header
+
+import Control.Monad.Reader
+
+data Mini = Mini {
+      m_url :: String
+    }
+
+acquire :: IO Manager
+acquire = newManager tlsManagerSettings
+
+data Rat = Rat
+
+doOrder :: Rat -> String -> IO ()
+doOrder _ url = do
+    manager <- acquire
+    -- initialRequest <- parseRequest "POST https://httpbin.org/post"
+    initialRequest <- parseRequest url
+    
+    -- JSON payload
+    let jsonBody = "{\"name\": \"John\", \"age\": 30}"
+    
+    -- Modify request with body and headers
+    let request = initialRequest
+            { method = "POST"
+            , requestBody = RequestBodyLBS (L8.pack jsonBody)
+            , requestHeaders = 
+                [ (hContentType, "application/json")
+                , (hAccept, "application/json")
+                ]
+            }
+    
+    response <- httpLbs request manager
+    
+    putStrLn $ "Status: " ++ show (responseStatus response)
+    putStrLn $ "Body: " ++ L8.unpack (responseBody response)
+
+doPerform :: Rat -> String -> IO ()
+doPerform _ url = do
+    -- manager <- newManager tlsManagerSettings
+    manager <- acquire
+    request <- parseRequest url
+
+    -- Perform the request
+    response <- httpLbs request manager
+
+    -- Extract response details
+    let status = responseStatus response
+        headers = responseHeaders response
+        body = responseBody response
+
+    putStrLn $ "Status code: " ++ show (statusCode status)
+    putStrLn $ "Response body: " ++ L8.unpack body
+
+type HttpM = ReaderT Manager IO
+-- Presume http-client manager sharing.
+runHttpM :: HttpM a -> IO a
+runHttpM action = do
+    manager <- newManager tlsManagerSettings
+    runReaderT action manager
+
+httpGet :: String -> HttpM L8.ByteString
+httpGet url = do
+    manager <- ask
+    request <- liftIO $ parseRequest url
+    response <- liftIO $ httpLbs request manager
+    return $ responseBody response
+
+httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
+httpPost url jsonBody = do
+    manager <- ask
+    initialRequest <- liftIO $ parseRequest url
+    
+    let request = initialRequest
+            { method = "POST"
+            , requestBody = RequestBodyLBS jsonBody
+            , requestHeaders = [("Content-Type", "application/json")]
+            }
+    
+    response <- liftIO $ httpLbs request manager
+    return $ responseBody response
+
+-- seqCl :: HttpM ()
+-- seqCl = do
+--     json <- httpGet "https://httpbin.org/json"
+--     liftIO $ putStrLn $ "GET response: " ++ take 100 (L8.unpack json)
+--     postResp <- httpPost "https://httpbin.org/post" "{\"reader\": \"monad\"}"
+--     liftIO $ putStrLn $ "POST response: " ++ take 100 (L8.unpack postResp)
+
+-- }
+
 data InternalError = OutOfBounds
                    | Todo
     deriving (Show, Eq)
@@ -32,7 +130,7 @@ instance Exception TerribleException
 
 type HttpMethod = S8.ByteString  -- "GET" "POST"
 
-type Source = FilePath  -- ??: ending with .hhs
+type Source = FilePath
 
 type HttpVerb = S.ByteString
 
@@ -41,23 +139,12 @@ type Headers = HashTable String String
 type ExpectCode = Int
 type Url = String
 
--- data Instr = NOP
---            | IV
---            | IC
---            | OV HttpVerb
---            | OC ExpectCode
---            | SU Url
---            | SH HeaderName [S.ByteString]
---            | X
---            | MATCH_CODES Int
---     deriving (Show, Eq)
-
 -- setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
 -- let hlInput = setRequestHeader "Content-Type" ["application/x-yaml"] $ ""
 
 type Vars = HM.HashMap String Integer
 
-varsEmpty = HM.empty
+-- varsEmpty = HM.empty
 varsDefault :: Vars
 varsDefault = HM.fromList [("max_reruns", 2)]
 

@@ -27,7 +27,6 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
-      Hh200.Etf
       Hh200.Types
       L
       Lib
@@ -74,7 +73,11 @@ executable hh200
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , hh200
+    , http-client
+    , http-client-tls
+    , mtl
     , optparse-applicative
     , process
     , text
@@ -93,7 +96,11 @@ test-suite hh200-test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , hh200
+    , http-client
+    , http-client-tls
+    , mtl
     , optparse-applicative
     , process
     , tasty

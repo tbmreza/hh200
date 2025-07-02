@@ -25,6 +25,10 @@ dependencies:
 - transformers
 - process
 - optparse-applicative
+- http-client
+- http-client-tls
+- bytestring
+- mtl
 
 ghc-options:
 - -Wall
@@ -42,9 +46,9 @@ library:
   default-extensions:
   - OverloadedStrings
   dependencies:
-  - mtl
+  # - mtl
   - array
-  - bytestring
+  # - bytestring
   - hashtables
   - unordered-containers
   - text
@@ -53,8 +57,8 @@ library:
 
   - http-types
   - http-conduit
-  - http-client
-  - http-client-tls
+  # - http-client
+  # - http-client-tls
   - toml-parser
   - yaml
   - aeson

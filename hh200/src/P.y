@@ -3,6 +3,7 @@ module P where
 
 import Control.Monad.Trans.Except
 import L
+import Hh200.Types
 }
 %name parse
 %tokentype { Token }
@@ -97,19 +98,16 @@ numbers : d          { [read $1] }
 
 {
 
-    -- T = [{{deps, []},
-    --       "login",
-    --       {req, post, <<"http://localhost:9999/p">>, [], <<>>, []},
-    --       {resp, 200, {output, <<"outfile">>}},
-    --       {been_called, false},
-    --       {err_stack, []}}],
-
 -- HTTP [200 201] ("/home/tbmreza/test.jpg" overwrite)
 -- HTTP [200 201] ("/home/tbmreza/test.jpg")
 -- HTTP 200 ("/home/tbmreza/test.jpg")
 -- ??: when to interpret Config section
 -- "login" then "checkin"
 -- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
+
+-- data Mini = Mini {
+--       m_url :: String
+--     }
 
 data Callable = Callable {
       deps :: [String]
@@ -160,4 +158,8 @@ catchE m k =
    case m of
       ParseOk a     -> ParseOk a
       ParseFailed e -> k e
+
+-- Test abstract syntax.
+ast1 :: Mini
+ast1 = Mini { m_url = "https://httpbin.org/post" }
 }
