@@ -1,8 +1,8 @@
 .PHONY: test
 
-reg:
-	stack install
-	hh200 download-apk.hhs
+bin:
+	stack build --copy-bins
+	hh200 --version
 
 test:
 	stack test

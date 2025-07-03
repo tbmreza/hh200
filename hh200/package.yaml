@@ -1,7 +1,7 @@
 name:                hh200
-version:             0.1.0.0
+version:             0.0.1
 github:              "tbmreza/hh200"
-license:             BSD-3-Clause
+license:             MIT
 author:              "Reza Handzalah"
 maintainer:          "rezahandzalah@gmail.com"
 copyright:           "2025 Reza"

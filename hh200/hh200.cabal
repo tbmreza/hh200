@@ -1,11 +1,11 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           hh200
-version:        0.1.0.0
+version:        0.0.1
 description:    Please see the README on GitHub at <https://github.com/tbmreza/hh200#readme>
 category:       Language
 homepage:       https://github.com/tbmreza/hh200#readme
@@ -13,7 +13,7 @@ bug-reports:    https://github.com/tbmreza/hh200/issues
 author:         Reza Handzalah
 maintainer:     rezahandzalah@gmail.com
 copyright:      2025 Reza
-license:        BSD-3-Clause
+license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
@@ -27,13 +27,11 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
+      Hh200.Fearless
       Hh200.Types
       L
-      Lib
       P
   other-modules:
-      Paths_hh200
-  autogen-modules:
       Paths_hh200
   hs-source-dirs:
       src
@@ -66,8 +64,6 @@ executable hh200
   main-is: Main.hs
   other-modules:
       Paths_hh200
-  autogen-modules:
-      Paths_hh200
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
@@ -88,8 +84,6 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_hh200
-  autogen-modules:
       Paths_hh200
   hs-source-dirs:
       test

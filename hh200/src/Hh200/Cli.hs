@@ -14,6 +14,7 @@ import Options.Applicative
 
 import qualified Paths_hh200 (version)
 import Hh200.Types
+import Hh200.Fearless
 
 data Args = Args
     { source  :: Maybe String
@@ -46,30 +47,14 @@ simpleRequest = "HTTP/1.1 200\n"  -- ok
 
 -- simpleRequest = "get https://example.com\n"  -- ok
 
-chainCommands :: IO ()
-chainCommands = do
-    let cmd1 = "echo"
-    let args1 = ["A=111,A."]  -- this invocation doesn't have access to running node's bindings
-    let cmd2 = "erl_call"
-    let args2 = ["-sname", "hh200", "-e"]
-
-    -- Construct the full command with a pipe
-    let fullCommand = cmd1 ++ " " ++ unwords args1 ++ " | " ++ cmd2 ++ " " ++ unwords args2
-
-    res <- catch
-        (readProcess "bash" ["-c", fullCommand] "")
-        (\e -> return $ "[Hh200.Cli] " ++ show (e :: SomeException))
-    putStrLn res
-
-
 go :: Args -> IO ()
 
 -- hh200 --version
 go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
 -- hh200 --call
-go Args { call = True } =
-    chainCommands
+go Args { call = True } = do
+    ratRace
 
 go _ = return ()
 
