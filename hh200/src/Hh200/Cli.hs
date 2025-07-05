@@ -13,8 +13,9 @@ import Data.Version (showVersion)
 import Options.Applicative
 
 import qualified Paths_hh200 (version)
-import Hh200.Types
-import Hh200.Fearless
+import qualified Hh200.Types as Hh
+import qualified Hh200.Fearless as Hh
+import qualified Hh200.Scanner as Hh
 
 data Args = Args
     { source  :: Maybe String
@@ -39,7 +40,6 @@ cli = go =<< execParser opts where
 
 simpleRequest :: String
 -- simpleRequest = "GET https://example.com\nHTTP 200\n"
--- simpleRequest = "GET https://example.com\n"
 -- simpleRequest = "GET https://example.com"
 -- simpleRequest = "HTTP 200\n"  -- ok
 simpleRequest = "HTTP/1.1 200\n"  -- ok
@@ -54,8 +54,10 @@ go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
 -- hh200 --call
 go Args { call = True } = do
-    ratRace
+    Hh.ratRace
+
+-- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
+go Args { source = Just src } = do
+    Hh.runHttpM $ Hh.fromHhs src
 
 go _ = return ()
-
--- -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs

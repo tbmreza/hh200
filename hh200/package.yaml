@@ -29,6 +29,7 @@ dependencies:
 - http-client-tls
 - bytestring
 - mtl
+- filepath
 
 ghc-options:
 - -Wall

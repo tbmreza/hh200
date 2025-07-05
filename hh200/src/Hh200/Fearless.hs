@@ -2,6 +2,8 @@ module Hh200.Fearless
     ( ratRace
     ) where
 
+-- GOAL: conveniently present first counter-example
+
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Exception

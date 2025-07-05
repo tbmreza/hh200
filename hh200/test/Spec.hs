@@ -6,15 +6,14 @@ import Data.Maybe (fromJust)
 import qualified Control.Monad (mapM, mapM_)
 import Test.Tasty
 import Test.Tasty.HUnit
-import L
-import P
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 import Control.Monad.Reader
 import Hh200.Types
+import Hh200.Scanner
 
-toProgram :: String -> [P.Callable]
+toProgram :: String -> [Callable]
 toProgram content = do
     let tokensOrPanic = alexScanTokens content
     let tokens = tokensOrPanic
@@ -33,22 +32,23 @@ doAssertParse content = do
         ParseFailed msg -> assertBool msg False
         _ -> assertBool "" True
 
-
--- ListTerm [
-    --     TupleTerm [AtomTerm "post", asBinaryTerm "http://localhost:9999/413-Content-Too-Large.php"]
-    --   , TupleTerm [AtomTerm "json", TupleTerm [AtomTerm "mut", asBinaryTerm "/home/tbmreza/gh/hh200/building-blocks/rt/asset.json", IntegerTerm 9]]
-    --   , TupleTerm [AtomTerm "probe_valid_size", IntegerTerm 4100, IntegerTerm 200]
-    --   ]
-
-    --   {deps, []}
-    -- ListTerm [
-        --     TupleTerm [AtomTerm "deps", ListTerm []]
-        --   ]
-
-prog :: HttpM ()
-prog = do
-    json <- httpGet "https://httpbin.org/json"
-    liftIO $ putStrLn $ "GET response: " ++ take 100 (L8.unpack json)
+-- prog :: HttpM ()
+-- prog = do
+--     json <- httpGet "https://httpbin.org/json"
+--     liftIO $ putStrLn $ "GET response: " ++ take 100 (L8.unpack json)
+--
+-- -- localprog :: HttpM ()
+-- -- localprog = do
+-- --     _ <- httpGet "http://localhost:9999/new"
+-- --     _ <- httpGet "http://localhost:9999/another"
+-- --     liftIO $ putStrLn ""
+-- localprog :: HttpM ()
+-- localprog = do
+--     httpGet_ "http://localhost:9999/new"
+--     httpGet_ "http://localhost:9999/another"
+--
+-- fromConcrete :: String -> HttpM ()
+-- fromConcrete program = localprog
 
 main = defaultMain t
 
@@ -59,8 +59,7 @@ t = testGroup "syntax" [
         mapM_ doAssertParse [str]
 
   , testCase "http client" $ do
-        _ <- runHttpM prog
-        return ()
+        runHttpM $ fromHhs "hello.hhs"
 
   -- -- ??: assert FAIL with message
   -- , testCase "parse # in url fragments and comments" $ do

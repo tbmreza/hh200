@@ -28,6 +28,7 @@ library
   exposed-modules:
       Hh200.Cli
       Hh200.Fearless
+      Hh200.Scanner
       Hh200.Types
       L
       P
@@ -43,6 +44,7 @@ library
     , array
     , base >=4.7 && <5
     , bytestring
+    , filepath
     , ghc
     , hashtables
     , http-client
@@ -70,6 +72,7 @@ executable hh200
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , filepath
     , hh200
     , http-client
     , http-client-tls
@@ -91,6 +94,7 @@ test-suite hh200-test
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , filepath
     , hh200
     , http-client
     , http-client-tls

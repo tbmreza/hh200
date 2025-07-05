@@ -25,13 +25,44 @@ import Network.HTTP.Types.Header
 
 import Control.Monad.Reader
 
+-- draft {
+
+data Callable = Callable {
+      deps :: [String]
+    , name :: String
+    , request :: Req
+    , response :: Resp
+    , been_called :: Bool
+    , err_stack :: [String]
+    }
+    deriving (Show, Eq)
+
+data Req = Req {
+      method :: String
+    , url :: String
+    , headers :: [String]
+    , payload :: String
+    , opts :: [String]
+    }
+    deriving (Show, Eq)
+
+data Resp = Resp {
+      codes :: [Int]
+    , output :: [String]
+    }
+    deriving (Show, Eq)
+
 data Mini = Mini {
       m_url :: String
     }
 
+-- }
+
 acquire :: IO Manager
 acquire = newManager tlsManagerSettings
 
+-- These rats compete with each other for the first counter-example or `Lead`.
+-- At the end of the race, all rats die; "rat race".
 data Rat = Rat
 
 doOrder :: Rat -> String -> IO ()
@@ -82,6 +113,13 @@ runHttpM action = do
     manager <- newManager tlsManagerSettings
     runReaderT action manager
 
+httpGet_ :: String -> HttpM ()
+httpGet_ url = do
+    manager <- ask
+    request <- liftIO $ parseRequest url
+    response <- liftIO $ httpLbs request manager
+    return ()
+
 httpGet :: String -> HttpM L8.ByteString
 httpGet url = do
     manager <- ask
@@ -105,8 +143,6 @@ httpPost url jsonBody = do
 
 -- seqCl :: HttpM ()
 -- seqCl = do
---     json <- httpGet "https://httpbin.org/json"
---     liftIO $ putStrLn $ "GET response: " ++ take 100 (L8.unpack json)
 --     postResp <- httpPost "https://httpbin.org/post" "{\"reader\": \"monad\"}"
 --     liftIO $ putStrLn $ "POST response: " ++ take 100 (L8.unpack postResp)
 

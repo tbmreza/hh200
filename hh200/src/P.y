@@ -1,4 +1,6 @@
 {
+-- Export current module with L addition.
+-- module P ( module P, module L ) where
 module P where
 
 import Control.Monad.Trans.Except
@@ -105,37 +107,6 @@ numbers : d          { [read $1] }
 -- "login" then "checkin"
 -- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
 
--- data Mini = Mini {
---       m_url :: String
---     }
-
-data Callable = Callable {
-      deps :: [String]
-    , name :: String
-    , request :: Req
-    , response :: Resp
-    , been_called :: Bool
-    , err_stack :: [String]
-    }
-    deriving (Show, Eq)
-
-data Req = Req {
-      method :: String
-    , url :: String
-    , headers :: [String]
-    , payload :: String
-    , opts :: [String]
-    }
-    deriving (Show, Eq)
-
-
-data Resp = Resp {
-      codes :: [Int]
-    , output :: [String]
-    }
-    deriving (Show, Eq)
-
-
 parseError :: [Token] -> E a
 parseError tokens = failE $ "Parse error on tokens: " ++ show tokens
 
@@ -158,8 +129,4 @@ catchE m k =
    case m of
       ParseOk a     -> ParseOk a
       ParseFailed e -> k e
-
--- Test abstract syntax.
-ast1 :: Mini
-ast1 = Mini { m_url = "https://httpbin.org/post" }
 }
