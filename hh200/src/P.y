@@ -50,8 +50,8 @@ Callable : deps "then" dep request_ln response_ln
      { Callable
          { deps = $1
          , name = $3
-         , request = $4
-         , response = $5
+         , request_spec = $4
+         , response_spec = $5
          , been_called = False
          , err_stack = []
          }
@@ -64,14 +64,14 @@ deps :: { [String] }
 deps : dep       { [$1] }
      | deps dep  { $1 ++ [$2] }
 
-request_ln : method url "\n"  { Req { method = $1, url = $2, headers = [], payload = "", opts = [] } }
-           | method url       { Req { method = $1, url = $2, headers = [], payload = "", opts = [] } }
+request_ln : method url "\n"  { RequestSpec { method = $1, url = $2, headers = [], payload = "", opts = [] } }
+           | method url       { RequestSpec { method = $1, url = $2, headers = [], payload = "", opts = [] } }
 
-response_ln : http_version_status config_output "\n"  { Resp { codes = $1, output = $2 } }
-            | http_version_status config_output       { Resp { codes = $1, output = $2 } }
+response_ln : http_version_status config_output "\n"  { ResponseSpec { codes = $1, output = $2 } }
+            | http_version_status config_output       { ResponseSpec { codes = $1, output = $2 } }
 
-            | http_version_status "\n"  { Resp { codes = $1, output = []} }
-            | http_version_status       { Resp { codes = $1, output = [] } }
+            | http_version_status "\n"  { ResponseSpec { codes = $1, output = []} }
+            | http_version_status       { ResponseSpec { codes = $1, output = [] } }
 
 config_output :: { [String] }
 config_output : "(" s identifier ")" "\n"  { [$2, $3] }

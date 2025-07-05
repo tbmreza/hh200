@@ -1,26 +1,26 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-import qualified Data.Char as Char (toLower)
-import Data.Maybe (fromJust)
-import qualified Control.Monad (mapM, mapM_)
+-- import qualified Data.Char as Char (toLower)
+-- import Data.Maybe (fromJust)
+-- import qualified Control.Monad (mapM, mapM_)
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import qualified Data.ByteString.Lazy.Char8 as L8
-
-import Control.Monad.Reader
+-- import qualified Data.ByteString.Lazy.Char8 as L8
+--
+-- import Control.Monad.Reader
 import Hh200.Types
 import Hh200.Scanner
 
-toProgram :: String -> [Callable]
-toProgram content = do
-    let tokensOrPanic = alexScanTokens content
-    let tokens = tokensOrPanic
-
-    case parse tokens of
-        ParseOk a -> a
-        _ -> []
+-- toProgram :: String -> [Callable]
+-- toProgram content = do
+--     let tokensOrPanic = alexScanTokens content
+--     let tokens = tokensOrPanic
+--
+--     case parse tokens of
+--         ParseOk a -> a
+--         _ -> []
 
 
 doAssertParse :: String -> IO ()
@@ -32,24 +32,7 @@ doAssertParse content = do
         ParseFailed msg -> assertBool msg False
         _ -> assertBool "" True
 
--- prog :: HttpM ()
--- prog = do
---     json <- httpGet "https://httpbin.org/json"
---     liftIO $ putStrLn $ "GET response: " ++ take 100 (L8.unpack json)
---
--- -- localprog :: HttpM ()
--- -- localprog = do
--- --     _ <- httpGet "http://localhost:9999/new"
--- --     _ <- httpGet "http://localhost:9999/another"
--- --     liftIO $ putStrLn ""
--- localprog :: HttpM ()
--- localprog = do
---     httpGet_ "http://localhost:9999/new"
---     httpGet_ "http://localhost:9999/another"
---
--- fromConcrete :: String -> HttpM ()
--- fromConcrete program = localprog
-
+main :: IO ()
 main = defaultMain t
 
 t :: TestTree
@@ -60,6 +43,9 @@ t = testGroup "syntax" [
 
   , testCase "http client" $ do
         runHttpM $ fromHhs "hello.hhs"
+        -- return ()
+
+  -- , testCase "http client: host offline" $ do  -- ??: offline host is a different class of leads
 
   -- -- ??: assert FAIL with message
   -- , testCase "parse # in url fragments and comments" $ do

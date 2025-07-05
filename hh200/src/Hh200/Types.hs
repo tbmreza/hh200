@@ -24,20 +24,22 @@ import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header
 
 import Control.Monad.Reader
+-- }
 
 -- draft {
 
 data Callable = Callable {
       deps :: [String]
     , name :: String
-    , request :: Req
-    , response :: Resp
+    , request_spec :: RequestSpec
+    , response_spec :: ResponseSpec
+
     , been_called :: Bool
     , err_stack :: [String]
     }
     deriving (Show, Eq)
 
-data Req = Req {
+data RequestSpec = RequestSpec {
       method :: String
     , url :: String
     , headers :: [String]
@@ -45,16 +47,36 @@ data Req = Req {
     , opts :: [String]
     }
     deriving (Show, Eq)
+defaultRequestSpec :: RequestSpec
+defaultRequestSpec = RequestSpec {
+    method = ""
+  , url = ""
+  , headers = []
+  , payload = ""
+  , opts = []
+  }
 
-data Resp = Resp {
+data ResponseSpec = ResponseSpec {
       codes :: [Int]
     , output :: [String]
     }
     deriving (Show, Eq)
+defaultResponseSpec :: ResponseSpec
+defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
 data Mini = Mini {
-      m_url :: String
+      mdeps :: [String]
+    , mname :: String
+    , mrequest_spec :: RequestSpec
+    , mresponse_spec :: ResponseSpec
     }
+
+data Lead = Lead {
+    c :: Mini
+  , verbose :: Bool
+  }
+defaultLead :: Lead
+defaultLead = Lead { c = Mini { mdeps = [], mname = "", mresponse_spec = defaultResponseSpec, mrequest_spec = defaultRequestSpec } }
 
 -- }
 
@@ -88,23 +110,6 @@ doOrder _ url = do
     
     putStrLn $ "Status: " ++ show (responseStatus response)
     putStrLn $ "Body: " ++ L8.unpack (responseBody response)
-
-doPerform :: Rat -> String -> IO ()
-doPerform _ url = do
-    -- manager <- newManager tlsManagerSettings
-    manager <- acquire
-    request <- parseRequest url
-
-    -- Perform the request
-    response <- httpLbs request manager
-
-    -- Extract response details
-    let status = responseStatus response
-        headers = responseHeaders response
-        body = responseBody response
-
-    putStrLn $ "Status code: " ++ show (statusCode status)
-    putStrLn $ "Response body: " ++ L8.unpack body
 
 type HttpM = ReaderT Manager IO
 -- Presume http-client manager sharing.
@@ -140,13 +145,6 @@ httpPost url jsonBody = do
     
     response <- liftIO $ httpLbs request manager
     return $ responseBody response
-
--- seqCl :: HttpM ()
--- seqCl = do
---     postResp <- httpPost "https://httpbin.org/post" "{\"reader\": \"monad\"}"
---     liftIO $ putStrLn $ "POST response: " ++ take 100 (L8.unpack postResp)
-
--- }
 
 data InternalError = OutOfBounds
                    | Todo
