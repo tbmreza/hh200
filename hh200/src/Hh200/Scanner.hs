@@ -7,7 +7,7 @@ module Hh200.Scanner
     , module P
     ) where
 
-import System.FilePath
+-- import System.FilePath
 import Hh200.Types
 import L
 import P
@@ -20,9 +20,18 @@ ast1 :: Mini
 ast1 = Mini {
     mdeps = []
   , mname = "hello"
-  , mrequest_spec = RequestSpec { url = "http://localhost:9999/yea" }
-  , mresponse_spec = ResponseSpec { codes = [200] }
+  -- , mrequest_spec = RequestSpec { url = "http://localhost:9999/yea" }
+  , mrequest_spec = defaultRequestSpec
+  , mresponse_spec = ResponseSpec { codes = [200], output = [] }
   }
+
+-- data RequestSpec = RequestSpec {
+--       method :: String
+--     , url :: String
+--     , headers :: [String]
+--     , payload :: String
+--     , opts :: [String]
+--     }
 
 -- "download image.jpg"
 -- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
@@ -32,12 +41,12 @@ ast2images = Mini {
     mdeps = []
   , mname = "download image.jpg"
   -- , mrequest_spec = RequestSpec { url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI" }
-  , mrequest_spec = RequestSpec { url = "http://localhost:9999/o" }
-  , mresponse_spec = ResponseSpec { codes = [200] }
+  , mrequest_spec = defaultRequestSpec
+  , mresponse_spec = ResponseSpec { codes = [200], output = [] }
   }
 
 read :: FilePath -> Mini
-read x = ast1
+read _x = ast1
 
 hhsStack :: Mini -> HttpM ()
 hhsStack Mini { mrequest_spec = RequestSpec { url } } = do

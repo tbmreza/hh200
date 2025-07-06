@@ -1,9 +1,9 @@
-{-# Language DuplicateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 
-module Hh200.Types where
+module Hh200.Types (module Hh200.Types) where
 
 import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
@@ -11,16 +11,17 @@ import qualified Data.HashTable.IO as H
 import qualified Data.ByteString as S
 import GHC.Generics (Generic)
 import Toml.Schema
-import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
-import Control.Exception (Exception, throwIO)
+-- import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
+-- import Control.Exception (Exception, throwIO)
+import Control.Exception (Exception)
 
 -- mod Cl {
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Network.HTTP.Types.Status (statusCode)
+-- import Network.HTTP.Types.Status (statusCode)
 import qualified Data.ByteString.Lazy.Char8 as L8
 
-import Network.HTTP.Types.Status
+-- import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header
 
 import Control.Monad.Reader
@@ -50,7 +51,8 @@ data RequestSpec = RequestSpec {
 defaultRequestSpec :: RequestSpec
 defaultRequestSpec = RequestSpec {
     method = ""
-  , url = ""
+  -- , url = ""
+  , url = "http://localhost:9999/o"
   , headers = []
   , payload = ""
   , opts = []
@@ -71,12 +73,20 @@ data Mini = Mini {
     , mresponse_spec :: ResponseSpec
     }
 
+-- Checked user script.
+data Checked = Checked
+
 data Lead = Lead {
     c :: Mini
   , verbose :: Bool
   }
 defaultLead :: Lead
-defaultLead = Lead { c = Mini { mdeps = [], mname = "", mresponse_spec = defaultResponseSpec, mrequest_spec = defaultRequestSpec } }
+defaultLead = Lead { c = Mini { mdeps = [], mname = "", mresponse_spec = defaultResponseSpec, mrequest_spec = defaultRequestSpec }, verbose = False }
+-- Callable, DNS configs (??: /etc/resolv.conf), Execution time,
+-- ??: verbose prints all fields
+-- instance Show Lead where
+--     show (Lead (Ckallable m u) v) =
+--         show m ++ "\n" ++ show u ++ "\n"
 
 -- }
 
@@ -122,7 +132,7 @@ httpGet_ :: String -> HttpM ()
 httpGet_ url = do
     manager <- ask
     request <- liftIO $ parseRequest url
-    response <- liftIO $ httpLbs request manager
+    _response <- liftIO $ httpLbs request manager
     return ()
 
 httpGet :: String -> HttpM L8.ByteString
