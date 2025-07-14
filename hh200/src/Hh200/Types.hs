@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Hh200.Types (module Hh200.Types) where
 
@@ -29,17 +30,6 @@ import Control.Monad.Reader
 
 -- draft {
 
-data Callable = Callable {
-      deps :: [String]
-    , name :: String
-    , request_spec :: RequestSpec
-    , response_spec :: ResponseSpec
-
-    , been_called :: Bool
-    , err_stack :: [String]
-    }
-    deriving (Show, Eq)
-
 data RequestSpec = RequestSpec {
       method :: String
     , url :: String
@@ -48,6 +38,10 @@ data RequestSpec = RequestSpec {
     , opts :: [String]
     }
     deriving (Show, Eq)
+
+conc :: RequestSpec -> String
+conc _ = "POST http://localhost:9999/user\n{ \"name\": \"johk\" }"
+
 defaultRequestSpec :: RequestSpec
 defaultRequestSpec = RequestSpec {
     method = ""
@@ -66,24 +60,52 @@ data ResponseSpec = ResponseSpec {
 defaultResponseSpec :: ResponseSpec
 defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
-data Mini = Mini {
-      mdeps :: [String]
-    , mname :: String
-    , mrequest_spec :: RequestSpec
-    , mresponse_spec :: ResponseSpec
-    }
+-- Fields are optional unless a default value makes sense.
+type Duration = Int
+data ScriptConfig = ScriptConfig { retries :: Int, max_duration :: Maybe Duration }
+    deriving (Show)
+defaultScriptConfig :: ScriptConfig
+defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing }
 
--- Checked user script.
-data Checked = Checked
+cfgs :: ScriptConfig -> [(String, Maybe String)]
+cfgs ScriptConfig {..} =
+    [ ("retries", Just $ show retries)
+    , ("max_duration", Just "??: max_duration |> show")
+    ]
+
+class PrettyPrint a where
+    pp :: a -> String
+
+instance PrettyPrint ScriptConfig where
+    -- ??:    as concrete script header  #! retries 1
+    --                                   #! max-duration 1m
+    -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
+    pp x = show x
+
+data CallItem = CallItem {
+    ci_deps :: [String]
+  , ci_name :: String
+  , ci_request_spec :: RequestSpec
+  , ci_response_spec :: Maybe ResponseSpec
+}
+defaultCallItem :: CallItem
+-- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
+defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec }
+
+-- Pretty printing conveniently presents counter-example to std out.
+-- ?? callsites: rat exceptions, debug echo config
+instance PrettyPrint CallItem where
+    pp CallItem { ci_request_spec } = conc ci_request_spec
+
 
 data Lead = Lead {
-    c :: Mini
+    c :: CallItem
   , verbose :: Bool
   }
 defaultLead :: Lead
-defaultLead = Lead { c = Mini { mdeps = [], mname = "", mresponse_spec = defaultResponseSpec, mrequest_spec = defaultRequestSpec }, verbose = False }
+-- defaultLead = Lead { c = Mini { mdeps = [], mname = "", mresponse_spec = Nothing }, verbose = False }
+defaultLead = Lead { c = CallItem { ci_deps = [], ci_name = "", ci_response_spec = Nothing }, verbose = False }
 -- Callable, DNS configs (??: /etc/resolv.conf), Execution time,
--- ??: verbose prints all fields
 -- instance Show Lead where
 --     show (Lead (Ckallable m u) v) =
 --         show m ++ "\n" ++ show u ++ "\n"

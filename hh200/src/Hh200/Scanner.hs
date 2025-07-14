@@ -7,50 +7,50 @@ module Hh200.Scanner
     , module P
     ) where
 
--- import System.FilePath
 import Hh200.Types
 import L
 import P
+
+read :: String -> IO (Maybe CallItem)
+read _x = do
+    putStrLn "yea"
+    return (Just ast1)
+
+-- readFile :: FilePath -> Maybe CallItem
+-- readFile _x = Just ast1
+readFile :: FilePath -> CallItem
+readFile _x = ast1
+
+hhsStack :: CallItem -> HttpM ()
+hhsStack CallItem { ci_request_spec = RequestSpec { url } } = do
+    httpGet_ url
+
+-- PICKUP empty HttpM ()? then more abstract syntax
+fromHhs :: FilePath -> (ScriptConfig, HttpM ())
+fromHhs x = (ScriptConfig { retries = 0, max_duration = Nothing }, hhsStack program) where
+    program = Hh200.Scanner.readFile x
+-- fromHhs x = (defaultScriptConfig, )
 
 ---------------------------
 -- Test abstract syntax. --
 ---------------------------
 
-ast1 :: Mini
-ast1 = Mini {
-    mdeps = []
-  , mname = "hello"
-  -- , mrequest_spec = RequestSpec { url = "http://localhost:9999/yea" }
-  , mrequest_spec = defaultRequestSpec
-  , mresponse_spec = ResponseSpec { codes = [200], output = [] }
+ast1 :: CallItem
+ast1 = CallItem {
+    ci_deps = []
+  , ci_name = "hello"
+  , ci_request_spec = defaultRequestSpec
+  , ci_response_spec = Just ResponseSpec { codes = [200], output = [] }
   }
-
--- data RequestSpec = RequestSpec {
---       method :: String
---     , url :: String
---     , headers :: [String]
---     , payload :: String
---     , opts :: [String]
---     }
 
 -- "download image.jpg"
 -- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
 -- HTTP [200 201] ("/home/tbmreza/gh/hh200/hh200/img-{{row.username}}.jpg" fresh)
-ast2images :: Mini
-ast2images = Mini {
-    mdeps = []
-  , mname = "download image.jpg"
-  -- , mrequest_spec = RequestSpec { url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI" }
-  , mrequest_spec = defaultRequestSpec
-  , mresponse_spec = ResponseSpec { codes = [200], output = [] }
+ast2images :: CallItem
+ast2images = CallItem {
+    ci_deps = []
+  , ci_name = "download image.jpg"
+  -- , ci_request_spec = RequestSpec { url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI" }
+  , ci_request_spec = defaultRequestSpec
+  , ci_response_spec = Just ResponseSpec { codes = [200], output = [] }
   }
-
-read :: FilePath -> Mini
-read _x = ast1
-
-hhsStack :: Mini -> HttpM ()
-hhsStack Mini { mrequest_spec = RequestSpec { url } } = do
-    httpGet_ url
-
-fromHhs :: FilePath -> HttpM ()
-fromHhs x = hhsStack $ Hh200.Scanner.read x

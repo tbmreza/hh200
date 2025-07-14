@@ -41,69 +41,26 @@ import Hh200.Types
 
 %%
 
-Program : Callables  { $1 }
+program : directive  { Nothing }
 
-Callables : Callable            { [$1] }
-          | Callables Callable  { $1 ++ [$2] }
+directive : "then"  { $1 }
 
-Callable : deps "then" dep request_ln response_ln
-     { Callable
-         { deps = $1
-         , name = $3
-         , request_spec = $4
-         , response_spec = $5
-         , been_called = False
-         , err_stack = []
-         }
-     }
+callables : callable  { [$1] }
+          | callables callable  { $1 ++ [$2] }
 
-dep : s "\n"  { $1 }
-    | s       { $1 }
-
-deps :: { [String] }
-deps : dep       { [$1] }
-     | deps dep  { $1 ++ [$2] }
-
-request_ln : method url "\n"  { RequestSpec { method = $1, url = $2, headers = [], payload = "", opts = [] } }
-           | method url       { RequestSpec { method = $1, url = $2, headers = [], payload = "", opts = [] } }
-
-response_ln : http_version_status config_output "\n"  { ResponseSpec { codes = $1, output = $2 } }
-            | http_version_status config_output       { ResponseSpec { codes = $1, output = $2 } }
-
-            | http_version_status "\n"  { ResponseSpec { codes = $1, output = []} }
-            | http_version_status       { ResponseSpec { codes = $1, output = [] } }
-
-config_output :: { [String] }
-config_output : "(" s identifier ")" "\n"  { [$2, $3] }
-              | "(" s identifier ")"       { [$2, $3] }
-
-              | "(" s ")" "\n"  { [$2] }
-              | "(" s ")"       { [$2] }
-
-              | "(" ")" "\n"  { [] }
-              | "(" ")"       { [] }
-
-http_version_status : kwHttp "/" d "." d status_codes  { $6 }
-                    | kwHttp "/" d       status_codes  { $4 }
-                    | kwHttp             status_codes  { $2 }
-
-kwHttp : "http" { "http" }
-       | "HTTP" { "HTTP" }
-
-status_codes :: { [Int] }
-status_codes : "[" numbers "]"  { $2 }
-             | numbers          { $1 }
-
-numbers :: { [Int] }
-numbers : d          { [read $1] }
-        | numbers d  { $1 ++ [read $2] }
+callable : "then"
+    { CallItem
+        { ci_deps = []
+        , ci_name = ""
+        , ci_response_spec = Nothing
+        }
+    }
 
 {
 
 -- HTTP [200 201] ("/home/tbmreza/test.jpg" overwrite)
 -- HTTP [200 201] ("/home/tbmreza/test.jpg")
 -- HTTP 200 ("/home/tbmreza/test.jpg")
--- ??: when to interpret Config section
 -- "login" then "checkin"
 -- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
 

@@ -53,8 +53,6 @@ ratsFromFile _path =
 --     -- putStrLn $ show firstLead
 --     forM_ tids killThread
 
--- runHttpM :: HttpM a -> IO a
-
 ratRace :: IO ()
 ratRace = do
     var <- newEmptyMVar
@@ -67,7 +65,7 @@ ratRace = do
     putStrLn "here"
     forM_ tids killThread
 
-raceToLead :: Hh.Mini -> IO ()
+raceToLead :: Hh.CallItem -> IO ()
 raceToLead ast = do
     var <- newEmptyMVar
 
