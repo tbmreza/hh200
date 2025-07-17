@@ -78,5 +78,5 @@ raceToLead ast = do
     threadDelay 100000
     forM_ tids killThread
 
-    let stacked = Hh.hhsStack ast
+    let stacked = Hh.stackHh [ast]
     Hh.runHttpM stacked

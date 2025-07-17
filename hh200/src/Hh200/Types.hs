@@ -30,6 +30,11 @@ import Control.Monad.Reader
 
 -- draft {
 
+data Script = Script
+  { config :: ScriptConfig
+  , call_items :: [CallItem]
+  }
+
 data RequestSpec = RequestSpec {
       method :: String
     , url :: String
@@ -41,16 +46,6 @@ data RequestSpec = RequestSpec {
 
 conc :: RequestSpec -> String
 conc _ = "POST http://localhost:9999/user\n{ \"name\": \"johk\" }"
-
-defaultRequestSpec :: RequestSpec
-defaultRequestSpec = RequestSpec {
-    method = ""
-  -- , url = ""
-  , url = "http://localhost:9999/o"
-  , headers = []
-  , payload = ""
-  , opts = []
-  }
 
 data ResponseSpec = ResponseSpec {
       codes :: [Int]
@@ -82,15 +77,15 @@ instance PrettyPrint ScriptConfig where
     -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
     pp x = show x
 
-data CallItem = CallItem {
-    ci_deps :: [String]
+data CallItem = CallItem
+  { ci_deps :: [String]
   , ci_name :: String
   , ci_request_spec :: RequestSpec
   , ci_response_spec :: Maybe ResponseSpec
-}
-defaultCallItem :: CallItem
--- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
-defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec }
+  }
+-- defaultCallItem :: CallItem
+-- -- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
+-- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec }
 
 -- Pretty printing conveniently presents counter-example to std out.
 -- ?? callsites: rat exceptions, debug echo config

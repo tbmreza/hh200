@@ -10,7 +10,6 @@ import Options.Applicative
 
 import qualified Paths_hh200 (version)
 import qualified Hh200.Types as Hh
--- import qualified Hh200.Fearless as Hh
 import qualified Hh200.Scanner as Hh
 
 data Args = Args
@@ -49,7 +48,8 @@ go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
 -- hh200 flow.hhs --debug-config
 go Args { source = Just src, debugConfig = True } = do
-    let (scriptConfig, _) = Hh.fromHhs src
+    -- let (scriptConfig, _) = Hh.fromHhs src
+    (scriptConfig, _) <- Hh.fromHhs src
     putMergedConfigs scriptConfig where
 
     putMergedConfigs :: Hh.ScriptConfig -> IO ()
@@ -76,12 +76,14 @@ go Args { call = True, source = Just snippet } = do
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    let (effectiveCfg, ret) = Hh.fromHhs path
+    -- let (effectiveCfg, ret) = Hh.fromHhs path
+    (effectiveCfg, ret) <- Hh.fromHhs path
 
     let isVerbose = True -- ??: cli arg
     when isVerbose $
         putStrLn (show effectiveCfg)
 
     Hh.runHttpM $ ret
+    -- return ()
 
 go _ = do putStrLn "oops"

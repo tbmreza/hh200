@@ -1,5 +1,5 @@
-#! [user1, user2] _rats
+#! [user1 user2]
 
 "download image.jpg"
 GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
-HTTP [200 201] ("/home/tbmreza/gh/hh200/rt/img-{{row.username}}.jpg" fresh)
+HTTP [200 201] ("/home/tbmreza/gh/hh200/img-{{hh.str}}.jpg" fresh)
