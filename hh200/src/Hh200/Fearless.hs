@@ -83,8 +83,10 @@ raceToLead (Hh.ScriptConfig { Hh.subjects = rats }, stacked) = do
 
     tids <- forM actions $ \ioAction -> forkIO $ do
         putStrLn "??: BEGIN TRANSACTION"
-        r <- ioAction
-        -- putMVar leadVar r `catch` \(_ :: SomeException) -> do return ()
+        r <- ioAction  -- may throw "status codes don't match" inside
+                       -- or ?? ""
+
+        -- Put a Lead except MVar rejects it.
         putMVar leadVar r `catch` handleWinner
         putStrLn "END TRANSACTION"
 
@@ -100,7 +102,6 @@ raceToLead (Hh.ScriptConfig { Hh.subjects = rats }, stacked) = do
     return ()
 
     where
-
     handleWinner :: SomeException -> IO ()
     handleWinner e = do
         return ()

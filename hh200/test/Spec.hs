@@ -42,7 +42,7 @@ t = testGroup "syntax" [
         mapM_ doAssertParse [str]
 
   , testCase "http client" $ do
-        runHttpM $ fromHhs "hello.hhs"
+        runHttpM $ compile "hello.hhs"
         -- return ()
 
   -- , testCase "http client: host offline" $ do  -- ??: offline host is a different class of leads

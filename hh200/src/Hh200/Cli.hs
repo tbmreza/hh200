@@ -49,8 +49,8 @@ go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
 -- hh200 flow.hhs --debug-config
 go Args { source = Just src, debugConfig = True } = do
-    -- let (scriptConfig, _) = Hh.fromHhs src
-    (scriptConfig, _) <- Hh.fromHhs src
+    -- let (scriptConfig, _) = Hh.compile src
+    (scriptConfig, _) <- Hh.compile src
     putMergedConfigs scriptConfig where
 
     putMergedConfigs :: Hh.ScriptConfig -> IO ()
@@ -77,13 +77,13 @@ go Args { call = True, source = Just snippet } = do
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    -- (effectiveCfg, stacked) <- Hh.fromHhs path
+    -- (effectiveCfg, stacked) <- Hh.compile path
     -- let isVerbose = True -- ??: cli arg
     -- when isVerbose $
     --     putStrLn (show effectiveCfg)
     -- Hh.runHttpM stacked
     -- return ()
-    (effectiveCfg, stacked) <- Hh.fromHhs path
+    (effectiveCfg, stacked) <- Hh.compile path
     Hh.raceToLead (effectiveCfg, stacked)
     -- l <- Hh.raceToLead (effectiveCfg, stacked)
     -- putStrLn $ show l

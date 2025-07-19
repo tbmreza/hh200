@@ -26,7 +26,8 @@ import Control.Monad.Reader
 
 -- draft {
 import Network.HTTP.Client
-import Network.HTTP.Types.Method (Method)
+-- import Network.HTTP.Types.Method (Method, GET)
+import Network.HTTP.Types.Method
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy.Char8 as L8
 
@@ -37,7 +38,8 @@ data Script = Script
   }
 
 data RequestSpec = RequestSpec {
-      method :: String
+      m :: String
+    , verb :: S.ByteString
     , url :: String
     , headers :: [String]
     , payload :: String
@@ -56,7 +58,6 @@ data ResponseSpec = ResponseSpec {
 defaultResponseSpec :: ResponseSpec
 defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
--- Fields are optional unless a default value makes sense.
 type Duration = Int
 data ScriptConfig = ScriptConfig { retries :: Int, max_duration :: Maybe Duration, subjects :: [String] }
     deriving (Show)
@@ -90,12 +91,20 @@ data CallItem = CallItem
 
 -- Zero or more HTTP effects ready to be run by `runHttpM`.
 -- ??: whether TH is the right abstraction somewhere
+-- PICKUP HttpM abstracts away tls manager. what's an easy abstraction to add/insert? next story is codes matching.
 stackHh :: [CallItem] -> HttpM L8.ByteString
-stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { method, url } }] = do
-    httpGet url
+stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Nothing }] = do
+    -- ??: ci_response_spec.is_none() means user assumes 200
+    mkRequest verb url Nothing
+
+-- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Just _ }] = do
+stackHh [CallItem { ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Just ResponseSpec { codes } }] = do
+    mkRequest verb url Nothing
+
+-- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, url } }] = do
+--     httpGet url
 
 -- Pretty printing conveniently presents counter-example to std out.
--- ?? callsites: rat exceptions, debug echo config
 instance PrettyPrint CallItem where
     pp CallItem { ci_request_spec } = conc ci_request_spec
 
@@ -112,7 +121,8 @@ basicLead = Lead
     , ci_name = ""
     , ci_response_spec = Nothing
     , ci_request_spec = RequestSpec
-      { method = "GET"
+      { m = "GET"
+      , verb = "GET"
       , url = "example.com"
       , headers = []
       , payload = ""
@@ -173,12 +183,14 @@ httpGet_ url = do
     _response <- liftIO $ httpLbs request manager
     return ()
 
-mkRequest :: Method -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
-mkRequest    method    url       mBody                = do
+mkRequest :: S.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
+mkRequest    methodStr    url       mBody                = do
     manager <- ask
     initialRequest <- liftIO $ parseRequest url
     let request = initialRequest
-            { method = method
+            -- { method = method methodStr
+            { method = methodStr
+            -- { method = "GET"
             , requestBody = maybe mempty RequestBodyLBS mBody
             , requestHeaders = case mBody of
                 Just _  -> [("Content-Type", "application/json")]
