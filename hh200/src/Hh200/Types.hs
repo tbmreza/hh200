@@ -12,23 +12,24 @@ import qualified Data.HashTable.IO as H
 import qualified Data.ByteString as S
 import GHC.Generics (Generic)
 import Toml.Schema
--- import Network.HTTP.Types.Header (RequestHeaders, HeaderName)
--- import Control.Exception (Exception, throwIO)
 import Control.Exception (Exception)
 
 -- mod Cl {
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
--- import Network.HTTP.Types.Status (statusCode)
 import qualified Data.ByteString.Lazy.Char8 as L8
 
--- import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header
 
 import Control.Monad.Reader
 -- }
 
 -- draft {
+import Network.HTTP.Client
+import Network.HTTP.Types.Method (Method)
+import Control.Monad.Reader
+import qualified Data.ByteString.Lazy.Char8 as L8
+
 
 data Script = Script
   { config :: ScriptConfig
@@ -57,10 +58,10 @@ defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
 -- Fields are optional unless a default value makes sense.
 type Duration = Int
-data ScriptConfig = ScriptConfig { retries :: Int, max_duration :: Maybe Duration }
+data ScriptConfig = ScriptConfig { retries :: Int, max_duration :: Maybe Duration, subjects :: [String] }
     deriving (Show)
 defaultScriptConfig :: ScriptConfig
-defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing }
+defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [] }
 
 cfgs :: ScriptConfig -> [(String, Maybe String)]
 cfgs ScriptConfig {..} =
@@ -82,10 +83,16 @@ data CallItem = CallItem
   , ci_name :: String
   , ci_request_spec :: RequestSpec
   , ci_response_spec :: Maybe ResponseSpec
-  }
+  } deriving (Show)
 -- defaultCallItem :: CallItem
--- -- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
+-- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
 -- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec }
+
+-- Zero or more HTTP effects ready to be run by `runHttpM`.
+-- ??: whether TH is the right abstraction somewhere
+stackHh :: [CallItem] -> HttpM L8.ByteString
+stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { method, url } }] = do
+    httpGet url
 
 -- Pretty printing conveniently presents counter-example to std out.
 -- ?? callsites: rat exceptions, debug echo config
@@ -93,13 +100,27 @@ instance PrettyPrint CallItem where
     pp CallItem { ci_request_spec } = conc ci_request_spec
 
 
-data Lead = Lead {
-    c :: CallItem
-  , verbose :: Bool
+data Lead = Lead
+  { c :: CallItem
+  -- , top :: Top  -- ??: host computer info
+  } deriving (Show)
+
+basicLead :: Lead
+basicLead = Lead
+  { c = CallItem
+    { ci_deps = []
+    , ci_name = ""
+    , ci_response_spec = Nothing
+    , ci_request_spec = RequestSpec
+      { method = "GET"
+      , url = "example.com"
+      , headers = []
+      , payload = ""
+      , opts = []
+      }
+    }
   }
-defaultLead :: Lead
--- defaultLead = Lead { c = Mini { mdeps = [], mname = "", mresponse_spec = Nothing }, verbose = False }
-defaultLead = Lead { c = CallItem { ci_deps = [], ci_name = "", ci_response_spec = Nothing }, verbose = False }
+
 -- Callable, DNS configs (??: /etc/resolv.conf), Execution time,
 -- instance Show Lead where
 --     show (Lead (Ckallable m u) v) =
@@ -152,26 +173,50 @@ httpGet_ url = do
     _response <- liftIO $ httpLbs request manager
     return ()
 
-httpGet :: String -> HttpM L8.ByteString
-httpGet url = do
+mkRequest :: Method -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
+mkRequest    method    url       mBody                = do
     manager <- ask
-    request <- liftIO $ parseRequest url
+    initialRequest <- liftIO $ parseRequest url
+    let request = initialRequest
+            { method = method
+            , requestBody = maybe mempty RequestBodyLBS mBody
+            , requestHeaders = case mBody of
+                Just _  -> [("Content-Type", "application/json")]
+                Nothing -> requestHeaders initialRequest
+            }
     response <- liftIO $ httpLbs request manager
     return $ responseBody response
 
+-- httpGet_ :: String -> HttpM L8.ByteString
+-- httpGet_ url = mkRequest "GET" url Nothing
+
+httpGet :: String -> HttpM L8.ByteString
+httpGet url = mkRequest "GET" url Nothing
+
 httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
-httpPost url jsonBody = do
-    manager <- ask
-    initialRequest <- liftIO $ parseRequest url
-    
-    let request = initialRequest
-            { method = "POST"
-            , requestBody = RequestBodyLBS jsonBody
-            , requestHeaders = [("Content-Type", "application/json")]
-            }
-    
-    response <- liftIO $ httpLbs request manager
-    return $ responseBody response
+httpPost url body = mkRequest "POST" url (Just body)
+
+
+-- httpGet :: String -> HttpM L8.ByteString
+-- httpGet url = do
+--     manager <- ask
+--     request <- liftIO $ parseRequest url
+--     response <- liftIO $ httpLbs request manager
+--     return $ responseBody response
+--
+-- httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
+-- httpPost url jsonBody = do
+--     manager <- ask
+--     initialRequest <- liftIO $ parseRequest url
+--     
+--     let request = initialRequest
+--             { method = "POST"
+--             , requestBody = RequestBodyLBS jsonBody
+--             , requestHeaders = [("Content-Type", "application/json")]
+--             }
+--     
+--     response <- liftIO $ httpLbs request manager
+--     return $ responseBody response
 
 data InternalError = OutOfBounds
                    | Todo

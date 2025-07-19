@@ -43,6 +43,7 @@ library
   build-depends:
       aeson
     , array
+    , async
     , base >=4.7 && <5
     , bytestring
     , filepath
@@ -55,6 +56,7 @@ library
     , mtl
     , optparse-applicative
     , process
+    , random
     , split
     , text
     , toml-parser
@@ -71,7 +73,8 @@ executable hh200
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      async
+    , base >=4.7 && <5
     , bytestring
     , filepath
     , hh200
@@ -80,6 +83,7 @@ executable hh200
     , mtl
     , optparse-applicative
     , process
+    , random
     , text
     , transformers
   default-language: Haskell2010
@@ -93,7 +97,8 @@ test-suite hh200-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      async
+    , base >=4.7 && <5
     , bytestring
     , filepath
     , hh200
@@ -102,6 +107,7 @@ test-suite hh200-test
     , mtl
     , optparse-applicative
     , process
+    , random
     , tasty
     , tasty-hunit
     , text

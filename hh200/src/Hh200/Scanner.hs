@@ -11,17 +11,18 @@ import Hh200.Types
 import L
 import P
 
+import qualified Data.ByteString.Lazy.Char8 as L8
+
 read :: String -> IO (Maybe CallItem)
 read _x = do
     putStrLn "yea"
     return (Just ci)
 
--- Zero or more HTTP effects ready to be run by `runHttpM`.
--- Queue or fork here?!
-stackHh :: [CallItem] -> HttpM ()
-stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { method, url } }] = do
-    httpGet_ url
-    httpGet_ url
+-- stackHh :: [CallItem] -> HttpM ()
+-- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { method, url } }] = do
+--     httpGet_ url
+--     -- httpGet url
+--     -- httpGet_ url
 
     -- #! [user1 user2]
     --
@@ -49,10 +50,15 @@ ci = CallItem
       }
 
 -- Abstract syntax for downloading 2 parallel files.
-fromHhs :: FilePath -> IO (ScriptConfig, HttpM ())
+fromHhs :: FilePath -> IO (ScriptConfig, HttpM L8.ByteString)
 fromHhs x = do
-    let Script { config = c, call_items = cis } = Script { config = ScriptConfig { retries = 0, max_duration = Nothing }, call_items = [ci]}
+    let Script { config = c, call_items = cis } = Script { config = ScriptConfig { retries = 0, max_duration = Nothing, subjects = ["user1", "user2", "user1", "user2"] }, call_items = [ci]}
+    -- let Script { config = c, call_items = cis } = Script { config = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [] }, call_items = [ci, ci]}
     return (c, stackHh cis)
+-- fromHhs :: FilePath -> IO (ScriptConfig, HttpM ())
+-- fromHhs x = do
+--     let Script { config = c, call_items = cis } = Script { config = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [] }, call_items = [ci]}
+--     return (c, stackHh cis)
 
 ---------------------------
 -- Test abstract syntax. --

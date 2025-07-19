@@ -10,6 +10,7 @@ import Options.Applicative
 
 import qualified Paths_hh200 (version)
 import qualified Hh200.Types as Hh
+import qualified Hh200.Fearless as Hh
 import qualified Hh200.Scanner as Hh
 
 data Args = Args
@@ -76,14 +77,15 @@ go Args { call = True, source = Just snippet } = do
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    -- let (effectiveCfg, ret) = Hh.fromHhs path
-    (effectiveCfg, ret) <- Hh.fromHhs path
-
-    let isVerbose = True -- ??: cli arg
-    when isVerbose $
-        putStrLn (show effectiveCfg)
-
-    Hh.runHttpM $ ret
+    -- (effectiveCfg, stacked) <- Hh.fromHhs path
+    -- let isVerbose = True -- ??: cli arg
+    -- when isVerbose $
+    --     putStrLn (show effectiveCfg)
+    -- Hh.runHttpM stacked
     -- return ()
+    (effectiveCfg, stacked) <- Hh.fromHhs path
+    Hh.raceToLead (effectiveCfg, stacked)
+    -- l <- Hh.raceToLead (effectiveCfg, stacked)
+    -- putStrLn $ show l
 
 go _ = do putStrLn "oops"
