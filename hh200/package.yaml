@@ -32,6 +32,7 @@ dependencies:
 - filepath
 - random
 - async
+- directory
 
 ghc-options:
 - -Wall

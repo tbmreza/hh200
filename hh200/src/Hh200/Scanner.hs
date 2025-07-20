@@ -14,6 +14,10 @@ import P
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 
+import Control.Monad.Trans.Maybe
+import Control.Monad.IO.Class
+import System.Environment (lookupEnv)
+
 read :: String -> IO (Maybe CallItem)
 read unsanitized = do -- ??
     putStrLn "yea"
@@ -42,7 +46,18 @@ ci = CallItem
       }
 
 
--- Returns HTTP test execution recipe (user configs & user program).
+-- -- Returns HTTP test execution recipe (user configs & user program).
+-- compile1 :: FilePath -> IO (Maybe (Hh.ScriptConfig, Hh.HttpM L8.ByteString))
+-- compile1 x = do
+--     return Nothing
+
+-- lookupEnv :: String -> IO (Maybe String)
+iomayb :: FilePath -> IO (Maybe (Hh.HttpM L8.ByteString))
+iomayb _ = return Nothing
+
+-- compile1 :: FilePath -> MaybeT IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)
+-- compile1 name = MaybeT (defaultScriptConfig, iomayb name)
+
 compile :: FilePath -> IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)
 compile x = do
     let Hh.Script { Hh.config = local, Hh.call_items } = preparsed x
@@ -62,3 +77,4 @@ compile x = do
 -- ??: use happy parse
 preparsed :: String -> Hh.Script
 preparsed _dummy = Hh.Script { Hh.config = Hh.ScriptConfig { Hh.retries = 0, Hh.max_duration = Nothing, Hh.subjects = ["user1", "user2"] }, Hh.call_items = [ci]}
+-- preparsed _dummy = Hh.Script { Hh.config = Hh.ScriptConfig { Hh.retries = 0, Hh.max_duration = Nothing, Hh.subjects = ["user1", "user2"] }, Hh.call_items = []}

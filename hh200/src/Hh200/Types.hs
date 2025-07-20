@@ -35,7 +35,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 data Script = Script
   { config :: ScriptConfig
   , call_items :: [CallItem]
-  }
+  } deriving (Show, Eq)
 
 data RequestSpec = RequestSpec {
       m :: String
@@ -60,7 +60,7 @@ defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
 type Duration = Int
 data ScriptConfig = ScriptConfig { retries :: Int, max_duration :: Maybe Duration, subjects :: [String] }
-    deriving (Show)
+    deriving (Show, Eq)
 defaultScriptConfig :: ScriptConfig
 defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [] }
 
@@ -84,14 +84,12 @@ data CallItem = CallItem
   , ci_name :: String
   , ci_request_spec :: RequestSpec
   , ci_response_spec :: Maybe ResponseSpec
-  } deriving (Show)
+  } deriving (Show, Eq)
 -- defaultCallItem :: CallItem
 -- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
 -- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec }
 
 -- Zero or more HTTP effects ready to be run by `runHttpM`.
--- ??: whether TH is the right abstraction somewhere
--- PICKUP HttpM abstracts away tls manager. what's an easy abstraction to add/insert? next story is codes matching.
 stackHh :: [CallItem] -> HttpM L8.ByteString
 stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Nothing }] = do
     -- ??: ci_response_spec.is_none() means user assumes 200
@@ -110,13 +108,13 @@ instance PrettyPrint CallItem where
 
 
 data Lead = Lead
-  { c :: CallItem
+  { firstFailing :: CallItem
   -- , top :: Top  -- ??: host computer info
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 basicLead :: Lead
 basicLead = Lead
-  { c = CallItem
+  { firstFailing = CallItem
     { ci_deps = []
     , ci_name = ""
     , ci_response_spec = Nothing
@@ -130,6 +128,9 @@ basicLead = Lead
       }
     }
   }
+
+present :: Lead -> String
+present lead = "todo"
 
 -- Callable, DNS configs (??: /etc/resolv.conf), Execution time,
 -- instance Show Lead where
@@ -173,6 +174,11 @@ type HttpM = ReaderT Manager IO
 -- Presume http-client manager sharing.
 runHttpM :: HttpM a -> IO a
 runHttpM action = do
+    manager <- newManager tlsManagerSettings
+    runReaderT action manager
+
+runCompiled :: HttpM a -> IO a
+runCompiled action = do
     manager <- newManager tlsManagerSettings
     runReaderT action manager
 

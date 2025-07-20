@@ -72,7 +72,9 @@ consign stacked name = do
     -- return msg
     return Hh.basicLead
 
-
+-- ??: HttpM abstracts away tls manager. what's an easy abstraction to add/insert? next story is codes matching.
+-- monadic story: "global variable" "accumulation"
+-- manager reqspec
 raceToLead :: (Hh.ScriptConfig, Hh.HttpM L8.ByteString) -> IO ()
 -- raceToLead :: (Hh.ScriptConfig, Hh.HttpM L8.ByteString) -> IO Hh.Lead
 raceToLead (Hh.ScriptConfig { Hh.subjects = rats }, stacked) = do
@@ -115,20 +117,3 @@ raceToLead (Hh.ScriptConfig { Hh.subjects = rats }, stacked) = do
     -- putStrLn "yg ini"
     -- forM_ tids killThread
     -- return Hh.Lead { c = CallItem { }}  -- ??: inverse of stacking [CallItem] to HttpM
-
--- raceToLead :: Hh.CallItem -> IO ()
--- raceToLead ast = do
---     var <- newEmptyMVar
---
---     rats <- ratsFromFile ""
---
---     tids <- forM rats $
---         -- \rat -> forkIO (go rat var)
---         \rat -> forkIO (Hh200.Fearless.go rat var)
---
---     threadDelay 100000
---     forM_ tids killThread
---
---     let stacked = Hh.stackHh [ast]
---     Hh.runHttpM stacked
---     return ()

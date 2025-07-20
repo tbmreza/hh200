@@ -46,6 +46,7 @@ library
     , async
     , base >=4.7 && <5
     , bytestring
+    , directory
     , filepath
     , ghc
     , hashtables
@@ -76,6 +77,7 @@ executable hh200
       async
     , base >=4.7 && <5
     , bytestring
+    , directory
     , filepath
     , hh200
     , http-client
@@ -100,6 +102,7 @@ test-suite hh200-test
       async
     , base >=4.7 && <5
     , bytestring
+    , directory
     , filepath
     , hh200
     , http-client
