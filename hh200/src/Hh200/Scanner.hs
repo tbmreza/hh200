@@ -24,10 +24,10 @@ read unsanitized = do -- ??
     return (Just ci)
 
 -- Abstract syntax for downloading 2 parallel files.
--- ??: throw :: (RequestSpec, ResponseSpec) -> Response
 rs = RequestSpec
-      { m = "GET"
-      , verb = "GET"
+      -- { m = "GET"
+      -- , verb = "GET"
+      { verb = "GET"
       -- , url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI"
       , url = "http://localhost:9999/lk"
       , headers = []

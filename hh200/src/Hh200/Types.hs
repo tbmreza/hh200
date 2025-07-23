@@ -26,10 +26,32 @@ import Control.Monad.Reader
 
 -- draft {
 import Network.HTTP.Client
--- import Network.HTTP.Types.Method (Method, GET)
 import Network.HTTP.Types.Method
 import Control.Monad.Reader
+import Control.Monad.Writer
 import qualified Data.ByteString.Lazy.Char8 as L8
+import Control.Monad.Trans.Maybe
+import Network.HTTP.Types.Status (statusCode)
+
+import System.Directory (doesFileExist)
+import Control.Exception
+
+shuntGetHttpM :: String -> HttpM (Either HttpException String)
+shuntGetHttpM url = do
+  manager <- ask
+  result <- liftIO $ try $ do
+    request <- parseRequest url
+    response <- httpLbs request manager
+    return (responseBody response)
+  return $ fmap show result
+
+handleHttpResult :: Either HttpException String -> HttpM ()
+handleHttpResult (Right body) =
+  liftIO $ putStrLn ("Response: " ++ take 100 body)
+handleHttpResult (Left (HttpExceptionRequest _ content)) =
+  liftIO $ putStrLn $ "Request failed: " ++ show content
+handleHttpResult (Left ex) =
+  liftIO $ putStrLn $ "Other HTTP exception: " ++ displayException ex
 
 
 data Script = Script
@@ -37,9 +59,13 @@ data Script = Script
   , call_items :: [CallItem]
   } deriving (Show, Eq)
 
-data RequestSpec = RequestSpec {
-      m :: String
-    , verb :: S.ByteString
+emptyScript = Script { config = defaultScriptConfig, call_items = [] }
+
+localhost9999Script :: Script
+localhost9999Script = Script { config = defaultScriptConfig, call_items = [localhost9999] }
+
+data RequestSpec = RequestSpec
+    { verb :: S.ByteString
     , url :: String
     , headers :: [String]
     , payload :: String
@@ -67,14 +93,14 @@ defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing, subjec
 cfgs :: ScriptConfig -> [(String, Maybe String)]
 cfgs ScriptConfig {..} =
     [ ("retries", Just $ show retries)
-    , ("max_duration", Just "??: max_duration |> show")
+    , ("max_duration", Just "max_duration |> show")
     ]
 
 class PrettyPrint a where
     pp :: a -> String
 
 instance PrettyPrint ScriptConfig where
-    -- ??:    as concrete script header  #! retries 1
+    --        as concrete script header  #! retries 1
     --                                   #! max-duration 1m
     -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
     pp x = show x
@@ -85,22 +111,22 @@ data CallItem = CallItem
   , ci_request_spec :: RequestSpec
   , ci_response_spec :: Maybe ResponseSpec
   } deriving (Show, Eq)
--- defaultCallItem :: CallItem
--- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec, ci_response_spec = Nothing }
--- defaultCallItem = CallItem { ci_request_spec = defaultRequestSpec }
+localhost9999 :: CallItem
+localhost9999 = CallItem
+  { ci_deps = []
+  , ci_name = "debug"
+  , ci_request_spec = RequestSpec { verb = "GET", url = "http://localhost:9999/hh", headers = [], payload = "", opts = []}
+  , ci_response_spec = Nothing
+  }
 
 -- Zero or more HTTP effects ready to be run by `runHttpM`.
 stackHh :: [CallItem] -> HttpM L8.ByteString
-stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Nothing }] = do
-    -- ??: ci_response_spec.is_none() means user assumes 200
+stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Nothing }] = do
     mkRequest verb url Nothing
 
--- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Just _ }] = do
-stackHh [CallItem { ci_request_spec = RequestSpec { m, verb, url }, ci_response_spec = Just ResponseSpec { codes } }] = do
+stackHh [CallItem { ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Just ResponseSpec { codes } }] = do
     mkRequest verb url Nothing
 
--- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { m, url } }] = do
---     httpGet url
 
 -- Pretty printing conveniently presents counter-example to std out.
 instance PrettyPrint CallItem where
@@ -108,19 +134,18 @@ instance PrettyPrint CallItem where
 
 
 data Lead = Lead
-  { firstFailing :: CallItem
+  { firstFailing :: Maybe CallItem
   -- , top :: Top  -- ??: host computer info
   } deriving (Show, Eq)
 
 basicLead :: Lead
 basicLead = Lead
-  { firstFailing = CallItem
+  { firstFailing = Just CallItem
     { ci_deps = []
     , ci_name = ""
     , ci_response_spec = Nothing
     , ci_request_spec = RequestSpec
-      { m = "GET"
-      , verb = "GET"
+      { verb = "GET"
       , url = "example.com"
       , headers = []
       , payload = ""
@@ -128,9 +153,6 @@ basicLead = Lead
       }
     }
   }
-
-present :: Lead -> String
-present lead = "todo"
 
 -- Callable, DNS configs (??: /etc/resolv.conf), Execution time,
 -- instance Show Lead where
@@ -170,12 +192,13 @@ doOrder _ url = do
     putStrLn $ "Status: " ++ show (responseStatus response)
     putStrLn $ "Body: " ++ L8.unpack (responseBody response)
 
-type HttpM = ReaderT Manager IO
 -- Presume http-client manager sharing.
+type HttpM = ReaderT Manager IO
 runHttpM :: HttpM a -> IO a
 runHttpM action = do
     manager <- newManager tlsManagerSettings
     runReaderT action manager
+-- HttpExceptionRequest
 
 runCompiled :: HttpM a -> IO a
 runCompiled action = do
@@ -338,3 +361,144 @@ data Located a = Located
     { location :: !Span
     , unLoc    :: a 
     } deriving (Show, Functor)
+
+--------------------------------
+-- EXECUTIVE SUMMARY OF HH200 --
+--------------------------------
+-- terminating:  staticChecks  testOutsideWorld  present
+-- steps output (1. linter hints; 2. reality; 3. counter-example)
+--
+-- early 1:
+-- lexer/parser, http idioms (GET with payload, webdav status code misuse)
+--
+-- early 2:
+-- status codes mismatch, duration, filesystem, thread cancelled, offline
+--
+-- only legit Lead representable
+
+-- Program "may" fail early, "writes" log as it runs
+-- and "reads" a shared http-client manager instance while doing IO.
+type RaceM = MaybeT (WriterT Log (ReaderT Manager IO))
+type Log = [String]
+
+logMsg :: String -> RaceM ()
+logMsg msg = lift $ tell [msg]
+
+runRaceM :: RaceM a -> IO (Maybe a, Log)
+runRaceM action = do
+  manager <- newManager tlsManagerSettings
+  runReaderT (runWriterT (runMaybeT action)) manager
+
+shuntGet1 :: String -> RaceM L8.ByteString
+shuntGet1 = shuntHttpRequest (\req -> req { method = "GET" })
+
+shuntPost :: L8.ByteString -> String -> RaceM L8.ByteString
+shuntPost body = shuntHttpRequest (\req -> req
+  { method = "POST"
+  , requestBody = RequestBodyLBS body
+  , requestHeaders = ("Content-Type", "application/json") : requestHeaders req
+  })
+
+shuntGet :: String -> RaceM L8.ByteString
+shuntGet url = do
+  logMsg $ "Requesting: " ++ url
+  manager <- lift . lift $ ask
+  result <- liftIO $ try $ do
+    req <- parseRequest url
+    httpLbs req manager
+  case result of
+    Right resp -> do
+      let status = statusCode $ responseStatus resp
+      logMsg $ "Received status: " ++ show status
+      if status >= 200 && status < 300
+        then return $ responseBody resp
+        else do
+          logMsg $ "Non-success status: " ++ show status
+          MaybeT $ return Nothing
+    Left (HttpExceptionRequest _ content) -> do
+      logMsg $ "HttpExceptionRequest: " ++ show content
+      MaybeT $ return Nothing
+    Left err -> do
+      logMsg $ "Other exception: " ++ displayException err
+      MaybeT $ return Nothing
+
+-- draft general shuntFire
+shuntHttpRequestFull :: Request -> RaceM L8.ByteString
+shuntHttpRequestFull req = do
+  manager <- lift . lift $ ask
+  result <- liftIO $ try $ httpLbs req manager
+  case result of
+    Left err -> do
+      tell ["HTTP error: " ++ show (err :: HttpException)]
+      MaybeT $ return Nothing
+    Right body -> return $ responseBody body
+
+
+-- draft general shuntFire
+shuntHttpRequest :: (Request -> Request) -> String -> RaceM L8.ByteString
+shuntHttpRequest modifyReq url = do
+  manager <- lift . lift $ ask
+  result <- liftIO $ try $ do
+    initReq <- parseRequest url
+    let req = modifyReq initReq
+    response <- httpLbs req manager
+    return $ responseBody response
+  case result of
+    Left err -> do
+      tell ["HTTP error: " ++ show (err :: HttpException)]
+      MaybeT $ return Nothing
+    Right body -> return body
+
+
+app :: RaceM ()
+app = do
+  body <- shuntGet "https://httpbin.org/get"
+  logMsg $ "Got response of length: " ++ show (L8.length body)
+  liftIO $ putStrLn $ "Response preview: " ++ take 100 (L8.unpack body)
+  liftIO circuit
+
+
+staticChecks :: FilePath -> MaybeT IO Script
+staticChecks path = do
+  exists <- liftIO $ doesFileExist path
+  if exists
+    then liftIO $ return localhost9999Script
+    else MaybeT $ return Nothing
+
+circuit :: IO ()
+circuit = do
+  (result, logs) <- runRaceM app
+  putStrLn "\n--- Logs ---"
+  mapM_ putStrLn logs
+  case result of
+    Just _  -> putStrLn "✅ Success"
+    Nothing -> putStrLn "❌ Failed"
+
+testOutsideWorld1 :: Script -> MaybeT IO Lead
+testOutsideWorld1 Script { config, call_items } = do
+    MaybeT $ return (Just basicLead)
+
+-- ??: io within MaybeT IO; rm trash hsnew
+testOutsideWorld :: Script -> MaybeT IO Lead
+
+testOutsideWorld Script { config, call_items = [] } = do
+    MaybeT (return $ Just Lead { firstFailing = Nothing })
+
+testOutsideWorld Script { config, call_items } = do
+    manager <-            liftIO $ newManager tlsManagerSettings
+    -- (maybeResult, log) <- liftIO $ runReaderT (runWriterT (runMaybeT (shuntGet script))) manager  -- ??: grok has more suggestions
+    -- (result, logs) <- runRaceM app
+
+    -- putStrLn "\n--- Logs ---"
+    -- mapM_ putStrLn logs
+    -- liftIO $ case result of
+    --     Just _  -> putStrLn "✅ Success"
+    --     Nothing -> putStrLn "❌ Failed"
+
+    -- firstFailing <- liftIO (earlyTestOutsideWorld Script { config, call_items })
+    -- MaybeT (return $ Just firstFailing)
+
+    MaybeT (return $ Nothing)
+
+present :: Lead -> String
+present lead = "todo"

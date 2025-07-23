@@ -62,7 +62,7 @@ go Args { call = True, source = Just snippet } = do
     maybeCallable <- Hh.read snippet
     case maybeCallable of
         Nothing -> putStrLn snippet
-        Just ci -> Hh.runHttpM $ Hh.httpGet_ "http://localhost:9999/you"
+        Just ci -> Hh.runHttpM $ Hh.httpGet_ "http://localhost:9999/cli"
 
 -- two rats downloading the same image
 -- "download image.jpg"
@@ -77,12 +77,6 @@ go Args { call = True, source = Just snippet } = do
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    -- (effectiveCfg, stacked) <- Hh.compile path
-    -- let isVerbose = True -- ??: cli arg
-    -- when isVerbose $
-    --     putStrLn (show effectiveCfg)
-    -- Hh.runHttpM stacked
-    -- return ()
     (effectiveCfg, stacked) <- Hh.compile path
     Hh.raceToLead (effectiveCfg, stacked)
     -- l <- Hh.raceToLead (effectiveCfg, stacked)

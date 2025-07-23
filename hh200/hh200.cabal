@@ -14,7 +14,6 @@ author:         Reza Handzalah
 maintainer:     rezahandzalah@gmail.com
 copyright:      2025 Reza
 license:        MIT
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md

@@ -43,31 +43,14 @@ import Data.Maybe (isJust)
 
 import qualified Hh200.Types as Hh
 
-emptyScript = Hh.Script { Hh.config = Hh.defaultScriptConfig, Hh.call_items = [] }
 -- offlineLead = Nothing  -- ??: invoke one call_item while offline, what does http-client throw?
-offlineLead = Just Hh.basicLead  -- ??: offline, ..., firstFailing
-
-
-gun :: Hh.Script -> IO Hh.Lead
-gun _ = return Hh.basicLead
-
-testOutsideWorld :: Hh.Script -> MaybeT IO Hh.Lead
-testOutsideWorld Hh.Script { Hh.config, Hh.call_items } = do
-    firstFailing <- liftIO (gun Hh.Script { Hh.config, Hh.call_items })
-    MaybeT (return $ Just firstFailing)
-
-staticChecks :: FilePath -> MaybeT IO Hh.Script
-staticChecks path = do
-  exists <- liftIO $ doesFileExist path
-  if exists
-    then liftIO $ return emptyScript
-    else MaybeT $ return Nothing
+offlineLead = Just Hh.basicLead  -- ??: offline, firstFailing
 
 testEndToEnd :: TestTree
 testEndToEnd = testCase "happy execution" $ do
   result <- runMaybeT $ do
-    script <- staticChecks (".." </> "examples" </> "download.hhs")
-    lead <-   testOutsideWorld script
+    script <- Hh.staticChecks (".." </> "examples" </> "download.hhs")
+    lead <-   Hh.testOutsideWorld script
     liftIO $  Hh.present lead @?= "todo"
 
   unless (isJust result) $ assertFailure ""
