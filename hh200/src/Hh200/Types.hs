@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Types (module Hh200.Types) where
 
@@ -21,6 +22,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 
 import Network.HTTP.Types.Header
 
+import Control.Monad
 import Control.Monad.Reader
 -- }
 
@@ -32,18 +34,21 @@ import Control.Monad.Writer
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Control.Monad.Trans.Maybe
 import Network.HTTP.Types.Status (statusCode)
+import Control.Monad (forM_)
 
 import System.Directory (doesFileExist)
 import Control.Exception
+import Control.Concurrent (ThreadId)
+import qualified Control.Concurrent as Base
 
-shuntGetHttpM :: String -> HttpM (Either HttpException String)
-shuntGetHttpM url = do
-  manager <- ask
-  result <- liftIO $ try $ do
-    request <- parseRequest url
-    response <- httpLbs request manager
-    return (responseBody response)
-  return $ fmap show result
+-- shuntGetHttpM :: String -> HttpM (Either HttpException String)
+-- shuntGetHttpM url = do
+--   manager <- ask
+--   result <- liftIO $ try $ do
+--     request <- parseRequest url
+--     response <- httpLbs request manager
+--     return (responseBody response)
+--   return $ fmap show result
 
 handleHttpResult :: Either HttpException String -> HttpM ()
 handleHttpResult (Right body) =
@@ -85,8 +90,11 @@ defaultResponseSpec :: ResponseSpec
 defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
 type Duration = Int
-data ScriptConfig = ScriptConfig { retries :: Int, max_duration :: Maybe Duration, subjects :: [String] }
-    deriving (Show, Eq)
+data ScriptConfig = ScriptConfig
+  { retries :: Int
+  , max_duration :: Maybe Duration
+  , subjects :: [String]
+  } deriving (Show, Eq)
 defaultScriptConfig :: ScriptConfig
 defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [] }
 
@@ -111,6 +119,7 @@ data CallItem = CallItem
   , ci_request_spec :: RequestSpec
   , ci_response_spec :: Maybe ResponseSpec
   } deriving (Show, Eq)
+
 localhost9999 :: CallItem
 localhost9999 = CallItem
   { ci_deps = []
@@ -118,6 +127,9 @@ localhost9999 = CallItem
   , ci_request_spec = RequestSpec { verb = "GET", url = "http://localhost:9999/hh", headers = [], payload = "", opts = []}
   , ci_response_spec = Nothing
   }
+
+dbgUrl :: CallItem -> String
+dbgUrl CallItem { ci_request_spec = RequestSpec { url } } = url
 
 -- Zero or more HTTP effects ready to be run by `runHttpM`.
 stackHh :: [CallItem] -> HttpM L8.ByteString
@@ -135,7 +147,7 @@ instance PrettyPrint CallItem where
 
 data Lead = Lead
   { firstFailing :: Maybe CallItem
-  -- , top :: Top  -- ??: host computer info
+  -- , top :: Top  -- ??: host computer info, /etc/resolv.conf, execution time
   } deriving (Show, Eq)
 
 basicLead :: Lead
@@ -154,43 +166,38 @@ basicLead = Lead
     }
   }
 
--- Callable, DNS configs (??: /etc/resolv.conf), Execution time,
--- instance Show Lead where
---     show (Lead (Ckallable m u) v) =
---         show m ++ "\n" ++ show u ++ "\n"
-
 -- }
 
-acquire :: IO Manager
-acquire = newManager tlsManagerSettings
+-- acquire :: IO Manager
+-- acquire = newManager tlsManagerSettings
 
 -- These rats compete with each other for the first counter-example or `Lead`.
 -- At the end of the race, all rats die; "rat race".
 data Rat = Rat
 
-doOrder :: Rat -> String -> IO ()
-doOrder _ url = do
-    manager <- acquire
-    -- initialRequest <- parseRequest "POST https://httpbin.org/post"
-    initialRequest <- parseRequest url
-    
-    -- JSON payload
-    let jsonBody = "{\"name\": \"John\", \"age\": 30}"
-    
-    -- Modify request with body and headers
-    let request = initialRequest
-            { method = "POST"
-            , requestBody = RequestBodyLBS (L8.pack jsonBody)
-            , requestHeaders = 
-                [ (hContentType, "application/json")
-                , (hAccept, "application/json")
-                ]
-            }
-    
-    response <- httpLbs request manager
-    
-    putStrLn $ "Status: " ++ show (responseStatus response)
-    putStrLn $ "Body: " ++ L8.unpack (responseBody response)
+-- doOrder :: Rat -> String -> IO ()
+-- doOrder _ url = do
+--     manager <- acquire
+--     -- initialRequest <- parseRequest "POST https://httpbin.org/post"
+--     initialRequest <- parseRequest url
+--     
+--     -- JSON payload
+--     let jsonBody = "{\"name\": \"John\", \"age\": 30}"
+--     
+--     -- Modify request with body and headers
+--     let request = initialRequest
+--             { method = "POST"
+--             , requestBody = RequestBodyLBS (L8.pack jsonBody)
+--             , requestHeaders = 
+--                 [ (hContentType, "application/json")
+--                 , (hAccept, "application/json")
+--                 ]
+--             }
+--     
+--     response <- httpLbs request manager
+--     
+--     putStrLn $ "Status: " ++ show (responseStatus response)
+--     putStrLn $ "Body: " ++ L8.unpack (responseBody response)
 
 -- Presume http-client manager sharing.
 type HttpM = ReaderT Manager IO
@@ -376,30 +383,35 @@ data Located a = Located
 --
 -- only legit Lead representable
 
--- Program "may" fail early, "writes" log as it runs
+-- Procedure "may" fail early, "writes" log as it runs
 -- and "reads" a shared http-client manager instance while doing IO.
-type RaceM = MaybeT (WriterT Log (ReaderT Manager IO))
+type ProcM = MaybeT (WriterT Log (ReaderT Manager IO))
 type Log = [String]
 
-logMsg :: String -> RaceM ()
+logMsg :: String -> ProcM ()
 logMsg msg = lift $ tell [msg]
 
-runRaceM :: RaceM a -> IO (Maybe a, Log)
+runRaceM :: ProcM a -> IO (Maybe a, Log)
 runRaceM action = do
-  manager <- newManager tlsManagerSettings
-  runReaderT (runWriterT (runMaybeT action)) manager
+    manager <- newManager tlsManagerSettings
+    runReaderT (runWriterT (runMaybeT action)) manager
+    -- return (Just localhost9999, [])
+    -- return (Nothing, [])
 
-shuntGet1 :: String -> RaceM L8.ByteString
+
+shuntGet1 :: String ->                  ProcM L8.ByteString
 shuntGet1 = shuntHttpRequest (\req -> req { method = "GET" })
 
-shuntPost :: L8.ByteString -> String -> RaceM L8.ByteString
+shuntPost :: L8.ByteString -> String -> ProcM L8.ByteString
 shuntPost body = shuntHttpRequest (\req -> req
   { method = "POST"
   , requestBody = RequestBodyLBS body
   , requestHeaders = ("Content-Type", "application/json") : requestHeaders req
   })
 
-shuntGet :: String -> RaceM L8.ByteString
+-- builder :: [CallItem]
+
+shuntGet :: String -> ProcM L8.ByteString
 shuntGet url = do
   logMsg $ "Requesting: " ++ url
   manager <- lift . lift $ ask
@@ -423,7 +435,7 @@ shuntGet url = do
       MaybeT $ return Nothing
 
 -- draft general shuntFire
-shuntHttpRequestFull :: Request -> RaceM L8.ByteString
+shuntHttpRequestFull :: Request ->      ProcM L8.ByteString
 shuntHttpRequestFull req = do
   manager <- lift . lift $ ask
   result <- liftIO $ try $ httpLbs req manager
@@ -435,7 +447,7 @@ shuntHttpRequestFull req = do
 
 
 -- draft general shuntFire
-shuntHttpRequest :: (Request -> Request) -> String -> RaceM L8.ByteString
+shuntHttpRequest :: (Request -> Request) -> String -> ProcM L8.ByteString
 shuntHttpRequest modifyReq url = do
   manager <- lift . lift $ ask
   result <- liftIO $ try $ do
@@ -450,12 +462,14 @@ shuntHttpRequest modifyReq url = do
     Right body -> return body
 
 
-app :: RaceM ()
+-- App is procedure in a stack that will return a failing CallItem.
+app :: ProcM CallItem
 app = do
-  body <- shuntGet "https://httpbin.org/get"
-  logMsg $ "Got response of length: " ++ show (L8.length body)
-  liftIO $ putStrLn $ "Response preview: " ++ take 100 (L8.unpack body)
-  liftIO circuit
+    -- body <- shuntGet "https://httpbin.org/get"
+    -- logMsg $ "Got response of length: " ++ show (L8.length body)
+    -- liftIO $ putStrLn $ "Response preview: " ++ take 100 (L8.unpack body)
+    -- liftIO circuit
+    liftIO $ return localhost9999
 
 
 staticChecks :: FilePath -> MaybeT IO Script
@@ -467,38 +481,68 @@ staticChecks path = do
 
 circuit :: IO ()
 circuit = do
-  (result, logs) <- runRaceM app
-  putStrLn "\n--- Logs ---"
-  mapM_ putStrLn logs
-  case result of
-    Just _  -> putStrLn "✅ Success"
-    Nothing -> putStrLn "❌ Failed"
+    return ()
+  -- (result, logs) <- runRaceM app
+  -- putStrLn "\n--- Logs ---"
+  -- mapM_ putStrLn logs
+  -- case result of
+  --   Just _  -> putStrLn "✅ Success"
+  --   Nothing -> putStrLn "❌ Failed"
 
-testOutsideWorld1 :: Script -> MaybeT IO Lead
-testOutsideWorld1 Script { config, call_items } = do
-    MaybeT $ return (Just basicLead)
 
--- ??: io within MaybeT IO; rm trash hsnew
 testOutsideWorld :: Script -> MaybeT IO Lead
 
 testOutsideWorld Script { config, call_items = [] } = do
     MaybeT (return $ Just Lead { firstFailing = Nothing })
 
-testOutsideWorld Script { config, call_items } = do
-    manager <-            liftIO $ newManager tlsManagerSettings
-    -- (maybeResult, log) <- liftIO $ runReaderT (runWriterT (runMaybeT (shuntGet script))) manager  -- ??: grok has more suggestions
-    -- (result, logs) <- runRaceM app
+testOutsideWorld Script { config = ScriptConfig { subjects }, call_items = [ci] } = do
+    -- manager <- liftIO $ newManager tlsManagerSettings
+    coming <- liftIO $ raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items = [ci] }
 
-    -- putStrLn "\n--- Logs ---"
-    -- mapM_ putStrLn logs
-    -- liftIO $ case result of
-    --     Just _  -> putStrLn "✅ Success"
-    --     Nothing -> putStrLn "❌ Failed"
+    -- -- ??: buildRequest
+    -- (maybeResult, logs) <- liftIO $ runReaderT (runWriterT (runMaybeT (shuntGet $ dbgUrl ci))) manager
 
-    -- firstFailing <- liftIO (earlyTestOutsideWorld Script { config, call_items })
-    -- MaybeT (return $ Just firstFailing)
+    MaybeT (return $ Just Lead { firstFailing = coming })
 
-    MaybeT (return $ Nothing)
+    where
+    raceToFirstFailing :: Script -> IO (Maybe CallItem)
+    raceToFirstFailing Script { config = ScriptConfig { subjects } } = do
+        manager <- newManager tlsManagerSettings
+        hole <- Base.newEmptyMVar
+
+        -- let proc = shuntGet $ dbgUrl ci
+        -- (maybeResult, logs) <- runReaderT (runWriterT (runMaybeT (proc))) manager
+        let actions :: [IO (Maybe CallItem, Log)] = [runRaceM app]
+
+        tids :: [ThreadId] <- forM actions $
+            -- Each action returns a thread ID.
+            \(io :: IO (Maybe CallItem, Log)) -> Base.forkIO $ do
+                (res, _log) <- io
+
+                case res of
+                    Just failing -> Base.putMVar hole failing
+                    Nothing -> return ()
+
+        forM_ tids $ \id -> Base.killThread id
+        Base.tryReadMVar hole
+
+        -- let assignments = map (consign mut app) subjects
+
+
+    -- -- consign :: Base.MVar CallItem -> ProcM () -> String -> IO ()
+    -- act io = Base.forkIO $ do
+    --     failing <- io
+    --     Base.putMVar hole failing
+
+    -- -- Instruct a thread of the IO procedure it will perform.
+    -- -- To be caught in race for-loop.
+    -- consign :: Base.MVar CallItem -> ProcM () -> String -> IO ()
+    -- -- consign :: Base.MVar CallItem -> String -> IO ()
+    -- consign failingCallItem flow ratInfo = do
+    -- -- consign failingCallItem ratInfo = do
+    --     Base.putMVar failingCallItem localhost9999
+
+testOutsideWorld _unexpected = MaybeT $ return Nothing
 
 present :: Lead -> String
-present lead = "todo"
+present lead = show lead

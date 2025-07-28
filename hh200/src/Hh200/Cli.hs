@@ -70,16 +70,12 @@ go Args { call = True, source = Just snippet } = do
 -- HTTP [200 201] ("/home/tbmreza/gh/hh200/hh200/img-{{row.username}}.jpg" fresh)
 -- go Args { call = True, debugConfig = False } = do
 -- concurrency: empty deps call items
--- go Args { call = True } = do
---     let out = Hh.pp Hh.defaultCallItem
---     putStrLn out
---     -- Hh.raceToLead Hh.ast2images  -- ok
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
     (effectiveCfg, stacked) <- Hh.compile path
-    Hh.raceToLead (effectiveCfg, stacked)
-    -- l <- Hh.raceToLead (effectiveCfg, stacked)
+    Hh.raceToLeadHttpM (effectiveCfg, stacked)
+    -- l <- Hh.raceToLeadHttpM (effectiveCfg, stacked)
     -- putStrLn $ show l
 
 go _ = do putStrLn "oops"

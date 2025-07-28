@@ -43,8 +43,16 @@ import Data.Maybe (isJust)
 
 import qualified Hh200.Types as Hh
 
--- offlineLead = Nothing  -- ??: invoke one call_item while offline, what does http-client throw?
-offlineLead = Just Hh.basicLead  -- ??: offline, firstFailing
+offlineLead = Just Hh.basicLead
+
+-- ??: emulate stack run -- ../examples/download.hhs as test
+testEndToEndHttpM :: TestTree
+testEndToEndHttpM = testCase "??: if RaceM recreates current concurrency well, retire HttpM" $ do
+  result <- runMaybeT $ do
+    script <- Hh.staticChecks (".." </> "examples" </> "download.hhs")
+    lead <-   Hh.testOutsideWorld script
+    liftIO $  Hh.present lead @?= "todo"
+  unless (isJust result) $ assertFailure ""
 
 testEndToEnd :: TestTree
 testEndToEnd = testCase "happy execution" $ do
@@ -52,7 +60,6 @@ testEndToEnd = testCase "happy execution" $ do
     script <- Hh.staticChecks (".." </> "examples" </> "download.hhs")
     lead <-   Hh.testOutsideWorld script
     liftIO $  Hh.present lead @?= "todo"
-
   unless (isJust result) $ assertFailure ""
 
 readFileMaybe :: FilePath -> MaybeT IO T.Text
@@ -73,5 +80,7 @@ testReadGoldenFile = testCase "golden.txt contains expected value" $ do
 main :: IO ()
 main = defaultMain $ testGroup "File-based tests"
   [ testReadGoldenFile
+  -- , testEndToEndHttpM
+  -- , testEndToEndWithThreads  -- ??
   , testEndToEnd
   ]
