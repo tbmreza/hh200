@@ -35,6 +35,7 @@ rule : ...
 ``` sh
 stack purge  # rm -rf .stack-work
 stack run
+ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
 ```
 
 ## Modelling parallel test users

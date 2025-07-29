@@ -15,7 +15,6 @@ import GHC.Generics (Generic)
 import Toml.Schema
 import Control.Exception (Exception)
 
--- mod Cl {
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -24,9 +23,7 @@ import Network.HTTP.Types.Header
 
 import Control.Monad
 import Control.Monad.Reader
--- }
 
--- draft {
 import Network.HTTP.Client
 import Network.HTTP.Types.Method
 import Control.Monad.Reader
@@ -67,10 +64,13 @@ data Script = Script
 emptyScript = Script { config = defaultScriptConfig, call_items = [] }
 
 localhost9999Script :: Script
-localhost9999Script = Script { config = defaultScriptConfig, call_items = [localhost9999] }
+localhost9999Script = Script
+  { config = defaultScriptConfig
+  , call_items = [localhost9999]
+  }
 
 data RequestSpec = RequestSpec
-    { verb :: S.ByteString
+    { verb :: S.ByteString  -- ??: str type
     , url :: String
     , headers :: [String]
     , payload :: String
@@ -90,13 +90,16 @@ defaultResponseSpec :: ResponseSpec
 defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
 type Duration = Int
+newtype Subject = Subject String
+    deriving (Show, Eq)
+
 data ScriptConfig = ScriptConfig
   { retries :: Int
   , max_duration :: Maybe Duration
-  , subjects :: [String]
+  , subjects :: [Subject]
   } deriving (Show, Eq)
 defaultScriptConfig :: ScriptConfig
-defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [] }
+defaultScriptConfig = ScriptConfig { retries = 0, max_duration = Nothing, subjects = [Subject "a", Subject "b"] }
 
 cfgs :: ScriptConfig -> [(String, Maybe String)]
 cfgs ScriptConfig {..} =
@@ -120,6 +123,18 @@ data CallItem = CallItem
   , ci_response_spec :: Maybe ResponseSpec
   } deriving (Show, Eq)
 
+-- Mechanically, this is a corollary to http-client's defaultRequest.
+--
+-- "A default request value, a GET request of localhost/:80, with an empty
+-- request body." - http-client hoogle
+defaultCallItem :: CallItem
+defaultCallItem = CallItem
+  { ci_deps = []
+  , ci_name = "default"
+  , ci_request_spec = RequestSpec { verb = "GET", url = "http://localhost:80", headers = [], payload = "", opts = []}
+  , ci_response_spec = Nothing
+  }
+
 localhost9999 :: CallItem
 localhost9999 = CallItem
   { ci_deps = []
@@ -127,9 +142,6 @@ localhost9999 = CallItem
   , ci_request_spec = RequestSpec { verb = "GET", url = "http://localhost:9999/hh", headers = [], payload = "", opts = []}
   , ci_response_spec = Nothing
   }
-
-dbgUrl :: CallItem -> String
-dbgUrl CallItem { ci_request_spec = RequestSpec { url } } = url
 
 -- Zero or more HTTP effects ready to be run by `runHttpM`.
 stackHh :: [CallItem] -> HttpM L8.ByteString
@@ -165,8 +177,6 @@ basicLead = Lead
       }
     }
   }
-
--- }
 
 -- acquire :: IO Manager
 -- acquire = newManager tlsManagerSettings
@@ -391,12 +401,17 @@ type Log = [String]
 logMsg :: String -> ProcM ()
 logMsg msg = lift $ tell [msg]
 
-runRaceM :: ProcM a -> IO (Maybe a, Log)
+runProcM :: ProcM CallItem -> IO (Maybe CallItem, Log)
+runProcM action = do
+    manager <- newManager tlsManagerSettings
+    runReaderT (runWriterT (runMaybeT action)) manager
+
+
+-- runRaceM :: ProcM a -> IO (Maybe a, Log)
+runRaceM :: ProcM CallItem -> IO (Maybe CallItem, Log)
 runRaceM action = do
     manager <- newManager tlsManagerSettings
     runReaderT (runWriterT (runMaybeT action)) manager
-    -- return (Just localhost9999, [])
-    -- return (Nothing, [])
 
 
 shuntGet1 :: String ->                  ProcM L8.ByteString
@@ -408,8 +423,6 @@ shuntPost body = shuntHttpRequest (\req -> req
   , requestBody = RequestBodyLBS body
   , requestHeaders = ("Content-Type", "application/json") : requestHeaders req
   })
-
--- builder :: [CallItem]
 
 shuntGet :: String -> ProcM L8.ByteString
 shuntGet url = do
@@ -434,9 +447,20 @@ shuntGet url = do
       logMsg $ "Other exception: " ++ displayException err
       MaybeT $ return Nothing
 
--- draft general shuntFire
-shuntHttpRequestFull :: Request ->      ProcM L8.ByteString
+shuntHttpRequestFull :: Request -> ProcM (Response L8.ByteString)
+-- shuntHttpRequestFull :: Request -> ProcM (L8.ByteString)
 shuntHttpRequestFull req = do
+  manager <- lift . lift $ ask
+  result <- liftIO $ try $ httpLbs req manager
+  case result of
+    Left err -> do
+      tell ["HTTP error: " ++ show (err :: HttpException)]
+      MaybeT $ return Nothing
+    -- Right body -> return $ responseBody body
+    Right body -> return body
+
+shuntHttpRequestFull1 :: Request -> ProcM (L8.ByteString)
+shuntHttpRequestFull1 req = do
   manager <- lift . lift $ ask
   result <- liftIO $ try $ httpLbs req manager
   case result of
@@ -445,8 +469,6 @@ shuntHttpRequestFull req = do
       MaybeT $ return Nothing
     Right body -> return $ responseBody body
 
-
--- draft general shuntFire
 shuntHttpRequest :: (Request -> Request) -> String -> ProcM L8.ByteString
 shuntHttpRequest modifyReq url = do
   manager <- lift . lift $ ask
@@ -465,12 +487,15 @@ shuntHttpRequest modifyReq url = do
 -- App is procedure in a stack that will return a failing CallItem.
 app :: ProcM CallItem
 app = do
+    logMsg $ "Requesting: " ++ "url"
+
     -- body <- shuntGet "https://httpbin.org/get"
+    body <- shuntGet "http://localhost:9999/oo"
+
     -- logMsg $ "Got response of length: " ++ show (L8.length body)
     -- liftIO $ putStrLn $ "Response preview: " ++ take 100 (L8.unpack body)
     -- liftIO circuit
     liftIO $ return localhost9999
-
 
 staticChecks :: FilePath -> MaybeT IO Script
 staticChecks path = do
@@ -479,52 +504,93 @@ staticChecks path = do
     then liftIO $ return localhost9999Script
     else MaybeT $ return Nothing
 
-circuit :: IO ()
-circuit = do
-    return ()
-  -- (result, logs) <- runRaceM app
-  -- putStrLn "\n--- Logs ---"
-  -- mapM_ putStrLn logs
-  -- case result of
-  --   Just _  -> putStrLn "✅ Success"
-  --   Nothing -> putStrLn "❌ Failed"
-
-
 testOutsideWorld :: Script -> MaybeT IO Lead
 
 testOutsideWorld Script { config, call_items = [] } = do
     MaybeT (return $ Just Lead { firstFailing = Nothing })
 
-testOutsideWorld Script { config = ScriptConfig { subjects }, call_items = [ci] } = do
-    -- manager <- liftIO $ newManager tlsManagerSettings
-    coming <- liftIO $ raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items = [ci] }
-
     -- -- ??: buildRequest
     -- (maybeResult, logs) <- liftIO $ runReaderT (runWriterT (runMaybeT (shuntGet $ dbgUrl ci))) manager
 
+-- let proc = shuntGet $ dbgUrl ci
+-- (maybeResult, logs) <- runReaderT (runWriterT (runMaybeT (proc))) init
+
+-- let actions :: [IO (Maybe CallItem, Log)] = [mk 1]
+-- let actions :: [IO (Maybe CallItem, Log)] = [runRaceM app]
+testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
+    coming <- liftIO $ raceToFirstFailing single
+
     MaybeT (return $ Just Lead { firstFailing = coming })
+    -- MaybeT (return Nothing)
 
     where
+    mk :: [CallItem] -> Subject -> IO (Maybe CallItem, Log)
+    mk [ci] subject = do
+        putStrLn $ show subject
+
+        -- Course is procedure in a stack form that will return a (almost certainly)
+        -- failing CallItem.
+        let course :: ProcM CallItem = do
+                logMsg "building course...."
+
+                build :: Request <- parseRequest (url $ ci_request_spec ci)
+                let struct = build
+                      { method = verb $ ci_request_spec ci
+                      }
+                body <- shuntHttpRequestFull1 struct
+                -- PICKUP return http-client Response
+                -- body1 <- shuntGet "http://localhost:9999/oo1"
+
+                let matches = True
+
+                let expectCodes = case ci_response_spec ci of
+                        Nothing -> [200]
+                        Just rc -> codes rc
+
+                liftIO $ case matches of
+                    True ->
+                        -- Functionally a default CallItem makes sense in the event where the
+                        -- compiler couldn't point to a failing CallItem in user program; maybe
+                        -- the client host can't even get the expected result of sending a request to
+                        -- localhost.
+                        return defaultCallItem
+                    _ ->
+                        -- The only suspect.
+                        return ci
+
+                -- liftIO $ return ci
+                -- -- liftIO (return $ Just ci)
+
+        runProcM course
+
     raceToFirstFailing :: Script -> IO (Maybe CallItem)
-    raceToFirstFailing Script { config = ScriptConfig { subjects } } = do
-        manager <- newManager tlsManagerSettings
-        hole <- Base.newEmptyMVar
+    raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items } = do
+        init <- newManager tlsManagerSettings
+        hole :: Base.MVar CallItem <- Base.newEmptyMVar
 
-        -- let proc = shuntGet $ dbgUrl ci
-        -- (maybeResult, logs) <- runReaderT (runWriterT (runMaybeT (proc))) manager
-        let actions :: [IO (Maybe CallItem, Log)] = [runRaceM app]
-
-        tids :: [ThreadId] <- forM actions $
+        -- let actions :: [IO (Maybe CallItem, Log)] = map mk subjects
+        let actions :: [IO (Maybe CallItem, Log)] = map (mk call_items) subjects
+        putStrLn (show $ length actions)
+        ids :: [ThreadId] <- forM actions $
             -- Each action returns a thread ID.
             \(io :: IO (Maybe CallItem, Log)) -> Base.forkIO $ do
-                (res, _log) <- io
+                putStrLn "lam...."
+                (res, logs) <- io
+                putStrLn $ "show log: " ++ show logs
 
                 case res of
                     Just failing -> Base.putMVar hole failing
                     Nothing -> return ()
 
-        forM_ tids $ \id -> Base.killThread id
+        Base.threadDelay 1000000  -- ??: main thread exits before all children. which other mvar method?
+
+        forM_ ids $ \x -> Base.killThread x
         Base.tryReadMVar hole
+
+testOutsideWorld _unexpected = MaybeT $ return Nothing
+
+present :: Lead -> String
+present lead = show lead
 
         -- let assignments = map (consign mut app) subjects
 
@@ -542,7 +608,3 @@ testOutsideWorld Script { config = ScriptConfig { subjects }, call_items = [ci] 
     -- -- consign failingCallItem ratInfo = do
     --     Base.putMVar failingCallItem localhost9999
 
-testOutsideWorld _unexpected = MaybeT $ return Nothing
-
-present :: Lead -> String
-present lead = show lead

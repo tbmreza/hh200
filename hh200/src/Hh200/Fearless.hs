@@ -23,13 +23,13 @@ import System.Random (randomRIO)
 
 -- Everything a system-under-test maintainer could ask for when reproducing our
 -- counter-example.
-type RatInfo = String
-consignHttpM :: Hh.HttpM L8.ByteString -> RatInfo -> IO Hh.Lead
+
+consignHttpM :: Hh.HttpM L8.ByteString -> Hh.Subject -> IO Hh.Lead
 consignHttpM stacked name = do
     Hh.runHttpM stacked
     delay <- randomRIO (1, 5)  -- random delay between 1–5 seconds
     threadDelay (delay * 1000000)
-    let msg = "Thread " ++ name ++ " finished after " ++ show delay ++ "s"
+    let msg = "Thread " ++ "name" ++ " finished after " ++ show delay ++ "s"
     -- return msg
     return Hh.basicLead
 

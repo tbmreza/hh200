@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Cli
     ( cli
@@ -7,6 +8,10 @@ module Hh200.Cli
 import Data.Version (showVersion)
 import Control.Monad (when)
 import Options.Applicative
+import Control.Monad.Trans.Maybe
+import Control.Monad.IO.Class
+import System.FilePath ((</>))
+import System.Exit (exitWith, ExitCode(ExitFailure))
 
 import qualified Paths_hh200 (version)
 import qualified Hh200.Types as Hh
@@ -59,23 +64,39 @@ go Args { source = Just src, debugConfig = True } = do
 
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snippet } = do
-    maybeCallable <- Hh.read snippet
-    case maybeCallable of
-        Nothing -> putStrLn snippet
-        Just ci -> Hh.runHttpM $ Hh.httpGet_ "http://localhost:9999/cli"
+    -- ??: rm last runHttpM
+    -- maybeCallable <- Hh.read snippet
+    -- case maybeCallable of
+    --     Nothing -> putStrLn snippet
+    --     Just ci -> Hh.runHttpM $ Hh.httpGet_ "http://localhost:9999/cli"
+    res <- runMaybeT $ do
+        script <- Hh.flyingScript snippet
+        leads <-  Hh.testOutsideWorld script
+        liftIO (putStrLn $ Hh.present leads)
 
--- two rats downloading the same image
--- "download image.jpg"
--- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
--- HTTP [200 201] ("/home/tbmreza/gh/hh200/hh200/img-{{row.username}}.jpg" fresh)
--- go Args { call = True, debugConfig = False } = do
--- concurrency: empty deps call items
+    case res of
+        Just _ -> do
+            -- putStrLn "atasz"
+            return ()
+        Nothing -> do
+            -- putStrLn "bwhhh"
+            -- Verifiable with `echo $?` which prints last exit code in shell.
+            exitWith (ExitFailure 1)
+
+    -- return ()
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    (effectiveCfg, stacked) <- Hh.compile path
-    Hh.raceToLeadHttpM (effectiveCfg, stacked)
-    -- l <- Hh.raceToLeadHttpM (effectiveCfg, stacked)
-    -- putStrLn $ show l
+    res <- runMaybeT $ do
+        script <- Hh.staticChecks path
+        leads <-  Hh.testOutsideWorld script
+        liftIO (putStrLn $ Hh.present leads)
+    
+    case res of
+        Just _ -> return ()
+        Nothing ->
+            -- Verifiable with `echo $?` which prints last exit code in shell.
+            exitWith (ExitFailure 1)
+
 
 go _ = do putStrLn "oops"

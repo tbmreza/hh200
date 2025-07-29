@@ -19,8 +19,7 @@ import Control.Monad.IO.Class
 import System.Environment (lookupEnv)
 
 read :: String -> IO (Maybe CallItem)
-read unsanitized = do -- ??
-    putStrLn "yea"
+read unsanitized = do
     return (Just ci)
 
 -- Abstract syntax for downloading 2 parallel files.
@@ -70,11 +69,19 @@ compile x = do
         _envConfig <- return defaultScriptConfig -- ??
         return local
 
+-- A valid program snippet is suited up as a Script of single CallItem.
+flyingScript :: String -> MaybeT IO Script
+flyingScript snippet = do
+    user <- liftIO $ Hh200.Scanner.read snippet
+    MaybeT $ case user of
+        Just item -> return $ Just Script { config = defaultScriptConfig , call_items = [item] }
+        _ -> return Nothing
+
+
 
 ---------------------------
 -- Test abstract syntax. --
 ---------------------------
 -- ??: use happy parse
 preparsed :: String -> Hh.Script
-preparsed _dummy = Hh.Script { Hh.config = Hh.ScriptConfig { Hh.retries = 0, Hh.max_duration = Nothing, Hh.subjects = ["user1", "user2"] }, Hh.call_items = [ci]}
--- preparsed _dummy = Hh.Script { Hh.config = Hh.ScriptConfig { Hh.retries = 0, Hh.max_duration = Nothing, Hh.subjects = ["user1", "user2"] }, Hh.call_items = []}
+preparsed _dummy = Hh.Script { Hh.config = Hh.ScriptConfig { Hh.retries = 0, Hh.max_duration = Nothing, Hh.subjects = [Subject "user1", Subject "user2"] }, Hh.call_items = [ci]}

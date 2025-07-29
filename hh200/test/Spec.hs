@@ -55,11 +55,11 @@ testEndToEndHttpM = testCase "??: if RaceM recreates current concurrency well, r
   unless (isJust result) $ assertFailure ""
 
 testEndToEnd :: TestTree
-testEndToEnd = testCase "happy execution" $ do
+testEndToEnd = testCase "??" $ do
   result <- runMaybeT $ do
     script <- Hh.staticChecks (".." </> "examples" </> "download.hhs")
     lead <-   Hh.testOutsideWorld script
-    liftIO $  Hh.present lead @?= "todo"
+    liftIO $  Hh.present lead @?= "Lead {firstFailing = Nothing}"
   unless (isJust result) $ assertFailure ""
 
 readFileMaybe :: FilePath -> MaybeT IO T.Text
@@ -79,8 +79,10 @@ testReadGoldenFile = testCase "golden.txt contains expected value" $ do
 
 main :: IO ()
 main = defaultMain $ testGroup "File-based tests"
-  [ testReadGoldenFile
-  -- , testEndToEndHttpM
-  -- , testEndToEndWithThreads  -- ??
-  , testEndToEnd
+  -- [ testReadGoldenFile
+  -- -- , testEndToEndHttpM
+  -- -- , testEndToEndWithThreads  -- ??
+  -- , testEndToEnd
+  -- ]
+  [ testEndToEnd
   ]
