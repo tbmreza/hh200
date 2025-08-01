@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -42,6 +43,7 @@ import qualified Data.Text.IO as TIO
 import Data.Maybe (isJust)
 
 import qualified Hh200.Types as Hh
+import qualified Hh200.Scanner as Hh
 
 offlineLead = Just Hh.basicLead
 
@@ -77,6 +79,17 @@ testReadGoldenFile = testCase "golden.txt contains expected value" $ do
   unless (isJust result) $
     assertFailure "golden.txt does not exist"
 
+testScanner :: TestTree
+testScanner = testCase "lexer and parser" $ do
+
+    -- Hh.alexScanTokens "GET http://localhost:9999/indx" @?= []  -- ??: ok
+
+    let tokens = Hh.alexScanTokens "GET http://localhost:9999/indx" in
+        case Hh.parse tokens of
+            Hh.ParseOk (Hh.Script { Hh.call_items = [item] }) -> return ()
+            Hh.ParseFailed _ -> do
+                assertFailure "todo"
+
 main :: IO ()
 main = defaultMain $ testGroup "File-based tests"
   -- [ testReadGoldenFile
@@ -84,5 +97,5 @@ main = defaultMain $ testGroup "File-based tests"
   -- -- , testEndToEndWithThreads  -- ??
   -- , testEndToEnd
   -- ]
-  [ testEndToEnd
+  [ testScanner
   ]

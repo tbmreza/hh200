@@ -1,4 +1,6 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- Re-export lexer and parser generated code.
 module Hh200.Scanner
@@ -19,10 +21,33 @@ import Control.Monad.IO.Class
 import System.Environment (lookupEnv)
 
 read :: String -> IO (Maybe CallItem)
-read unsanitized = do
-    return (Just ci)
+read input = do
+    let tokensOrPanic = alexScanTokens input
+    case parse tokensOrPanic of
+        ParseOk (Script { call_items = [item] }) -> do
+            return (Just item)
+        ParseOk _ -> do
+            -- ??: log unexpected input
+            return Nothing
+        ParseFailed _ -> do
+            return Nothing
 
 -- Abstract syntax for downloading 2 parallel files.
+seed = RequestSpec
+      { verb = "GET"
+      , url = ast1
+      , headers = []
+      , payload = ""
+      , opts = []
+      }
+      where
+      ast1 = case parse $ alexScanTokens "h" of
+            ParseFailed m -> m
+      -- ast :: E (Maybe Script) = case parse $ alexScanTokens "h" of
+      ast = case parse $ alexScanTokens "h" of
+            ParseOk d -> ParseOk d
+            -- ParseFailed m -> m
+
 rs = RequestSpec
       -- { m = "GET"
       -- , verb = "GET"
@@ -40,7 +65,8 @@ rp = ResponseSpec
 ci = CallItem
       { ci_deps = []
       , ci_name = "download image.jpg"
-      , ci_request_spec = rs
+      -- , ci_request_spec = rs
+      , ci_request_spec = seed
       , ci_response_spec = Just rp
       }
 
@@ -53,9 +79,6 @@ ci = CallItem
 -- lookupEnv :: String -> IO (Maybe String)
 iomayb :: FilePath -> IO (Maybe (Hh.HttpM L8.ByteString))
 iomayb _ = return Nothing
-
--- compile1 :: FilePath -> MaybeT IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)
--- compile1 name = MaybeT (defaultScriptConfig, iomayb name)
 
 compile :: FilePath -> IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)
 compile x = do
@@ -74,14 +97,26 @@ flyingScript :: String -> MaybeT IO Script
 flyingScript snippet = do
     user <- liftIO $ Hh200.Scanner.read snippet
     MaybeT $ case user of
-        Just item -> return $ Just Script { config = defaultScriptConfig , call_items = [item] }
-        _ -> return Nothing
+        Just item ->
+            return $ Just Script { config = defaultScriptConfig , call_items = [item] }
+        _ ->
+            -- ??: log printing effective config and defaultCallItem
+            return $ Nothing
 
 
 
 ---------------------------
 -- Test abstract syntax. --
 ---------------------------
--- ??: use happy parse
+
 preparsed :: String -> Hh.Script
-preparsed _dummy = Hh.Script { Hh.config = Hh.ScriptConfig { Hh.retries = 0, Hh.max_duration = Nothing, Hh.subjects = [Subject "user1", Subject "user2"] }, Hh.call_items = [ci]}
+preparsed _dummy =
+  Hh.Script
+    { Hh.config =
+        Hh.ScriptConfig
+          { Hh.retries = 0
+          , Hh.max_duration = Nothing
+          , Hh.subjects = [Subject "user1", Subject "user2"]
+          }
+    , Hh.call_items = [ci]
+    }

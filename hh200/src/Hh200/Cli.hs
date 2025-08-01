@@ -63,27 +63,22 @@ go Args { source = Just src, debugConfig = True } = do
     putMergedConfigs scriptConfig = putStrLn $ Hh.pp scriptConfig
 
 -- hh200 --call "GET ..."
+-- On negative input string, print effective config.
 go Args { call = True, source = Just snippet } = do
-    -- ??: rm last runHttpM
-    -- maybeCallable <- Hh.read snippet
-    -- case maybeCallable of
-    --     Nothing -> putStrLn snippet
-    --     Just ci -> Hh.runHttpM $ Hh.httpGet_ "http://localhost:9999/cli"
     res <- runMaybeT $ do
-        script <- Hh.flyingScript snippet
+        script <- Hh.flyingScript snippet  -- ??: mv staticChecks to the same module as Scanner.flyingScript in order to communicate that on negative input, both can still print effective config before exiting.
         leads <-  Hh.testOutsideWorld script
         liftIO (putStrLn $ Hh.present leads)
+        -- liftIO (putStrLn "")
 
     case res of
         Just _ -> do
-            -- putStrLn "atasz"
+            putStrLn "atas"
             return ()
         Nothing -> do
-            -- putStrLn "bwhhh"
+            putStrLn "bwhh"
             -- Verifiable with `echo $?` which prints last exit code in shell.
             exitWith (ExitFailure 1)
-
-    -- return ()
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do

@@ -3,6 +3,7 @@
 -- module P ( module P, module L ) where
 module P where
 
+import qualified Data.ByteString.Char8 as BS
 import Control.Monad.Trans.Except
 import L
 import Hh200.Types
@@ -41,28 +42,32 @@ import Hh200.Types
 
 %%
 
-program : directive  { Nothing }
+testsuite : callables           { Script { config = defaultScriptConfig, call_items = $1 } }
+          | directive callables { Script { config = $1, call_items = $2 } }
 
-directive : "then"  { $1 }
+directive : "then"  { defaultScriptConfig }
 
 callables : callable  { [$1] }
           | callables callable  { $1 ++ [$2] }
 
-callable : "then"
+callable
+    : method url
     { CallItem
         { ci_deps = []
-        , ci_name = ""
+        , ci_name = $1
+        , ci_request_spec = RequestSpec { url = $2, verb = BS.pack $1 }
         , ci_response_spec = Nothing
-        }
-    }
+        } }
+
+    | url
+    { CallItem
+        { ci_deps = []
+        , ci_name = $1
+        , ci_request_spec = RequestSpec { url = $1, verb = "GET" }
+        , ci_response_spec = Nothing
+        } }
 
 {
-
--- HTTP [200 201] ("/home/tbmreza/test.jpg" overwrite)
--- HTTP [200 201] ("/home/tbmreza/test.jpg")
--- HTTP 200 ("/home/tbmreza/test.jpg")
--- "login" then "checkin"
--- GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
 
 parseError :: [Token] -> E a
 parseError tokens = failE $ "Parse error on tokens: " ++ show tokens

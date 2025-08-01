@@ -30,7 +30,8 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Control.Monad.Trans.Maybe
-import Network.HTTP.Types.Status (statusCode)
+-- import Network.HTTP.Types.Status (statusCode, Status)
+import Network.HTTP.Types.Status
 import Control.Monad (forM_)
 
 import System.Directory (doesFileExist)
@@ -63,14 +64,14 @@ data Script = Script
 
 emptyScript = Script { config = defaultScriptConfig, call_items = [] }
 
-localhost9999Script :: Script
-localhost9999Script = Script
+defaultScript :: Script
+defaultScript = Script
   { config = defaultScriptConfig
-  , call_items = [localhost9999]
+  , call_items = [defaultCallItem]
   }
 
 data RequestSpec = RequestSpec
-    { verb :: S.ByteString  -- ??: str type
+    { verb :: S.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
     , url :: String
     , headers :: [String]
     , payload :: String
@@ -83,6 +84,7 @@ conc _ = "POST http://localhost:9999/user\n{ \"name\": \"johk\" }"
 
 data ResponseSpec = ResponseSpec {
       codes :: [Int]
+    , statuses :: [Status]
     , output :: [String]
     }
     deriving (Show, Eq)
@@ -497,11 +499,12 @@ app = do
     -- liftIO circuit
     liftIO $ return localhost9999
 
+-- Returning Nothing short-circuits callsite.
 staticChecks :: FilePath -> MaybeT IO Script
 staticChecks path = do
   exists <- liftIO $ doesFileExist path
   if exists
-    then liftIO $ return localhost9999Script
+    then liftIO $ return defaultScript
     else MaybeT $ return Nothing
 
 testOutsideWorld :: Script -> MaybeT IO Lead
@@ -509,14 +512,9 @@ testOutsideWorld :: Script -> MaybeT IO Lead
 testOutsideWorld Script { config, call_items = [] } = do
     MaybeT (return $ Just Lead { firstFailing = Nothing })
 
-    -- -- ??: buildRequest
-    -- (maybeResult, logs) <- liftIO $ runReaderT (runWriterT (runMaybeT (shuntGet $ dbgUrl ci))) manager
-
 -- let proc = shuntGet $ dbgUrl ci
 -- (maybeResult, logs) <- runReaderT (runWriterT (runMaybeT (proc))) init
 
--- let actions :: [IO (Maybe CallItem, Log)] = [mk 1]
--- let actions :: [IO (Maybe CallItem, Log)] = [runRaceM app]
 testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
     coming <- liftIO $ raceToFirstFailing single
 
@@ -524,8 +522,8 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
     -- MaybeT (return Nothing)
 
     where
-    mk :: [CallItem] -> Subject -> IO (Maybe CallItem, Log)
-    mk [ci] subject = do
+    mkAction :: [CallItem] -> Subject -> IO (Maybe CallItem, Log)
+    mkAction [ci] subject = do
         putStrLn $ show subject
 
         -- Course is procedure in a stack form that will return a (almost certainly)
@@ -537,17 +535,15 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
                 let struct = build
                       { method = verb $ ci_request_spec ci
                       }
-                body <- shuntHttpRequestFull1 struct
-                -- PICKUP return http-client Response
-                -- body1 <- shuntGet "http://localhost:9999/oo1"
-
-                let matches = True
+                ret <- shuntHttpRequestFull struct
+                -- let got = responseStatus ret
 
                 let expectCodes = case ci_response_spec ci of
-                        Nothing -> [200]
-                        Just rc -> codes rc
+                        Nothing -> [status200]
+                        Just rc -> statuses rc
 
-                liftIO $ case matches of
+                -- liftIO $ case elem got expectCodes of
+                liftIO $ case elem (responseStatus ret) expectCodes of
                     True ->
                         -- Functionally a default CallItem makes sense in the event where the
                         -- compiler couldn't point to a failing CallItem in user program; maybe
@@ -558,9 +554,6 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
                         -- The only suspect.
                         return ci
 
-                -- liftIO $ return ci
-                -- -- liftIO (return $ Just ci)
-
         runProcM course
 
     raceToFirstFailing :: Script -> IO (Maybe CallItem)
@@ -568,8 +561,7 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
         init <- newManager tlsManagerSettings
         hole :: Base.MVar CallItem <- Base.newEmptyMVar
 
-        -- let actions :: [IO (Maybe CallItem, Log)] = map mk subjects
-        let actions :: [IO (Maybe CallItem, Log)] = map (mk call_items) subjects
+        let actions :: [IO (Maybe CallItem, Log)] = map (mkAction call_items) subjects
         putStrLn (show $ length actions)
         ids :: [ThreadId] <- forM actions $
             -- Each action returns a thread ID.
