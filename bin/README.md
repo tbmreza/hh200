@@ -1,4 +1,4 @@
-Ideally we test releases for every channel where erlang/otp is available.
+Ideally we test releases for every channel where our deps are available.
 
 - [ ] debian (apt)
 - [ ] alpine (docker, github & gitlab ci/cd)
@@ -6,8 +6,8 @@ Ideally we test releases for every channel where erlang/otp is available.
 - [ ] windows (winget, scoop)
 
 Awesome but not essential for now:
-- [ ] wasm (replacing standard otp with wasm-targetting beam language)
+- [ ] wasm
 - [ ] android (as an app that manages and runs .hhs scripts)
 
 Where we don't see prospect users:
-- embedded systems (maybe even impossible with haskell GC and erlang/otp runtime)
+- embedded systems (maybe even impossible with haskell GC)

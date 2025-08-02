@@ -1,3 +1,6 @@
+what to do about:
+- Special-Use Domain Names
+
 # hh200
 ```
 summary:      statically-checked dsl for testing http servers
@@ -378,5 +381,3 @@ run:
 
 # # dist-newstyle/build/x86_64-linux/ghc-9.4.7/...
 # dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --hello examples/debug.hhs
-
-Defer exploring Template Haskell in a static checker tool.

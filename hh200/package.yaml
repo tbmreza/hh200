@@ -11,7 +11,7 @@ extra-source-files:
 - CHANGELOG.md
 
 # Metadata used when publishing your package
-# synopsis:            Short description of your package
+synopsis:            Statically-checked DSL for testing HTTP servers
 category:            Language
 
 # To avoid duplicated efforts in documentation and dealing with the
@@ -33,6 +33,7 @@ dependencies:
 - random
 - async
 - directory
+- fast-logger
 
 ghc-options:
 - -Wall

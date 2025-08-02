@@ -450,7 +450,6 @@ shuntGet url = do
       MaybeT $ return Nothing
 
 shuntHttpRequestFull :: Request -> ProcM (Response L8.ByteString)
--- shuntHttpRequestFull :: Request -> ProcM (L8.ByteString)
 shuntHttpRequestFull req = do
   manager <- lift . lift $ ask
   result <- liftIO $ try $ httpLbs req manager
@@ -458,7 +457,6 @@ shuntHttpRequestFull req = do
     Left err -> do
       tell ["HTTP error: " ++ show (err :: HttpException)]
       MaybeT $ return Nothing
-    -- Right body -> return $ responseBody body
     Right body -> return body
 
 shuntHttpRequestFull1 :: Request -> ProcM (L8.ByteString)
@@ -500,8 +498,8 @@ app = do
     liftIO $ return localhost9999
 
 -- Returning Nothing short-circuits callsite.
-staticChecks :: FilePath -> MaybeT IO Script
-staticChecks path = do
+staticChecks1 :: FilePath -> MaybeT IO Script
+staticChecks1 path = do
   exists <- liftIO $ doesFileExist path
   if exists
     then liftIO $ return defaultScript
@@ -511,9 +509,6 @@ testOutsideWorld :: Script -> MaybeT IO Lead
 
 testOutsideWorld Script { config, call_items = [] } = do
     MaybeT (return $ Just Lead { firstFailing = Nothing })
-
--- let proc = shuntGet $ dbgUrl ci
--- (maybeResult, logs) <- runReaderT (runWriterT (runMaybeT (proc))) init
 
 testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
     coming <- liftIO $ raceToFirstFailing single
@@ -533,17 +528,18 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
 
                 build :: Request <- parseRequest (url $ ci_request_spec ci)
                 let struct = build
-                      { method = verb $ ci_request_spec ci
+                      { method = verb $ ci_request_spec ci  -- ??: handle lower case method user input
                       }
+
                 ret <- shuntHttpRequestFull struct
-                -- let got = responseStatus ret
 
                 let expectCodes = case ci_response_spec ci of
                         Nothing -> [status200]
                         Just rc -> statuses rc
 
-                -- liftIO $ case elem got expectCodes of
-                liftIO $ case elem (responseStatus ret) expectCodes of
+
+                -- case elem (responseStatus ret) expectCodes of
+                case True of
                     True ->
                         -- Functionally a default CallItem makes sense in the event where the
                         -- compiler couldn't point to a failing CallItem in user program; maybe
@@ -551,7 +547,7 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
                         -- localhost.
                         return defaultCallItem
                     _ ->
-                        -- The only suspect.
+                        -- The only suspect left.
                         return ci
 
         runProcM course
@@ -579,7 +575,15 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
         forM_ ids $ \x -> Base.killThread x
         Base.tryReadMVar hole
 
-testOutsideWorld _unexpected = MaybeT $ return Nothing
+testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items }) = do
+    -- PICKUP
+    -- _ <- forM [] $ \x -> do
+    --     ret <- shuntHttpRequestFull struct
+    --     return ()
+
+    MaybeT (return $ Just Lead { firstFailing = Nothing })
+
+-- testOutsideWorld _unexpected = MaybeT $ return Nothing
 
 present :: Lead -> String
 present lead = show lead

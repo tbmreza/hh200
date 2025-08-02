@@ -6,16 +6,18 @@ module Hh200.Cli
     ) where
 
 import Data.Version (showVersion)
-import Control.Monad (when)
+-- import Control.Monad (when)
 import Options.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
-import System.FilePath ((</>))
+-- import System.FilePath ((</>))
 import System.Exit (exitWith, ExitCode(ExitFailure))
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Paths_hh200 (version)
 import qualified Hh200.Types as Hh
-import qualified Hh200.Fearless as Hh
+-- import qualified Hh200.Fearless as Hh
 import qualified Hh200.Scanner as Hh
 
 data Args = Args
@@ -54,7 +56,6 @@ go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
 -- hh200 flow.hhs --debug-config
 go Args { source = Just src, debugConfig = True } = do
-    -- let (scriptConfig, _) = Hh.compile src
     (scriptConfig, _) <- Hh.compile src
     putMergedConfigs scriptConfig where
 
@@ -66,9 +67,10 @@ go Args { source = Just src, debugConfig = True } = do
 -- On negative input string, print effective config.
 go Args { call = True, source = Just snippet } = do
     res <- runMaybeT $ do
-        script <- Hh.flyingScript snippet  -- ??: mv staticChecks to the same module as Scanner.flyingScript in order to communicate that on negative input, both can still print effective config before exiting.
+        script <- Hh.analyze $ Hh.Snippet (L8.pack snippet)
         leads <-  Hh.testOutsideWorld script
         liftIO (putStrLn $ Hh.present leads)
+
         -- liftIO (putStrLn "")
 
     case res of
@@ -83,7 +85,7 @@ go Args { call = True, source = Just snippet } = do
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
     res <- runMaybeT $ do
-        script <- Hh.staticChecks path
+        script <- Hh.staticChecks1 path
         leads <-  Hh.testOutsideWorld script
         liftIO (putStrLn $ Hh.present leads)
     
