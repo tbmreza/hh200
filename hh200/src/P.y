@@ -42,10 +42,19 @@ import Hh200.Types
 
 %%
 
-testsuite : callables           { Script { config = defaultScriptConfig, call_items = $1 } }
+testsuite : request response    { Script { config = defaultScriptConfig, call_items = $1 } }
+          | callables           { Script { config = defaultScriptConfig, call_items = $1 } }
+          | directive callables { Script { config = $1, call_items = $2 } }
           | directive callables { Script { config = $1, call_items = $2 } }
 
 directive : "then"  { defaultScriptConfig }
+
+
+request  : callables "\n" { $1 }
+         | callables      { $1 }
+
+response : "HTTP" { }
+
 
 callables : callable  { [$1] }
           | callables callable  { $1 ++ [$2] }

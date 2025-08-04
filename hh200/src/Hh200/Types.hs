@@ -164,8 +164,8 @@ data Lead = Lead
   -- , top :: Top  -- ??: host computer info, /etc/resolv.conf, execution time
   } deriving (Show, Eq)
 
-basicLead :: Lead
-basicLead = Lead
+hostLead :: Lead
+hostLead = Lead
   { firstFailing = Just CallItem
     { ci_deps = []
     , ci_name = ""
@@ -384,7 +384,7 @@ data Located a = Located
 --------------------------------
 -- EXECUTIVE SUMMARY OF HH200 --
 --------------------------------
--- terminating:  staticChecks  testOutsideWorld  present
+-- terminating:  analyze  testOutsideWorld  present
 -- steps output (1. linter hints; 2. reality; 3. counter-example)
 --
 -- early 1:
@@ -505,6 +505,7 @@ staticChecks1 path = do
     then liftIO $ return defaultScript
     else MaybeT $ return Nothing
 
+-- Return Nothing if it can't even compile a hostLead.
 testOutsideWorld :: Script -> MaybeT IO Lead
 
 testOutsideWorld Script { config, call_items = [] } = do
@@ -521,8 +522,8 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
     mkAction [ci] subject = do
         putStrLn $ show subject
 
-        -- Course is procedure in a stack form that will return a (almost certainly)
-        -- failing CallItem.
+        -- Course is procedure in a stack form that will return a (almost
+        -- certainly) failing CallItem.
         let course :: ProcM CallItem = do
                 logMsg "building course...."
 
@@ -575,8 +576,9 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
         forM_ ids $ \x -> Base.killThread x
         Base.tryReadMVar hole
 
+-- testOutsideWorld (Script { config = ScriptConfig { subjects }, call_items }) = do
 testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items }) = do
-    -- PICKUP
+    -- ??:
     -- _ <- forM [] $ \x -> do
     --     ret <- shuntHttpRequestFull struct
     --     return ()

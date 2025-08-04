@@ -64,36 +64,38 @@ go Args { source = Just src, debugConfig = True } = do
     putMergedConfigs scriptConfig = putStrLn $ Hh.pp scriptConfig
 
 -- hh200 --call "GET ..."
--- On negative input string, print effective config.
 go Args { call = True, source = Just snippet } = do
-    res <- runMaybeT $ do
-        script <- Hh.analyze $ Hh.Snippet (L8.pack snippet)
-        leads <-  Hh.testOutsideWorld script
-        liftIO (putStrLn $ Hh.present leads)
+    putStrLn $ show (L8.pack snippet)
+    -- ??: source = Just s, isFilePath
+    short :: Maybe Hh.Lead <- runMaybeT $ do
+        script <- Hh.analyze $ Hh.Snippet (L8.pack snippet)  -- ParserException | Nothing(empty call items): print hostLead
+        leads <- Hh.testOutsideWorld script                  -- ThreadException | Nothing(config-skipped): print config
+        liftIO $ return leads
 
         -- liftIO (putStrLn "")
 
-    case res of
-        Just _ -> do
-            putStrLn "atas"
-            return ()
+    case short of
         Nothing -> do
-            putStrLn "bwhh"
             -- Verifiable with `echo $?` which prints last exit code in shell.
             exitWith (ExitFailure 1)
+        Just l -> do
+            putStrLn $ Hh.present l
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    res <- runMaybeT $ do
-        script <- Hh.staticChecks1 path
-        leads <-  Hh.testOutsideWorld script
-        liftIO (putStrLn $ Hh.present leads)
-    
-    case res of
-        Just _ -> return ()
-        Nothing ->
+    short :: Maybe Hh.Lead <- runMaybeT $ do
+        script <- Hh.analyze path            -- ParserException | Nothing(empty call items): print hostLead
+        leads <- Hh.testOutsideWorld script  -- ThreadException | Nothing(config-skipped): print config
+        liftIO $ return leads
+
+        -- liftIO (putStrLn "")
+
+    case short of
+        Nothing -> do
             -- Verifiable with `echo $?` which prints last exit code in shell.
             exitWith (ExitFailure 1)
+        Just l -> do
+            putStrLn $ Hh.present l
 
 
 go _ = do putStrLn "oops"
