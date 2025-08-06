@@ -14,7 +14,7 @@ import Hh200.Types
 %token
     d           { DIGITS _ $$ }
     identifier  { IDENTIFIER _ $$ }
-    filepath    { PATH _ $$ }
+
 
     "\n"        { LN _ }
 
@@ -42,39 +42,31 @@ import Hh200.Types
 
 %%
 
-testsuite : request response    { Script { config = defaultScriptConfig, call_items = $1 } }
-          | callables           { Script { config = defaultScriptConfig, call_items = $1 } }
-          | directive callables { Script { config = $1, call_items = $2 } }
-          | directive callables { Script { config = $1, call_items = $2 } }
+testsuite : call_items           { Script { config = defaultScriptConfig, call_items = $1 } }
+          | directive call_items { Script { config = $1, call_items = $2 } }
+          | directive call_items { Script { config = $1, call_items = $2 } }
 
 directive : "then"  { defaultScriptConfig }
 
 
-request  : callables "\n" { $1 }
-         | callables      { $1 }
+request  : call_items "\n" { $1 }
+         | call_items      { $1 }
 
-response : "HTTP" { }
+response : "HTTP" d { Just defaultResponseSpec }
 
 
-callables : callable  { [$1] }
-          | callables callable  { $1 ++ [$2] }
+call_items : call_item             { [$1] }
+           | call_items call_item  { $1 ++ [$2] }
 
-callable
-    : method url
+call_item
+    : method url "\n" response
     { CallItem
         { ci_deps = []
         , ci_name = $1
         , ci_request_spec = RequestSpec { url = $2, verb = BS.pack $1 }
-        , ci_response_spec = Nothing
+        , ci_response_spec = $4
         } }
 
-    | url
-    { CallItem
-        { ci_deps = []
-        , ci_name = $1
-        , ci_request_spec = RequestSpec { url = $1, verb = "GET" }
-        , ci_response_spec = Nothing
-        } }
 
 {
 

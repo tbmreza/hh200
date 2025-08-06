@@ -47,11 +47,28 @@ testReadGoldenFile = testCase "golden.txt contains expected value" $ do
   unless (isJust result) $
     assertFailure "golden.txt does not exist"
 
+-- data CallItem = CallItem
+--   { ci_deps :: [String]
+--   , ci_name :: String
+--   , ci_request_spec :: RequestSpec
+--   , ci_response_spec :: Maybe ResponseSpec
+--   } deriving (Show, Eq)
+
 testScanner :: TestTree
 testScanner = testCase "lexer and parser" $ do
+    let tokens = Hh.alexScanTokens "GET http://localhost:9999/indx HTTP 404" in
+        case Hh.parse tokens of
+            Hh.ParseOk (Hh.Script { Hh.call_items = [Hh.CallItem {ci_response_spec = Just z, ..}] }) -> return ()
+            Hh.ParseFailed _ -> do
+                assertFailure "todo"
+
+
+testScanner1 :: TestTree
+testScanner1 = testCase "old" $ do
 
     -- Hh.alexScanTokens "GET http://localhost:9999/indx" @?= []  -- ??: ok
 
+    -- let tokens = Hh.alexScanTokens "GET http://localhost:9999/indx  HTTP 404" in
     let tokens = Hh.alexScanTokens "GET http://localhost:9999/indx" in
         case Hh.parse tokens of
             Hh.ParseOk (Hh.Script { Hh.call_items = [item] }) -> return ()
@@ -65,5 +82,10 @@ main = defaultMain $ testGroup "File-based tests"
   -- -- , testEndToEndWithThreads  -- ??
   -- , testEndToEnd
   -- ]
+  --
+  -- [ testScanner1
+  -- , testScanner
+  -- ]
+
   [ testScanner
   ]

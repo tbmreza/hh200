@@ -65,8 +65,9 @@ go Args { source = Just src, debugConfig = True } = do
 
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snippet } = do
-    putStrLn $ show (L8.pack snippet)
+    -- putStrLn $ show (L8.pack snippet)
     -- ??: source = Just s, isFilePath
+    -- PICKUP analyze probably shorted
     short :: Maybe Hh.Lead <- runMaybeT $ do
         script <- Hh.analyze $ Hh.Snippet (L8.pack snippet)  -- ParserException | Nothing(empty call items): print hostLead
         leads <- Hh.testOutsideWorld script                  -- ThreadException | Nothing(config-skipped): print config

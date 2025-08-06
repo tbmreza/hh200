@@ -225,6 +225,13 @@ P.y starter from https://github.com/haskell/alex/blob/master/examples/tiny.y
     happy ... --ghc
     parse $ alexScanTokens "let k"
 
+P.y stash:
+    filepath    { PATH _ $$ }
+
+L.x stash:
+    $path+                         { tok (\p s -> PATH p s) }
+  | PATH    AlexPosn String
+
 
 Release 0.0.0-proto
 - etf encoder

@@ -38,9 +38,9 @@ tokens :-
 
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
-    $path+                    { tok (\p s -> PATH p s) }
-    http [$printable # \#]+   { tok (\p s -> URL p s) }
-    \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
+
+    http [$printable # [\#\ \\n\t\r]]+   { tok (\p s -> URL p s) }
+    \" [$printable # \"]+ \"       { tok (\p s -> QUOTED p s) }
 
 
 {
@@ -70,8 +70,7 @@ data Token =
   | KW_CONFIG  AlexPosn
 
 
-  | PATH    AlexPosn String
-  | URL     AlexPosn String
+  | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
   deriving (Eq, Show)
 

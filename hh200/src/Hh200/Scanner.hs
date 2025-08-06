@@ -37,6 +37,7 @@ import qualified Data.ByteString.Char8 as BS
 read :: String -> IO (Maybe CallItem)
 read input = do
     let tokensOrPanic = alexScanTokens input
+    putStrLn $ show tokensOrPanic
     case parse tokensOrPanic of
         ParseOk (Script { call_items = [item] }) -> do
             return (Just item)
@@ -132,8 +133,8 @@ class Analyze a where
 -- Reconcile configs 
 
 instance Analyze FilePath where
-    -- Rule out empty call items as there's nothing left to be done by
-    -- testOutsideWorld
+    -- Rule out empty call items as there's nothing left to be
+    -- done by testOutsideWorld.
     analyze path = do
       bs <- liftIO $ BS.readFile path
       exists <- liftIO $ doesFileExist path
@@ -162,19 +163,6 @@ instance Analyze L8.ByteString where
             _ ->
                 -- ??: log printing effective config and defaultCallItem
                 return $ Nothing
-
--- -- analyze :: String -> MaybeT IO Script    -- len(items) == 1; if violated, return early
--- instance Analyze String where
---     analyze snippet = do
---         -- logger <- liftIO $ newStdoutLoggerSet defaultBufSize  -- ??: internal logger without passing around instance
---         user <- liftIO $ Hh200.Scanner.read snippet
---         MaybeT $ case user of
---             Just item ->
---                 return $ Just Script { config = defaultScriptConfig , call_items = [item] }
---             _ ->
---                 -- ??: log printing effective config and defaultCallItem
---                 return $ Nothing
-
 
 ---------------------------
 -- Test abstract syntax. --
