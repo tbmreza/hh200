@@ -13,6 +13,7 @@ import Hh200.Types
 %error { parseError }
 %token
     d           { DIGITS _ $$ }
+    status      { STATUS _ $$ }
     identifier  { IDENTIFIER _ $$ }
 
 
@@ -42,31 +43,37 @@ import Hh200.Types
 
 %%
 
-testsuite : call_items           { Script { config = defaultScriptConfig, call_items = $1 } }
-          | directive call_items { Script { config = $1, call_items = $2 } }
-          | directive call_items { Script { config = $1, call_items = $2 } }
+-- test_suite : directives call_items { Script { config = $1, call_items = $2 } }
+--            | directives            { Script { config = $1, call_items = [] } }
+--            | call_items            { Script { config = defaultScriptConfig, call_items = $1 } }
 
-directive : "then"  { defaultScriptConfig }
+script : deps_clause { $1 }
 
+deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
+            | s             { DepsClause { deps = [], itemName = $1 } }
 
-request  : call_items "\n" { $1 }
-         | call_items      { $1 }
+deps : s      { [$1] }
+     | deps s { $1 ++ [$2] }
 
-response : "HTTP" d { Just defaultResponseSpec }
+request  : method url { RequestSpec { verb = BS.pack $1, url = $2 } }
+         | url        { RequestSpec { verb = "GET", url = $1 } }
+
+response : "HTTP" response_codes { ResponseSpec { codes = $2, output = [] } }
+
+response_codes : "[" status_list "]" { $2 }
+               | status_list { $1 }
+
+status_list :: { [Int] }
+status_list : status      { [$1] }
+            | status_list status { $1 ++ [$2] }
+
+-- ?? where to put Captures spec
+call_item : deps_clause request response { pCallItem $1 $2 (Just $3) }
+          | deps_clause request          { pCallItem $1 $2 Nothing }
 
 
 call_items : call_item             { [$1] }
            | call_items call_item  { $1 ++ [$2] }
-
-call_item
-    : method url "\n" response
-    { CallItem
-        { ci_deps = []
-        , ci_name = $1
-        , ci_request_spec = RequestSpec { url = $2, verb = BS.pack $1 }
-        , ci_response_spec = $4
-        } }
-
 
 {
 

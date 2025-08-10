@@ -1,7 +1,7 @@
 # ??: php dev-server url redirection
 
 GET https://fbi.com:9999/ly
-[Options]
+[Config]
 location: true
 HTTP 200
 [Asserts]

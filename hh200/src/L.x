@@ -39,7 +39,7 @@ tokens :-
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
 
-    http [$printable # [\#\ \\n\t\r]]+   { tok (\p s -> URL p s) }
+    http [$printable # [$white \#\\n\r]]+   { tok (\p s -> URL p s) }
     \" [$printable # \"]+ \"       { tok (\p s -> QUOTED p s) }
 
 

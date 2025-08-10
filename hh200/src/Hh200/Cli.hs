@@ -7,7 +7,11 @@ module Hh200.Cli
 
 import Data.Version (showVersion)
 -- import Control.Monad (when)
+
 import Options.Applicative
+-- import qualified Options.Applicative as OA (short)
+-- import Options.Applicative (help, long, switch, str, argument, metavar, optional, header, fullDesc, helper, (<**>), execParser, info)
+
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
 -- import System.FilePath ((</>))
@@ -56,26 +60,29 @@ go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
 -- hh200 flow.hhs --debug-config
 go Args { source = Just src, debugConfig = True } = do
-    (scriptConfig, _) <- Hh.compile src
-    putMergedConfigs scriptConfig where
-
-    putMergedConfigs :: Hh.ScriptConfig -> IO ()
-    -- ??: ~/.config/hh200
-    putMergedConfigs scriptConfig = putStrLn $ Hh.pp scriptConfig
+    return ()
+    -- (scriptConfig, _) <- Hh.compile src
+    -- putMergedConfigs scriptConfig where
+    --
+    -- putMergedConfigs :: Hh.ScriptConfig -> IO ()
+    -- -- ??: ~/.config/hh200
+    -- putMergedConfigs scriptConfig = putStrLn $ Hh.pp scriptConfig
 
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snippet } = do
     -- putStrLn $ show (L8.pack snippet)
     -- ??: source = Just s, isFilePath
-    -- PICKUP analyze probably shorted
-    short :: Maybe Hh.Lead <- runMaybeT $ do
+    ret :: Maybe Hh.Lead <- runMaybeT $ do
+        liftIO $ putStrLn "enter"
         script <- Hh.analyze $ Hh.Snippet (L8.pack snippet)  -- ParserException | Nothing(empty call items): print hostLead
+        liftIO $ putStrLn "enter 2"
         leads <- Hh.testOutsideWorld script                  -- ThreadException | Nothing(config-skipped): print config
+        liftIO $ putStrLn "enter 3"
         liftIO $ return leads
 
         -- liftIO (putStrLn "")
 
-    case short of
+    case ret of
         Nothing -> do
             -- Verifiable with `echo $?` which prints last exit code in shell.
             exitWith (ExitFailure 1)
@@ -84,14 +91,14 @@ go Args { call = True, source = Just snippet } = do
 
 -- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
 go Args { call = False, source = Just path } = do
-    short :: Maybe Hh.Lead <- runMaybeT $ do
+    ret :: Maybe Hh.Lead <- runMaybeT $ do
         script <- Hh.analyze path            -- ParserException | Nothing(empty call items): print hostLead
         leads <- Hh.testOutsideWorld script  -- ThreadException | Nothing(config-skipped): print config
         liftIO $ return leads
 
         -- liftIO (putStrLn "")
 
-    case short of
+    case ret of
         Nothing -> do
             -- Verifiable with `echo $?` which prints last exit code in shell.
             exitWith (ExitFailure 1)

@@ -26,26 +26,19 @@ import System.Environment (lookupEnv)
 import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
 import qualified Data.ByteString.Char8 as BS
 
--- read :: L8.ByteString -> IO (Maybe CallItem)
--- read input = do
---     let tokensOrPanic = alexScanTokens input
---     case parse tokensOrPanic of
---         ParseOk (Script { call_items = [item] }) -> do
---             return (Just item)
---         _ -> return Nothing
-
-read :: String -> IO (Maybe CallItem)
-read input = do
+-- Read user input expecting valid program.
+readUser :: String -> IO (Maybe CallItem)
+readUser input = do
     let tokensOrPanic = alexScanTokens input
     putStrLn $ show tokensOrPanic
     case parse tokensOrPanic of
-        ParseOk (Script { call_items = [item] }) -> do
-            return (Just item)
-        _ -> return Nothing
-        -- ParseOk _ -> do
-        --     return Nothing
-        -- ParseFailed _ -> do
-        --     return Nothing
+        -- ParseOk (Script { call_items = [item] }) -> do
+        --     return (Just item)
+        ParseOk _ -> do
+            return Nothing
+        ParseFailed _ -> do
+            putStrLn "long way....."
+            return Nothing
 
 -- Abstract syntax for downloading 2 parallel files.
 seed = RequestSpec
@@ -95,22 +88,22 @@ ci = CallItem
 iomayb :: FilePath -> IO (Maybe (Hh.HttpM L8.ByteString))
 iomayb _ = return Nothing
 
-compile :: FilePath -> IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)  -- ??
-compile x = do
-    let Hh.Script { Hh.config = local, Hh.call_items } = preparsed x
-    effective <- configsReconcile local
-    return (effective, Hh.stackHh call_items)
-
-    where
-    configsReconcile :: Hh.ScriptConfig -> IO Hh.ScriptConfig
-    configsReconcile local = do
-        _envConfig <- return defaultScriptConfig
-        return local
+-- compile :: FilePath -> IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)  -- ??
+-- compile x = do
+--     let Hh.Script { Hh.config = local, Hh.call_items } = preparsed x
+--     effective <- configsReconcile local
+--     return (effective, Hh.stackHh call_items)
+--
+--     where
+--     configsReconcile :: Hh.ScriptConfig -> IO Hh.ScriptConfig
+--     configsReconcile local = do
+--         _envConfig <- return defaultScriptConfig
+--         return local
 
 -- A valid program snippet is suited up as a Script of single CallItem.
 flyingScript :: String -> MaybeT IO Script
 flyingScript snippet = do
-    user <- liftIO $ Hh200.Scanner.read snippet
+    user <- liftIO $ Hh200.Scanner.readUser snippet
     MaybeT $ case user of
         Just item ->
             return $ Just Script { config = defaultScriptConfig , call_items = [item] }
@@ -144,21 +137,25 @@ instance Analyze FilePath where
 
 instance Analyze Snippet where
     analyze (Snippet snippet) = do
-        user <- liftIO $ Hh200.Scanner.read (L8.unpack snippet)
+        user1 :: Maybe CallItem <- liftIO $ Hh200.Scanner.readUser (L8.unpack snippet)
+        -- liftIO $ putStrLn
+        let user = Just defaultCallItem
         MaybeT $ case user of
-            Just item ->
+            Just item -> do
+                liftIO $ putStrLn "anal A"
                 return $ Just Script { config = defaultScriptConfig , call_items = [item] }
-            _ ->
+            _ -> do
+                liftIO $ putStrLn "anal B"
                 return $ Nothing
 
 instance Analyze L8.ByteString where
 -- instance Analyze Snippet where
     -- defaultCallItem doesn't make sense here
     analyze snippet = do
-        user <- liftIO $ Hh200.Scanner.read (L8.unpack snippet)
+        user <- liftIO $ Hh200.Scanner.readUser (L8.unpack snippet)
         MaybeT $ case user of
             Just item ->
-                -- return (Just $ soleScriptItem item)  ??
+                -- return (Just $ soleScriptItem item)  -- ??
                 return $ Just Script { config = defaultScriptConfig , call_items = [item] }
             _ ->
                 -- ??: log printing effective config and defaultCallItem
@@ -168,14 +165,14 @@ instance Analyze L8.ByteString where
 -- Test abstract syntax. --
 ---------------------------
 
-preparsed :: String -> Hh.Script
-preparsed _dummy =
-  Hh.Script
-    { Hh.config =
-        Hh.ScriptConfig
-          { Hh.retries = 0
-          , Hh.max_duration = Nothing
-          , Hh.subjects = [Subject "user1", Subject "user2"]
-          }
-    , Hh.call_items = [ci]
-    }
+-- preparsed :: String -> Hh.Script
+-- preparsed _dummy =
+--   Hh.Script
+--     { Hh.config =
+--         Hh.ScriptConfig
+--           { Hh.retries = 0
+--           , Hh.max_duration = Nothing
+--           , Hh.subjects = [Subject "user1", Subject "user2"]
+--           }
+--     , Hh.call_items = [ci]
+--     }

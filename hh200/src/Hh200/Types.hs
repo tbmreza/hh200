@@ -39,14 +39,17 @@ import Control.Exception
 import Control.Concurrent (ThreadId)
 import qualified Control.Concurrent as Base
 
--- shuntGetHttpM :: String -> HttpM (Either HttpException String)
--- shuntGetHttpM url = do
---   manager <- ask
---   result <- liftIO $ try $ do
---     request <- parseRequest url
---     response <- httpLbs request manager
---     return (responseBody response)
---   return $ fmap show result
+data DepsClause = DepsClause
+  { deps :: [String]
+  , itemName :: String
+  }
+
+pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
+pCallItem _ _ _ = defaultCallItem
+
+
+-- pCallItem :: DepsClause -> RequestSpec -> CallItem
+-- pCallItem _ _ = defaultCallItem
 
 handleHttpResult :: Either HttpException String -> HttpM ()
 handleHttpResult (Right body) =
@@ -72,6 +75,7 @@ defaultScript = Script
 
 data RequestSpec = RequestSpec
     { verb :: S.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
+    -- { verb :: String
     , url :: String
     , headers :: [String]
     , payload :: String
@@ -529,7 +533,8 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
 
                 build :: Request <- parseRequest (url $ ci_request_spec ci)
                 let struct = build
-                      { method = verb $ ci_request_spec ci  -- ??: handle lower case method user input
+                      -- { method = verb $ ci_request_spec ci  -- ??: handle lower case method user input
+                      { method = verb $ ci_request_spec ci
                       }
 
                 ret <- shuntHttpRequestFull struct
