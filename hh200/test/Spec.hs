@@ -51,20 +51,18 @@ testReadGoldenFile = testCase "golden.txt contains expected value" $ do
 testScanner :: TestTree
 testScanner = testCase "lexer and parser" $ do
     -- let tokens = Hh.alexScanTokens "GET http://localhost:9999/indx HTTP 404" in
-    -- let tokens = Hh.alexScanTokens "GET http://localhost:9999/indx"
     -- let tokens = Hh.alexScanTokens "GET http://example.com/route HTTP 404"
 
-    let tokens = Hh.alexScanTokens "\"nama\" then \"name\""
-
-    -- assertFailure $ show tokens
+    let tokens = Hh.alexScanTokens "http://localhost:9999/abcdefnxyz"
+    -- let tokens = Hh.alexScanTokens "\"nama\" then \"name\""
 
     case Hh.parse tokens of
         -- Hh.ParseOk (Hh.Script { Hh.call_items = [Hh.CallItem {ci_response_spec = Just z, ..}] }) -> return ()
         -- ??
         Hh.ParseOk _ -> do
-            assertFailure "ok!"
+            assertFailure $ "ok:" ++ show tokens
         Hh.ParseFailed _ -> do
-            assertFailure "...."
+            assertFailure $ show tokens
 
 
 -- testScanner1 :: TestTree

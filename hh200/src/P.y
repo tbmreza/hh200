@@ -47,7 +47,7 @@ import Hh200.Types
 --            | directives            { Script { config = $1, call_items = [] } }
 --            | call_items            { Script { config = defaultScriptConfig, call_items = $1 } }
 
-script : deps_clause { $1 }
+script : call_items            { Script { config = defaultScriptConfig, call_items = $1 } }
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }
@@ -70,6 +70,8 @@ status_list : status      { [$1] }
 -- ?? where to put Captures spec
 call_item : deps_clause request response { pCallItem $1 $2 (Just $3) }
           | deps_clause request          { pCallItem $1 $2 Nothing }
+          | request                      { pCallItem defaultDepsClause $1 Nothing }
+          | request response             { pCallItem defaultDepsClause $1 (Just $2) }
 
 
 call_items : call_item             { [$1] }

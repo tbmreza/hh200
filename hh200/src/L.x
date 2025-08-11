@@ -36,10 +36,10 @@ tokens :-
     $digit+  { tok (\p s -> DIGITS p s) }
     [\.\/]   { tok (\p _ -> SEP p) }
 
+    http [$printable # [$newline $white \#]]+   { tok (\p s -> URL p s) }
+
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
-
-    http [$printable # [$white \#\\n\r]]+   { tok (\p s -> URL p s) }
     \" [$printable # \"]+ \"       { tok (\p s -> QUOTED p s) }
 
 

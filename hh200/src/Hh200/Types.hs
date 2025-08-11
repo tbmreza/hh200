@@ -43,13 +43,17 @@ data DepsClause = DepsClause
   { deps :: [String]
   , itemName :: String
   }
+defaultDepsClause = DepsClause { deps = [], itemName = "" }
 
 pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
-pCallItem _ _ _ = defaultCallItem
+pCallItem dc rs opt =
+    CallItem
+      { ci_deps = deps dc
+      , ci_name = itemName dc
+      , ci_request_spec = rs
+      , ci_response_spec = opt
+      }
 
-
--- pCallItem :: DepsClause -> RequestSpec -> CallItem
--- pCallItem _ _ = defaultCallItem
 
 handleHttpResult :: Either HttpException String -> HttpM ()
 handleHttpResult (Right body) =
@@ -463,16 +467,6 @@ shuntHttpRequestFull req = do
       MaybeT $ return Nothing
     Right body -> return body
 
-shuntHttpRequestFull1 :: Request -> ProcM (L8.ByteString)
-shuntHttpRequestFull1 req = do
-  manager <- lift . lift $ ask
-  result <- liftIO $ try $ httpLbs req manager
-  case result of
-    Left err -> do
-      tell ["HTTP error: " ++ show (err :: HttpException)]
-      MaybeT $ return Nothing
-    Right body -> return $ responseBody body
-
 shuntHttpRequest :: (Request -> Request) -> String -> ProcM L8.ByteString
 shuntHttpRequest modifyReq url = do
   manager <- lift . lift $ ask
@@ -583,11 +577,6 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
 
 -- testOutsideWorld (Script { config = ScriptConfig { subjects }, call_items }) = do
 testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items }) = do
-    -- ??:
-    -- _ <- forM [] $ \x -> do
-    --     ret <- shuntHttpRequestFull struct
-    --     return ()
-
     MaybeT (return $ Just Lead { firstFailing = Nothing })
 
 -- testOutsideWorld _unexpected = MaybeT $ return Nothing
