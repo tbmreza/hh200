@@ -31,7 +31,7 @@ consignHttpM stacked name = do
     threadDelay (delay * 1000000)
     let msg = "Thread " ++ "name" ++ " finished after " ++ show delay ++ "s"
     -- return msg
-    return Hh.hostLead
+    return Hh.bareLead
 
 raceToLeadHttpM :: (Hh.ScriptConfig, Hh.HttpM L8.ByteString) -> IO ()
 raceToLeadHttpM (Hh.ScriptConfig { Hh.subjects = rats }, stacked) = do

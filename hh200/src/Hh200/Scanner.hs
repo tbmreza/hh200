@@ -40,66 +40,6 @@ readUser input = do
             putStrLn "long way....."
             return Nothing
 
--- Abstract syntax for downloading 2 parallel files.
-seed = RequestSpec
-      { verb = "GET"
-      , url = ast1
-      , headers = []
-      , payload = ""
-      , opts = []
-      }
-      where
-      ast1 = case parse $ alexScanTokens "h" of
-            ParseFailed m -> m
-      -- ast :: E (Maybe Script) = case parse $ alexScanTokens "h" of
-      ast = case parse $ alexScanTokens "h" of
-            ParseOk d -> ParseOk d
-            -- ParseFailed m -> m
-
-rs = RequestSpec
-      -- { m = "GET"
-      -- , verb = "GET"
-      { verb = "GET"
-      -- , url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI"
-      , url = "http://localhost:9999/lk"
-      , headers = []
-      , payload = ""
-      , opts = []
-      }
-rp = ResponseSpec
-      { codes = [200, 201]
-      , output = ["/home/tbmreza/gh/hh200/img-.jpg"]
-      }
-ci = CallItem
-      { ci_deps = []
-      , ci_name = "download image.jpg"
-      -- , ci_request_spec = rs
-      , ci_request_spec = seed
-      , ci_response_spec = Just rp
-      }
-
-
--- -- Returns HTTP test execution recipe (user configs & user program).
--- compile1 :: FilePath -> IO (Maybe (Hh.ScriptConfig, Hh.HttpM L8.ByteString))
--- compile1 x = do
---     return Nothing
-
--- lookupEnv :: String -> IO (Maybe String)
-iomayb :: FilePath -> IO (Maybe (Hh.HttpM L8.ByteString))
-iomayb _ = return Nothing
-
--- compile :: FilePath -> IO (Hh.ScriptConfig, Hh.HttpM L8.ByteString)  -- ??
--- compile x = do
---     let Hh.Script { Hh.config = local, Hh.call_items } = preparsed x
---     effective <- configsReconcile local
---     return (effective, Hh.stackHh call_items)
---
---     where
---     configsReconcile :: Hh.ScriptConfig -> IO Hh.ScriptConfig
---     configsReconcile local = do
---         _envConfig <- return defaultScriptConfig
---         return local
-
 -- A valid program snippet is suited up as a Script of single CallItem.
 flyingScript :: String -> MaybeT IO Script
 flyingScript snippet = do
@@ -150,7 +90,7 @@ instance Analyze Snippet where
 
 instance Analyze L8.ByteString where
 -- instance Analyze Snippet where
-    -- defaultCallItem doesn't make sense here
+    -- defaultCallItem doesn't make sense when statically analyzing user's call_item.
     analyze snippet = do
         user <- liftIO $ Hh200.Scanner.readUser (L8.unpack snippet)
         MaybeT $ case user of
@@ -158,12 +98,49 @@ instance Analyze L8.ByteString where
                 -- return (Just $ soleScriptItem item)  -- ??
                 return $ Just Script { config = defaultScriptConfig , call_items = [item] }
             _ ->
-                -- ??: log printing effective config and defaultCallItem
                 return $ Nothing
 
 ---------------------------
 -- Test abstract syntax. --
 ---------------------------
+-- seed = RequestSpec
+--       { verb = "GET"
+--       , url = ast1
+--       , headers = []
+--       , payload = ""
+--       , opts = []
+--       }
+--       where
+--       ast1 = case parse $ alexScanTokens "h" of
+--             ParseFailed m -> m
+--       -- ast :: E (Maybe Script) = case parse $ alexScanTokens "h" of
+--       ast = case parse $ alexScanTokens "h" of
+--             ParseOk d -> ParseOk d
+--             -- ParseFailed m -> m
+--
+-- rs = RequestSpec
+--       -- { m = "GET"
+--       -- , verb = "GET"
+--       { verb = "GET"
+--       -- , url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI"
+--       , url = "http://localhost:9999/lk"
+--       , headers = []
+--       , payload = ""
+--       , opts = []
+--       }
+-- rp = ResponseSpec
+--       { codes = [200, 201]
+--       , output = ["/home/tbmreza/gh/hh200/img-.jpg"]
+--       }
+-- ci = CallItem
+--       { ci_deps = []
+--       , ci_name = "download image.jpg"
+--       -- , ci_request_spec = rs
+--       , ci_request_spec = seed
+--       , ci_response_spec = Just rp
+--       }
+
+
 
 -- preparsed :: String -> Hh.Script
 -- preparsed _dummy =

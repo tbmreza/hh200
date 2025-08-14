@@ -16,6 +16,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
 -- import System.FilePath ((</>))
 import System.Exit (exitWith, ExitCode(ExitFailure))
+import System.Directory (doesFileExist)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
@@ -55,28 +56,28 @@ cli = go =<< execParser opts where
 
 go :: Args -> IO ()
 
+-- Print executable version.
 -- hh200 --version
 go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
 
+-- Static-check script.
 -- hh200 flow.hhs --debug-config
 go Args { source = Just src, debugConfig = True } = do
-    return ()
-    -- (scriptConfig, _) <- Hh.compile src
-    -- putMergedConfigs scriptConfig where
-    --
-    -- putMergedConfigs :: Hh.ScriptConfig -> IO ()
-    -- -- ??: ~/.config/hh200
-    -- putMergedConfigs scriptConfig = putStrLn $ Hh.pp scriptConfig
+    exists <- doesFileExist src
+    case exists of
+        False -> exitWith (ExitFailure 1)
+        _ -> do
+            putStrLn "pretty"
+    -- ??: ~/.config/hh200
 
+-- Inline program execution.
 -- hh200 --call "GET ..."
-go Args { call = True, source = Just snippet } = do
-    -- putStrLn $ show (L8.pack snippet)
-    -- ??: source = Just s, isFilePath
+go Args { call = True, source = Just src } = do
     ret :: Maybe Hh.Lead <- runMaybeT $ do
         liftIO $ putStrLn "enter"
-        script <- Hh.analyze $ Hh.Snippet (L8.pack snippet)  -- ParserException | Nothing(empty call items): print hostLead
+        script <- Hh.analyze $ Hh.Snippet (L8.pack src)  -- ParserException | Nothing(empty call items): print bareLead
         liftIO $ putStrLn "enter 2"
-        leads <- Hh.testOutsideWorld script                  -- ThreadException | Nothing(config-skipped): print config
+        leads <- Hh.testOutsideWorld1 script                  -- ThreadException | Nothing(config-skipped): print config
         liftIO $ putStrLn "enter 3"
         liftIO $ return leads
 
@@ -84,26 +85,23 @@ go Args { call = True, source = Just snippet } = do
 
     case ret of
         Nothing -> do
-            -- Verifiable with `echo $?` which prints last exit code in shell.
             exitWith (ExitFailure 1)
         Just l -> do
             putStrLn $ Hh.present l
 
--- hh200 /home/tbmreza/gh/hh200/examples/hello.hhs
+-- Basic script execution.
+-- hh200 flow.hhs
 go Args { call = False, source = Just path } = do
-    ret :: Maybe Hh.Lead <- runMaybeT $ do
-        script <- Hh.analyze path            -- ParserException | Nothing(empty call items): print hostLead
-        leads <- Hh.testOutsideWorld script  -- ThreadException | Nothing(config-skipped): print config
-        liftIO $ return leads
-
-        -- liftIO (putStrLn "")
+    ret :: Maybe Hh.Script <- runMaybeT $ do
+        script <- Hh.analyze path
+        liftIO (return script)
 
     case ret of
-        Nothing -> do
-            -- Verifiable with `echo $?` which prints last exit code in shell.
-            exitWith (ExitFailure 1)
-        Just l -> do
-            putStrLn $ Hh.present l
+        Nothing -> exitWith (ExitFailure 1)
+        Just s -> do
+            lead <- Hh.testOutsideWorld s
+            putStrLn $ Hh.present lead
 
-
-go _ = do putStrLn "oops"
+go _ =
+    -- Verifiable with `echo $?` which prints last exit code in shell.
+    exitWith (ExitFailure 1)

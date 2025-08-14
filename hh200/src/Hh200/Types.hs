@@ -10,7 +10,7 @@ module Hh200.Types (module Hh200.Types) where
 import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
-import qualified Data.ByteString as S
+import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
 import GHC.Generics (Generic)
 import Toml.Schema
 import Control.Exception (Exception)
@@ -78,7 +78,7 @@ defaultScript = Script
   }
 
 data RequestSpec = RequestSpec
-    { verb :: S.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
+    { verb :: BS.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
     -- { verb :: String
     , url :: String
     , headers :: [String]
@@ -166,14 +166,74 @@ stackHh [CallItem { ci_request_spec = RequestSpec { verb, url }, ci_response_spe
 instance PrettyPrint CallItem where
     pp CallItem { ci_request_spec } = conc ci_request_spec
 
-
-data Lead = Lead
-  { firstFailing :: Maybe CallItem
-  -- , top :: Top  -- ??: host computer info, /etc/resolv.conf, execution time
+-- ??: host computer info, /etc/resolv.conf, execution time
+data HostInfo = HostInfo
+  { hiUptime :: Maybe String
   } deriving (Show, Eq)
 
-hostLead :: Lead
-hostLead = Lead
+-- Everything one could ask for when debugging a failing script.
+-- data LeadFields = LeadFields
+  -- { firstFailing :: Maybe CallItem
+  -- , hostInfo     :: HostInfo
+  -- , echoScript   :: Maybe Script
+  -- } deriving (Show, Eq)
+data Lead =
+    Lead
+      { firstFailing :: Maybe CallItem
+      , hostInfo :: HostInfo
+      , echoScript :: Maybe Script
+      }
+  | BareLead
+      { firstFailing :: Maybe CallItem
+      , hostInfo :: HostInfo
+      , echoScript :: Maybe Script
+      }
+  | NonLead
+      { firstFailing :: Maybe CallItem
+      , hostInfo :: HostInfo
+      , echoScript :: Maybe Script
+      }
+  deriving (Show, Eq)
+
+-- class NonLead lead where
+--     isNonLead :: lead -> Bool
+
+-- class Variants lead where
+--     isNonLead :: lead -> Bool
+--     isHostLead :: lead -> Bool
+--     isTypicalLead :: lead -> Bool
+-- instance Variants Lead where
+--     isNonLead Lead { firstFailing } =
+--         firstFailing == Nothing
+
+    -- isHostLead Lead { firstFailing, echo } =  ??
+    --     case (firstFailing, echo) of
+    --         (Nothing, Nothing) -> True
+    --         _ -> False
+
+    -- isTypicalLead Lead { firstFailing, echo } =
+    --     case (firstFailing, echo) of
+    --         (Nothing, Nothing) -> True
+    --         _ -> False
+
+nonLead :: Script -> Lead
+nonLead x = NonLead
+  { firstFailing = Nothing
+  , echoScript = Just x
+  }
+
+leadFrom :: Maybe CallItem -> Lead
+leadFrom x = Lead
+  { firstFailing = x
+  }
+
+-- compileHostInfo :: IO HostInfo
+
+bareLeadWith :: Log -> Lead
+bareLeadWith x = BareLead {}
+
+bareLead :: Lead
+bareLead = BareLead
   { firstFailing = Just CallItem
     { ci_deps = []
     , ci_name = ""
@@ -188,36 +248,9 @@ hostLead = Lead
     }
   }
 
--- acquire :: IO Manager
--- acquire = newManager tlsManagerSettings
-
 -- These rats compete with each other for the first counter-example or `Lead`.
 -- At the end of the race, all rats die; "rat race".
 data Rat = Rat
-
--- doOrder :: Rat -> String -> IO ()
--- doOrder _ url = do
---     manager <- acquire
---     -- initialRequest <- parseRequest "POST https://httpbin.org/post"
---     initialRequest <- parseRequest url
---     
---     -- JSON payload
---     let jsonBody = "{\"name\": \"John\", \"age\": 30}"
---     
---     -- Modify request with body and headers
---     let request = initialRequest
---             { method = "POST"
---             , requestBody = RequestBodyLBS (L8.pack jsonBody)
---             , requestHeaders = 
---                 [ (hContentType, "application/json")
---                 , (hAccept, "application/json")
---                 ]
---             }
---     
---     response <- httpLbs request manager
---     
---     putStrLn $ "Status: " ++ show (responseStatus response)
---     putStrLn $ "Body: " ++ L8.unpack (responseBody response)
 
 -- Presume http-client manager sharing.
 type HttpM = ReaderT Manager IO
@@ -239,7 +272,7 @@ httpGet_ url = do
     _response <- liftIO $ httpLbs request manager
     return ()
 
-mkRequest :: S.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
+mkRequest :: BS.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
 mkRequest    methodStr    url       mBody                = do
     manager <- ask
     initialRequest <- liftIO $ parseRequest url
@@ -255,36 +288,12 @@ mkRequest    methodStr    url       mBody                = do
     response <- liftIO $ httpLbs request manager
     return $ responseBody response
 
--- httpGet_ :: String -> HttpM L8.ByteString
--- httpGet_ url = mkRequest "GET" url Nothing
-
 httpGet :: String -> HttpM L8.ByteString
 httpGet url = mkRequest "GET" url Nothing
 
 httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
 httpPost url body = mkRequest "POST" url (Just body)
 
-
--- httpGet :: String -> HttpM L8.ByteString
--- httpGet url = do
---     manager <- ask
---     request <- liftIO $ parseRequest url
---     response <- liftIO $ httpLbs request manager
---     return $ responseBody response
---
--- httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
--- httpPost url jsonBody = do
---     manager <- ask
---     initialRequest <- liftIO $ parseRequest url
---     
---     let request = initialRequest
---             { method = "POST"
---             , requestBody = RequestBodyLBS jsonBody
---             , requestHeaders = [("Content-Type", "application/json")]
---             }
---     
---     response <- liftIO $ httpLbs request manager
---     return $ responseBody response
 
 data InternalError = OutOfBounds
                    | Todo
@@ -306,14 +315,14 @@ type HttpMethod = S8.ByteString  -- "GET" "POST"
 
 type Source = FilePath
 
-type HttpVerb = S.ByteString
+type HttpVerb = BS.ByteString
 
 type HashTable k v = H.BasicHashTable k v
 type Headers = HashTable String String
 type ExpectCode = Int
 type Url = String
 
--- setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
+-- setRequestHeader :: H.HeaderName -> [BS.ByteString] -> H.Request -> H.Request
 -- let hlInput = setRequestHeader "Content-Type" ["application/x-yaml"] $ ""
 
 type Vars = HM.HashMap String Integer
@@ -457,15 +466,18 @@ shuntGet url = do
       logMsg $ "Other exception: " ++ displayException err
       MaybeT $ return Nothing
 
+-- ??: stack run call
 shuntHttpRequestFull :: Request -> ProcM (Response L8.ByteString)
 shuntHttpRequestFull req = do
-  manager <- lift . lift $ ask
-  result <- liftIO $ try $ httpLbs req manager
-  case result of
-    Left err -> do
-      tell ["HTTP error: " ++ show (err :: HttpException)]
-      MaybeT $ return Nothing
-    Right body -> return body
+    -- manager <- lift . lift $ ask
+    liftIO $ putStrLn "shuntHttpRequestFull....."
+    mgr :: Manager <- ask
+    result <- liftIO $ try (httpLbs req mgr)
+    case result of
+        Left err -> do
+            tell ["HTTP error: " ++ show (err :: HttpException)]
+            MaybeT $ return Nothing
+        Right body -> return body
 
 shuntHttpRequest :: (Request -> Request) -> String -> ProcM L8.ByteString
 shuntHttpRequest modifyReq url = do
@@ -495,33 +507,73 @@ app = do
     -- liftIO circuit
     liftIO $ return localhost9999
 
--- Returning Nothing short-circuits callsite.
-staticChecks1 :: FilePath -> MaybeT IO Script
-staticChecks1 path = do
-  exists <- liftIO $ doesFileExist path
-  if exists
-    then liftIO $ return defaultScript
-    else MaybeT $ return Nothing
+-- -- Returning Nothing short-circuits callsite.
+-- staticChecks1 :: FilePath -> MaybeT IO Script
+-- staticChecks1 path = do
+--   exists <- liftIO $ doesFileExist path
+--   if exists
+--     then liftIO $ return defaultScript
+--     else MaybeT $ return Nothing
 
--- Return Nothing if it can't even compile a hostLead.
-testOutsideWorld :: Script -> MaybeT IO Lead
+-- Course is procedure in a stack form that will return the
+-- CallItem that turned out to be failing.
+courseFrom :: Script -> ProcM CallItem
+courseFrom x = do
+    build :: Request <- parseRequest (url $ ci_request_spec defaultCallItem)
+    let struct = build
+          -- { method = verb $ ci_request_spec defaultCallItem  -- ??: handle lower case method user input
+          { method = verb $ ci_request_spec defaultCallItem
+          }
 
-testOutsideWorld Script { config, call_items = [] } = do
+    ret <- shuntHttpRequestFull struct
+
+    let expectCodes = case ci_response_spec defaultCallItem of
+            Nothing -> [status200]
+            Just rc -> statuses rc
+
+    return $ case True of
+        _ -> defaultCallItem
+
+testOutsideWorld :: Script -> IO Lead
+
+-- -> NonLead
+testOutsideWorld mt@(Script { config, call_items = [] }) = do
+    return $ nonLead mt
+
+-- -> NonLead | BareLead | Lead
+testOutsideWorld sole@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
+    let reconciled = sole
+
+    let course :: ProcM CallItem = courseFrom sole
+    failed :: (Maybe CallItem, Log) <- runProcM course
+    return $ case failed of
+        (Nothing, []) ->     nonLead sole
+        (Nothing, logs) ->   bareLead
+        (opt@(Just _), _) -> leadFrom opt
+
+-- -> NonLead | BareLead | Lead
+testOutsideWorld script@(Script { call_items }) = do
+    return bareLead
+
+-- old is Return Nothing if it can't even compile a bareLead.
+
+testOutsideWorld1 :: Script -> MaybeT IO Lead
+
+testOutsideWorld1 Script { config, call_items = [] } = do
     MaybeT (return $ Just Lead { firstFailing = Nothing })
 
-testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
-    coming <- liftIO $ raceToFirstFailing single
+testOutsideWorld1 single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
+    coming :: Maybe CallItem <- liftIO $ raceToFirstFailing single
 
-    MaybeT (return $ Just Lead { firstFailing = coming })
-    -- MaybeT (return Nothing)
+    MaybeT (return $ Just (leadFrom coming))
 
     where
     mkAction :: [CallItem] -> Subject -> IO (Maybe CallItem, Log)
     mkAction [ci] subject = do
         putStrLn $ show subject
 
-        -- Course is procedure in a stack form that will return a (almost
-        -- certainly) failing CallItem.
+        -- Course is procedure in a stack form that will return the
+        -- CallItem that turned out to be failing.
         let course :: ProcM CallItem = do
                 logMsg "building course...."
 
@@ -538,6 +590,7 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
                         Just rc -> statuses rc
 
 
+                logMsg "endA course...."
                 -- case elem (responseStatus ret) expectCodes of
                 case True of
                     True ->
@@ -575,11 +628,11 @@ testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items
         forM_ ids $ \x -> Base.killThread x
         Base.tryReadMVar hole
 
--- testOutsideWorld (Script { config = ScriptConfig { subjects }, call_items }) = do
-testOutsideWorld single@(Script { config = ScriptConfig { subjects }, call_items }) = do
+-- testOutsideWorld1 (Script { config = ScriptConfig { subjects }, call_items }) = do
+testOutsideWorld1 single@(Script { config = ScriptConfig { subjects }, call_items }) = do
     MaybeT (return $ Just Lead { firstFailing = Nothing })
 
--- testOutsideWorld _unexpected = MaybeT $ return Nothing
+-- testOutsideWorld1 _unexpected = MaybeT $ return Nothing
 
 present :: Lead -> String
 present lead = show lead

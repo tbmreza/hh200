@@ -3,7 +3,7 @@ The project is in ideation phase. `DRAFT.md` is where I dump my thoughts. `hh200
 
 ## See also
 
-<details open>
+<details>
 <summary>
 hurl https://github.com/Orange-OpenSource/hurl
 </summary>
@@ -12,7 +12,7 @@ binary from your favorite general purpose language to achieve, for example,
 parallel test execution.
 </details>
 
-<details open>
+<details>
 <summary>
 httpie https://github.com/httpie/cli
 </summary>
@@ -21,9 +21,9 @@ httpie resonates with people who have worked with curl or wget and find
 their flags and quote escapes unpleasant.
 </details>
 
-<details open>
+<details>
 <summary>
-k6 https://github.com/grafana/k6
+grafana/k6 https://github.com/grafana/k6
 </summary>
 Load testing engine providing JavaScript programming interface. To fully
 live the term "load testing" (say, 6-digit number of virtual users), it can
