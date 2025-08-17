@@ -1,4 +1,5 @@
 -- logger <- liftIO $ newStdoutLoggerSet defaultBufSize  -- ??: internal logger without passing around instance
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -23,82 +24,75 @@ import System.Directory (doesFileExist)
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
 import System.Environment (lookupEnv)
-import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
+-- import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
 import qualified Data.ByteString.Char8 as BS
 
--- Read user input expecting valid program.
-readUser :: String -> IO (Maybe CallItem)
-readUser input = do
-    let tokensOrPanic = alexScanTokens input
-    putStrLn $ show tokensOrPanic
-    case parse tokensOrPanic of
-        -- ParseOk (Script { call_items = [item] }) -> do
-        --     return (Just item)
-        ParseOk _ -> do
-            return Nothing
-        ParseFailed _ -> do
-            putStrLn "long way....."
-            return Nothing
+readCallable :: Snippet -> Maybe Script
+readCallable (Snippet s) =
+    let tokensOrPanic = alexScanTokens (L8.unpack s) in
+    let parsed :: E Script = parse tokensOrPanic in
 
--- A valid program snippet is suited up as a Script of single CallItem.
-flyingScript :: String -> MaybeT IO Script
-flyingScript snippet = do
-    user <- liftIO $ Hh200.Scanner.readUser snippet
-    MaybeT $ case user of
-        Just item ->
-            return $ Just Script { config = defaultScriptConfig , call_items = [item] }
-        _ ->
-            return $ Nothing
+    case parsed of
+        ParseFailed _ -> Nothing
+        ParseOk sole -> Just sole
 
--- Returning Nothing short-circuits callsite.
-staticChecks :: FilePath -> MaybeT IO Script
-staticChecks path = do
-  exists <- liftIO $ doesFileExist path
-  if exists
-    then liftIO $ return defaultScript
-    else MaybeT $ return Nothing
+readScript :: FilePath -> IO (Maybe Script)
+readScript path = do
+    -- loaded :: BS.ByteString <- BS.readFile path  -- ??: ByteString
+    loaded <- readFile path
+    let tokensOrPanic = alexScanTokens loaded
+    let parsed :: E Script = parse tokensOrPanic
 
-newtype Snippet = Snippet L8.ByteString
+    -- ??: upgrade ghc to write or-pattern https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0522-or-patterns.rst
+    -- ParseOk, but call_items is empty array. -> StaticScript
+    -- ParseOk, but call_items length is 1. -> SoleScript
+    -- ParseOk. -> Script
+    return $ case parsed of
+        ParseFailed _ ->
+            Nothing
+
+        ParseOk s -> Just s
+
+
+-- -- Returning Nothing short-circuits callsite.
+-- staticChecks :: FilePath -> MaybeT IO Script
+-- staticChecks path = do
+--   exists <- liftIO $ doesFileExist path
+--   if exists
+--     then liftIO $ return defaultScript
+--     else MaybeT $ return Nothing
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
 
--- Reconcile configs 
+gatherHostInfo :: IO HostInfo
+gatherHostInfo = do
+    return defaultHostInfo
 
 instance Analyze FilePath where
-    -- Rule out empty call items as there's nothing left to be
-    -- done by testOutsideWorld.
+    -- -> Nothing | StaticScript | SoleScript? | Script
+    analyze :: FilePath -> MaybeT IO Script
     analyze path = do
-      bs <- liftIO $ BS.readFile path
-      exists <- liftIO $ doesFileExist path
-      if exists
-        then liftIO $ return defaultScript
-        else MaybeT $ return Nothing
+        exists <- liftIO $ doesFileExist path
+        MaybeT $ case exists of
+            -- Proceeding to testOutsideWorld is unnecessary.
+            False -> return Nothing
+            _ -> readScript path
 
 instance Analyze Snippet where
-    analyze (Snippet snippet) = do
-        user1 :: Maybe CallItem <- liftIO $ Hh200.Scanner.readUser (L8.unpack snippet)
-        -- liftIO $ putStrLn
-        let user = Just defaultCallItem
-        MaybeT $ case user of
-            Just item -> do
-                liftIO $ putStrLn "anal A"
-                return $ Just Script { config = defaultScriptConfig , call_items = [item] }
-            _ -> do
-                liftIO $ putStrLn "anal B"
-                return $ Nothing
+    -- -> Nothing | SoleScript
+    analyze :: Snippet -> MaybeT IO Script
+    analyze s@(Snippet snippet) = do
+        MaybeT $ case Hh200.Scanner.readCallable s of
+            Nothing -> return Nothing
+            Just baseScript -> do
+                hi <- gatherHostInfo
+                let opt :: Maybe ScriptConfig = hiHh200Conf hi
+                return (Just $ soleScript baseScript opt)
 
-instance Analyze L8.ByteString where
--- instance Analyze Snippet where
-    -- defaultCallItem doesn't make sense when statically analyzing user's call_item.
-    analyze snippet = do
-        user <- liftIO $ Hh200.Scanner.readUser (L8.unpack snippet)
-        MaybeT $ case user of
-            Just item ->
-                -- return (Just $ soleScriptItem item)  -- ??
-                return $ Just Script { config = defaultScriptConfig , call_items = [item] }
-            _ ->
-                return $ Nothing
+        where
+        soleScript :: Script -> Maybe ScriptConfig -> Script
+        soleScript base opt = defaultScript
 
 ---------------------------
 -- Test abstract syntax. --

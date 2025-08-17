@@ -43,11 +43,11 @@ import Hh200.Types
 
 %%
 
--- test_suite : directives call_items { Script { config = $1, call_items = $2 } }
---            | directives            { Script { config = $1, call_items = [] } }
---            | call_items            { Script { config = defaultScriptConfig, call_items = $1 } }
+-- test_suite : directives call_items { Script { config = $1, callItems = $2 } }
+--            | directives            { Script { config = $1, callItems = [] } }
+--            | call_items            { Script { config = defaultScriptConfig, callItems = $1 } }
 
-script : call_items            { Script { config = defaultScriptConfig, call_items = $1 } }
+script : call_items            { Script { config = defaultScriptConfig, callItems = $1 } }
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }

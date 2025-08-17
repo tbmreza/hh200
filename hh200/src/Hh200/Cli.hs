@@ -73,21 +73,32 @@ go Args { source = Just src, debugConfig = True } = do
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just src } = do
-    ret :: Maybe Hh.Lead <- runMaybeT $ do
-        liftIO $ putStrLn "enter"
-        script <- Hh.analyze $ Hh.Snippet (L8.pack src)  -- ParserException | Nothing(empty call items): print bareLead
-        liftIO $ putStrLn "enter 2"
-        leads <- Hh.testOutsideWorld1 script                  -- ThreadException | Nothing(config-skipped): print config
-        liftIO $ putStrLn "enter 3"
-        liftIO $ return leads
+    -- ret :: Maybe Hh.Lead <- runMaybeT $ do
+    --     liftIO $ putStrLn "enter"
+    --     script <- Hh.analyze $ Hh.Snippet (L8.pack src)  -- ParserException | Nothing(empty call items): print bareLead
+    --     liftIO $ putStrLn "enter 2"
+    --     leads <- Hh.testOutsideWorld1 script                  -- ThreadException | Nothing(config-skipped): print config
+    --     liftIO $ putStrLn "enter 3"
+    --     liftIO $ return leads
 
         -- liftIO (putStrLn "")
 
+    -- -- case ret of
+    -- case Nothing of
+    --     Nothing -> do
+    --         exitWith (ExitFailure 1)
+    --     Just l -> do
+    --         putStrLn $ Hh.present l
+
+    ret :: Maybe Hh.Script <- runMaybeT $ do
+        script <- Hh.analyze (Hh.Snippet $ L8.pack src)
+        liftIO (return script)
+
     case ret of
-        Nothing -> do
-            exitWith (ExitFailure 1)
-        Just l -> do
-            putStrLn $ Hh.present l
+        Nothing -> exitWith (ExitFailure 1)
+        Just s -> do
+            lead <- Hh.testOutsideWorld s
+            putStrLn $ Hh.present lead
 
 -- Basic script execution.
 -- hh200 flow.hhs

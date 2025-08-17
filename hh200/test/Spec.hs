@@ -19,7 +19,7 @@ import qualified Hh200.Scanner as Hh
 testEndToEndHttpM :: TestTree
 testEndToEndHttpM = testCase "??: if RaceM recreates current concurrency well, retire HttpM" $ do
   result <- runMaybeT $ do
-    script <- Hh.staticChecks1 (".." </> "examples" </> "download.hhs")
+    -- script <- Hh.staticChecks1 (".." </> "examples" </> "download.hhs")
     lead <-   Hh.testOutsideWorld script
     liftIO $  Hh.present lead @?= "todo"
   unless (isJust result) $ assertFailure ""
@@ -27,7 +27,7 @@ testEndToEndHttpM = testCase "??: if RaceM recreates current concurrency well, r
 testEndToEnd :: TestTree
 testEndToEnd = testCase "??" $ do
   result <- runMaybeT $ do
-    script <- Hh.staticChecks1 (".." </> "examples" </> "download.hhs")
+    -- script <- Hh.staticChecks1 (".." </> "examples" </> "download.hhs")
     lead <-   Hh.testOutsideWorld script
     liftIO $  Hh.present lead @?= "Lead {firstFailing = Nothing}"
   unless (isJust result) $ assertFailure ""
