@@ -13,22 +13,21 @@ import qualified Data.HashTable.IO as H
 import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
 import GHC.Generics (Generic)
 import Toml.Schema
-import Control.Exception (Exception)
+-- import Control.Exception (Exception)
 
-import Network.HTTP.Client
+-- import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
-import Network.HTTP.Types.Header
+-- import Network.HTTP.Types.Header
 
-import Control.Monad
-import Control.Monad.Reader
+-- import Control.Monad
+-- import Control.Monad.Reader
 
 import Network.HTTP.Client
 import Network.HTTP.Types.Method
 import Control.Monad.Reader
 import Control.Monad.Writer
-import qualified Data.ByteString.Lazy.Char8 as L8
 import Control.Monad.Trans.Maybe
 -- import Network.HTTP.Types.Status (statusCode, Status)
 import Network.HTTP.Types.Status
@@ -87,6 +86,12 @@ data Script =
 
 -- emptyScript = Script { config = defaultScriptConfig, call_items = [] }
 
+defaultScript' :: Script
+defaultScript' = Script
+  { config = defaultScriptConfig
+  , callItems = [defaultCallItem']
+  }
+
 defaultScript :: Script
 defaultScript = Script
   { config = defaultScriptConfig
@@ -104,7 +109,7 @@ data RequestSpec = RequestSpec
     deriving (Show, Eq)
 
 data ResponseSpec = ResponseSpec
-  { codes :: [Int]
+  { codes :: [Int]  -- ?? rm field
   , statuses :: [Status]
   , output :: [String]
   }
@@ -162,6 +167,18 @@ defaultCallItem = CallItem
   , ci_response_spec = Nothing
   }
 
+defaultCallItem' :: CallItem
+defaultCallItem' = CallItem
+  { ci_deps = []
+  , ci_name = "default"
+  , ci_request_spec = RequestSpec
+    { verb = "PATCH"
+    , url = "http://localhost:81"
+    , headers = [], payload = "", opts = []
+    }
+  , ci_response_spec = Nothing
+  }
+
 localhost9999 :: CallItem
 localhost9999 = CallItem
   { ci_deps = []
@@ -183,7 +200,7 @@ stackHh [CallItem { ci_request_spec = RequestSpec { verb, url }, ci_response_spe
 -- instance PrettyPrint CallItem where
 --     pp CallItem { ci_request_spec } = conc ci_request_spec
 
--- ??: host computer info, /etc/resolv.conf, execution time
+-- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo
   { hiUptime ::    Maybe String
   , hiHh200Conf :: Maybe ScriptConfig
@@ -202,7 +219,7 @@ data Lead =
       , hostInfo ::     HostInfo
       , echoScript ::   Maybe Script
       }
-  | BareLead
+  | DebugLead
       { firstFailing :: Maybe CallItem
       , hostInfo ::     HostInfo
       , echoScript ::   Maybe Script
@@ -229,23 +246,11 @@ leadFrom failed script = Lead
 
 -- gatherHostInfo :: IO HostInfo
 
-bareLeadWith :: Log -> Lead
-bareLeadWith x = BareLead {}
-
-bareLead :: Lead
-bareLead = BareLead
-  { firstFailing = Just CallItem
-    { ci_deps = []
-    , ci_name = ""
-    , ci_response_spec = Nothing
-    , ci_request_spec = RequestSpec
-      { verb = "GET"
-      , url = "example.com"
-      , headers = []
-      , payload = ""
-      , opts = []
-      }
-    }
+debugLead :: Lead
+debugLead = DebugLead
+  { firstFailing = Nothing
+  , hostInfo = defaultHostInfo
+  , echoScript = Nothing
   }
 
 -- These rats compete with each other for the first counter-example or `Lead`.
@@ -423,7 +428,11 @@ logMsg msg = lift $ tell [msg]
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: ProcM CallItem -> IO (CallItem, Log)
 runProcM action = do
-    return (defaultCallItem, [])
+    mgr <- newManager tlsManagerSettings
+    res :: (Maybe CallItem, Log) <- runReaderT (runWriterT (runMaybeT action)) mgr
+    case res of
+        (Nothing, log) -> return (defaultCallItem, log)
+        (Just suspect, log) -> return (suspect, log)
 
 runProcM1 :: ProcM CallItem -> IO (Maybe CallItem, Log)
 runProcM1 action = do
@@ -512,11 +521,12 @@ app = do
     -- liftIO circuit
     liftIO $ return localhost9999
 
--- { method = verb $ ci_request_spec defaultCallItem  -- ??: handle lower case method user input
+-- { method = verb $ ci_request_spec defaultCallItem
 -- Course is procedure in a stack form that will return the
 -- CallItem that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
+    liftIO (putStrLn $ show x)
     -- -- build :: Request <- parseRequest (urlFrom x)
     -- build :: Request <- parseRequest (url $ ci_request_spec defaultCallItem)
     -- let struct :: Request = build
@@ -528,6 +538,7 @@ courseFrom x = do
 
     req <- liftIO (oneRequest x)
     res :: Response L8.ByteString <- oneResponse req
+    -- liftIO $ putStrLn (show res)
 
     let [ci] = callItems x
     let expectCodes :: [Status] = case ci_response_spec ci of
@@ -549,44 +560,40 @@ courseFrom x = do
 
     oneResponse :: Request -> ProcM (Response L8.ByteString)
     oneResponse req = do
+        liftIO $ putStrLn "oneResponse............."
         mgr :: Manager <- ask
         result <- liftIO $ try (httpLbs req mgr)
         case result of
             Left err -> do
+                liftIO $ putStrLn "left....."
                 tell ["HTTP error: " ++ show (err :: HttpException)]
                 MaybeT $ return Nothing
-            Right body -> return body
+            Right body -> do
+                liftIO $ putStrLn "right....."
+                return body
 
 testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
-testOutsideWorld static@(Script { config, callItems = [] }) = do
+testOutsideWorld static@(Script { config = _, callItems = [] }) = do
     return $ nonLead static
 
--- -> NonLead | BareLead | Lead
-testOutsideWorld sole@(Script { config = ScriptConfig { subjects }, callItems = [ci] }) = do
-    let reconciled = sole
-
+-- -> NonLead | DebugLead | Lead
+testOutsideWorld sole@(Script { config = ScriptConfig { subjects = _ }, callItems = [_] }) = do
     let course :: ProcM CallItem = courseFrom sole
-    failed :: (Maybe CallItem, Log) <- runProcM1 course
-    return $ case failed of
-        (Nothing, []) ->     nonLead sole
-        (Nothing, logs) ->   bareLead
-        (opt@(Just _), _) -> leadFrom opt sole
-
-    -- -- PICKUP
-    -- let course :: ProcM CallItem = courseFrom sole
-    -- -- failed <- runProcM course
+    _suspect :: (CallItem, Log) <- runProcM course
     -- -- return $ case failed of
     -- --     (Nothing, []) ->     nonLead sole
-    -- --     (Nothing, logs) ->   bareLead
+    -- --     (Nothing, logs) ->   debugLead
     -- --     (opt@(Just _), _) -> leadFrom opt sole
+    
+    return debugLead
 
--- -> NonLead | BareLead | Lead
-testOutsideWorld script@(Script { callItems }) = do
-    return bareLead
+-- -> NonLead | DebugLead | Lead
+testOutsideWorld _script@(Script { callItems = _ }) = do
+    return debugLead
 
--- old is Return Nothing if it can't even compile a bareLead.
+-- old is Return Nothing if it can't even compile a debugLead.
 
 -- testOutsideWorld1 :: Script -> MaybeT IO Lead
 --
@@ -610,7 +617,7 @@ testOutsideWorld script@(Script { callItems }) = do
 --
 --                 build :: Request <- parseRequest (url $ ci_request_spec ci)
 --                 let struct = build
---                       -- { method = verb $ ci_request_spec ci  -- ??: handle lower case method user input
+--                       -- { method = verb $ ci_request_spec ci
 --                       { method = verb $ ci_request_spec ci
 --                       }
 --

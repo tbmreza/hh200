@@ -13,7 +13,6 @@ module Hh200.Scanner
     , module P
     ) where
 
-import qualified Hh200.Types as Hh
 import Hh200.Types
 import L
 import P
@@ -23,12 +22,12 @@ import System.Directory (doesFileExist)
 
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
-import System.Environment (lookupEnv)
+-- import System.Environment (lookupEnv)
 -- import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
-import qualified Data.ByteString.Char8 as BS
+-- import qualified Data.ByteString.Char8 as BS
 
-readCallable :: Snippet -> Maybe Script
-readCallable (Snippet s) =
+scriptFrom :: Snippet -> Maybe Script
+scriptFrom (Snippet s) =
     let tokensOrPanic = alexScanTokens (L8.unpack s) in
     let parsed :: E Script = parse tokensOrPanic in
 
@@ -82,17 +81,28 @@ instance Analyze FilePath where
 instance Analyze Snippet where
     -- -> Nothing | SoleScript
     analyze :: Snippet -> MaybeT IO Script
-    analyze s@(Snippet snippet) = do
-        MaybeT $ case Hh200.Scanner.readCallable s of
-            Nothing -> return Nothing
+    analyze s@(Snippet _) = do
+        let opt :: Maybe Script = Hh200.Scanner.scriptFrom s
+
+        -- liftIO (putStrLn "casing Snippet::analyze....")
+
+        MaybeT $ case opt of
+            Nothing -> do
+                return Nothing
             Just baseScript -> do
+                -- liftIO (putStrLn "some...")
                 hi <- gatherHostInfo
-                let opt :: Maybe ScriptConfig = hiHh200Conf hi
-                return (Just $ soleScript baseScript opt)
+                let scOpt :: Maybe ScriptConfig = hiHh200Conf hi
+                return (Just $ soleScript baseScript scOpt)
 
         where
         soleScript :: Script -> Maybe ScriptConfig -> Script
-        soleScript base opt = defaultScript
+        soleScript base _ =
+            let effective = config base in  -- ??
+            let build :: Script = base
+                  { config = effective
+                  } in
+            build
 
 ---------------------------
 -- Test abstract syntax. --
