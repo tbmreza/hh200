@@ -1,3 +1,5 @@
+{ "username": "admin", "password": "admin1234" }
+
 what to do about:
 - Special-Use Domain Names
 

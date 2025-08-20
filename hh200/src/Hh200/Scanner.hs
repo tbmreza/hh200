@@ -46,20 +46,14 @@ readScript path = do
     -- ParseOk, but call_items is empty array. -> StaticScript
     -- ParseOk, but call_items length is 1. -> SoleScript
     -- ParseOk. -> Script
-    return $ case parsed of
-        ParseFailed _ ->
-            Nothing
 
-        ParseOk s -> Just s
+    case parsed of
+        ParseFailed m -> do
+            putStrLn $ show m
+            return Nothing
+        ParseOk s -> do
+            return $ Just s
 
-
--- -- Returning Nothing short-circuits callsite.
--- staticChecks :: FilePath -> MaybeT IO Script
--- staticChecks path = do
---   exists <- liftIO $ doesFileExist path
---   if exists
---     then liftIO $ return defaultScript
---     else MaybeT $ return Nothing
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
@@ -75,8 +69,10 @@ instance Analyze FilePath where
         exists <- liftIO $ doesFileExist path
         MaybeT $ case exists of
             -- Proceeding to testOutsideWorld is unnecessary.
-            False -> return Nothing
-            _ -> readScript path
+            False -> do
+                return Nothing
+            _ -> do
+                readScript path
 
 instance Analyze Snippet where
     -- -> Nothing | SoleScript
@@ -90,7 +86,6 @@ instance Analyze Snippet where
             Nothing -> do
                 return Nothing
             Just baseScript -> do
-                -- liftIO (putStrLn "some...")
                 hi <- gatherHostInfo
                 let scOpt :: Maybe ScriptConfig = hiHh200Conf hi
                 return (Just $ soleScript baseScript scOpt)
@@ -103,57 +98,3 @@ instance Analyze Snippet where
                   { config = effective
                   } in
             build
-
----------------------------
--- Test abstract syntax. --
----------------------------
--- seed = RequestSpec
---       { verb = "GET"
---       , url = ast1
---       , headers = []
---       , payload = ""
---       , opts = []
---       }
---       where
---       ast1 = case parse $ alexScanTokens "h" of
---             ParseFailed m -> m
---       -- ast :: E (Maybe Script) = case parse $ alexScanTokens "h" of
---       ast = case parse $ alexScanTokens "h" of
---             ParseOk d -> ParseOk d
---             -- ParseFailed m -> m
---
--- rs = RequestSpec
---       -- { m = "GET"
---       -- , verb = "GET"
---       { verb = "GET"
---       -- , url = "https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI"
---       , url = "http://localhost:9999/lk"
---       , headers = []
---       , payload = ""
---       , opts = []
---       }
--- rp = ResponseSpec
---       { codes = [200, 201]
---       , output = ["/home/tbmreza/gh/hh200/img-.jpg"]
---       }
--- ci = CallItem
---       { ci_deps = []
---       , ci_name = "download image.jpg"
---       -- , ci_request_spec = rs
---       , ci_request_spec = seed
---       , ci_response_spec = Just rp
---       }
-
-
-
--- preparsed :: String -> Hh.Script
--- preparsed _dummy =
---   Hh.Script
---     { Hh.config =
---         Hh.ScriptConfig
---           { Hh.retries = 0
---           , Hh.max_duration = Nothing
---           , Hh.subjects = [Subject "user1", Subject "user2"]
---           }
---     , Hh.call_items = [ci]
---     }

@@ -6,8 +6,6 @@ module Hh200.Cli
     ) where
 
 import Data.Version (showVersion)
--- import Control.Monad (when)
-
 import Options.Applicative
 -- import qualified Options.Applicative as OA (short)
 -- import Options.Applicative (help, long, switch, str, argument, metavar, optional, header, fullDesc, helper, (<**>), execParser, info)
@@ -22,7 +20,6 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Paths_hh200 (version)
 import qualified Hh200.Types as Hh
--- import qualified Hh200.Fearless as Hh
 import qualified Hh200.Scanner as Hh
 
 data Args = Args
@@ -81,7 +78,6 @@ go Args { call = True, source = Just src } = do
         Nothing -> do
             exitWith (ExitFailure 1)
         Just s -> do
-            -- putStrLn "just.."
             lead <- Hh.testOutsideWorld s
             putStrLn $ Hh.present lead
 
@@ -93,7 +89,8 @@ go Args { call = False, source = Just path } = do
         liftIO (return script)
 
     case ret of
-        Nothing -> exitWith (ExitFailure 1)
+        Nothing -> do
+            exitWith (ExitFailure 1)
         Just s -> do
             lead <- Hh.testOutsideWorld s
             putStrLn $ Hh.present lead

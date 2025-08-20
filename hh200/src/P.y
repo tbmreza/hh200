@@ -43,11 +43,12 @@ import Hh200.Types
 
 %%
 
--- test_suite : directives call_items { Script { config = $1, callItems = $2 } }
---            | directives            { Script { config = $1, callItems = [] } }
---            | call_items            { Script { config = defaultScriptConfig, callItems = $1 } }
+-- test_suite : directives call_items
+--            | directives
+--            | call_items
 
 script : call_items         { Script { config = defaultScriptConfig, callItems = $1 } }
+       | call_items "\n"    { Script { config = defaultScriptConfig, callItems = $1 } }
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }
@@ -55,10 +56,10 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request  : method url { RequestSpec { verb = BS.pack $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url        { RequestSpec { verb = "GET", url = $1, headers = [], payload = "", opts = [] } }
+request  : method url { RequestSpec { verb = BS.pack $1, verbo = mk $1, url = $2, headers = [], payload = "", opts = [] } }
+         | url        { RequestSpec { verb = "GET",      verbo = mk $1, url = $1, headers = [], payload = "", opts = [] } }
 
-response : "HTTP" response_codes { ResponseSpec { codes = $2, output = [], statuses = [] } }
+response : "HTTP" response_codes { ResponseSpec { output = [], statuses = [] } }
 
 response_codes : "[" status_list "]" { $2 }
                | status_list { $1 }

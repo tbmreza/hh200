@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -12,17 +13,15 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
 import GHC.Generics (Generic)
-import Toml.Schema
+-- import Toml.Schema
 -- import Control.Exception (Exception)
 
 -- import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
+import qualified Data.Char as Char (toUpper)
 
 -- import Network.HTTP.Types.Header
-
--- import Control.Monad
--- import Control.Monad.Reader
 
 import Network.HTTP.Client
 import Network.HTTP.Types.Method
@@ -56,19 +55,15 @@ pCallItem dc rs opt =
       }
 
 
-handleHttpResult :: Either HttpException String -> HttpM ()
-handleHttpResult (Right body) =
-  liftIO $ putStrLn ("Response: " ++ take 100 body)
-handleHttpResult (Left (HttpExceptionRequest _ content)) =
-  liftIO $ putStrLn $ "Request failed: " ++ show content
-handleHttpResult (Left ex) =
-  liftIO $ putStrLn $ "Other HTTP exception: " ++ displayException ex
+-- handleHttpResult :: Either HttpException String -> HttpM ()
+-- handleHttpResult (Right body) =
+--   liftIO $ putStrLn ("Response: " ++ take 100 body)
+-- handleHttpResult (Left (HttpExceptionRequest _ content)) =
+--   liftIO $ putStrLn $ "Request failed: " ++ show content
+-- handleHttpResult (Left ex) =
+--   liftIO $ putStrLn $ "Other HTTP exception: " ++ displayException ex
 
 
--- data Script = Script
---   { config :: ScriptConfig
---   , call_items :: [CallItem]
---   } deriving (Show, Eq)
 data Script =
     Script
       { config :: ScriptConfig
@@ -82,9 +77,8 @@ data Script =
       { config :: ScriptConfig
       , callItems :: [CallItem]
       }
-  deriving (Show, Eq)
-
--- emptyScript = Script { config = defaultScriptConfig, call_items = [] }
+  -- deriving (Show, Eq)
+  deriving (Show)
 
 defaultScript' :: Script
 defaultScript' = Script
@@ -100,22 +94,20 @@ defaultScript = Script
 
 data RequestSpec = RequestSpec
     { verb :: BS.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
-    -- { verb :: String
+    , verbo :: MethodUppercase
     , url :: String
     , headers :: [String]
     , payload :: String
     , opts :: [String]
     }
-    deriving (Show, Eq)
+    -- deriving (Show, Eq)
+    deriving (Show)
 
 data ResponseSpec = ResponseSpec
-  { codes :: [Int]  -- ?? rm field
-  , statuses :: [Status]
+  { statuses :: [Status]
   , output :: [String]
   }
   deriving (Show, Eq)
-defaultResponseSpec :: ResponseSpec
-defaultResponseSpec = ResponseSpec { codes = [], output = [] }
 
 type Duration = Int
 newtype Subject = Subject String
@@ -144,12 +136,20 @@ instance PrettyPrint ScriptConfig where
     -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
     pp x = show x
 
+-- ??: hello gadt. claude more promising than chatgpt
+data MethodUppercase where
+    Mk :: String -> MethodUppercase
+    deriving (Show)
+mk :: String -> MethodUppercase
+mk s = Mk (map Char.toUpper s)
+
 data CallItem = CallItem
   { ci_deps :: [String]
   , ci_name :: String
   , ci_request_spec :: RequestSpec
   , ci_response_spec :: Maybe ResponseSpec
-  } deriving (Show, Eq)
+  -- } deriving (Show, Eq)
+  } deriving (Show)
 
 -- Mechanically, this is a corollary to http-client's defaultRequest.
 --
@@ -187,13 +187,13 @@ localhost9999 = CallItem
   , ci_response_spec = Nothing
   }
 
--- Zero or more HTTP effects ready to be run by `runHttpM`.
-stackHh :: [CallItem] -> HttpM L8.ByteString
-stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Nothing }] = do
-    mkRequest verb url Nothing
-
-stackHh [CallItem { ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Just ResponseSpec { codes } }] = do
-    mkRequest verb url Nothing
+-- -- Zero or more HTTP effects ready to be run by `runHttpM`.
+-- stackHh :: [CallItem] -> HttpM L8.ByteString
+-- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Nothing }] = do
+--     mkRequest verb url Nothing
+--
+-- stackHh [CallItem { ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Just ResponseSpec { codes } }] = do
+--     mkRequest verb url Nothing
 
 
 -- -- Pretty printing conveniently presents counter-example to std out.
@@ -213,6 +213,13 @@ defaultHostInfo = HostInfo
   }
 
 -- Everything one could ask for when debugging a failing script.
+    -- ?? embed Log
+    -- Lead
+    --   { firstFailing :: Maybe CallItem
+    --   , hostInfo ::     HostInfo
+    --   , echoScript ::   Maybe Script
+    --   , trace :: Log
+    --   }
 data Lead =
     Lead
       { firstFailing :: Maybe CallItem
@@ -229,11 +236,16 @@ data Lead =
       , hostInfo ::     HostInfo
       , echoScript ::   Maybe Script
       }
-  deriving (Show, Eq)
+  -- deriving (Show, Eq)
+  deriving (Show)
+
+-- isNonLead :: Lead -> Bool
+-- isNonLead resu
 
 nonLead :: Script -> Lead
 nonLead x = NonLead
   { firstFailing = Nothing
+  , hostInfo = defaultHostInfo
   , echoScript = Just x
   }
 
@@ -370,20 +382,20 @@ data Policy = Policy {
     timeMillisPerCall :: Maybe Int
     } deriving (Eq, Show, Generic)
 
--- instance FromValue Policy where fromValue = genericFromTable
-instance ToTable Policy where toTable = genericToTable
-instance ToValue Policy where toValue = defaultTableToValue
-
-policyDefault :: Policy
--- policyDefault = Policy { maxReruns = 2, maxRetriesPerCall = 2, timeMillisPerCall = 60_000 }
-policyDefault = Policy { maxReruns = Just 2, maxRetriesPerCall = Just 2, timeMillisPerCall = Just 60000 }
-
-instance FromValue Policy where
-    fromValue = parseTableFromValue (Policy
-        <$> optKey "max_reruns"
-        <*> optKey "max_retries_per_call"
-        <*> optKey "time_millis_per_call"
-        )
+-- -- instance FromValue Policy where fromValue = genericFromTable
+-- instance ToTable Policy where toTable = genericToTable
+-- instance ToValue Policy where toValue = defaultTableToValue
+--
+-- policyDefault :: Policy
+-- -- policyDefault = Policy { maxReruns = 2, maxRetriesPerCall = 2, timeMillisPerCall = 60_000 }
+-- policyDefault = Policy { maxReruns = Just 2, maxRetriesPerCall = Just 2, timeMillisPerCall = Just 60000 }
+--
+-- instance FromValue Policy where
+--     fromValue = parseTableFromValue (Policy
+--         <$> optKey "max_reruns"
+--         <*> optKey "max_retries_per_call"
+--         <*> optKey "time_millis_per_call"
+--         )
 
 -- Simple source position
 data Pos = Pos 
@@ -480,19 +492,6 @@ shuntGet url = do
       logMsg $ "Other exception: " ++ displayException err
       MaybeT $ return Nothing
 
-shuntHttpRequestFull :: Request -> ProcM (Response L8.ByteString)
-shuntHttpRequestFull req = do
-    -- manager <- lift . lift $ ask
-    liftIO $ putStrLn "shuntHttpRequestFull....."
-    liftIO $ putStrLn (show req)
-    mgr :: Manager <- ask
-    result <- liftIO $ try (httpLbs req mgr)
-    case result of
-        Left err -> do
-            tell ["HTTP error: " ++ show (err :: HttpException)]
-            MaybeT $ return Nothing
-        Right body -> return body
-
 shuntHttpRequest :: (Request -> Request) -> String -> ProcM L8.ByteString
 shuntHttpRequest modifyReq url = do
   manager <- lift . lift $ ask
@@ -521,7 +520,6 @@ app = do
     -- liftIO circuit
     liftIO $ return localhost9999
 
--- { method = verb $ ci_request_spec defaultCallItem
 -- Course is procedure in a stack form that will return the
 -- CallItem that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
@@ -532,9 +530,6 @@ courseFrom x = do
     -- let struct :: Request = build
     --       { method = verb $ ci_request_spec defaultCallItem
     --       }
-    --
-    -- -- inst :: Response L8.ByteString <- oneResponse $ oneRequest x
-    -- inst :: Response L8.ByteString <- shuntHttpRequestFull struct
 
     req <- liftIO (oneRequest x)
     res :: Response L8.ByteString <- oneResponse req
@@ -547,16 +542,23 @@ courseFrom x = do
 
     return $ case True of
         False -> ci
+        _ -> defaultCallItem
 
     where
     oneRequest :: Script -> IO Request
     oneRequest (Script { callItems = [ci]}) = do
+        putStrLn "\tci:"
+        putStrLn $ show ci
         let scriptUrl = url $ ci_request_spec ci
         build :: Request <- parseRequest scriptUrl
-        -- let struct :: Request = build
-        --       { method = verb $ ci_request_spec defaultCallItem
-        --       }
-        return build
+        let struct :: Request = build
+              -- { method = verb $ ci_request_spec defaultCallItem
+              -- Invariant: uppercase verb
+              { method = verb $ ci_request_spec ci
+              }
+        -- putStrLn "\tstruct:"
+        -- putStrLn $ show struct
+        return struct
 
     oneResponse :: Request -> ProcM (Response L8.ByteString)
     oneResponse req = do
@@ -572,6 +574,7 @@ courseFrom x = do
                 liftIO $ putStrLn "right....."
                 return body
 
+-- testOutsideWorld :: Script -> IO (Lead, Log)
 testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
@@ -580,6 +583,8 @@ testOutsideWorld static@(Script { config = _, callItems = [] }) = do
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld sole@(Script { config = ScriptConfig { subjects = _ }, callItems = [_] }) = do
+    -- putStrLn "\tsole:"
+    -- putStrLn $ show sole
     let course :: ProcM CallItem = courseFrom sole
     _suspect :: (CallItem, Log) <- runProcM course
     -- -- return $ case failed of
@@ -587,19 +592,14 @@ testOutsideWorld sole@(Script { config = ScriptConfig { subjects = _ }, callItem
     -- --     (Nothing, logs) ->   debugLead
     -- --     (opt@(Just _), _) -> leadFrom opt sole
     
-    return debugLead
+    -- return debugLead
+    return $ nonLead sole
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld _script@(Script { callItems = _ }) = do
     return debugLead
 
--- old is Return Nothing if it can't even compile a debugLead.
-
 -- testOutsideWorld1 :: Script -> MaybeT IO Lead
---
--- testOutsideWorld1 Script { config, call_items = [] } = do
---     MaybeT (return $ Just Lead { firstFailing = Nothing })
---
 -- testOutsideWorld1 single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
 --     coming :: Maybe CallItem <- liftIO $ raceToFirstFailing single
 --
@@ -673,7 +673,11 @@ testOutsideWorld _script@(Script { callItems = _ }) = do
 -- -- testOutsideWorld1 _unexpected = MaybeT $ return Nothing
 
 present :: Lead -> String
-present lead = show lead
+present x = show x
+-- present lead =
+--     let isNonLead = False in -- ??
+--     case isNonLead of
+--         False -> show lead
 
         -- let assignments = map (consign mut app) subjects
 
