@@ -13,8 +13,6 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
 import GHC.Generics (Generic)
--- import Toml.Schema
--- import Control.Exception (Exception)
 
 -- import Network.HTTP.Client
 import Network.HTTP.Client.TLS
@@ -80,18 +78,6 @@ data Script =
   -- deriving (Show, Eq)
   deriving (Show)
 
-defaultScript' :: Script
-defaultScript' = Script
-  { config = defaultScriptConfig
-  , callItems = [defaultCallItem']
-  }
-
-defaultScript :: Script
-defaultScript = Script
-  { config = defaultScriptConfig
-  , callItems = [defaultCallItem]
-  }
-
 data RequestSpec = RequestSpec
     { verb :: BS.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
     , verbo :: MethodUppercase
@@ -100,8 +86,7 @@ data RequestSpec = RequestSpec
     , payload :: String
     , opts :: [String]
     }
-    -- deriving (Show, Eq)
-    deriving (Show)
+    deriving (Show, Eq)
 
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
@@ -139,7 +124,7 @@ instance PrettyPrint ScriptConfig where
 -- ??: hello gadt. claude more promising than chatgpt
 data MethodUppercase where
     Mk :: String -> MethodUppercase
-    deriving (Show)
+    deriving (Show, Eq)
 mk :: String -> MethodUppercase
 mk s = Mk (map Char.toUpper s)
 
@@ -265,9 +250,9 @@ debugLead = DebugLead
   , echoScript = Nothing
   }
 
--- These rats compete with each other for the first counter-example or `Lead`.
--- At the end of the race, all rats die; "rat race".
-data Rat = Rat
+-- -- These rats compete with each other for the first counter-example or `Lead`.
+-- -- At the end of the race, all rats die; "rat race".
+-- data Rat = Rat
 
 -- Presume http-client manager sharing.
 type HttpM = ReaderT Manager IO
@@ -507,18 +492,67 @@ shuntHttpRequest modifyReq url = do
     Right body -> return body
 
 
--- App is procedure in a stack that will return a failing CallItem.
-app :: ProcM CallItem
-app = do
-    logMsg $ "Requesting: " ++ "url"
+-- -- App is procedure in a stack that will return a failing CallItem.
+-- app :: ProcM CallItem
+-- app = do
+--     logMsg $ "Requesting: " ++ "url"
+--
+--     -- body <- shuntGet "https://httpbin.org/get"
+--     body <- shuntGet "http://localhost:9999/oo"
+--
+--     -- logMsg $ "Got response of length: " ++ show (L8.length body)
+--     -- liftIO $ putStrLn $ "Response preview: " ++ take 100 (L8.unpack body)
+--     -- liftIO circuit
+--     liftIO $ return localhost9999
 
-    -- body <- shuntGet "https://httpbin.org/get"
-    body <- shuntGet "http://localhost:9999/oo"
+courseFrom' :: Script -> ProcM CallItem
+courseFrom' x = do
+    -- liftIO (putStrLn "\tA expect 2 cis")
+    -- liftIO (putStrLn $ show x)
 
-    -- logMsg $ "Got response of length: " ++ show (L8.length body)
-    -- liftIO $ putStrLn $ "Response preview: " ++ take 100 (L8.unpack body)
-    -- liftIO circuit
-    liftIO $ return localhost9999
+    reqs :: [Request] <- liftIO (asRequests x)
+    -- liftIO (putStrLn "\tB expect 2 routes")
+    -- liftIO (putStrLn $ show reqs)
+
+    -- res :: Response L8.ByteString <- shunt reqs
+    res <- shunt reqs
+
+    -- let [ci] = callItems x
+    -- let expectCodes :: [Status] = case ci_response_spec ci of
+    --         Nothing -> [status200]
+    --         Just spec -> statuses spec
+
+    return $ case True of
+        _ -> defaultCallItem
+
+    where
+    asRequests :: Script -> IO [Request]
+    asRequests (Script { callItems }) = do
+        let res :: IO [Request] = mapM buildFrom callItems
+        res
+
+    buildFrom :: CallItem -> IO Request
+    buildFrom ci = do
+        let ciUrl :: String = url $ ci_request_spec ci
+        build :: Request <- parseRequest ciUrl
+        let struct :: Request = build
+              { method = verb $ ci_request_spec ci
+              }
+        return struct
+
+    -- ??: try HttpException
+    fire :: Manager -> Request -> IO (Response L8.ByteString)
+    fire mgr req = httpLbs req mgr
+
+    shunt :: [Request] -> ProcM ()
+    shunt reqs = do
+        mgr :: Manager <- ask
+        let withMgr :: Request -> IO (Response L8.ByteString) = fire mgr
+        let results :: IO [Response L8.ByteString] = mapM withMgr reqs
+
+        _ <- liftIO results
+
+        return ()
 
 -- Course is procedure in a stack form that will return the
 -- CallItem that turned out to be failing.
@@ -583,7 +617,6 @@ testOutsideWorld static@(Script { config = _, callItems = [] }) = do
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld sole@(Script { config = ScriptConfig { subjects = _ }, callItems = [_] }) = do
-    -- putStrLn "\tsole:"
     -- putStrLn $ show sole
     let course :: ProcM CallItem = courseFrom sole
     _suspect :: (CallItem, Log) <- runProcM course
@@ -596,8 +629,14 @@ testOutsideWorld sole@(Script { config = ScriptConfig { subjects = _ }, callItem
     return $ nonLead sole
 
 -- -> NonLead | DebugLead | Lead
-testOutsideWorld _script@(Script { callItems = _ }) = do
-    return debugLead
+testOutsideWorld script@(Script { callItems }) = do
+    -- putStrLn "\tcall_items:"
+    -- putStrLn $ show callItems
+
+    let course :: ProcM CallItem = courseFrom' script
+    _suspect :: (CallItem, Log) <- runProcM course
+
+    return $ nonLead script
 
 -- testOutsideWorld1 :: Script -> MaybeT IO Lead
 -- testOutsideWorld1 single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do

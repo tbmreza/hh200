@@ -17,7 +17,7 @@ import Hh200.Types
     identifier  { IDENTIFIER _ $$ }
 
 
-    "\n"        { LN _ }
+    newline        { LN _ }
 
     "/"         { SEP _ }
     "."         { SEP _ }
@@ -47,8 +47,10 @@ import Hh200.Types
 --            | directives
 --            | call_items
 
-script : call_items         { Script { config = defaultScriptConfig, callItems = $1 } }
-       | call_items "\n"    { Script { config = defaultScriptConfig, callItems = $1 } }
+script : crlf call_items crlf    { Script { config = defaultScriptConfig, callItems = $2 } }
+
+crlf : {- optional newline -} { }
+     | crlf newline           { }
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }
@@ -57,7 +59,7 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request  : method url { RequestSpec { verb = BS.pack $1, verbo = mk $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url        { RequestSpec { verb = "GET",      verbo = mk $1, url = $1, headers = [], payload = "", opts = [] } }
+         | url        { RequestSpec { verb = "GET",      verbo = mk "GET", url = $1, headers = [], payload = "", opts = [] } }
 
 response : "HTTP" response_codes { ResponseSpec { output = [], statuses = [] } }
 
@@ -68,14 +70,13 @@ status_list :: { [Int] }
 status_list : status      { [$1] }
             | status_list status { $1 ++ [$2] }
 
--- ?? where to put Captures spec
 call_item : deps_clause request response { pCallItem $1 $2 (Just $3) }
           | deps_clause request          { pCallItem $1 $2 Nothing }
           | request                      { pCallItem defaultDepsClause $1 Nothing }
           | request response             { pCallItem defaultDepsClause $1 (Just $2) }
 
 
-call_items : call_item             { [$1] }
+call_items : call_item crlf           { [$1] }
            | call_items call_item  { $1 ++ [$2] }
 
 {

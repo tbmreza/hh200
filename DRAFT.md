@@ -1,3 +1,6 @@
+-- -- These rats compete with each other for the first counter-example or `Lead`.
+-- -- At the end of the race, all rats die; "rat race".
+    "\n"        { LN _ }
 { "username": "admin", "password": "admin1234" }
 
 what to do about:
