@@ -1,17 +1,6 @@
 
 
 
-POST http://localhost:9999/okd
-
-
-POST http://localhost:9999/okz
-
-
-
-
-
-
-
-
-
+POST http://localhost:9999/okdkkk
+{ "username": "admin", "password": "admin1234" }
 

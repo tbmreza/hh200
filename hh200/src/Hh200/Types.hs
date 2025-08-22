@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -8,16 +9,18 @@
 
 module Hh200.Types (module Hh200.Types) where
 
+import qualified Data.Char as Char (isUpper, toUpper)
 import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
-import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
+-- import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
+import qualified Data.ByteString.Char8 as BS
 import GHC.Generics (Generic)
 
--- import Network.HTTP.Client
+import Network.HTTP.Simple (setRequestMethod)
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
-import qualified Data.Char as Char (toUpper)
+-- import qualified Data.Char as Char (toUpper)
 
 -- import Network.HTTP.Types.Header
 
@@ -35,6 +38,8 @@ import Control.Exception
 import Control.Concurrent (ThreadId)
 import qualified Control.Concurrent as Base
 
+import Data.Aeson (encode)
+
 newtype Snippet = Snippet L8.ByteString
 
 data DepsClause = DepsClause
@@ -46,20 +51,13 @@ defaultDepsClause = DepsClause { deps = [], itemName = "" }
 pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
 pCallItem dc rs opt =
     CallItem
-      { ci_deps = deps dc
-      , ci_name = itemName dc
-      , ci_request_spec = rs
-      , ci_response_spec = opt
+      { ciDeps = deps dc
+      , ciName = itemName dc
+      , ciRequestSpec = rs
+      , ciResponseSpec = opt
       }
 
-
--- handleHttpResult :: Either HttpException String -> HttpM ()
--- handleHttpResult (Right body) =
---   liftIO $ putStrLn ("Response: " ++ take 100 body)
--- handleHttpResult (Left (HttpExceptionRequest _ content)) =
---   liftIO $ putStrLn $ "Request failed: " ++ show content
--- handleHttpResult (Left ex) =
---   liftIO $ putStrLn $ "Other HTTP exception: " ++ displayException ex
+newtype JsonStr = JsonStr String
 
 
 data Script =
@@ -78,9 +76,9 @@ data Script =
   -- deriving (Show, Eq)
   deriving (Show)
 
+-- ??: v1 of Scanner will use String before jumping to ByteString
 data RequestSpec = RequestSpec
-    { verb :: BS.ByteString  -- ??: v1 of Scanner will use String before jumping to ByteString
-    , verbo :: MethodUppercase
+    { verb :: UppercaseString
     , url :: String
     , headers :: [String]
     , payload :: String
@@ -121,18 +119,20 @@ instance PrettyPrint ScriptConfig where
     -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
     pp x = show x
 
--- ??: hello gadt. claude more promising than chatgpt
-data MethodUppercase where
-    Mk :: String -> MethodUppercase
+newtype UppercaseString = UppercaseString String
     deriving (Show, Eq)
-mk :: String -> MethodUppercase
-mk s = Mk (map Char.toUpper s)
+-- ??: annotate partial functions, they're encouraged for static phase
+expectUpper :: String -> UppercaseString
+expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
+
+asMethod :: UppercaseString -> BS.ByteString
+asMethod (UppercaseString s) = BS.pack s
 
 data CallItem = CallItem
-  { ci_deps :: [String]
-  , ci_name :: String
-  , ci_request_spec :: RequestSpec
-  , ci_response_spec :: Maybe ResponseSpec
+  { ciDeps :: [String]
+  , ciName :: String
+  , ciRequestSpec :: RequestSpec
+  , ciResponseSpec :: Maybe ResponseSpec
   -- } deriving (Show, Eq)
   } deriving (Show)
 
@@ -142,48 +142,48 @@ data CallItem = CallItem
 -- request body." - http-client hoogle
 defaultCallItem :: CallItem
 defaultCallItem = CallItem
-  { ci_deps = []
-  , ci_name = "default"
-  , ci_request_spec = RequestSpec
-    { verb = "GET"
+  { ciDeps = []
+  , ciName = "default"
+  , ciRequestSpec = RequestSpec
+    { verb = expectUpper "GET"
     , url = "http://localhost:80"
     , headers = [], payload = "", opts = []
     }
-  , ci_response_spec = Nothing
+  , ciResponseSpec = Nothing
   }
 
 defaultCallItem' :: CallItem
 defaultCallItem' = CallItem
-  { ci_deps = []
-  , ci_name = "default"
-  , ci_request_spec = RequestSpec
-    { verb = "PATCH"
+  { ciDeps = []
+  , ciName = "default"
+  , ciRequestSpec = RequestSpec
+    { verb = expectUpper "PATCH"
     , url = "http://localhost:81"
     , headers = [], payload = "", opts = []
     }
-  , ci_response_spec = Nothing
+  , ciResponseSpec = Nothing
   }
 
 localhost9999 :: CallItem
 localhost9999 = CallItem
-  { ci_deps = []
-  , ci_name = "debug"
-  , ci_request_spec = RequestSpec { verb = "GET", url = "http://localhost:9999/hh", headers = [], payload = "", opts = []}
-  , ci_response_spec = Nothing
+  { ciDeps = []
+  , ciName = "debug"
+  , ciRequestSpec = RequestSpec { verb = expectUpper "GET", url = "http://localhost:9999/hh", headers = [], payload = "", opts = []}
+  , ciResponseSpec = Nothing
   }
 
 -- -- Zero or more HTTP effects ready to be run by `runHttpM`.
 -- stackHh :: [CallItem] -> HttpM L8.ByteString
--- stackHh [CallItem { ci_deps, ci_name, ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Nothing }] = do
+-- stackHh [CallItem { ciDeps, ciName, ciRequestSpec = RequestSpec { verb, url }, ciResponseSpec = Nothing }] = do
 --     mkRequest verb url Nothing
 --
--- stackHh [CallItem { ci_request_spec = RequestSpec { verb, url }, ci_response_spec = Just ResponseSpec { codes } }] = do
+-- stackHh [CallItem { ciRequestSpec = RequestSpec { verb, url }, ciResponseSpec = Just ResponseSpec { codes } }] = do
 --     mkRequest verb url Nothing
 
 
 -- -- Pretty printing conveniently presents counter-example to std out.
 -- instance PrettyPrint CallItem where
---     pp CallItem { ci_request_spec } = conc ci_request_spec
+--     pp CallItem { ciRequestSpec } = conc ciRequestSpec
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo
@@ -267,12 +267,12 @@ runCompiled action = do
     manager <- newManager tlsManagerSettings
     runReaderT action manager
 
-httpGet_ :: String -> HttpM ()
-httpGet_ url = do
-    manager <- ask
-    request <- liftIO $ parseRequest url
-    _response <- liftIO $ httpLbs request manager
-    return ()
+-- httpGet_ :: String -> HttpM ()
+-- httpGet_ url = do
+--     manager <- ask
+--     request <- liftIO $ parseRequest url
+--     _response <- liftIO $ httpLbs request manager
+--     return ()
 
 mkRequest :: BS.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
 mkRequest    methodStr    url       mBody                = do
@@ -505,20 +505,13 @@ shuntHttpRequest modifyReq url = do
 --     -- liftIO circuit
 --     liftIO $ return localhost9999
 
-courseFrom' :: Script -> ProcM CallItem
-courseFrom' x = do
-    -- liftIO (putStrLn "\tA expect 2 cis")
-    -- liftIO (putStrLn $ show x)
-
+courseFrom :: Script -> ProcM CallItem
+courseFrom x = do
     reqs :: [Request] <- liftIO (asRequests x)
-    -- liftIO (putStrLn "\tB expect 2 routes")
-    -- liftIO (putStrLn $ show reqs)
-
-    -- res :: Response L8.ByteString <- shunt reqs
     res <- shunt reqs
 
     -- let [ci] = callItems x
-    -- let expectCodes :: [Status] = case ci_response_spec ci of
+    -- let expectCodes :: [Status] = case ciResponseSpec ci of
     --         Nothing -> [status200]
     --         Just spec -> statuses spec
 
@@ -532,13 +525,24 @@ courseFrom' x = do
         res
 
     buildFrom :: CallItem -> IO Request
-    buildFrom ci = do
-        let ciUrl :: String = url $ ci_request_spec ci
-        build :: Request <- parseRequest ciUrl
-        let struct :: Request = build
-              { method = verb $ ci_request_spec ci
+    buildFrom ci
+        -- Requests without body.
+        | null (payload $ ciRequestSpec ci) = do
+            struct :: Request <- parseRequest (url $ ciRequestSpec ci)
+            return $ struct
+              { method = asMethod (verb $ ciRequestSpec ci)
               }
-        return struct
+
+        -- Requests with json body.
+        | otherwise = do
+            let body = RequestBodyLBS $ encode (payload $ ciRequestSpec ci)
+
+            struct :: Request <- parseRequest (url $ ciRequestSpec ci)
+            return $ struct
+              { method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE]
+              , requestHeaders = [("Content-Type", "application/json")]
+              , requestBody = body
+              }
 
     -- ??: try HttpException
     fire :: Manager -> Request -> IO (Response L8.ByteString)
@@ -554,59 +558,57 @@ courseFrom' x = do
 
         return ()
 
--- Course is procedure in a stack form that will return the
--- CallItem that turned out to be failing.
-courseFrom :: Script -> ProcM CallItem
-courseFrom x = do
-    liftIO (putStrLn $ show x)
-    -- -- build :: Request <- parseRequest (urlFrom x)
-    -- build :: Request <- parseRequest (url $ ci_request_spec defaultCallItem)
-    -- let struct :: Request = build
-    --       { method = verb $ ci_request_spec defaultCallItem
-    --       }
-
-    req <- liftIO (oneRequest x)
-    res :: Response L8.ByteString <- oneResponse req
-    -- liftIO $ putStrLn (show res)
-
-    let [ci] = callItems x
-    let expectCodes :: [Status] = case ci_response_spec ci of
-            Nothing -> [status200]
-            Just spec -> statuses spec
-
-    return $ case True of
-        False -> ci
-        _ -> defaultCallItem
-
-    where
-    oneRequest :: Script -> IO Request
-    oneRequest (Script { callItems = [ci]}) = do
-        putStrLn "\tci:"
-        putStrLn $ show ci
-        let scriptUrl = url $ ci_request_spec ci
-        build :: Request <- parseRequest scriptUrl
-        let struct :: Request = build
-              -- { method = verb $ ci_request_spec defaultCallItem
-              -- Invariant: uppercase verb
-              { method = verb $ ci_request_spec ci
-              }
-        -- putStrLn "\tstruct:"
-        -- putStrLn $ show struct
-        return struct
-
-    oneResponse :: Request -> ProcM (Response L8.ByteString)
-    oneResponse req = do
-        liftIO $ putStrLn "oneResponse............."
-        mgr :: Manager <- ask
-        result <- liftIO $ try (httpLbs req mgr)
-        case result of
-            Left err -> do
-                liftIO $ putStrLn "left....."
-                tell ["HTTP error: " ++ show (err :: HttpException)]
-                MaybeT $ return Nothing
-            Right body -> do
-                liftIO $ putStrLn "right....."
-                return body
+-- -- Course is procedure in a stack form that will return the
+-- -- CallItem that turned out to be failing.
+-- courseFrom :: Script -> ProcM CallItem
+-- courseFrom x = do
+--     liftIO (putStrLn $ show x)
+--     -- -- build :: Request <- parseRequest (urlFrom x)
+--     -- build :: Request <- parseRequest (url $ ciRequestSpec defaultCallItem)
+--     -- let struct :: Request = build
+--     --       { method = verb $ ciRequestSpec defaultCallItem
+--     --       }
+--
+--     req <- liftIO (oneRequest x)
+--     res :: Response L8.ByteString <- oneResponse req
+--     -- liftIO $ putStrLn (show res)
+--
+--     let [ci] = callItems x
+--     let expectCodes :: [Status] = case ciResponseSpec ci of
+--             Nothing -> [status200]
+--             Just spec -> statuses spec
+--
+--     return $ case True of
+--         False -> ci
+--         _ -> defaultCallItem
+--
+--     where
+--     oneRequest :: Script -> IO Request
+--     oneRequest (Script { callItems = [ci]}) = do
+--         putStrLn "\tci:"
+--         putStrLn $ show ci
+--         let scriptUrl = url $ ciRequestSpec ci
+--         build :: Request <- parseRequest scriptUrl
+--         let struct :: Request = build
+--               { method = asMethod (verb $ ciRequestSpec ci)
+--               }
+--         -- putStrLn "\tstruct:"
+--         -- putStrLn $ show struct
+--         return struct
+--
+--     oneResponse :: Request -> ProcM (Response L8.ByteString)
+--     oneResponse req = do
+--         liftIO $ putStrLn "oneResponse............."
+--         mgr :: Manager <- ask
+--         result <- liftIO $ try (httpLbs req mgr)
+--         case result of
+--             Left err -> do
+--                 liftIO $ putStrLn "left....."
+--                 tell ["HTTP error: " ++ show (err :: HttpException)]
+--                 MaybeT $ return Nothing
+--             Right body -> do
+--                 liftIO $ putStrLn "right....."
+--                 return body
 
 -- testOutsideWorld :: Script -> IO (Lead, Log)
 testOutsideWorld :: Script -> IO Lead
@@ -630,10 +632,7 @@ testOutsideWorld sole@(Script { config = ScriptConfig { subjects = _ }, callItem
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld script@(Script { callItems }) = do
-    -- putStrLn "\tcall_items:"
-    -- putStrLn $ show callItems
-
-    let course :: ProcM CallItem = courseFrom' script
+    let course :: ProcM CallItem = courseFrom script
     _suspect :: (CallItem, Log) <- runProcM course
 
     return $ nonLead script
@@ -654,15 +653,15 @@ testOutsideWorld script@(Script { callItems }) = do
 --         let course :: ProcM CallItem = do
 --                 logMsg "building course...."
 --
---                 build :: Request <- parseRequest (url $ ci_request_spec ci)
+--                 build :: Request <- parseRequest (url $ ciRequestSpec ci)
 --                 let struct = build
---                       -- { method = verb $ ci_request_spec ci
---                       { method = verb $ ci_request_spec ci
+--                       -- { method = verb $ ciRequestSpec ci
+--                       { method = verb $ ciRequestSpec ci
 --                       }
 --
 --                 ret <- shuntHttpRequestFull struct
 --
---                 let expectCodes = case ci_response_spec ci of
+--                 let expectCodes = case ciResponseSpec ci of
 --                         Nothing -> [status200]
 --                         Just rc -> statuses rc
 --
@@ -710,6 +709,9 @@ testOutsideWorld script@(Script { callItems }) = do
 --     MaybeT (return $ Just Lead { firstFailing = Nothing })
 --
 -- -- testOutsideWorld1 _unexpected = MaybeT $ return Nothing
+
+
+
 
 present :: Lead -> String
 present x = show x

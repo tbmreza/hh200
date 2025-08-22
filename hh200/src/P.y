@@ -3,6 +3,7 @@
 -- module P ( module P, module L ) where
 module P where
 
+import Debug.Trace
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad.Trans.Except
 import L
@@ -24,6 +25,8 @@ import Hh200.Types
     ","         { SEP _ }
     ":"         { COLON _ }
     "\""        { QUOTE _ }
+    "{"         { BRACE_OPN _ }
+    "}"         { BRACE_CLS _ }
     "("         { PAREN_OPN _ }
     ")"         { PAREN_CLS _ }
     "["         { LIST_OPN _ }
@@ -37,6 +40,7 @@ import Hh200.Types
 
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
+    jsonBody    { BRACED _ $$ }
 
 
 %monad { E } { thenE } { returnE }
@@ -58,8 +62,9 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request  : method url { RequestSpec { verb = BS.pack $1, verbo = mk $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url        { RequestSpec { verb = "GET",      verbo = mk "GET", url = $1, headers = [], payload = "", opts = [] } }
+request  : method url crlf jsonBody crlf { trace "traceA" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
+         | method url crlf               { trace "traceB" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
+         | url crlf                      { trace "traceC" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
 response : "HTTP" response_codes { ResponseSpec { output = [], statuses = [] } }
 
@@ -80,6 +85,12 @@ call_items : call_item crlf           { [$1] }
            | call_items call_item  { $1 ++ [$2] }
 
 {
+
+-- getLineNum :: Token -> Int
+-- getLineNum (Token (AlexPn _ line _) _) = line
+-- traceWithLine :: Token -> String -> a -> a
+-- traceWithLine tok msg val = trace (msg ++ " at line " ++ show (getLineNum tok)) val
+
 
 parseError :: [Token] -> E a
 parseError tokens = failE $ "Parse error on tokens: " ++ show tokens

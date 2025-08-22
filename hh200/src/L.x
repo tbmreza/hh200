@@ -22,6 +22,8 @@ tokens :-
   | [Oo][Pp][Tt][Ii][Oo][Nn][Ss]
   | [Hh][Ee][Aa][Dd]              { tok (\p s -> METHOD p s) }
 
+    \{       { tok (\p _ -> BRACE_OPN p) }
+    \}       { tok (\p _ -> BRACE_CLS p) }
     \(       { tok (\p _ -> PAREN_OPN p) }
     \)       { tok (\p _ -> PAREN_CLS p) }
     \[       { tok (\p _ -> LIST_OPN p) }
@@ -40,6 +42,7 @@ tokens :-
 
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
+    \{ $printable+ \}       { tok (\p s -> BRACED p s) }
     \" [$printable # \"]+ \"       { tok (\p s -> QUOTED p s) }
 
 
@@ -58,6 +61,8 @@ data Token =
   | VERSION  AlexPosn String  -- HTTP/1.1
   | STATUS   AlexPosn Int     -- 500
 
+  | BRACE_OPN  AlexPosn
+  | BRACE_CLS  AlexPosn
   | PAREN_OPN  AlexPosn
   | PAREN_CLS  AlexPosn
   | LIST_OPN   AlexPosn
@@ -72,6 +77,7 @@ data Token =
 
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
+  | BRACED  AlexPosn String
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
