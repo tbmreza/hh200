@@ -62,23 +62,21 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request  : method url crlf jsonBody crlf { trace "traceA" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
-         | method url crlf               { trace "traceB" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url crlf                      { trace "traceC" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
+request  : method url crlf jsonBody crlf { trace "requestA" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
+         | method url crlf               { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
+         | url crlf                      { trace "requestC" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
-response : "HTTP" response_codes { ResponseSpec { output = [], statuses = [] } }
+response : response_codes  { trace "" (ResponseSpec { output = [], statuses = map statusFrom $1 }) }
 
-response_codes : "[" status_list "]" { $2 }
-               | status_list { $1 }
+response_codes :: { [Int] }
+response_codes : d                { [read $1] }
+               | response_codes d { $1 ++ [read $2] }
 
-status_list :: { [Int] }
-status_list : status      { [$1] }
-            | status_list status { $1 ++ [$2] }
 
-call_item : deps_clause request response { pCallItem $1 $2 (Just $3) }
-          | deps_clause request          { pCallItem $1 $2 Nothing }
-          | request                      { pCallItem defaultDepsClause $1 Nothing }
-          | request response             { pCallItem defaultDepsClause $1 (Just $2) }
+call_item : deps_clause request response { trace "call_itemA" (pCallItem $1 $2 (Just $3)) }
+          | deps_clause request          { trace "call_itemB" (pCallItem $1 $2 Nothing) }
+          | request response             { trace ("call_itemC: " ++ show $2) pCallItem defaultDepsClause $1 (Just $2) }
+          | request                      { trace "call_itemD" (pCallItem defaultDepsClause $1 Nothing) }
 
 
 call_items : call_item crlf           { [$1] }
@@ -90,6 +88,9 @@ call_items : call_item crlf           { [$1] }
 -- getLineNum (Token (AlexPn _ line _) _) = line
 -- traceWithLine :: Token -> String -> a -> a
 -- traceWithLine tok msg val = trace (msg ++ " at line " ++ show (getLineNum tok)) val
+
+statusFrom :: Int -> Status
+statusFrom n = mkStatus n ""
 
 
 parseError :: [Token] -> E a

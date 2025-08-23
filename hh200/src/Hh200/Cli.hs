@@ -1,26 +1,21 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Hh200.Cli
-    ( cli
-    ) where
+module Hh200.Cli (cli) where
 
-import Data.Version (showVersion)
-import Options.Applicative
--- import qualified Options.Applicative as OA (short)
--- import Options.Applicative (help, long, switch, str, argument, metavar, optional, header, fullDesc, helper, (<**>), execParser, info)
-
+import Debug.Trace
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
--- import System.FilePath ((</>))
 import System.Exit (exitWith, ExitCode(ExitFailure))
 import System.Directory (doesFileExist)
--- import qualified Data.ByteString.Char8 as BS
+import Options.Applicative
 import qualified Data.ByteString.Lazy.Char8 as L8
 
+import Data.Version (showVersion)
 import qualified Paths_hh200 (version)
-import qualified Hh200.Types as Hh
-import qualified Hh200.Scanner as Hh
+
+import Hh200.Types
+import qualified Hh200.Scanner as Scanner
 
 data Args = Args
     { source  :: Maybe String
@@ -70,30 +65,30 @@ go Args { source = Just src, debugConfig = True } = do
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just src } = do
-    ret :: Maybe Hh.Script <- runMaybeT $ do
-        script <- Hh.analyze (Hh.Snippet $ L8.pack src)
+    ret :: Maybe Script <- runMaybeT $ do
+        script <- Scanner.analyze (Snippet $ L8.pack src)
         liftIO (return script)
 
     case ret of
         Nothing -> do
-            exitWith (ExitFailure 1)
+            trace "sole exit" (exitWith (ExitFailure 1))
         Just s -> do
-            lead <- Hh.testOutsideWorld s
-            putStrLn $ Hh.present lead
+            lead <- testOutsideWorld s
+            putStrLn $ present lead
 
 -- Basic script execution.
 -- hh200 flow.hhs
 go Args { call = False, source = Just path } = do
-    ret :: Maybe Hh.Script <- runMaybeT $ do
-        script <- Hh.analyze path
+    ret :: Maybe Script <- runMaybeT $ do
+        script <- Scanner.analyze path
         liftIO (return script)
 
     case ret of
         Nothing -> do
             exitWith (ExitFailure 1)
         Just s -> do
-            lead <- Hh.testOutsideWorld s
-            putStrLn $ Hh.present lead
+            lead <- testOutsideWorld s
+            putStrLn $ present lead
 
 go _ =
     -- Verifiable with `echo $?` which prints last exit code in shell.

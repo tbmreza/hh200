@@ -27,9 +27,9 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
+      Hh200.ContentType
       Hh200.Fearless
       Hh200.Scanner
-      Hh200.SonOfJ
       Hh200.Types
       L
       P

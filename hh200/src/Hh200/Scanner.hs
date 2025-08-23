@@ -1,4 +1,3 @@
--- logger <- liftIO $ newStdoutLoggerSet defaultBufSize  -- ??: internal logger without passing around instance
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,6 +12,7 @@ module Hh200.Scanner
     , module P
     ) where
 
+import Debug.Trace
 import Hh200.Types
 import L
 import P
@@ -22,9 +22,6 @@ import System.Directory (doesFileExist)
 
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
--- import System.Environment (lookupEnv)
--- import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
--- import qualified Data.ByteString.Char8 as BS
 
 scriptFrom :: Snippet -> Maybe Script
 scriptFrom (Snippet s) =
@@ -32,7 +29,7 @@ scriptFrom (Snippet s) =
     let parsed :: E Script = parse tokensOrPanic in
 
     case parsed of
-        ParseFailed _ -> Nothing
+        ParseFailed d -> trace (show d) Nothing
         ParseOk sole -> Just sole
 
 readScript :: FilePath -> IO (Maybe Script)
@@ -84,7 +81,7 @@ instance Analyze Snippet where
 
         MaybeT $ case opt of
             Nothing -> do
-                return Nothing
+                trace "analyzed Nothing" (return Nothing)
             Just baseScript -> do
                 hi <- gatherHostInfo
                 let scOpt :: Maybe ScriptConfig = hiHh200Conf hi

@@ -59,7 +59,7 @@ data Token =
   | SEP      AlexPosn         -- /
   | METHOD   AlexPosn String  -- GET
   | VERSION  AlexPosn String  -- HTTP/1.1
-  | STATUS   AlexPosn Int     -- 500
+  | STATUS   AlexPosn Int     -- 500  ??: rm from lexing job
 
   | BRACE_OPN  AlexPosn
   | BRACE_CLS  AlexPosn
