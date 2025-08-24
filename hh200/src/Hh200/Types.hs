@@ -22,7 +22,7 @@ module Hh200.Types
   ) where
 
 import Debug.Trace
-import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.Char as Char (isUpper, toUpper)
 import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
@@ -35,8 +35,12 @@ import Network.HTTP.Simple (setRequestMethod)
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
-import Network.HTTP.Client
+import qualified Network.HTTP.Client as Prim
+  ( newManager, parseRequest, httpLbs, method, requestBody, requestHeaders, responseStatus, responseBody
+  , Manager, Response, Request, RequestBody(..), HttpException
+  )
 import Network.HTTP.Types.Method
+import Control.Exception (try)
 import Control.Monad.Reader
 import Control.Monad.Writer
 import Control.Monad.Trans.Maybe
@@ -86,10 +90,8 @@ data Script =
       { config :: ScriptConfig
       , callItems :: [CallItem]
       }
-  -- deriving (Show, Eq)
-  deriving (Show)
+  deriving (Show, Eq)
 
--- ??: v1 of Scanner will use String before jumping to ByteString
 data RequestSpec = RequestSpec
     { verb :: UppercaseString
     , url :: String
@@ -112,10 +114,16 @@ newtype Subject = Subject String
 data ScriptConfig = ScriptConfig
   { retries :: Int
   , maxDuration :: Maybe Duration
-  , subjects :: [Subject]
+  , subjects1 :: [Subject]
+  , subjects :: Ls.NonEmpty Subject
   } deriving (Show, Eq)
 defaultScriptConfig :: ScriptConfig
-defaultScriptConfig = ScriptConfig { retries = 0, maxDuration = Nothing, subjects = [Subject "a"] }
+defaultScriptConfig = ScriptConfig
+  { retries = 0
+  , maxDuration = Nothing
+  , subjects1 = [Subject "a"]
+  , subjects = (Subject "a") Ls.:| []
+  }
 
 cfgs :: ScriptConfig -> [(String, Maybe String)]
 cfgs ScriptConfig {..} =
@@ -146,8 +154,7 @@ data CallItem = CallItem
   , ciName :: String
   , ciRequestSpec :: RequestSpec
   , ciResponseSpec :: Maybe ResponseSpec
-  -- } deriving (Show, Eq)
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 -- Mechanically, this is a corollary to http-client's defaultRequest.
 --
@@ -162,14 +169,6 @@ defaultCallItem = CallItem
     , url = "http://localhost:80"
     , headers = [], payload = "", opts = []
     }
-  , ciResponseSpec = Nothing
-  }
-
-localhost9999 :: CallItem
-localhost9999 = CallItem
-  { ciDeps = []
-  , ciName = "debug"
-  , ciRequestSpec = RequestSpec { verb = expectUpper "GET", url = "http://localhost:9999/hh", headers = [], payload = "", opts = []}
   , ciResponseSpec = Nothing
   }
 
@@ -209,7 +208,6 @@ data Lead =
       , hostInfo ::     HostInfo
       , echoScript ::   Maybe Script
       }
-  -- deriving (Show, Eq)
   deriving (Show)
 
 nonLead :: Script -> Lead
@@ -236,33 +234,31 @@ debugLead = DebugLead
   }
 
 -- Presume http-client manager sharing.
-type HttpM = ReaderT Manager IO
+type HttpM = ReaderT Prim.Manager IO
 runHttpM :: HttpM a -> IO a
 runHttpM action = do
-    manager <- newManager tlsManagerSettings
+    manager <- Prim.newManager tlsManagerSettings
     runReaderT action manager
 -- HttpExceptionRequest
 
 runCompiled :: HttpM a -> IO a
 runCompiled action = do
-    manager <- newManager tlsManagerSettings
+    manager <- Prim.newManager tlsManagerSettings
     runReaderT action manager
 
 mkRequest :: BS.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
 mkRequest    methodStr    url       mBody                = do
     manager <- ask
-    initialRequest <- liftIO $ parseRequest url
+    initialRequest <- liftIO $ Prim.parseRequest url
     let request = initialRequest
-            -- { method = method methodStr
-            { method = methodStr
-            -- { method = "GET"
-            , requestBody = maybe mempty RequestBodyLBS mBody
-            , requestHeaders = case mBody of
+            { Prim.method = methodStr
+            , Prim.requestBody = maybe mempty Prim.RequestBodyLBS mBody
+            , Prim.requestHeaders = case mBody of
                 Just _  -> [("Content-Type", "application/json")]
-                Nothing -> requestHeaders initialRequest
+                Nothing -> Prim.requestHeaders initialRequest
             }
-    response <- liftIO $ httpLbs request manager
-    return $ responseBody response
+    response <- liftIO $ Prim.httpLbs request manager
+    return $ Prim.responseBody response
 
 httpGet :: String -> HttpM L8.ByteString
 httpGet url = mkRequest "GET" url Nothing
@@ -287,8 +283,6 @@ data TerribleException = TerribleException deriving (Show)
 -- newtype TerribleException = TerribleException String deriving (Show)
 instance Exception TerribleException
 
-type HttpMethod = S8.ByteString  -- "GET" "POST"
-
 type Source = FilePath
 
 type HttpVerb = BS.ByteString
@@ -298,7 +292,6 @@ type Headers = HashTable String String
 
 type Vars = HM.HashMap String Integer
 
--- varsEmpty = HM.empty
 varsDefault :: Vars
 varsDefault = HM.fromList [("max_reruns", 2)]
 
@@ -336,21 +329,6 @@ data Policy = Policy {
     timeMillisPerCall :: Maybe Int
     } deriving (Eq, Show, Generic)
 
--- -- instance FromValue Policy where fromValue = genericFromTable
--- instance ToTable Policy where toTable = genericToTable
--- instance ToValue Policy where toValue = defaultTableToValue
---
--- policyDefault :: Policy
--- -- policyDefault = Policy { maxReruns = 2, maxRetriesPerCall = 2, timeMillisPerCall = 60_000 }
--- policyDefault = Policy { maxReruns = Just 2, maxRetriesPerCall = Just 2, timeMillisPerCall = Just 60000 }
---
--- instance FromValue Policy where
---     fromValue = parseTableFromValue (Policy
---         <$> optKey "max_reruns"
---         <*> optKey "max_retries_per_call"
---         <*> optKey "time_millis_per_call"
---         )
-
 -- Simple source position
 data Pos = Pos 
     { line :: !Int
@@ -380,12 +358,11 @@ data Located a = Located
 --
 -- early 2:
 -- status codes mismatch, duration, filesystem, thread cancelled, offline
---
--- only legit Lead representable
+
 
 -- Procedure "may" fail early, "writes" log as it runs
 -- and "reads" a shared http-client manager instance while doing IO.
-type ProcM = MaybeT (WriterT Log (ReaderT Manager IO))
+type ProcM = MaybeT (WriterT Log (ReaderT Prim.Manager IO))
 type Log = [String]
 
 logMsg :: String -> ProcM ()
@@ -394,178 +371,72 @@ logMsg msg = lift $ tell [msg]
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: ProcM CallItem -> IO (CallItem, Log)
 runProcM action = do
-    mgr <- newManager tlsManagerSettings
+    mgr <- Prim.newManager tlsManagerSettings
     res :: (Maybe CallItem, Log) <- runReaderT (runWriterT (runMaybeT action)) mgr
     return $ case res of
         (Nothing, log) -> (defaultCallItem, log)
         (Just suspect, log) -> (suspect, log)
 
--- runProcM1 :: ProcM CallItem -> IO (Maybe CallItem, Log)
--- runProcM1 action = do
---     manager <- newManager tlsManagerSettings
---     runReaderT (runWriterT (runMaybeT action)) manager
-
-
--- -- runRaceM :: ProcM a -> IO (Maybe a, Log)
--- runRaceM :: ProcM CallItem -> IO (Maybe CallItem, Log)
--- runRaceM action = do
---     manager <- newManager tlsManagerSettings
---     runReaderT (runWriterT (runMaybeT action)) manager
-
-
--- shuntGet1 :: String ->                  ProcM L8.ByteString
--- shuntGet1 = shuntHttpRequest (\req -> req { method = "GET" })
---
--- shuntPost :: L8.ByteString -> String -> ProcM L8.ByteString
--- shuntPost body = shuntHttpRequest (\req -> req
---   { method = "POST"
---   , requestBody = RequestBodyLBS body
---   , requestHeaders = ("Content-Type", "application/json") : requestHeaders req
---   })
---
--- shuntGet :: String -> ProcM L8.ByteString
--- shuntGet url = do
---   logMsg $ "Requesting: " ++ url
---   manager <- lift . lift $ ask
---   result <- liftIO $ try $ do
---     req <- parseRequest url
---     httpLbs req manager
---   case result of
---     Right resp -> do
---       let status = statusCode $ responseStatus resp
---       logMsg $ "Received status: " ++ show status
---       if status >= 200 && status < 300
---         then return $ responseBody resp
---         else do
---           logMsg $ "Non-success status: " ++ show status
---           MaybeT $ return Nothing
---     Left (HttpExceptionRequest _ content) -> do
---       logMsg $ "HttpExceptionRequest: " ++ show content
---       MaybeT $ return Nothing
---     Left err -> do
---       logMsg $ "Other exception: " ++ displayException err
---       MaybeT $ return Nothing
---
--- shuntHttpRequest :: (Request -> Request) -> String -> ProcM L8.ByteString
--- shuntHttpRequest modifyReq url = do
---   manager <- lift . lift $ ask
---   result <- liftIO $ try $ do
---     initReq <- parseRequest url
---     let req = modifyReq initReq
---     response <- httpLbs req manager
---     return $ responseBody response
---   case result of
---     Left err -> do
---       tell ["HTTP error: " ++ show (err :: HttpException)]
---       MaybeT $ return Nothing
---     Right body -> return body
 
 
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
-    reqs :: [Request] <- liftIO (asRequests x)
-    res :: () <- shunt reqs
+    -- liftIO $ putStrLn "courseFrom..."
+    -- pairs :: [(Request, Match)] <- liftIO (asReqRespPairs x)
+    pairs :: [Prim.Request] <- liftIO (asReqRespPairs x)
+    res :: () <- shunt pairs
 
-    -- let [ci] = callItems x
-    -- let expectCodes :: [Status] = case ciResponseSpec ci of
-    --         Nothing -> [status200]
-    --         Just spec -> statuses spec
-
-    return $ case True of
-        _ -> defaultCallItem
+    return defaultCallItem
 
     where
-    asRequests :: Script -> IO [Request]
-    asRequests (Script { callItems }) = do
-        let res :: IO [Request] = mapM buildFrom callItems
+    -- asReqRespPairs :: Script -> IO [(Request, Match)]
+    asReqRespPairs :: Script -> IO [Prim.Request]
+    asReqRespPairs (Script { callItems }) = do
+        let res :: IO [Prim.Request] = mapM buildFrom callItems
         res
 
-    buildFrom :: CallItem -> IO Request
+    -- buildFrom :: CallItem -> IO (Request, Match)
+    buildFrom :: CallItem -> IO Prim.Request
     buildFrom ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
-            struct :: Request <- parseRequest (url $ ciRequestSpec ci)
+            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
             return $ struct
-              { method = asMethod (verb $ ciRequestSpec ci)
+              { Prim.method = asMethod (verb $ ciRequestSpec ci)
               }
 
         -- Requests with json body.
         | otherwise = do
-            let body = RequestBodyLBS $ encode (payload $ ciRequestSpec ci)
+            let body = Prim.RequestBodyLBS $ encode (payload $ ciRequestSpec ci)
 
-            struct :: Request <- parseRequest (url $ ciRequestSpec ci)
+            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
             return $ struct
-              { method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE]
-              -- , requestHeaders = [("Content-Type", "application/json")]
-              , requestHeaders = [headerJson]
-              , requestBody = body
+              { Prim.method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE] which don't idiomatically support json body
+              , Prim.requestHeaders = [headerJson]
+              , Prim.requestBody = body
               }
 
-    -- ??: try HttpException
-    fire :: Manager -> Request -> IO (Response L8.ByteString)
-    fire mgr req = httpLbs req mgr
+    fire :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
+    fire mgr req = Prim.httpLbs req mgr where
+        tried :: IO (Either Prim.HttpException (Prim.Response L8.ByteString))
+        tried = try $ Prim.httpLbs req mgr
 
-    shunt :: [Request] -> ProcM ()
-    shunt reqs = do
-        mgr :: Manager <- ask
-        let withMgr :: Request -> IO (Response L8.ByteString) = fire mgr
-        let results :: IO [Response L8.ByteString] = mapM withMgr reqs
+    -- Match : codes, 
+    -- shunt :: [(Prim.Request, Match)] -> ProcM ()
+    shunt :: [Prim.Request] -> ProcM ()
+    shunt pairs = do
+        mgr :: Prim.Manager <- ask
+        let withMgr :: Prim.Request -> IO (Prim.Response L8.ByteString) = fire mgr
 
-        _ <- liftIO results
-
+        results :: [Prim.Response L8.ByteString] <- liftIO (mapM withMgr pairs)
+        let sample = head results
+        let actualCode :: Status = Prim.responseStatus sample
+        liftIO $ putStrLn ("liftIO print:\t" ++ show results)
         return ()
+
 
 -- -- Course is procedure in a stack form that will return the
 -- -- CallItem that turned out to be failing.
--- courseFrom :: Script -> ProcM CallItem
--- courseFrom x = do
---     liftIO (putStrLn $ show x)
---     -- -- build :: Request <- parseRequest (urlFrom x)
---     -- build :: Request <- parseRequest (url $ ciRequestSpec defaultCallItem)
---     -- let struct :: Request = build
---     --       { method = verb $ ciRequestSpec defaultCallItem
---     --       }
---
---     req <- liftIO (oneRequest x)
---     res :: Response L8.ByteString <- oneResponse req
---     -- liftIO $ putStrLn (show res)
---
---     let [ci] = callItems x
---     let expectCodes :: [Status] = case ciResponseSpec ci of
---             Nothing -> [status200]
---             Just spec -> statuses spec
---
---     return $ case True of
---         False -> ci
---         _ -> defaultCallItem
---
---     where
---     oneRequest :: Script -> IO Request
---     oneRequest (Script { callItems = [ci]}) = do
---         putStrLn "\tci:"
---         putStrLn $ show ci
---         let scriptUrl = url $ ciRequestSpec ci
---         build :: Request <- parseRequest scriptUrl
---         let struct :: Request = build
---               { method = asMethod (verb $ ciRequestSpec ci)
---               }
---         -- putStrLn "\tstruct:"
---         -- putStrLn $ show struct
---         return struct
---
---     oneResponse :: Request -> ProcM (Response L8.ByteString)
---     oneResponse req = do
---         liftIO $ putStrLn "oneResponse............."
---         mgr :: Manager <- ask
---         result <- liftIO $ try (httpLbs req mgr)
---         case result of
---             Left err -> do
---                 liftIO $ putStrLn "left....."
---                 tell ["HTTP error: " ++ show (err :: HttpException)]
---                 MaybeT $ return Nothing
---             Right body -> do
---                 liftIO $ putStrLn "right....."
---                 return body
 
 testOutsideWorld :: Script -> IO Lead
 
@@ -577,46 +448,47 @@ testOutsideWorld static@(Script { config = _, callItems = [] }) = do
 testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects }
-      , callItems = [soleCi] }) = do
+      , callItems = [_] }) = do
 
-    let ss :: [Int] = [200, 404]
-    -- let jj :: [Status] = map statusFrom ss
-    let nnn = Status 404 (statusMessage (mkStatus 404 ""))
-    putStrLn $ "yea" ++ show nnn
-    let zzz :: Status = mkStatus 200 ""
+    -- let ss :: [Int] = [200, 404]
+    -- let nnn = Status 404 (statusMessage (mkStatus 404 ""))
+    -- putStrLn $ "yea" ++ show nnn
+    -- let zzz :: Status = mkStatus 200 ""
 
-    let course :: ProcM CallItem = courseFrom sole
-
-    -- suspect :: (CallItem, Log) <- runProcM course
+    results :: (CallItem, Log) <- runProcM (courseFrom sole)
+    return $ case results of
+        (_, []) -> nonLead sole
+        (suspect, _) -> leadFrom (Just suspect) sole
 
     -- NonLead means status codes do match.
     -- Single: result in expectCodes
     -- Multi:  putMVar $ result in expectCodes
-    case length subjects of
-        1 -> do
-            (suspect, crumbs) :: (CallItem, Log) <- runProcM course
-            let _ = singleModeIsOk  -- ??
-
-            return $ case null crumbs of
-                False -> do
-                    leadFrom (Just suspect) sole
-                _ -> do
-                    (nonLead sole)
-
-        _ -> do
-            -- ??: subjects is better typed as NEL
-            -- let nonEmptyList = 1 :| [2, 3]
-            let _ = multiModeIsOk
-            return $ trace "this nonLead" (nonLead sole)
+    -- case length subjects1 of
+    --     1 -> do
+    --         (suspect, crumbs) :: (CallItem, Log) <- runProcM course
+    --         let _ = singleModeIsOk
+    --
+    --         return $ case null crumbs of
+    --             False -> do
+    --                 leadFrom (Just suspect) sole
+    --             _ -> do
+    --                 (nonLead sole)
+    --
+    --     _ -> do
+    --         let _ = multiModeIsOk
+    --         return $ trace "this nonLead" (nonLead sole)
 
     
 
-    where
-    singleModeIsOk :: Bool  -- in which case return NonLead
-    singleModeIsOk = True
+    -- where
+    -- course :: ProcM CallItem
+    -- course = courseFrom sole
 
-    multiModeIsOk :: Bool  -- in which case return NonLead
-    multiModeIsOk = True
+    -- singleModeIsOk :: Bool  -- in which case return NonLead
+    -- singleModeIsOk = True
+    --
+    -- multiModeIsOk :: Bool  -- in which case return NonLead
+    -- multiModeIsOk = True
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld script@(Script { callItems }) = do
@@ -625,39 +497,6 @@ testOutsideWorld script@(Script { callItems }) = do
 
     return $ nonLead script
 
--- testOutsideWorld1 :: Script -> MaybeT IO Lead
--- testOutsideWorld1 single@(Script { config = ScriptConfig { subjects }, call_items = [ci] }) = do
---     coming :: Maybe CallItem <- liftIO $ raceToFirstFailing single
---
---     MaybeT (return $ Just (leadFrom coming single))
---
---     where
---     mkAction :: [CallItem] -> Subject -> IO (Maybe CallItem, Log)
---     mkAction [ci] subject = do
---         putStrLn $ show subject
---
---         -- Course is procedure in a stack form that will return the
---         -- CallItem that turned out to be failing.
---         let course :: ProcM CallItem = do
---                 logMsg "building course...."
---
---                 build :: Request <- parseRequest (url $ ciRequestSpec ci)
---                 let struct = build
---                       -- { method = verb $ ciRequestSpec ci
---                       { method = verb $ ciRequestSpec ci
---                       }
---
---                 ret <- shuntHttpRequestFull struct
---
---                 let expectCodes = case ciResponseSpec ci of
---                         Nothing -> [status200]
---                         Just rc -> statuses rc
---
---
---                 logMsg "endA course...."
---                 -- case elem (responseStatus ret) expectCodes of
---                 case True of
---                     True ->
 --                         -- Functionally a default CallItem makes sense in the event where the
 --                         -- compiler couldn't point to a failing CallItem in user program; maybe
 --                         -- the client host can't even get the expected result of sending a request to
@@ -671,7 +510,6 @@ testOutsideWorld script@(Script { callItems }) = do
 --
 --     raceToFirstFailing :: Script -> IO (Maybe CallItem)
 --     raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items } = do
---         init <- newManager tlsManagerSettings
 --         hole :: Base.MVar CallItem <- Base.newEmptyMVar
 --
 --         let actions :: [IO (Maybe CallItem, Log)] = map (mkAction call_items) subjects
@@ -697,15 +535,6 @@ testOutsideWorld script@(Script { callItems }) = do
 
 present :: Lead -> String
 present x = show x
--- present lead =
---     let isNonLead = False in -- ??
---     case isNonLead of
---         False -> show lead
-
-        -- let assignments = map (consign mut app) subjects
-
-
-    -- -- consign :: Base.MVar CallItem -> ProcM () -> String -> IO ()
     -- act io = Base.forkIO $ do
     --     failing <- io
     --     Base.putMVar hole failing

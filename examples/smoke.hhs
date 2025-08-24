@@ -1,1 +1,3 @@
-POST http://localhost:9999/ok
+POST http://localhost:9999/fst
+
+POST http://localhost:9999/snd
