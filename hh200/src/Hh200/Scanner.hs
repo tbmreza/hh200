@@ -65,8 +65,8 @@ instance Analyze FilePath where
     analyze path = do
         exists <- liftIO $ doesFileExist path
         MaybeT $ case exists of
-            -- Proceeding to testOutsideWorld is unnecessary.
             False -> do
+                -- Proceeding to testOutsideWorld is unnecessary.
                 return Nothing
             _ -> do
                 readScript path

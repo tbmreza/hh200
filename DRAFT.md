@@ -1,15 +1,11 @@
--- -- These rats compete with each other for the first counter-example or `Lead`.
--- -- At the end of the race, all rats die; "rat race".
-    "\n"        { LN _ }
-{ "username": "admin", "password": "admin1234" }
-
 what to do about:
 - Special-Use Domain Names
+- webdav semantics
 
 # hh200
 ```
 summary:      statically-checked dsl for testing http servers
-extensions:   .hhs (script), .etf (external term format)
+extensions:   .hhs (script), 
 usecases      stress testing (massive parallelism, pretty execution reports),
   (features): quick call (interpreter, user profile),
               programming assistant (lsp, symbolic executor)
@@ -42,56 +38,7 @@ hh200 was born for such developer occurrences.
 hh200 the language expresses _what HTTP calls to make and how_.
 It is not innovative by enabling what weren't possible with general purpose languages before.
 Also see the state of hurl, which has been the inspiration for this project.
-
-## Erlang
-$ erl
-Erlang/OTP 25 [erts-13.1.5] [source] [64-bit] [smp:20:20] [ds:20:20:10] [async-threads:1] [jit:ns]
-Eshell V13.1.5
-
-Erlang/OTP 27 [erts-15.2.2] [source] [64-bit] [smp:20:20] [ds:20:20:10] [async-threads:1] [jit:ns]
-Eshell V15.2.2
-
-
-"what calls to make and how" building-blocks:
-lexer/parser with source-location error
-parallel/concurrency as provided by haskell, erlang
-abstract interpreter or symbolic executor
-
-
-strategy: how to call callables
-    probably a selling point to have it hotreloading erlang-style
-callable: what to call
-    partial and reads from environment
-    { method, url }
-
-"pass json-parsed response to later callables"
-
-parse to erlang Abstract Format
-execute a callable in a process
-    
-update context/environment from a process
-    client-server app
-    a dictionary<key, JsonString>  as rebar3 project: mcontext dictionary
-distribute erlang's runtime
-    erlang Release https://www.erlang.org/doc/system/release_structure
-    as cemerlang/ with makefile: .core building blocks
-
-{get,"http://localhost:9999/hello"}  -- set callable
-{http,404}                           -- httpc
-
-
-{get,{"http://localhost:9999/user?search=~a",["reza"]}}  -- interpolation, capture
-{http,200}
-{capture,{reza_id,21}}
-
-{delete,{"http://localhost:9999/user/{{reza_id}}",{ctx}}}  -- read ctx
-{http,200}
-
-            % scan :: String -> [Token]
-            % scan _ = do ... erl_scan:string ... return []
 ```
-
-
 
 ## cli
 flags: hh200 hello.hhs --verbose, --no-cache, --version
@@ -149,63 +96,6 @@ parse :: filepath -> ast
 
 ### hh200 run hello.hhsm
 eval :: ast -> env -> hhsm
-
-## hhsm iset
-goal: assert a property of an http response
-instructions: v, h, c, u (resource)  i, o, r, s (action)
-    <!-- IV: init verb get -->
-    <!-- IC: init expect_code -->
-    RV: revert verb
-    RH: revert headers
-    RC: revert expect_code
-    OV: override verb (String)
-    OC: override expect_code (Int)
-    OJ: override json_string (String)
-    JB: screen stomach, set body
-    SU: set parametrized_url (String)
-    SH: override a header (Map)
-    X : run
-
-type HttpMethod = String
-mut VM {
-    parametrized_url,  String
-    expect_code,  Int
-    verb,  String
-    headers,  Tbl
-    json_string,  String
-    prog: [Stmt]
-}
-
-get, { "body": 12 }, headers, parametrized_url
-status_code, jsonpath
-
-### example program
-....
-
-```
-init verb get
-init expect_code 200
-
-set parametrized_url
-run  vm.json_string <- response.body, vm.expect_code == response.code  verb url expect_code
-
-override verb
-set parametrized_url
-override expect_code
-run  vm.json_string <- response.body, vm.expect_code == response.code
-
-
-
-
-
-override verb
-set parametrized_url
-override json_string
-set body
-run  vm.expect_code == response.code
-
-
-
 
 
 ```
@@ -341,11 +231,10 @@ what your shell does every step of the way.
 
 - [X] LR parser
 - [ ] agent parallelism phase 1 (4 agents)
+    - variable captures
     - file reading built into the syntax
     - counter-example and summary printing: Duration; Request string repr; 
 - [ ] agent parallelism benchmark
-- [ ] `stack test -- localhost.hhs # opens localhost:44200`  "haskell serve real time data to localhost"
-- [ ] `stack test -- localhost.hhs --no-browser` cli arg
 - [ ] `hh200 prgn-nova-regression.hhs` debian packaging
 
 ## old Makefile:

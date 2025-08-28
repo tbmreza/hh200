@@ -29,7 +29,8 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
 -- import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
 import qualified Data.ByteString.Char8 as BS
-import GHC.Generics (Generic)
+-- import GHC.Generics (Generic)
+import GHC.Generics
 
 import Network.HTTP.Simple (setRequestMethod)
 import Network.HTTP.Client.TLS
@@ -43,16 +44,18 @@ import Network.HTTP.Types.Method
 import Control.Exception (try)
 import Control.Monad.Reader
 import Control.Monad.Writer
+import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Network.HTTP.Types.Status
 import Control.Monad (forM_)
+import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import System.Directory (doesFileExist)
 import Control.Exception
 import Control.Concurrent (ThreadId)
 import qualified Control.Concurrent as Base
 
-import Data.Aeson (encode)
+import qualified Data.Aeson as Json (encode, Value(..))
 
 headerJson = ("Content-Type", "application/json")
 
@@ -104,6 +107,7 @@ data RequestSpec = RequestSpec
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
   , output :: [String]
+-- , jsonPaths :: [String]
   }
   deriving (Show, Eq)
 
@@ -233,38 +237,37 @@ debugLead = DebugLead
   , echoScript = Nothing
   }
 
--- Presume http-client manager sharing.
-type HttpM = ReaderT Prim.Manager IO
-runHttpM :: HttpM a -> IO a
-runHttpM action = do
-    manager <- Prim.newManager tlsManagerSettings
-    runReaderT action manager
--- HttpExceptionRequest
-
-runCompiled :: HttpM a -> IO a
-runCompiled action = do
-    manager <- Prim.newManager tlsManagerSettings
-    runReaderT action manager
-
-mkRequest :: BS.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
-mkRequest    methodStr    url       mBody                = do
-    manager <- ask
-    initialRequest <- liftIO $ Prim.parseRequest url
-    let request = initialRequest
-            { Prim.method = methodStr
-            , Prim.requestBody = maybe mempty Prim.RequestBodyLBS mBody
-            , Prim.requestHeaders = case mBody of
-                Just _  -> [("Content-Type", "application/json")]
-                Nothing -> Prim.requestHeaders initialRequest
-            }
-    response <- liftIO $ Prim.httpLbs request manager
-    return $ Prim.responseBody response
-
-httpGet :: String -> HttpM L8.ByteString
-httpGet url = mkRequest "GET" url Nothing
-
-httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
-httpPost url body = mkRequest "POST" url (Just body)
+-- -- Presume http-client manager sharing.
+-- type HttpM = ReaderT Prim.Manager IO
+-- runHttpM :: HttpM a -> IO a
+-- runHttpM action = do
+--     manager <- Prim.newManager tlsManagerSettings
+--     runReaderT action manager
+-- -- HttpExceptionRequest
+--
+-- runCompiled :: HttpM a -> IO a
+-- runCompiled action = do
+--     manager <- Prim.newManager tlsManagerSettings
+--     runReaderT action manager
+--
+-- mkRequest :: BS.ByteString -> String -> Maybe L8.ByteString -> HttpM L8.ByteString
+-- mkRequest    methodStr    url       mBody                = do
+--     initialRequest <- liftIO $ Prim.parseRequest url
+--     let request = initialRequest
+--             { Prim.method = methodStr
+--             , Prim.requestBody = maybe mempty Prim.RequestBodyLBS mBody
+--             , Prim.requestHeaders = case mBody of
+--                 Just _  -> [("Content-Type", "application/json")]
+--                 Nothing -> Prim.requestHeaders initialRequest
+--             }
+--     response <- liftIO $ Prim.httpLbs request manager
+--     return $ Prim.responseBody response
+--
+-- httpGet :: String -> HttpM L8.ByteString
+-- httpGet url = mkRequest "GET" url Nothing
+--
+-- httpPost :: String -> L8.ByteString -> HttpM L8.ByteString
+-- httpPost url body = mkRequest "POST" url (Just body)
 
 
 data InternalError = OutOfBounds
@@ -360,28 +363,98 @@ data Located a = Located
 -- status codes mismatch, duration, filesystem, thread cancelled, offline
 
 
+
+
+type Env = HM.HashMap String String
 -- Procedure "may" fail early, "writes" log as it runs
 -- and "reads" a shared http-client manager instance while doing IO.
-type ProcM = MaybeT (WriterT Log (ReaderT Prim.Manager IO))
+type ProcM1  = MaybeT (WriterT Log (ReaderT Prim.Manager IO))
 type Log = [String]
 
-logMsg :: String -> ProcM ()
-logMsg msg = lift $ tell [msg]
+-- Procedure "may" fail early, "reads" a shared http-client manager instance,
+-- "writes" log as it runs, modifies environment "states" while doing IO.
+type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
 
+-- logMsg :: String -> ProcM ()
+-- logMsg msg = lift $ tell [msg]
 -- Return to user the CallItem which we suspect will fail again.
-runProcM :: ProcM CallItem -> IO (CallItem, Log)
-runProcM action = do
-    mgr <- Prim.newManager tlsManagerSettings
-    res :: (Maybe CallItem, Log) <- runReaderT (runWriterT (runMaybeT action)) mgr
-    return $ case res of
-        (Nothing, log) -> (defaultCallItem, log)
-        (Just suspect, log) -> (suspect, log)
+runProcM :: ProcM CallItem -> Env -> Prim.Manager -> IO (CallItem, Env, Log)
+runProcM m env mgr = do
+    res :: (Maybe CallItem, Env, Log) <- Tf.runRWST (runMaybeT m) mgr env
+    case res of
+        -- Functionally a default CallItem makes sense in the event where the
+        -- compiler couldn't point to a failing CallItem in user program; likely that
+        -- the client host can't even get the expected result of sending a request to
+        -- localhost.
+        (Nothing, e, log) -> do
+            return (defaultCallItem, e, log)
+        (Just suspect, e, log) -> do
+            return (suspect, e, log)
 
-
+-- runProcM1 :: ProcM1 CallItem -> Maybe Env -> IO (CallItem, Log)
+-- runProcM1 action _ = do
+--     mgr <- Prim.newManager tlsManagerSettings
+--     res :: (Maybe CallItem, Log) <- runReaderT (runWriterT (runMaybeT action)) mgr
+--     return $ case res of
+--         (Nothing, log) -> (defaultCallItem, log)
+--         (Just suspect, log) -> (suspect, log)
 
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
-    -- liftIO $ putStrLn "courseFrom..."
+    pairs :: [Prim.Request] <- liftIO (asReqRespPairs x)
+    res :: () <- shunt pairs
+    return defaultCallItem
+    where
+    asReqRespPairs :: Script -> IO [Prim.Request]
+    asReqRespPairs (Script { callItems }) = do
+        let res :: IO [Prim.Request] = mapM buildFrom callItems
+        res
+
+    buildFrom :: CallItem -> IO Prim.Request
+    buildFrom ci
+        -- Requests without body.
+        | null (payload $ ciRequestSpec ci) = do
+            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
+            return $ struct
+              { Prim.method = asMethod (verb $ ciRequestSpec ci)
+              }
+
+        -- Requests with json body.
+        | otherwise = do
+            -- let d :: HM.HashMap String String = HM.fromList [("username", "wardah.23"), ("password", "ptiuser1234")]
+            -- let ed :: L8.ByteString = Json.encode d
+            -- let body = Prim.RequestBodyLBS $ Json.encode d
+
+            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
+            return $ struct
+              { Prim.method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE] which don't idiomatically support json body
+              , Prim.requestHeaders = [headerJson]
+              -- , Prim.requestBody = body
+              , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
+              }
+
+    rawPayload :: String -> Prim.RequestBody
+    rawPayload x = Prim.RequestBodyLBS $ L8.pack x
+
+    fire :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
+    fire mgr req = Prim.httpLbs req mgr where
+        tried :: IO (Either Prim.HttpException (Prim.Response L8.ByteString))
+        tried = try $ Prim.httpLbs req mgr
+
+    -- Results arrive here!
+    shunt :: [Prim.Request] -> ProcM ()
+    shunt pairs = do
+        mgr :: Prim.Manager <- ask
+        let withMgr :: Prim.Request -> IO (Prim.Response L8.ByteString) = fire mgr
+
+        results :: [Prim.Response L8.ByteString] <- liftIO (mapM withMgr pairs)
+        let sample = head results
+        let actualCode :: Status = Prim.responseStatus sample
+        return ()
+
+courseFrom1 :: Script -> ProcM1 CallItem
+courseFrom1 x = do
+    -- liftIO $ putStrLn ""
     -- pairs :: [(Request, Match)] <- liftIO (asReqRespPairs x)
     pairs :: [Prim.Request] <- liftIO (asReqRespPairs x)
     res :: () <- shunt pairs
@@ -407,14 +480,19 @@ courseFrom x = do
 
         -- Requests with json body.
         | otherwise = do
-            let body = Prim.RequestBodyLBS $ encode (payload $ ciRequestSpec ci)
+            -- let d :: HM.HashMap String String = HM.fromList [("username", "wardah.23"), ("password", "ptiuser1234")]
+            -- let ed :: L8.ByteString = Json.encode d
+            -- let body = Prim.RequestBodyLBS $ Json.encode d
 
             struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
             return $ struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE] which don't idiomatically support json body
               , Prim.requestHeaders = [headerJson]
-              , Prim.requestBody = body
+              -- , Prim.requestBody = body
+              , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
               }
+    rawPayload :: String -> Prim.RequestBody
+    rawPayload x = Prim.RequestBodyLBS $ L8.pack x
 
     fire :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
     fire mgr req = Prim.httpLbs req mgr where
@@ -422,8 +500,9 @@ courseFrom x = do
         tried = try $ Prim.httpLbs req mgr
 
     -- Match : codes, 
-    -- shunt :: [(Prim.Request, Match)] -> ProcM ()
-    shunt :: [Prim.Request] -> ProcM ()
+    -- shunt :: [(Prim.Request, Match)] -> ProcM1 ()
+    -- Results arrive here!
+    shunt :: [Prim.Request] -> ProcM1 ()
     shunt pairs = do
         mgr :: Prim.Manager <- ask
         let withMgr :: Prim.Request -> IO (Prim.Response L8.ByteString) = fire mgr
@@ -435,8 +514,8 @@ courseFrom x = do
         return ()
 
 
--- -- Course is procedure in a stack form that will return the
--- -- CallItem that turned out to be failing.
+-- Course is procedure in a stack form that will return the
+-- CallItem that turned out to be failing.
 
 testOutsideWorld :: Script -> IO Lead
 
@@ -449,65 +528,29 @@ testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects }
       , callItems = [_] }) = do
+    mgr <- Prim.newManager tlsManagerSettings
+    let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
 
     -- let ss :: [Int] = [200, 404]
     -- let nnn = Status 404 (statusMessage (mkStatus 404 ""))
     -- putStrLn $ "yea" ++ show nnn
     -- let zzz :: Status = mkStatus 200 ""
 
-    results :: (CallItem, Log) <- runProcM (courseFrom sole)
+    results :: (CallItem, Env, Log) <- runProcM (courseFrom sole) envNew mgr
     return $ case results of
-        (_, []) -> nonLead sole
-        (suspect, _) -> leadFrom (Just suspect) sole
-
-    -- NonLead means status codes do match.
-    -- Single: result in expectCodes
-    -- Multi:  putMVar $ result in expectCodes
-    -- case length subjects1 of
-    --     1 -> do
-    --         (suspect, crumbs) :: (CallItem, Log) <- runProcM course
-    --         let _ = singleModeIsOk
-    --
-    --         return $ case null crumbs of
-    --             False -> do
-    --                 leadFrom (Just suspect) sole
-    --             _ -> do
-    --                 (nonLead sole)
-    --
-    --     _ -> do
-    --         let _ = multiModeIsOk
-    --         return $ trace "this nonLead" (nonLead sole)
-
-    
-
-    -- where
-    -- course :: ProcM CallItem
-    -- course = courseFrom sole
-
-    -- singleModeIsOk :: Bool  -- in which case return NonLead
-    -- singleModeIsOk = True
-    --
-    -- multiModeIsOk :: Bool  -- in which case return NonLead
-    -- multiModeIsOk = True
+        (_, _, []) -> nonLead sole
+        (suspect, _, _) -> leadFrom (Just suspect) sole
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld script@(Script { callItems }) = do
+    mgr <- Prim.newManager tlsManagerSettings
+    let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
+
     let course :: ProcM CallItem = courseFrom script
-    _suspect :: (CallItem, Log) <- runProcM course
+    rez :: (CallItem, Env, Log) <- runProcM course envNew mgr
 
-    return $ nonLead script
+    return $ trace "the RIGHT BRANCH" (nonLead script)
 
---                         -- Functionally a default CallItem makes sense in the event where the
---                         -- compiler couldn't point to a failing CallItem in user program; maybe
---                         -- the client host can't even get the expected result of sending a request to
---                         -- localhost.
---                         return defaultCallItem
---                     _ ->
---                         -- The only suspect left.
---                         return ci
---
---         runProcM1 course
---
 --     raceToFirstFailing :: Script -> IO (Maybe CallItem)
 --     raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items } = do
 --         hole :: Base.MVar CallItem <- Base.newEmptyMVar
@@ -541,7 +584,6 @@ present x = show x
 
     -- -- Instruct a thread of the IO procedure it will perform.
     -- -- To be caught in race for-loop.
-    -- consign :: Base.MVar CallItem -> ProcM () -> String -> IO ()
     -- -- consign :: Base.MVar CallItem -> String -> IO ()
     -- consign failingCallItem flow ratInfo = do
     -- -- consign failingCallItem ratInfo = do
