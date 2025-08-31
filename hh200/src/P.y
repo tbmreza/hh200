@@ -20,6 +20,7 @@ import Hh200.Types
 
     newline        { LN _ }
 
+    "="         { SEP _ }
     "/"         { SEP _ }
     "."         { SEP _ }
     ","         { SEP _ }
@@ -35,12 +36,15 @@ import Hh200.Types
     "http"      { KW_HTTP _ }
     "HTTP"      { KW_HTTP _ }
     "Config"    { KW_CONFIG _ }
+    "Captures"  { KW_CAPTURES _ }
 
     method      { METHOD _ $$ }
 
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
     jsonBody    { BRACED _ $$ }
+
+    jsonpath    { JSONPATH _ $$ }
 
 
 %monad { E } { thenE } { returnE }
@@ -66,7 +70,18 @@ request  : method url crlf jsonBody crlf { trace "requestA" RequestSpec { verb =
          | method url crlf               { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
          | url crlf                      { trace "requestC" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
-response : response_codes  { trace "" (ResponseSpec { output = [], statuses = map statusFrom $1 }) }
+response : response_codes crlf response_captures { trace "responseA" (ResponseSpec { captures = mkCaptures $3, output = [], statuses = map statusFrom $1 }) }
+         | response_codes                        { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $1 }) }
+         | response_captures                     { trace "responseC" (ResponseSpec { captures = mkCaptures $1, output = [], statuses = [] }) }
+
+response_captures :: { [Binding] }
+response_captures : "[" "Captures" "]" crlf bindings { $5 }
+
+bindings :: { [Binding] }
+bindings : binding          { trace "bindingsA" [$1] }
+         | bindings binding { trace "bindingsB" ($1 ++ [$2]) }
+
+binding : identifier "=" jsonpath crlf  { trace "bindingA" ($1, $3) }
 
 response_codes :: { [Int] }
 response_codes : d                { [read $1] }

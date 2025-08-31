@@ -49,6 +49,8 @@ readScript path = do
             putStrLn $ show m
             return Nothing
         ParseOk s -> do
+            putStrLn "\t SCANNER:"
+            putStrLn $ show tokensOrPanic
             return $ Just s
 
 

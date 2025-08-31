@@ -19,6 +19,7 @@ module Hh200.Types
   , testOutsideWorld
   , present
   , module Network.HTTP.Types.Status
+  , Binding , mtCaptures, mkCaptures
   ) where
 
 import Debug.Trace
@@ -46,6 +47,7 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
+import Data.Maybe (fromJust)
 import Network.HTTP.Types.Status
 import Control.Monad (forM_)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
@@ -59,6 +61,14 @@ import qualified Data.Aeson as Json (encode, Value(..))
 
 headerJson = ("Content-Type", "application/json")
 
+newtype JsonpathQueries = JsonpathQueries (HM.HashMap String String)
+    deriving (Show, Eq)
+
+mkCaptures :: [Binding] -> JsonpathQueries
+mkCaptures bindings = JsonpathQueries (HM.fromList bindings)
+
+mtCaptures :: JsonpathQueries
+mtCaptures = JsonpathQueries HM.empty
 
 newtype Snippet = Snippet L8.ByteString
 
@@ -107,7 +117,7 @@ data RequestSpec = RequestSpec
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
   , output :: [String]
--- , jsonPaths :: [String]
+  , captures :: JsonpathQueries
   }
   deriving (Show, Eq)
 
@@ -153,6 +163,9 @@ expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
 asMethod :: UppercaseString -> BS.ByteString
 asMethod (UppercaseString s) = BS.pack s
 
+oftenBodyless :: UppercaseString -> Bool
+oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
+
 data CallItem = CallItem
   { ciDeps :: [String]
   , ciName :: String
@@ -175,6 +188,8 @@ defaultCallItem = CallItem
     }
   , ciResponseSpec = Nothing
   }
+callItemIsDefault :: CallItem -> Bool
+callItemIsDefault CallItem { ciName } = ciName == "default"
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo
@@ -189,13 +204,6 @@ defaultHostInfo = HostInfo
   }
 
 -- Everything one could ask for when debugging a failing script.
-    -- ?? embed Log
-    -- Lead
-    --   { firstFailing :: Maybe CallItem
-    --   , hostInfo ::     HostInfo
-    --   , echoScript ::   Maybe Script
-    --   , trace :: Log
-    --   }
 data Lead =
     Lead
       { firstFailing :: Maybe CallItem
@@ -295,6 +303,8 @@ type Headers = HashTable String String
 
 type Vars = HM.HashMap String Integer
 
+type Binding = (String, String)
+
 varsDefault :: Vars
 varsDefault = HM.fromList [("max_reruns", 2)]
 
@@ -377,141 +387,131 @@ type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
 
 -- logMsg :: String -> ProcM ()
 -- logMsg msg = lift $ tell [msg]
--- Return to user the CallItem which we suspect will fail again.
-runProcM :: ProcM CallItem -> Env -> Prim.Manager -> IO (CallItem, Env, Log)
-runProcM m env mgr = do
-    res :: (Maybe CallItem, Env, Log) <- Tf.runRWST (runMaybeT m) mgr env
-    case res of
-        -- Functionally a default CallItem makes sense in the event where the
-        -- compiler couldn't point to a failing CallItem in user program; likely that
-        -- the client host can't even get the expected result of sending a request to
-        -- localhost.
-        (Nothing, e, log) -> do
-            return (defaultCallItem, e, log)
-        (Just suspect, e, log) -> do
-            return (suspect, e, log)
 
--- runProcM1 :: ProcM1 CallItem -> Maybe Env -> IO (CallItem, Log)
--- runProcM1 action _ = do
---     mgr <- Prim.newManager tlsManagerSettings
---     res :: (Maybe CallItem, Log) <- runReaderT (runWriterT (runMaybeT action)) mgr
---     return $ case res of
---         (Nothing, log) -> (defaultCallItem, log)
---         (Just suspect, log) -> (suspect, log)
+-- Return to user the CallItem which we suspect will fail again.
+runProcM :: Script -> Prim.Manager -> Env -> IO Lead
+runProcM script mgr env = do
+    results <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
+    return (switch results)
+
+    where
+    switch :: (Maybe CallItem, Env, Log) -> Lead
+    switch (mci, e, l)
+        | "default" == (ciName $ fromJust mci) =
+            nonLead script
+        | otherwise =
+            leadFrom mci script
+
+-- runProcM2 :: ProcM CallItem -> Prim.Manager -> Env -> IO (Maybe CallItem, Env, Log)
+-- runProcM2 m mgr env =
+--     Tf.runRWST (runMaybeT m) mgr env
+
+-- ??: after fearless across subjects done, generalize mvar to other
+-- distributed-systems primitives: message queue, kubernetes
+
+-- runProcM1 :: ProcM CallItem -> Env -> Prim.Manager -> IO (CallItem, Env, Log)
+-- runProcM1 m env mgr = do
+--     res :: (Maybe CallItem, Env, Log) <- Tf.runRWST (runMaybeT m) mgr env
+--     case res of
+--         -- Functionally, a default CallItem makes sense in the event where the
+--         -- compiler couldn't point to a failing CallItem in user program; likely that
+--         -- the client host can't even get the expected result of sending a request to
+--         -- localhost.
+--         (Nothing, e, _log) -> do
+--             -- ??: empty _log in upstream
+--             return (defaultCallItem, e, [])
+--
+--         (Just suspect, e, log) -> do
+--             -- return (suspect, e, log)
+--             return (suspect, e, [])
+
+-- Env is modified, Log appended throughout the body of `courseFrom`.
+--
+-- A failing CallItem is not always found, we encode None/Nothing
+-- value with defaultCallItem to simplify code.
+--
+emptyHanded :: ProcM CallItem
+emptyHanded = return defaultCallItem
 
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
-    pairs :: [Prim.Request] <- liftIO (asReqRespPairs x)
-    res :: () <- shunt pairs
-    return defaultCallItem
-    where
-    asReqRespPairs :: Script -> IO [Prim.Request]
-    asReqRespPairs (Script { callItems }) = do
-        let res :: IO [Prim.Request] = mapM buildFrom callItems
-        res
+    pairs :: [(Prim.Request, Maybe ResponseSpec)] <- liftIO (destructure x)
+    doWithMgr pairs
 
-    buildFrom :: CallItem -> IO Prim.Request
+    where
+    destructure :: Script -> IO [(Prim.Request, Maybe ResponseSpec)]
+    destructure (Script { callItems }) = do
+        let resb = mapM buildFrom callItems
+        return []  -- ??
+
+    -- Build Request and echo CallItem parts.
+    buildFrom :: CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
     buildFrom ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
             struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
-            return $ struct
+            dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
               }
 
         -- Requests with json body.
-        | otherwise = do
-            -- let d :: HM.HashMap String String = HM.fromList [("username", "wardah.23"), ("password", "ptiuser1234")]
-            -- let ed :: L8.ByteString = Json.encode d
-            -- let body = Prim.RequestBodyLBS $ Json.encode d
-
-            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
-            return $ struct
-              { Prim.method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE] which don't idiomatically support json body
+        | oftenBodyless ciVerb = do
+            struct <- Prim.parseRequest (url $ ciRequestSpec ci)
+            dorp (ci, (ciResponseSpec ci)) struct
+              { Prim.method = asMethod ciVerb
               , Prim.requestHeaders = [headerJson]
-              -- , Prim.requestBody = body
               , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
               }
+
+        | otherwise = do
+            struct <- Prim.parseRequest (url $ ciRequestSpec ci)
+            dorp (ci, (ciResponseSpec ci)) struct
+              { Prim.method = asMethod ciVerb
+              , Prim.requestHeaders = [headerJson]
+              , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
+              }
+
+        where
+        ciVerb :: UppercaseString
+        ciVerb = verb $ ciRequestSpec ci
+
+        -- Return swapped product (`dorp` is prod reversed).
+        dorp :: a -> b -> IO (b, a)
+        dorp a b = return (b, a)
+
 
     rawPayload :: String -> Prim.RequestBody
     rawPayload x = Prim.RequestBodyLBS $ L8.pack x
 
-    fire :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
-    fire mgr req = Prim.httpLbs req mgr where
-        tried :: IO (Either Prim.HttpException (Prim.Response L8.ByteString))
-        tried = try $ Prim.httpLbs req mgr
-
     -- Results arrive here!
-    shunt :: [Prim.Request] -> ProcM ()
-    shunt pairs = do
+    -- PICKUP recursion
+    doWithMgr :: [(Prim.Request, Maybe ResponseSpec)] -> ProcM CallItem
+    doWithMgr pairs = do
         mgr :: Prim.Manager <- ask
-        let withMgr :: Prim.Request -> IO (Prim.Response L8.ByteString) = fire mgr
+        env <- get
+        tell [""]
 
-        results :: [Prim.Response L8.ByteString] <- liftIO (mapM withMgr pairs)
-        let sample = head results
-        let actualCode :: Status = Prim.responseStatus sample
-        return ()
+        -- let fn :: Prim.Request -> IO (Prim.Response L8.ByteString, Match) =
+        --         primDo mgr
 
-courseFrom1 :: Script -> ProcM1 CallItem
-courseFrom1 x = do
-    -- liftIO $ putStrLn ""
-    -- pairs :: [(Request, Match)] <- liftIO (asReqRespPairs x)
-    pairs :: [Prim.Request] <- liftIO (asReqRespPairs x)
-    res :: () <- shunt pairs
+        -- results :: [(Prim.Response L8.ByteString, Match)] <- liftIO (mapM fn pairs)
+        -- let sample = head results
+        -- let actualCode :: Status = Prim.responseStatus sample
 
-    return defaultCallItem
-
-    where
-    -- asReqRespPairs :: Script -> IO [(Request, Match)]
-    asReqRespPairs :: Script -> IO [Prim.Request]
-    asReqRespPairs (Script { callItems }) = do
-        let res :: IO [Prim.Request] = mapM buildFrom callItems
-        res
-
-    -- buildFrom :: CallItem -> IO (Request, Match)
-    buildFrom :: CallItem -> IO Prim.Request
-    buildFrom ci
-        -- Requests without body.
-        | null (payload $ ciRequestSpec ci) = do
-            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
-            return $ struct
-              { Prim.method = asMethod (verb $ ciRequestSpec ci)
-              }
-
-        -- Requests with json body.
-        | otherwise = do
-            -- let d :: HM.HashMap String String = HM.fromList [("username", "wardah.23"), ("password", "ptiuser1234")]
-            -- let ed :: L8.ByteString = Json.encode d
-            -- let body = Prim.RequestBodyLBS $ Json.encode d
-
-            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
-            return $ struct
-              { Prim.method = asMethod (verb $ ciRequestSpec ci)  -- ??: not in [GET HEAD OPTIONS TRACE] which don't idiomatically support json body
-              , Prim.requestHeaders = [headerJson]
-              -- , Prim.requestBody = body
-              , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
-              }
-    rawPayload :: String -> Prim.RequestBody
-    rawPayload x = Prim.RequestBodyLBS $ L8.pack x
-
-    fire :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
-    fire mgr req = Prim.httpLbs req mgr where
-        tried :: IO (Either Prim.HttpException (Prim.Response L8.ByteString))
-        tried = try $ Prim.httpLbs req mgr
-
-    -- Match : codes, 
-    -- shunt :: [(Prim.Request, Match)] -> ProcM1 ()
-    -- Results arrive here!
-    shunt :: [Prim.Request] -> ProcM1 ()
-    shunt pairs = do
-        mgr :: Prim.Manager <- ask
-        let withMgr :: Prim.Request -> IO (Prim.Response L8.ByteString) = fire mgr
-
-        results :: [Prim.Response L8.ByteString] <- liftIO (mapM withMgr pairs)
-        let sample = head results
-        let actualCode :: Status = Prim.responseStatus sample
-        liftIO $ putStrLn ("liftIO print:\t" ++ show results)
-        return ()
+        case elem status200 (expectCodesOrDefault Nothing) of
+            True -> emptyHanded
+            _ -> return defaultCallItem
+        where
+        expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
+        expectCodesOrDefault x =
+            case x of
+                Nothing -> [status200]
+                Just s -> statuses s
+        primDo :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
+        primDo mgr req = Prim.httpLbs req mgr
+            -- where
+            -- tried :: IO (Either Prim.HttpException (Prim.Response L8.ByteString))
+            -- tried = try $ Prim.httpLbs req mgr
 
 
 -- Course is procedure in a stack form that will return the
@@ -530,26 +530,37 @@ testOutsideWorld sole@(
       , callItems = [_] }) = do
     mgr <- Prim.newManager tlsManagerSettings
     let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
+    putStrLn "dis arm"
+    runProcM sole mgr envNew
 
-    -- let ss :: [Int] = [200, 404]
-    -- let nnn = Status 404 (statusMessage (mkStatus 404 ""))
-    -- putStrLn $ "yea" ++ show nnn
-    -- let zzz :: Status = mkStatus 200 ""
+    -- results :: (Maybe CallItem, Env, Log) <- runProcM2 (courseFrom sole) mgr envNew
+    -- return $ case results of
+    --     -- Functionally, a default CallItem makes sense in the event where the
+    --     -- compiler couldn't point to a failing CallItem in user program; likely that
+    --     -- the client host can't even get the expected result of sending a request to
+    --     -- localhost.
+    --     (Nothing, e, _log) -> do
+    --         -- ??: empty _log in upstream
+    --         -- return (defaultCallItem, e, [])
+    --         nonLead sole
+    --     (suspect, e, log) -> do
+    --         -- ??: sanity check here suspect isn't defaultCallItem
+    --         -- return (suspect, e, [])
+    --         leadFrom suspect sole
 
-    results :: (CallItem, Env, Log) <- runProcM (courseFrom sole) envNew mgr
-    return $ case results of
-        (_, _, []) -> nonLead sole
-        (suspect, _, _) -> leadFrom (Just suspect) sole
+    -- results1 :: (CallItem, Env, Log) <- runProcM1 (courseFrom sole) envNew mgr
+    -- return $ case results1 of
+    --     (_, _, []) -> nonLead sole
+    --     (suspect, _, _) -> leadFrom (Just suspect) sole
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld script@(Script { callItems }) = do
+    -- ??: not clear if sole and script branches need to be distinct, maybe
+    -- we can use this information to fully evaluate variables in compile time
     mgr <- Prim.newManager tlsManagerSettings
     let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
 
-    let course :: ProcM CallItem = courseFrom script
-    rez :: (CallItem, Env, Log) <- runProcM course envNew mgr
-
-    return $ trace "the RIGHT BRANCH" (nonLead script)
+    runProcM script mgr envNew
 
 --     raceToFirstFailing :: Script -> IO (Maybe CallItem)
 --     raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items } = do

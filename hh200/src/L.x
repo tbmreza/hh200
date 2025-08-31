@@ -35,8 +35,9 @@ tokens :-
     then     { tok (\p _ -> KW_THEN p) }
     HTTP     { tok (\p _ -> KW_HTTP p) }
     Config   { tok (\p _ -> KW_CONFIG p) }
+    Captures { tok (\p _ -> KW_CAPTURES p) }
     $digit+  { tok (\p s -> DIGITS p s) }
-    [\.\/]   { tok (\p _ -> SEP p) }
+    [\.\/=]   { tok (\p _ -> SEP p) }
 
     http [$printable # [$newline $white \#]]+   { tok (\p s -> URL p s) }
 
@@ -44,6 +45,7 @@ tokens :-
 
     \{ $printable+ \}       { tok (\p s -> BRACED p s) }
     \" [$printable # \"]+ \"       { tok (\p s -> QUOTED p s) }
+    \$ $printable+       { tok (\p s -> JSONPATH p s) }
 
 
 {
@@ -70,14 +72,16 @@ data Token =
   | COLON      AlexPosn
   | QUOTE      AlexPosn
 
-  | KW_THEN    AlexPosn
-  | KW_HTTP    AlexPosn
-  | KW_CONFIG  AlexPosn
+  | KW_THEN      AlexPosn
+  | KW_HTTP      AlexPosn
+  | KW_CONFIG    AlexPosn
+  | KW_CAPTURES  AlexPosn
 
 
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
   | BRACED  AlexPosn String
+  | JSONPATH  AlexPosn String
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
