@@ -13,7 +13,6 @@ module Hh200.Fearless () where
 -- import Control.Monad.Reader
 -- import qualified Hh200.Types as Hh
 -- import qualified Hh200.Scanner as Hh
--- import qualified Hh200.SonOfJ as Hh (putValidJson)  -- ??
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 
 -- import Control.Concurrent
