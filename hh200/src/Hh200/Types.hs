@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DuplicateRecordFields #-}
@@ -56,7 +57,14 @@ import Control.Exception
 import Control.Concurrent (ThreadId)
 import qualified Control.Concurrent as Base
 
-import qualified Data.Aeson as Json (encode, Value(..))
+import qualified Data.Vector as Vec
+import qualified Data.Vector as Aeson (Vector)
+import qualified Text.Parsec.Error as Aeson (ParseError)
+import qualified Data.Aeson.Types as Aeson (Value(..))
+import Data.Aeson.QQ.Simple (aesonQQ)
+import qualified Data.Aeson.JSONPath as Aeson (jsonPath, query)
+
+-- type Salad = (Prim.Request, (CallItem, Maybe ResponseSpec))  -- ??
 
 headerJson = ("Content-Type", "application/json")
 
@@ -68,6 +76,17 @@ mkCaptures bindings = JsonpathQueries (HM.fromList bindings)
 
 mtCaptures :: JsonpathQueries
 mtCaptures = JsonpathQueries HM.empty
+
+mock :: Aeson.Value = [aesonQQ| { "data": { "token": "abcde9" } } |]
+
+-- Expect one matching Value or nothing.
+queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
+queryBody q root =
+    case Aeson.query q root of
+        Left _ -> Nothing
+        Right v -> case Vec.uncons v of
+            Nothing -> Nothing
+            Just (one, _) -> Just one
 
 newtype Snippet = Snippet L8.ByteString
 
@@ -207,16 +226,19 @@ data Lead =
     Lead
       { firstFailing :: Maybe CallItem
       , hostInfo ::     HostInfo
+      , interpreterInfo :: (Env, Log)
       , echoScript ::   Maybe Script
       }
   | DebugLead
       { firstFailing :: Maybe CallItem
       , hostInfo ::     HostInfo
+      , interpreterInfo :: (Env, Log)
       , echoScript ::   Maybe Script
       }
   | NonLead
       { firstFailing :: Maybe CallItem
       , hostInfo ::     HostInfo
+      , interpreterInfo :: (Env, Log)
       , echoScript ::   Maybe Script
       }
   deriving (Show)
@@ -228,11 +250,12 @@ nonLead x = NonLead
   , echoScript = Just x
   }
 
-leadFrom :: Maybe CallItem -> Script -> Lead
-leadFrom failed script = Lead
+leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> Lead
+leadFrom failed el script = Lead
   { firstFailing = failed
   , hostInfo = defaultHostInfo
   , echoScript = Just script
+  , interpreterInfo = el
   }
 
 -- gatherHostInfo :: IO HostInfo
@@ -339,17 +362,12 @@ data Located a = Located
 -- status codes mismatch, duration, filesystem, thread cancelled, offline
 
 
-
-
-type Env = HM.HashMap String String
+type Env = HM.HashMap String Aeson.Value
 type Log = [String]
 
 -- Procedure "may" fail early, "reads" a shared http-client manager instance,
 -- "writes" log as it runs, modifies environment "states" while doing IO.
 type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
-
--- logMsg :: String -> ProcM ()
--- logMsg msg = lift $ tell [msg]
 
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: Script -> Prim.Manager -> Env -> IO Lead
@@ -363,7 +381,7 @@ runProcM script mgr env = do
         | "default" == (ciName $ fromJust mci) =
             nonLead script
         | otherwise =
-            leadFrom mci script
+            leadFrom mci (e, l) script
 
 -- ??: after fearless across subjects done, generalize mvar to other
 -- distributed-systems primitives: message queue, kubernetes
@@ -419,20 +437,40 @@ courseFrom x = do
         dorp :: a -> b -> IO (b, a)
         dorp a b = return (b, a)
 
+        rawPayload :: String -> Prim.RequestBody
+        rawPayload x = Prim.RequestBodyLBS $ L8.pack x
 
-    rawPayload :: String -> Prim.RequestBody
-    rawPayload x = Prim.RequestBodyLBS $ L8.pack x
-
-    -- type Salad = (Prim.Request, (CallItem, Maybe ResponseSpec))  -- ??
     -- Results arrive here!
     doWithMgr :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
     doWithMgr pairs = do
-        env <- get  -- PICKUP interact with env to achieve draft
-        tell [""]
+        tell ["..doWithMgr.."]
 
         h pairs
 
         where
+        validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
+        validJsonBody _ = Aeson.String "??Object"
+
+        -- Reduce JsonpathQueries to Env extensions.
+        evalCaptures :: Prim.Response L8.ByteString -> JsonpathQueries -> Env -> Env
+        evalCaptures resp (JsonpathQueries bindings) e =
+            HM.foldlWithKey'
+                (\(acc :: Env) bindingK (bindingV :: String) ->
+                    case queryBody bindingV rootAeson of
+                        Nothing -> acc  -- ??: log
+                        Just av -> HM.insert bindingK av acc)
+                e
+                bindings
+
+            where
+            rootAeson = validJsonBody resp
+
+        capturesOrDefault :: Maybe ResponseSpec -> JsonpathQueries
+        capturesOrDefault mrs =
+            case mrs of
+                Just rs -> captures rs
+                _ -> mtCaptures
+
         h :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
         h pairs = case pairs of
                 [] -> emptyHanded
@@ -440,9 +478,10 @@ courseFrom x = do
                 (req, (ci, mrs)) : rest -> do
                     mgr :: Prim.Manager <- ask
                     got :: Prim.Response L8.ByteString <- liftIO (primDo mgr req)
+                    modify $ evalCaptures got (capturesOrDefault mrs)
 
                     case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
-                        False -> return ci
+                        False -> pure ci
                         _ -> h rest
 
                 rest -> h rest
@@ -454,7 +493,6 @@ courseFrom x = do
                 Just s -> statuses s
         primDo :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
         primDo mgr req = Prim.httpLbs req mgr
-
 
 testOutsideWorld :: Script -> IO Lead
 
@@ -468,18 +506,20 @@ testOutsideWorld sole@(
       { config = ScriptConfig { subjects }
       , callItems = [_] }) = do
     mgr <- Prim.newManager tlsManagerSettings
-    let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
+    -- let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
     putStrLn "dis arm"
-    runProcM sole mgr envNew
+    -- runProcM sole mgr envNew
+    runProcM sole mgr HM.empty
 
 -- -> NonLead | DebugLead | Lead
-testOutsideWorld script@(Script { callItems }) = do
-    -- ??: not clear if sole and script branches need to be distinct, maybe
+testOutsideWorld flow@(Script { callItems }) = do
+    -- ??: not clear if sole and flow branches need to be distinct, maybe
     -- we can use this information to fully evaluate variables in compile time
     mgr <- Prim.newManager tlsManagerSettings
-    let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
+    -- let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
 
-    runProcM script mgr envNew
+    -- runProcM flow mgr envNew
+    runProcM flow mgr HM.empty
 
 --     raceToFirstFailing :: Script -> IO (Maybe CallItem)
 --     raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items } = do

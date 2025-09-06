@@ -34,24 +34,18 @@ scriptFrom (Snippet s) =
 
 readScript :: FilePath -> IO (Maybe Script)
 readScript path = do
-    -- loaded :: BS.ByteString <- BS.readFile path  -- ??: ByteString
     loaded <- readFile path
     let tokensOrPanic = alexScanTokens loaded
     let parsed :: E Script = parse tokensOrPanic
 
-    -- ??: upgrade ghc to write or-pattern https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0522-or-patterns.rst
-    -- ParseOk, but call_items is empty array. -> StaticScript
-    -- ParseOk, but call_items length is 1. -> SoleScript
-    -- ParseOk. -> Script
-
     case parsed of
         ParseFailed m -> do
             putStrLn $ show m
-            return Nothing
+            pure Nothing
         ParseOk s -> do
             putStrLn "\t SCANNER:"
             putStrLn $ show tokensOrPanic
-            return $ Just s
+            pure $ Just s
 
 
 class Analyze a where
@@ -69,7 +63,7 @@ instance Analyze FilePath where
         MaybeT $ case exists of
             False -> do
                 -- Proceeding to testOutsideWorld is unnecessary.
-                return Nothing
+                pure Nothing
             _ -> do
                 readScript path
 
@@ -92,7 +86,7 @@ instance Analyze Snippet where
         where
         soleScript :: Script -> Maybe ScriptConfig -> Script
         soleScript base _ =
-            let effective = config base in  -- ??
+            let effective = config base in  -- ??: https://httpie.io/docs/cli/configurable-options
             let build :: Script = base
                   { config = effective
                   } in

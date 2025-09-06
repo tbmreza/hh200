@@ -67,7 +67,10 @@ library:
   # - http-client-tls
   - toml-parser
   - yaml
+  - vector
+  - parsec
   - aeson
+  - aeson-jsonpath >= 0.3.0.2 && < 0.4.0.0
 
 executables:
   hh200:  # `ls ~/.local/bin/` checks if `stack install` succeed.

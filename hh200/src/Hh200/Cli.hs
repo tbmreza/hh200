@@ -88,7 +88,8 @@ go Args { call = False, source = Just path } = do
             exitWith (ExitFailure 1)
         Just s -> do
             lead <- testOutsideWorld s
-            putStrLn $ present lead
+            -- putStrLn $ present lead
+            putStrLn $ trace "last" (present lead)
 
 go _ =
     -- Verifiable with `echo $?` which prints last exit code in shell.
