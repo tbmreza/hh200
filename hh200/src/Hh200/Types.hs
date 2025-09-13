@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -60,9 +62,11 @@ import qualified Control.Concurrent as Base
 import qualified Data.Vector as Vec
 import qualified Data.Vector as Aeson (Vector)
 import qualified Text.Parsec.Error as Aeson (ParseError)
+import qualified Data.Aeson as Aeson (eitherDecode, decode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import Data.Aeson.QQ.Simple (aesonQQ)
 import qualified Data.Aeson.JSONPath as Aeson (jsonPath, query)
+import qualified BEL (renderTemplate)
 
 -- type Salad = (Prim.Request, (CallItem, Maybe ResponseSpec))  -- ??
 
@@ -124,13 +128,15 @@ data Script =
   deriving (Show, Eq)
 
 data RequestSpec = RequestSpec
-    { verb :: UppercaseString
-    , url :: String
-    , headers :: [String]
-    , payload :: String
-    , opts :: [String]
-    }
-    deriving (Show, Eq)
+  { verb :: UppercaseString
+  , url :: String
+  , headers :: [Binding]
+  , payload :: String
+  , opts :: [String]
+  }
+  deriving (Show, Eq)
+-- HeaderHandlers =
+--     Authorization
 
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
@@ -181,6 +187,7 @@ expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
 asMethod :: UppercaseString -> BS.ByteString
 asMethod (UppercaseString s) = BS.pack s
 
+-- ??: static phase
 oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
@@ -276,26 +283,11 @@ data HhError = LibError
              | PointableError
     deriving (Show)
 
-ok :: Maybe a
-ok = Nothing
-
 data TerribleException = TerribleException deriving (Show)
 -- newtype TerribleException = TerribleException String deriving (Show)
 instance Exception TerribleException
 
-type Source = FilePath
-
-type HttpVerb = BS.ByteString
-
-type HashTable k v = H.BasicHashTable k v
-type Headers = HashTable String String
-
-type Vars = HM.HashMap String Integer
-
 type Binding = (String, String)
-
-varsDefault :: Vars
-varsDefault = HM.fromList [("max_reruns", 2)]
 
 class PolicyT a where
     policyOrDefault :: a -> a
@@ -373,7 +365,7 @@ type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
 runProcM :: Script -> Prim.Manager -> Env -> IO Lead
 runProcM script mgr env = do
     results <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
-    return (switch results)
+    pure (switch results)
 
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
@@ -392,36 +384,69 @@ runProcM script mgr env = do
 -- value with defaultCallItem to simplify code.
 --
 emptyHanded :: ProcM CallItem
-emptyHanded = return defaultCallItem
+emptyHanded = pure defaultCallItem
 
+-- Template is string that may or may not contain BEL expressions.
+newtype Template = Template String
+
+-- ??: gadt for type level template detection
+-- eval :: Env -> a -> String
+
+-- class EvalC a where
+--     eval :: Env -> a -> String
+-- instance EvalC Template where
+--     eval e (Template s) = s
+
+--  parsec string evaluator:
+--  Env -> "{{Var}}" -> String
+--  Env -> "{{Arith}}" -> String
+--  "data".matches(/r/)
+--  time.new()
+--
+--
+--  [Setup]
+--  env-set: userconfig, read '/home/tmp.txt' fresh
+--  env-del: userconfig
+--
+--  [Finally]
+--  print: $
+--  print-err: $.statusCode
+--
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
-    pairs <- liftIO $ mapM buildFrom (callItems x)
+    env <- get
+    pairs <- liftIO (mapM (buildFrom env) (callItems x))
+    -- pairs <- liftIO (mapM buildFrom (callItems x))
     doWithMgr pairs
 
     where
+    safeBel :: Env -> String -> String
+    safeBel env s =
+        case BEL.renderTemplate env s of
+            Left og -> og
+            Right res -> res
+
+
     -- Build Request and echo CallItem parts.
-    buildFrom :: CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
-    buildFrom ci
+    buildFrom :: Env -> CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
+    buildFrom env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
-            struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
+            putStrLn "buildFrom A"
+            -- ??: work out why passing Env like this is correct/incorrect
+            -- PICKUP plug unittested BEL
+            let fmt :: String = safeBel env (url $ ciRequestSpec ci)
+            -- struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
+            struct :: Prim.Request <- Prim.parseRequest fmt
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
               }
 
         -- Requests with json body.
-        | oftenBodyless ciVerb = do
-            struct <- Prim.parseRequest (url $ ciRequestSpec ci)
-            dorp (ci, (ciResponseSpec ci)) struct
-              { Prim.method = asMethod ciVerb
-              , Prim.requestHeaders = [headerJson]
-              , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
-              }
-
         | otherwise = do
+            -- let urlFmt :: String = url $ ciRequestSpec ci
             struct <- Prim.parseRequest (url $ ciRequestSpec ci)
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod ciVerb
@@ -435,7 +460,7 @@ courseFrom x = do
 
         -- Return swapped product (`dorp` is prod reversed).
         dorp :: a -> b -> IO (b, a)
-        dorp a b = return (b, a)
+        dorp a b = pure (b, a)
 
         rawPayload :: String -> Prim.RequestBody
         rawPayload x = Prim.RequestBodyLBS $ L8.pack x
@@ -443,27 +468,26 @@ courseFrom x = do
     -- Results arrive here!
     doWithMgr :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
     doWithMgr pairs = do
-        tell ["..doWithMgr.."]
-
         h pairs
 
         where
         validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
-        validJsonBody _ = Aeson.String "??Object"
+        validJsonBody resp =
+            let avOpt :: Maybe Aeson.Value = Aeson.decode (Prim.responseBody resp) in
+            case avOpt of
+                Nothing -> Aeson.Null
+                Just av -> av
 
         -- Reduce JsonpathQueries to Env extensions.
         evalCaptures :: Prim.Response L8.ByteString -> JsonpathQueries -> Env -> Env
         evalCaptures resp (JsonpathQueries bindings) e =
             HM.foldlWithKey'
                 (\(acc :: Env) bindingK (bindingV :: String) ->
-                    case queryBody bindingV rootAeson of
+                    case queryBody bindingV (validJsonBody resp) of
                         Nothing -> acc  -- ??: log
                         Just av -> HM.insert bindingK av acc)
                 e
                 bindings
-
-            where
-            rootAeson = validJsonBody resp
 
         capturesOrDefault :: Maybe ResponseSpec -> JsonpathQueries
         capturesOrDefault mrs =
@@ -478,6 +502,7 @@ courseFrom x = do
                 (req, (ci, mrs)) : rest -> do
                     mgr :: Prim.Manager <- ask
                     got :: Prim.Response L8.ByteString <- liftIO (primDo mgr req)
+                    tell ["..doWithMgr.."]  -- ??: snuck tell inside modify after it's confirmed to be working
                     modify $ evalCaptures got (capturesOrDefault mrs)
 
                     case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
@@ -498,7 +523,7 @@ testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
 testOutsideWorld static@(Script { config = _, callItems = [] }) = do
-    return $ nonLead static
+    pure $ nonLead static
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld sole@(
@@ -506,19 +531,13 @@ testOutsideWorld sole@(
       { config = ScriptConfig { subjects }
       , callItems = [_] }) = do
     mgr <- Prim.newManager tlsManagerSettings
-    -- let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
+    let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101")]
     putStrLn "dis arm"
-    -- runProcM sole mgr envNew
-    runProcM sole mgr HM.empty
+    runProcM sole mgr envNew
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems }) = do
-    -- ??: not clear if sole and flow branches need to be distinct, maybe
-    -- we can use this information to fully evaluate variables in compile time
     mgr <- Prim.newManager tlsManagerSettings
-    -- let envNew :: HM.HashMap String String = HM.fromList [("yyyymmdd", "19700101")]
-
-    -- runProcM flow mgr envNew
     runProcM flow mgr HM.empty
 
 --     raceToFirstFailing :: Script -> IO (Maybe CallItem)
@@ -548,14 +567,3 @@ testOutsideWorld flow@(Script { callItems }) = do
 
 present :: Lead -> String
 present x = show x
-    -- act io = Base.forkIO $ do
-    --     failing <- io
-    --     Base.putMVar hole failing
-
-    -- -- Instruct a thread of the IO procedure it will perform.
-    -- -- To be caught in race for-loop.
-    -- -- consign :: Base.MVar CallItem -> String -> IO ()
-    -- consign failingCallItem flow ratInfo = do
-    -- -- consign failingCallItem ratInfo = do
-    --     Base.putMVar failingCallItem localhost9999
-

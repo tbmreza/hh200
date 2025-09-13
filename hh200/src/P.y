@@ -1,6 +1,4 @@
 {
--- Export current module with L addition.
--- module P ( module P, module L ) where
 module P where
 
 import Debug.Trace
@@ -39,21 +37,19 @@ import Hh200.Types
     "Captures"  { KW_CAPTURES _ }
 
     method      { METHOD _ $$ }
+    header      { HEADER _ $$ }
 
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
     jsonBody    { BRACED _ $$ }
 
     jsonpath    { JSONPATH _ $$ }
+    headerVal   { HEADER_VAL _ $$ }
 
 
 %monad { E } { thenE } { returnE }
 
 %%
-
--- test_suite : directives call_items
---            | directives
---            | call_items
 
 script : crlf call_items crlf    { Script { config = defaultScriptConfig, callItems = $2 } }
 
@@ -66,9 +62,17 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request  : method url crlf jsonBody crlf { trace "requestA" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
-         | method url crlf               { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url crlf                      { trace "requestC" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
+request_headers :: { [Binding] }
+request_headers : request_header                 { [$1] }
+                | request_headers request_header { ($1 ++ [$2]) }
+
+request_header : header ":" headerVal crlf { ($1, $3) }
+
+request  : method url crlf request_headers jsonBody crlf { trace "requestA" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
+         | method url crlf request_headers crlf          { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
+         | method url crlf jsonBody crlf                 { trace "requestC" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
+         | method url crlf                               { trace "requestD" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
+         | url crlf                                      { trace "requestE" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
 response : response_codes crlf response_captures { trace "responseA" (ResponseSpec { captures = mkCaptures $3, output = [], statuses = map statusFrom $1 }) }
          | response_codes                        { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $1 }) }
@@ -91,7 +95,7 @@ response_codes : d                { [read $1] }
 call_item : deps_clause request response { trace "call_itemA" (pCallItem $1 $2 (Just $3)) }
           | deps_clause request          { trace "call_itemB" (pCallItem $1 $2 Nothing) }
           | request response             { trace ("call_itemC: " ++ show $2) pCallItem defaultDepsClause $1 (Just $2) }
-          | request                      { trace "call_itemD" (pCallItem defaultDepsClause $1 Nothing) }
+          | request                      { trace "call_itemD" (pCallItem defaultDepsClause $1 Nothing) } 
 
 
 call_items : call_item crlf           { [$1] }

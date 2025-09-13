@@ -71,6 +71,7 @@ library:
   - parsec
   - aeson
   - aeson-jsonpath >= 0.3.0.2 && < 0.4.0.0
+  - bel-expr
 
 executables:
   hh200:  # `ls ~/.local/bin/` checks if `stack install` succeed.

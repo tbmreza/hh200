@@ -14,6 +14,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Version (showVersion)
 import qualified Paths_hh200 (version)
 
+-- import qualified Lib (someFunc)
+import qualified BEL (someFunc)
 import Hh200.Types
 import qualified Hh200.Scanner as Scanner
 
@@ -50,7 +52,11 @@ go :: Args -> IO ()
 
 -- Print executable version.
 -- hh200 --version
-go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
+-- go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
+go Args { version = True } = do
+    -- Lib.someFunc
+    BEL.someFunc
+    putStrLn $ showVersion Paths_hh200.version
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
@@ -88,8 +94,7 @@ go Args { call = False, source = Just path } = do
             exitWith (ExitFailure 1)
         Just s -> do
             lead <- testOutsideWorld s
-            -- putStrLn $ present lead
-            putStrLn $ trace "last" (present lead)
+            putStrLn $ trace "cli" (present lead)
 
 go _ =
     -- Verifiable with `echo $?` which prints last exit code in shell.

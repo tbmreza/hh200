@@ -36,16 +36,23 @@ tokens :-
     HTTP     { tok (\p _ -> KW_HTTP p) }
     Config   { tok (\p _ -> KW_CONFIG p) }
     Captures { tok (\p _ -> KW_CAPTURES p) }
+
+    Authorization
+  | Content    { tok (\p s -> HEADER p s) }
+
     $digit+  { tok (\p s -> DIGITS p s) }
-    [\.\/=]   { tok (\p _ -> SEP p) }
+    [\.\/=]  { tok (\p _ -> SEP p) }
 
     http [$printable # [$newline $white \#]]+   { tok (\p s -> URL p s) }
 
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
-    \{ $printable+ \}       { tok (\p s -> BRACED p s) }
-    \" [$printable # \"]+ \"       { tok (\p s -> QUOTED p s) }
-    \$ $printable+       { tok (\p s -> JSONPATH p s) }
+    \{ $printable+ \}         { tok (\p s -> BRACED p s) }
+    \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
+    \$ $printable+            { tok (\p s -> JSONPATH p s) }
+
+    Bearer $printable+
+  | Token $printable+   { tok (\p s -> HEADER_VAL p s) }
 
 
 {
@@ -60,6 +67,7 @@ data Token =
 
   | SEP      AlexPosn         -- /
   | METHOD   AlexPosn String  -- GET
+  | HEADER   AlexPosn String  -- GET
   | VERSION  AlexPosn String  -- HTTP/1.1
   | STATUS   AlexPosn Int     -- 500  ??: rm from lexing job
 
@@ -77,11 +85,12 @@ data Token =
   | KW_CONFIG    AlexPosn
   | KW_CAPTURES  AlexPosn
 
-
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
   | BRACED  AlexPosn String
-  | JSONPATH  AlexPosn String
+
+  | JSONPATH    AlexPosn String
+  | HEADER_VAL  AlexPosn String
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
