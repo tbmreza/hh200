@@ -2,10 +2,11 @@
 module P where
 
 import Debug.Trace
+
 import qualified Data.ByteString.Char8 as BS
-import Control.Monad.Trans.Except
-import L
-import Hh200.Types
+import           Control.Monad.Trans.Except
+import           L
+import           Hh200.Types
 }
 %name parse
 %tokentype { Token }
@@ -31,7 +32,6 @@ import Hh200.Types
     "["         { LIST_OPN _ }
     "]"         { LIST_CLS _ }
     "then"      { KW_THEN _ }
-    "http"      { KW_HTTP _ }
     "HTTP"      { KW_HTTP _ }
     "Config"    { KW_CONFIG _ }
     "Captures"  { KW_CAPTURES _ }
@@ -74,9 +74,9 @@ request  : method url crlf request_headers jsonBody crlf { trace "requestA" Requ
          | method url crlf                               { trace "requestD" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
          | url crlf                                      { trace "requestE" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
-response : response_codes crlf response_captures { trace "responseA" (ResponseSpec { captures = mkCaptures $3, output = [], statuses = map statusFrom $1 }) }
-         | response_codes                        { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $1 }) }
-         | response_captures                     { trace "responseC" (ResponseSpec { captures = mkCaptures $1, output = [], statuses = [] }) }
+response : "HTTP" response_codes crlf response_captures { trace "responseA" (ResponseSpec { captures = mkCaptures $4, output = [], statuses = map statusFrom $2 }) }
+         | "HTTP" response_codes                        { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $2 }) }
+         | response_captures                            { trace "responseC" (ResponseSpec { captures = mkCaptures $1, output = [], statuses = [] }) }
 
 response_captures :: { [Binding] }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }

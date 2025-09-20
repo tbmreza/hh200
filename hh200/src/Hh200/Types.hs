@@ -254,6 +254,7 @@ nonLead :: Script -> Lead
 nonLead x = NonLead
   { firstFailing = Nothing
   , hostInfo = defaultHostInfo
+  , interpreterInfo = (HM.empty, [])
   , echoScript = Just x
   }
 
@@ -386,24 +387,8 @@ runProcM script mgr env = do
 emptyHanded :: ProcM CallItem
 emptyHanded = pure defaultCallItem
 
--- Template is string that may or may not contain BEL expressions.
-newtype Template = Template String
+-- -- Template is string that may or may not contain BEL expressions.
 
--- ??: gadt for type level template detection
--- eval :: Env -> a -> String
-
--- class EvalC a where
---     eval :: Env -> a -> String
--- instance EvalC Template where
---     eval e (Template s) = s
-
---  parsec string evaluator:
---  Env -> "{{Var}}" -> String
---  Env -> "{{Arith}}" -> String
---  "data".matches(/r/)
---  time.new()
---
---
 --  [Setup]
 --  env-set: userconfig, read '/home/tmp.txt' fresh
 --  env-del: userconfig
@@ -411,17 +396,17 @@ newtype Template = Template String
 --  [Finally]
 --  print: $
 --  print-err: $.statusCode
---
+
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
     env <- get
     pairs <- liftIO (mapM (buildFrom env) (callItems x))
-    -- pairs <- liftIO (mapM buildFrom (callItems x))
-    doWithMgr pairs
+    liftIOWithMgr pairs
 
     where
+    -- ??: BEL " carried
     safeBel :: Env -> String -> String
     safeBel env s =
         case BEL.renderTemplate env s of
@@ -430,15 +415,14 @@ courseFrom x = do
 
 
     -- Build Request and echo CallItem parts.
+    -- ??: work out why passing Env like this is correct/incorrect
+    -- [X] dict passing
     buildFrom :: Env -> CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
     buildFrom env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
-            putStrLn "buildFrom A"
-            -- ??: work out why passing Env like this is correct/incorrect
-            -- PICKUP plug unittested BEL
             let fmt :: String = safeBel env (url $ ciRequestSpec ci)
-            -- struct :: Prim.Request <- Prim.parseRequest (url $ ciRequestSpec ci)
+
             struct :: Prim.Request <- Prim.parseRequest fmt
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
@@ -446,18 +430,15 @@ courseFrom x = do
 
         -- Requests with json body.
         | otherwise = do
-            -- let urlFmt :: String = url $ ciRequestSpec ci
+            let bel = safeBel env (payload $ ciRequestSpec ci)
             struct <- Prim.parseRequest (url $ ciRequestSpec ci)
             dorp (ci, (ciResponseSpec ci)) struct
-              { Prim.method = asMethod ciVerb
+              { Prim.method = asMethod (verb $ ciRequestSpec ci)
               , Prim.requestHeaders = [headerJson]
-              , Prim.requestBody = rawPayload (payload $ ciRequestSpec ci)
+              , Prim.requestBody = rawPayload (trace (show bel) bel)
               }
 
         where
-        ciVerb :: UppercaseString
-        ciVerb = verb $ ciRequestSpec ci
-
         -- Return swapped product (`dorp` is prod reversed).
         dorp :: a -> b -> IO (b, a)
         dorp a b = pure (b, a)
@@ -466,9 +447,10 @@ courseFrom x = do
         rawPayload x = Prim.RequestBodyLBS $ L8.pack x
 
     -- Results arrive here!
-    doWithMgr :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
-    doWithMgr pairs = do
-        h pairs
+    liftIOWithMgr :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
+    liftIOWithMgr pairs = do
+        mgr :: Prim.Manager <- ask
+        h mgr pairs
 
         where
         validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
@@ -484,7 +466,7 @@ courseFrom x = do
             HM.foldlWithKey'
                 (\(acc :: Env) bindingK (bindingV :: String) ->
                     case queryBody bindingV (validJsonBody resp) of
-                        Nothing -> acc  -- ??: log
+                        Nothing -> acc
                         Just av -> HM.insert bindingK av acc)
                 e
                 bindings
@@ -495,21 +477,22 @@ courseFrom x = do
                 Just rs -> captures rs
                 _ -> mtCaptures
 
-        h :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
-        h pairs = case pairs of
+        h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
+        h mgr pairs = case pairs of
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
-                    mgr :: Prim.Manager <- ask
                     got :: Prim.Response L8.ByteString <- liftIO (primDo mgr req)
-                    tell ["..doWithMgr.."]  -- ??: snuck tell inside modify after it's confirmed to be working
+                    let kk = Prim.responseBody got
+
+                    tell [L8.unpack kk]
                     modify $ evalCaptures got (capturesOrDefault mrs)
 
                     case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
                         False -> pure ci
-                        _ -> h rest
+                        _ -> h mgr rest
 
-                rest -> h rest
+                rest -> h mgr rest
 
         expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
         expectCodesOrDefault x =
@@ -531,7 +514,7 @@ testOutsideWorld sole@(
       { config = ScriptConfig { subjects }
       , callItems = [_] }) = do
     mgr <- Prim.newManager tlsManagerSettings
-    let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101")]
+    let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101"), ("undefined", Aeson.String "falsy")]
     putStrLn "dis arm"
     runProcM sole mgr envNew
 
@@ -564,6 +547,6 @@ testOutsideWorld flow@(Script { callItems }) = do
 
 
 
-
-present :: Lead -> String
-present x = show x
+present :: Lead -> Maybe String
+present (NonLead {}) = Nothing
+present x = Just $ show x
