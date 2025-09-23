@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -15,9 +16,9 @@ module Hh200.Types
   , RequestSpec(..)
   , ResponseSpec(..)
   , DepsClause(..), defaultDepsClause
-  , Script(..), ScriptConfig(..), defaultScriptConfig
+  , Script(..), ScriptConfig(..), defaultScriptConfig, dbgScriptConfig
   , Snippet(..)
-  , pCallItem
+  , pCallItem, CallItem, firstFailing
   , UppercaseString, expectUpper
   , testOutsideWorld
   , present
@@ -72,14 +73,14 @@ import qualified BEL (renderTemplate)
 
 headerJson = ("Content-Type", "application/json")
 
-newtype JsonpathQueries = JsonpathQueries (HM.HashMap String String)
+newtype StringString = StringString (HM.HashMap String String)
     deriving (Show, Eq)
 
-mkCaptures :: [Binding] -> JsonpathQueries
-mkCaptures bindings = JsonpathQueries (HM.fromList bindings)
+mkCaptures :: [Binding] -> StringString
+mkCaptures bindings = StringString (HM.fromList bindings)
 
-mtCaptures :: JsonpathQueries
-mtCaptures = JsonpathQueries HM.empty
+mtCaptures :: StringString
+mtCaptures = StringString HM.empty
 
 mock :: Aeson.Value = [aesonQQ| { "data": { "token": "abcde9" } } |]
 
@@ -141,7 +142,7 @@ data RequestSpec = RequestSpec
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
   , output :: [String]
-  , captures :: JsonpathQueries
+  , captures :: StringString
   }
   deriving (Show, Eq)
 
@@ -155,6 +156,15 @@ data ScriptConfig = ScriptConfig
   , subjects1 :: [Subject]
   , subjects :: Ls.NonEmpty Subject
   } deriving (Show, Eq)
+
+dbgScriptConfig :: ScriptConfig
+dbgScriptConfig = ScriptConfig
+  { retries = 0
+  , maxDuration = Nothing
+  , subjects1 = [Subject "custommm"]
+  , subjects = (Subject "a") Ls.:| []
+  }
+
 defaultScriptConfig :: ScriptConfig
 defaultScriptConfig = ScriptConfig
   { retries = 0
@@ -397,6 +407,20 @@ emptyHanded = pure defaultCallItem
 --  print: $
 --  print-err: $.statusCode
 
+trimQuotes :: String -> String
+trimQuotes s =
+  case s of
+    ('"':xs) -> case reverse xs of
+                  ('"':ys) -> reverse ys
+                  _        -> s
+    _        -> s
+
+safeBel :: Env -> String -> String
+safeBel env s =
+    trimQuotes (case BEL.renderTemplate env s of
+        Left og -> og
+        Right res -> res)
+
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
@@ -406,14 +430,6 @@ courseFrom x = do
     liftIOWithMgr pairs
 
     where
-    -- ??: BEL " carried
-    safeBel :: Env -> String -> String
-    safeBel env s =
-        case BEL.renderTemplate env s of
-            Left og -> og
-            Right res -> res
-
-
     -- Build Request and echo CallItem parts.
     -- ??: work out why passing Env like this is correct/incorrect
     -- [X] dict passing
@@ -460,18 +476,21 @@ courseFrom x = do
                 Nothing -> Aeson.Null
                 Just av -> av
 
-        -- Reduce JsonpathQueries to Env extensions.
-        evalCaptures :: Prim.Response L8.ByteString -> JsonpathQueries -> Env -> Env
-        evalCaptures resp (JsonpathQueries bindings) e =
-            HM.foldlWithKey'
-                (\(acc :: Env) bindingK (bindingV :: String) ->
-                    case queryBody bindingV (validJsonBody resp) of
-                        Nothing -> acc
-                        Just av -> HM.insert bindingK av acc)
-                e
-                bindings
+        -- Reduce StringString to Env extensions.
+        evalCaptures :: Prim.Response L8.ByteString -> StringString -> Env -> Env
+        evalCaptures resp (StringString bindings) e =
+            e
+            -- HM.foldlWithKey'
+            --     \(acc :: Env) bindingK (bindingV :: String) ->
+            --         case queryBody bindingV (validJsonBody resp) of
+            --             Nothing -> acc
+            --             -- Just av -> HM.insert bindingK av acc)
+            --             Just av -> HM.insert bindingK (Aeson.String "echo.php") acc
+            --             -- Just av -> HM.insert bindingK (safeBel e av) acc)
+            --     e
+            --     bindings
 
-        capturesOrDefault :: Maybe ResponseSpec -> JsonpathQueries
+        capturesOrDefault :: Maybe ResponseSpec -> StringString
         capturesOrDefault mrs =
             case mrs of
                 Just rs -> captures rs
@@ -486,7 +505,12 @@ courseFrom x = do
                     let kk = Prim.responseBody got
 
                     tell [L8.unpack kk]
+                    liftIO $ putStrLn "h rec:"
+                    liftIO $ putStrLn (show kk)
+                    -- PICKUP Captures block
+                    -- verify modify actually modifies; safeBel for Aeson.Value
                     modify $ evalCaptures got (capturesOrDefault mrs)
+                    -- modify $ trace "evalCaptures...." (evalCaptures got (capturesOrDefault mrs))
 
                     case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
                         False -> pure ci

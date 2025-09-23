@@ -41,7 +41,8 @@ import           Hh200.Types
 
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
-    jsonBody    { BRACED _ $$ }
+    braced      { BRACED _ $$ }
+    bel         { BEL _ $$ }
 
     jsonpath    { JSONPATH _ $$ }
     headerVal   { HEADER_VAL _ $$ }
@@ -51,7 +52,8 @@ import           Hh200.Types
 
 %%
 
-script : crlf call_items crlf    { Script { config = defaultScriptConfig, callItems = $2 } }
+script : call_items    { Script { config = defaultScriptConfig, callItems = $1 } }
+       | response_captures { trace "unittest" (Script { config = dbgScriptConfig, callItems = [] }) }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
@@ -68,15 +70,15 @@ request_headers : request_header                 { [$1] }
 
 request_header : header ":" headerVal crlf { ($1, $3) }
 
-request  : method url crlf request_headers jsonBody crlf { trace "requestA" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
-         | method url crlf request_headers crlf          { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
-         | method url crlf jsonBody crlf                 { trace "requestC" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
-         | method url crlf                               { trace "requestD" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url crlf                                      { trace "requestE" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
+request  : method url crlf request_headers braced crlf { trace "requestA" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
+         | method url crlf request_headers crlf        { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
+         | method url crlf braced crlf                 { trace "requestC" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
+         | method url crlf                             { trace "requestD" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
+         | url crlf                                    { trace "requestE" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
-response : "HTTP" response_codes crlf response_captures { trace "responseA" (ResponseSpec { captures = mkCaptures $4, output = [], statuses = map statusFrom $2 }) }
-         | "HTTP" response_codes                        { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $2 }) }
-         | response_captures                            { trace "responseC" (ResponseSpec { captures = mkCaptures $1, output = [], statuses = [] }) }
+response : "HTTP" response_codes crlf response_captures crlf { trace "responseA" (ResponseSpec { captures = mkCaptures $4, output = [], statuses = map statusFrom $2 }) }
+         | "HTTP" response_codes crlf                      { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $2 }) }
+         | response_captures crlf                            { trace "responseC" (ResponseSpec { captures = mkCaptures $1, output = [], statuses = [] }) }
 
 response_captures :: { [Binding] }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
@@ -85,7 +87,8 @@ bindings :: { [Binding] }
 bindings : binding          { trace "bindingsA" [$1] }
          | bindings binding { trace "bindingsB" ($1 ++ [$2]) }
 
-binding : identifier "=" jsonpath crlf  { trace "bindingA" ($1, $3) }
+binding : identifier "=" jsonpath crlf { trace "bindingA" ($1, $3) }
+        | identifier "=" bel crlf   { trace "bindingB" ($1, $3) }
 
 response_codes :: { [Int] }
 response_codes : d                { [read $1] }
@@ -99,7 +102,7 @@ call_item : deps_clause request response { trace "call_itemA" (pCallItem $1 $2 (
 
 
 call_items : call_item crlf           { [$1] }
-           | call_items call_item  { $1 ++ [$2] }
+           | call_items call_item crlf  { $1 ++ [$2] }
 
 {
 

@@ -10,6 +10,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.IO.Class
 import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.Directory (doesFileExist)
+import           System.IO (hPutStrLn, stderr)
 import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
@@ -94,7 +95,10 @@ go Args { call = False, source = Just path } = do
                     -- No news is good news.
                     pure ()
                 Just l -> do
-                    putStrLn l
+                    putStrLn $ case firstFailing lead of
+                        Nothing -> "internal error"
+                        Just ci -> "unimplemented pretty printer" ++ show ci  -- ??
+                    hPutStrLn stderr "hh200 found an unmet expectation."
                     exitWith (ExitFailure 1)
 
 -- Verifiable with `echo $?` which prints last exit code in shell.

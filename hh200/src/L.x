@@ -50,6 +50,7 @@ tokens :-
     \{ $printable+ \}         { tok (\p s -> BRACED p s) }
     \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
     \$ $printable+            { tok (\p s -> JSONPATH p s) }
+    > $printable+             { tok (\p s -> BEL p s) }
 
     Bearer $printable+
   | Token $printable+   { tok (\p s -> HEADER_VAL p s) }
@@ -88,6 +89,7 @@ data Token =
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
   | BRACED  AlexPosn String
+  | BEL  AlexPosn String
 
   | JSONPATH    AlexPosn String
   | HEADER_VAL  AlexPosn String

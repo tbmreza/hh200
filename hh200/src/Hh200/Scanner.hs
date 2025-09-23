@@ -43,8 +43,8 @@ readScript path = do
             putStrLn $ show m
             pure Nothing
         ParseOk s -> do
-            putStrLn "\t SCANNER:"
-            putStrLn $ show tokensOrPanic
+            -- putStrLn "\t SCANNER:"
+            -- putStrLn $ show tokensOrPanic
             pure $ Just s
 
 

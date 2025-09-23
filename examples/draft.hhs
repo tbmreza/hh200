@@ -1,6 +1,11 @@
+POST http://localhost:9999/echo.php
+HTTP 200
+[Captures]
+NEXT = > echo.php
+START = > today()
+Q_STR = > "salt and pepper"
+ID = $.data.id
 
-
-
-POST http://localhost:9999/okdkkk
-{ "username": "admin", "password": "admin1234" }
-
+POST http://localhost:9999/{{NEXT}}&q={{Q_STR}}
+{ "data": "a" }
+HTTP 404

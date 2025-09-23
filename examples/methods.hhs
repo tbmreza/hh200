@@ -1,0 +1,26 @@
+GET http://httpbin.org/anything
+HTTP 200
+
+HEAD http://httpbin.org/anything
+HTTP 200
+
+OPTIONS http://httpbin.org/anything
+HTTP 200
+
+TRACE http://httpbin.org/anything
+HTTP 200
+
+PUT http://httpbin.org/anything
+HTTP 200
+
+DELETE http://httpbin.org/anything
+HTTP 200
+
+POST http://httpbin.org/anything
+HTTP 200
+
+PATCH http://httpbin.org/anything
+HTTP 200
+
+CONNECT http://httpbin.org/anything
+HTTP 200
