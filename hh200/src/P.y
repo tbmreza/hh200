@@ -4,6 +4,7 @@ module P where
 import Debug.Trace
 
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.HashMap.Strict as HM
 import           Control.Monad.Trans.Except
 import           L
 import           Hh200.Types
@@ -33,8 +34,9 @@ import           Hh200.Types
     "]"         { LIST_CLS _ }
     "then"      { KW_THEN _ }
     "HTTP"      { KW_HTTP _ }
-    "Config"    { KW_CONFIG _ }
+    "Configs"   { KW_CONFIGS _ }
     "Captures"  { KW_CAPTURES _ }
+    "Asserts"   { KW_ASSERTS _ }
 
     method      { METHOD _ $$ }
     header      { HEADER _ $$ }
@@ -42,10 +44,12 @@ import           Hh200.Types
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
     braced      { BRACED _ $$ }
-    bel         { BEL _ $$ }
+    rhs         { RHS _ $$ }
 
     jsonpath    { JSONPATH _ $$ }
     headerVal   { HEADER_VAL _ $$ }
+
+    line         { LINE _ $$ }
 
 
 %monad { E } { thenE } { returnE }
@@ -53,7 +57,7 @@ import           Hh200.Types
 %%
 
 script : call_items    { Script { config = defaultScriptConfig, callItems = $1 } }
-       | response_captures { trace "unittest" (Script { config = dbgScriptConfig, callItems = [] }) }
+       | response_asserts { Script { config = dbgScriptConfig, callItems = [] } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
@@ -70,15 +74,26 @@ request_headers : request_header                 { [$1] }
 
 request_header : header ":" headerVal crlf { ($1, $3) }
 
-request  : method url crlf request_headers braced crlf { trace "requestA" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
-         | method url crlf request_headers crlf        { trace "requestB" RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
-         | method url crlf braced crlf                 { trace "requestC" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
-         | method url crlf                             { trace "requestD" RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url crlf                                    { trace "requestE" RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
+request  : method url crlf request_headers braced crlf { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
+         | method url crlf request_headers crlf        { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
+         | method url crlf braced crlf                 { RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
+         | method url crlf                             { RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
+         | url crlf                                    { RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
-response : "HTTP" response_codes crlf response_captures crlf { trace "responseA" (ResponseSpec { captures = mkCaptures $4, output = [], statuses = map statusFrom $2 }) }
-         | "HTTP" response_codes crlf                      { trace "responseB" (ResponseSpec { captures = mtCaptures, output = [], statuses = map statusFrom $2 }) }
-         | response_captures crlf                            { trace "responseC" (ResponseSpec { captures = mkCaptures $1, output = [], statuses = [] }) }
+response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
+         { trace "rs1" $ ResponseSpec { asserts = [], captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
+
+         | "HTTP" response_codes crlf response_captures crlf
+         { trace "rs2.." $ ResponseSpec { asserts = [], captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
+
+         | "HTTP" response_codes crlf
+         { trace "rs3" $ ResponseSpec { asserts = [], captures = mkCaptures [], output = [], statuses = map statusFrom $2 } }
+
+         | response_captures crlf response_asserts crlf
+         { trace "rs4" $ ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
+
+         | response_captures crlf
+         { ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
 
 response_captures :: { [Binding] }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
@@ -88,7 +103,14 @@ bindings : binding          { trace "bindingsA" [$1] }
          | bindings binding { trace "bindingsB" ($1 ++ [$2]) }
 
 binding : identifier "=" jsonpath crlf { trace "bindingA" ($1, $3) }
-        | identifier "=" bel crlf   { trace "bindingB" ($1, $3) }
+        | identifier "=" s crlf        { trace "bindingB" ($1, $3) }
+        | identifier "=" rhs crlf      { trace "bindingC" ($1, $3) }
+
+response_asserts :: { [String] }
+response_asserts : "[" "Asserts" "]" crlf expr_lines { $5 }
+
+expr_lines : line crlf           { [$1] }
+           | expr_lines line { ($1 ++ [$2]) }
 
 response_codes :: { [Int] }
 response_codes : d                { [read $1] }

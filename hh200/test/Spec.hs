@@ -16,7 +16,11 @@ testScanner :: TestTree
 testScanner = testCase "lexer and parser" $ do
     -- let tokens = Hh.alexScanTokens "http://localhost:9999/abcdefnxyz"
     -- let tokens = Hh.alexScanTokens "HTTP 200"
-    let tokens = Hh.alexScanTokens "[Captures]\nNEXT = >proto()"
+    -- let tokens = Hh.alexScanTokens "[Captures]\nNEXT = >proto()"
+    -- let tokens = Hh.alexScanTokens "[Captures]\nSTART = today("
+    -- let tokens = Hh.alexScanTokens "[Captures]\nID = $.data.id"
+    -- let tokens = Hh.alexScanTokens "[Asserts]\n> jsonpath \"string\" == 12"
+    let tokens = Hh.alexScanTokens "[Asserts]\n> 12 == 12"
 
     case Hh.parse tokens of
         Hh.ParseOk v -> do

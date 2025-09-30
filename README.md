@@ -1,6 +1,16 @@
 ## Contributing
 The project is in ideation phase. `DRAFT.md` is where I dump my thoughts. `hh200/` works if you want to play with what I got so far.
 
+## Features
+The following defining features sum up hh200 in trade-off terms.
+
+#### 1. Fail fast (compromising test percentage)
+Well-functioning system-under-test is the only thing that should matter; we're dodging the need for skipping cases in test scripts.
+Furthermore, such systems developer can only work on one bug at a time. We'd rather them start working on it sooner!
+
+#### 2. Regex, random, time batteries (compromising binary size)
+hh200 comes bundled with a full expression language BEL evaluator.
+  
 ## See also
 
 <details>

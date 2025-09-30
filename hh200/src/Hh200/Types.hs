@@ -23,7 +23,7 @@ module Hh200.Types
   , testOutsideWorld
   , present
   , module Network.HTTP.Types.Status
-  , Binding , mtCaptures, mkCaptures
+  , Binding, mkCaptures
   ) where
 
 import Debug.Trace
@@ -32,7 +32,6 @@ import qualified Data.Char as Char (isUpper, toUpper)
 import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashTable.IO as H
--- import qualified Data.ByteString as BS  -- ??: alex ByteString wrapper
 import qualified Data.ByteString.Char8 as BS
 import GHC.Generics
 
@@ -52,7 +51,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Data.Maybe (fromJust)
 import Network.HTTP.Types.Status
-import Control.Monad (forM_)
+import Control.Monad (forM_, when, unless, foldM)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import System.Directory (doesFileExist)
@@ -62,6 +61,8 @@ import qualified Control.Concurrent as Base
 
 import qualified Data.Vector as Vec
 import qualified Data.Vector as Aeson (Vector)
+import qualified Data.Text as Text
+import           Data.Text (Text)
 import qualified Text.Parsec.Error as Aeson (ParseError)
 import qualified Data.Aeson as Aeson (eitherDecode, decode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
@@ -73,18 +74,27 @@ import qualified BEL (renderTemplate)
 
 headerJson = ("Content-Type", "application/json")
 
+newtype RhsDict = RhsDict (HM.HashMap String Rhs)
+    deriving (Show, Eq)
+
+data Rhs =
+    RhsQuoted Text
+  | RhsJsonpath Text
+  | RhsBel Text
+  deriving (Show, Eq)
+
 newtype StringString = StringString (HM.HashMap String String)
     deriving (Show, Eq)
 
-mkCaptures :: [Binding] -> StringString
-mkCaptures bindings = StringString (HM.fromList bindings)
-
-mtCaptures :: StringString
-mtCaptures = StringString HM.empty
+mkCaptures :: [Binding] -> RhsDict
+mkCaptures bindings = RhsDict (HM.fromList $ map fromParsed bindings)
+    where
+    fromParsed :: Binding -> (String, Rhs)
+    fromParsed (a, b) = (a, RhsBel (Text.pack b))
 
 mock :: Aeson.Value = [aesonQQ| { "data": { "token": "abcde9" } } |]
 
--- Expect one matching Value or nothing.
+-- Expect one matching Value or ??log.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
 queryBody q root =
     case Aeson.query q root of
@@ -110,8 +120,6 @@ pCallItem dc rs opt =
       , ciResponseSpec = opt
       }
 
-newtype JsonStr = JsonStr String
-
 
 data Script =
     Script
@@ -134,17 +142,69 @@ data RequestSpec = RequestSpec
   , headers :: [Binding]
   , payload :: String
   , opts :: [String]
+  -- , configs :: RhsDict
+  -- , cookies :: RhsDict
   }
   deriving (Show, Eq)
--- HeaderHandlers =
---     Authorization
 
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
   , output :: [String]
-  , captures :: StringString
+  , captures :: RhsDict
+  , asserts :: [String]  -- List of untyped expr line, input for safeBel.
   }
   deriving (Show, Eq)
+
+data CheckingError
+  = CheckingError Text
+  deriving (Show, Eq)
+
+type CheckingResult a = Either CheckingError a
+
+-- Early Left indicates for corresponding CallItem (perhaps with user assert)
+-- to be reported.
+assertsEval :: Env -> Prim.Response a -> Maybe ResponseSpec -> CheckingResult ()
+assertsEval env got mrs = do
+    -- First off, status code assertion.
+    case elem (Prim.responseStatus got) expectCodes of
+
+        -- Skip evaluating user assertion lines on unexpected status code.
+        False -> Left (CheckingError "unexpected status code")
+
+        -- Even though it practically can short-circuit, we're letting it fold
+        -- all the input lines to print BEL logs at once.
+        True ->
+            Right ()
+            -- ??
+            -- fold clo True linesOrMt
+
+            -- h linesOrMt
+
+            -- case BEL.renderTemplate env (head linesOrMt) of
+            --     -- Rights: Evaluated all user assertion lines.
+            --     --
+            --     Right "false" ->
+            --         -- Some assertion point terminates as false value.
+            --         Right ()
+            --     Right "true" ->
+            --         -- All good: assertion points terminate as true values.
+            --         Right ()
+            --
+            --     -- Lefts: Evaluation interrupted.
+            --     --
+            --     _ -> -- Right _ | Left _
+            --         -- Logs printed; unexpected end result.
+            --         Left (CheckingError "upstream error")
+    where
+    clo :: String -> Either String String
+    clo = BEL.renderTemplate env
+    h :: [String] -> CheckingResult ()
+    h lines =
+        Right ()
+    linesOrMt = case mrs of
+        Just rs -> asserts rs
+        _ -> []
+    expectCodes = expectCodesOrDefault mrs
 
 type Duration = Int
 newtype Subject = Subject String
@@ -294,63 +354,7 @@ data HhError = LibError
              | PointableError
     deriving (Show)
 
-data TerribleException = TerribleException deriving (Show)
--- newtype TerribleException = TerribleException String deriving (Show)
-instance Exception TerribleException
-
 type Binding = (String, String)
-
-class PolicyT a where
-    policyOrDefault :: a -> a
-
-instance PolicyT Policy where
-
-    policyOrDefault Policy { maxReruns, maxRetriesPerCall, timeMillisPerCall } =
-
-        Policy { maxReruns = orMR, maxRetriesPerCall = orMRPC, timeMillisPerCall = orTMPC } where
-
-            orTMPC :: Maybe Int
-            orTMPC = case
-                timeMillisPerCall of
-                    -- Nothing -> Just 60_000
-                    Nothing -> Just 60000
-                    var -> var
-
-            orMRPC :: Maybe Int
-            orMRPC = case
-                maxRetriesPerCall of
-                    Nothing -> Just 2
-                    var -> var
-
-            orMR :: Maybe Int
-            orMR = case
-                maxReruns of
-                    Nothing -> Just 2
-                    var -> var
-
-data Policy = Policy {
-    maxReruns :: Maybe Int,
-    maxRetriesPerCall :: Maybe Int,
-    timeMillisPerCall :: Maybe Int
-    } deriving (Eq, Show, Generic)
-
--- Simple source position
-data Pos = Pos 
-    { line :: !Int
-    , col  :: !Int 
-    } deriving (Eq, Show)
-
--- Source span with start and end positions
-data Span = Span 
-    { spanStart :: !Pos
-    , spanEnd   :: !Pos 
-    } deriving (Eq, Show)
-
--- Location-annotated value
-data Located a = Located 
-    { location :: !Span
-    , unLoc    :: a 
-    } deriving (Show, Functor)
 
 --------------------------------
 -- EXECUTIVE SUMMARY OF HH200 --
@@ -397,29 +401,20 @@ runProcM script mgr env = do
 emptyHanded :: ProcM CallItem
 emptyHanded = pure defaultCallItem
 
--- -- Template is string that may or may not contain BEL expressions.
-
---  [Setup]
---  env-set: userconfig, read '/home/tmp.txt' fresh
---  env-del: userconfig
---
---  [Finally]
---  print: $
---  print-err: $.statusCode
-
-trimQuotes :: String -> String
-trimQuotes s =
-  case s of
-    ('"':xs) -> case reverse xs of
-                  ('"':ys) -> reverse ys
-                  _        -> s
-    _        -> s
+-- trimQuotes :: String -> String
+-- trimQuotes s =
+--   case s of
+--     ('"':xs) -> case reverse xs of
+--                   ('"':ys) -> reverse ys
+--                   _        -> s
+--     _        -> s
 
 safeBel :: Env -> String -> String
 safeBel env s =
-    trimQuotes (case BEL.renderTemplate env s of
+    -- ??: trimQuotes
+    case BEL.renderTemplate env s of
         Left og -> og
-        Right res -> res)
+        Right res -> res
 
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
@@ -427,12 +422,13 @@ courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
     env <- get
     pairs <- liftIO (mapM (buildFrom env) (callItems x))
+    -- pairs <- liftIO (mapM buildFrom (callItems x))
     liftIOWithMgr pairs
 
     where
-    -- Build Request and echo CallItem parts.
     -- ??: work out why passing Env like this is correct/incorrect
     -- [X] dict passing
+    -- Build Request and echo CallItem parts.
     buildFrom :: Env -> CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
     buildFrom env ci
         -- Requests without body.
@@ -453,6 +449,28 @@ courseFrom x = do
               , Prim.requestHeaders = [headerJson]
               , Prim.requestBody = rawPayload (trace (show bel) bel)
               }
+    -- buildFrom :: CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
+    -- buildFrom ci
+    --     -- Requests without body.
+    --     | null (payload $ ciRequestSpec ci) = do
+    --         env <- get
+    --         let fmt :: String = safeBel env (url $ ciRequestSpec ci)
+    --
+    --         struct :: Prim.Request <- Prim.parseRequest fmt
+    --         dorp (ci, (ciResponseSpec ci)) struct
+    --           { Prim.method = asMethod (verb $ ciRequestSpec ci)
+    --           }
+    --
+    --     -- Requests with json body.
+    --     | otherwise = do
+    --         env <- get
+    --         let bel = safeBel env (payload $ ciRequestSpec ci)
+    --         struct <- Prim.parseRequest (url $ ciRequestSpec ci)
+    --         dorp (ci, (ciResponseSpec ci)) struct
+    --           { Prim.method = asMethod (verb $ ciRequestSpec ci)
+    --           , Prim.requestHeaders = [headerJson]
+    --           , Prim.requestBody = rawPayload (trace (show bel) bel)
+    --           }
 
         where
         -- Return swapped product (`dorp` is prod reversed).
@@ -476,55 +494,74 @@ courseFrom x = do
                 Nothing -> Aeson.Null
                 Just av -> av
 
-        -- Reduce StringString to Env extensions.
-        evalCaptures :: Prim.Response L8.ByteString -> StringString -> Env -> Env
-        evalCaptures resp (StringString bindings) e =
-            e
-            -- HM.foldlWithKey'
-            --     \(acc :: Env) bindingK (bindingV :: String) ->
-            --         case queryBody bindingV (validJsonBody resp) of
-            --             Nothing -> acc
-            --             -- Just av -> HM.insert bindingK av acc)
-            --             Just av -> HM.insert bindingK (Aeson.String "echo.php") acc
-            --             -- Just av -> HM.insert bindingK (safeBel e av) acc)
-            --     e
-            --     bindings
+        -- Reduce captures to Env extensions.
+        evalCaptures :: Prim.Response L8.ByteString
+                     -> Maybe ResponseSpec
+                     -> Env -> Env
+        evalCaptures resp mrs e =
+            let (RhsDict bindings) = case mrs of
+                    Nothing -> RhsDict HM.empty
+                    Just rs -> captures rs
 
-        capturesOrDefault :: Maybe ResponseSpec -> StringString
-        capturesOrDefault mrs =
-            case mrs of
-                Just rs -> captures rs
-                _ -> mtCaptures
+            in HM.foldlWithKey'
+                (\(acc :: Env) bK (bV :: Rhs) ->
+                    (case bV of
+                        -- _ -> HM.insert "bK" (Aeson.String "rhs"))
+                        RhsQuoted rhs -> HM.insert bK (Aeson.String rhs)
+                        RhsJsonpath rhs ->
+                            case queryBody (show rhs) (validJsonBody resp) of
+                                Just val -> HM.insert bK val
+                                Nothing -> (\x -> x)
+                        RhsBel rhs ->
+                            HM.insert bK $ Aeson.String (Text.pack (safeBel acc (show rhs))))
+                    acc)
+                e bindings
 
+        -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
         h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
         h mgr pairs = case pairs of
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
-                    got :: Prim.Response L8.ByteString <- liftIO (primDo mgr req)
+                    got :: Prim.Response L8.ByteString <- liftIO (Prim.httpLbs req mgr)
                     let kk = Prim.responseBody got
 
                     tell [L8.unpack kk]
                     liftIO $ putStrLn "h rec:"
-                    liftIO $ putStrLn (show kk)
-                    -- PICKUP Captures block
-                    -- verify modify actually modifies; safeBel for Aeson.Value
-                    modify $ evalCaptures got (capturesOrDefault mrs)
-                    -- modify $ trace "evalCaptures...." (evalCaptures got (capturesOrDefault mrs))
+                    -- Captures.
 
-                    case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
-                        False -> pure ci
-                        _ -> h mgr rest
+                    env <- get
+                    let ec = evalCaptures got mrs
+                    let ne :: Env = ec env
+                    -- PICKUP bel " today()"
+                    liftIO $ putStrLn ("bel evaled:" ++ show (HM.lookupDefault (Aeson.Number 9) "START" ne))
 
-                rest -> h mgr rest
+                    let nnn = 911
+                    liftIO $ putStrLn (show nnn)
 
-        expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
-        expectCodesOrDefault x =
-            case x of
-                Nothing -> [status200]
-                Just s -> statuses s
-        primDo :: Prim.Manager -> Prim.Request -> IO (Prim.Response L8.ByteString)
-        primDo mgr req = Prim.httpLbs req mgr
+                    -- Unless null Captures:
+                    modify $ evalCaptures got mrs -- modify accepts `Env -> Env` transformation.
+
+                    -- Asserts.
+                    -- nice to have bel lines statically checked regardless of the outside
+                    -- world but full evaluation of bel requires outside world results.
+                    --
+                    -- a line doesn't mutate the Env.
+                    --
+                    -- world's and spec's status matching
+
+
+
+                    case assertsEval env got mrs of
+                        Left (CheckingError _msg) -> pure ci
+                        Right () -> h mgr rest
+
+
+expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
+expectCodesOrDefault x =
+    case x of
+        Nothing -> [status200]
+        Just s -> statuses s
 
 testOutsideWorld :: Script -> IO Lead
 
@@ -538,37 +575,16 @@ testOutsideWorld sole@(
       { config = ScriptConfig { subjects }
       , callItems = [_] }) = do
     mgr <- Prim.newManager tlsManagerSettings
-    let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101"), ("undefined", Aeson.String "falsy")]
-    putStrLn "dis arm"
+    let envNew :: Env = HM.fromList
+            [ ("yyyymmdd", Aeson.String "19700101")
+            , ("undefined", Aeson.String "falsy")
+            ]
     runProcM sole mgr envNew
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems }) = do
     mgr <- Prim.newManager tlsManagerSettings
     runProcM flow mgr HM.empty
-
---     raceToFirstFailing :: Script -> IO (Maybe CallItem)
---     raceToFirstFailing Script { config = ScriptConfig { subjects }, call_items } = do
---         hole :: Base.MVar CallItem <- Base.newEmptyMVar
---
---         let actions :: [IO (Maybe CallItem, Log)] = map (mkAction call_items) subjects
---         putStrLn (show $ length actions)
---         ids :: [ThreadId] <- forM actions $
---             -- Each action returns a thread ID.
---             \(io :: IO (Maybe CallItem, Log)) -> Base.forkIO $ do
---                 putStrLn "lam...."
---                 (res, logs) <- io
---                 putStrLn $ "show log: " ++ show logs
---
---                 case res of
---                     Just failing -> Base.putMVar hole failing
---                     Nothing -> return ()
---
---         Base.threadDelay 1000000  -- ??: main thread exits before all children. which other mvar method?
---
---         forM_ ids $ \x -> Base.killThread x
---         Base.tryReadMVar hole
-
 
 
 present :: Lead -> Maybe String

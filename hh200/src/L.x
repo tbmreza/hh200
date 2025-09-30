@@ -34,8 +34,9 @@ tokens :-
 
     then     { tok (\p _ -> KW_THEN p) }
     HTTP     { tok (\p _ -> KW_HTTP p) }
-    Config   { tok (\p _ -> KW_CONFIG p) }
+    Configs  { tok (\p _ -> KW_CONFIGS p) }
     Captures { tok (\p _ -> KW_CAPTURES p) }
+    Asserts  { tok (\p _ -> KW_ASSERTS p) }
 
     Authorization
   | Content    { tok (\p s -> HEADER p s) }
@@ -50,11 +51,12 @@ tokens :-
     \{ $printable+ \}         { tok (\p s -> BRACED p s) }
     \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
     \$ $printable+            { tok (\p s -> JSONPATH p s) }
-    > $printable+             { tok (\p s -> BEL p s) }
+    [$printable # =]+ \(\)    { tok (\p s -> RHS p s) }
 
     Bearer $printable+
   | Token $printable+   { tok (\p s -> HEADER_VAL p s) }
 
+    > $printable+   { tok (\p s -> LINE p s) }
 
 {
 
@@ -83,16 +85,19 @@ data Token =
 
   | KW_THEN      AlexPosn
   | KW_HTTP      AlexPosn
-  | KW_CONFIG    AlexPosn
+  | KW_CONFIGS   AlexPosn
   | KW_CAPTURES  AlexPosn
+  | KW_ASSERTS   AlexPosn
 
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
   | BRACED  AlexPosn String
-  | BEL  AlexPosn String
+  | RHS     AlexPosn String
 
   | JSONPATH    AlexPosn String
   | HEADER_VAL  AlexPosn String
+
+  | LINE  AlexPosn String
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
