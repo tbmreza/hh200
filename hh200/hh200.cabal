@@ -57,6 +57,7 @@ library
     , http-client-tls
     , http-conduit
     , http-types
+    , keys
     , mtl
     , optparse-applicative
     , parsec
@@ -89,6 +90,7 @@ executable hh200
     , hh200
     , http-client
     , http-client-tls
+    , keys
     , mtl
     , optparse-applicative
     , process
@@ -116,6 +118,7 @@ test-suite hh200-test
     , hh200
     , http-client
     , http-client-tls
+    , keys
     , mtl
     , optparse-applicative
     , process

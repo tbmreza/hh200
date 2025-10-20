@@ -81,10 +81,10 @@ request  : method url crlf request_headers braced crlf { RequestSpec { verb = ex
          | url crlf                                    { RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
-         { trace "rs1" $ ResponseSpec { asserts = [], captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
+         { trace "rs1" $ ResponseSpec { asserts = $6, captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf response_captures crlf
-         { trace "rs2.." $ ResponseSpec { asserts = [], captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
+         { trace "rs2" $ ResponseSpec { asserts = [], captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
          { trace "rs3" $ ResponseSpec { asserts = [], captures = mkCaptures [], output = [], statuses = map statusFrom $2 } }
@@ -93,18 +93,24 @@ response : "HTTP" response_codes crlf response_captures crlf response_asserts cr
          { trace "rs4" $ ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
 
          | response_captures crlf
-         { ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
+         { trace "rs5" $ ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
+
+-- newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
+-- bindings :: { RhsDict }  -- PICKUP
 
 response_captures :: { [Binding] }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
 
 bindings :: { [Binding] }
-bindings : binding          { trace "bindingsA" [$1] }
-         | bindings binding { trace "bindingsB" ($1 ++ [$2]) }
+bindings : binding          { [$1] }
+         | bindings binding { ($1 ++ [$2]) }
 
-binding : identifier "=" jsonpath crlf { trace "bindingA" ($1, $3) }
-        | identifier "=" s crlf        { trace "bindingB" ($1, $3) }
-        | identifier "=" rhs crlf      { trace "bindingC" ($1, $3) }
+-- type Binding = (String, String)
+-- type Binding = (String, BEL.Part)
+
+binding : identifier "=" jsonpath crlf { ($1, $3) }
+        | identifier "=" s crlf        { ($1, $3) }
+        | identifier "=" rhs crlf      { ($1, $3) }
 
 response_asserts :: { [String] }
 response_asserts : "[" "Asserts" "]" crlf expr_lines { $5 }

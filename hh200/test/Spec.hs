@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 import Test.Tasty
 import Test.Tasty.HUnit
 import Control.Monad.Trans.Maybe
@@ -7,10 +10,19 @@ import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import           Data.Text (Text)
 import Data.Maybe (isJust)
 
 import qualified Hh200.Types as Hh
 import qualified Hh200.Scanner as Hh
+
+testEval :: TestTree
+testEval = testCase "BEL" $ do
+    -- `show (t :: Text)` does introduce double quote on both ends.
+    let res :: Text = "http://localhost:9998/route.php"
+
+    -- assertFailure $ "ok:" ++ res
+    assertFailure $ ((Hh.show' res) ++ "tail")
 
 testScanner :: TestTree
 testScanner = testCase "lexer and parser" $ do
@@ -32,6 +44,7 @@ testScanner = testCase "lexer and parser" $ do
 main :: IO ()
 main = defaultMain $ testGroup "File-based tests"
   [ testScanner
+  , testEval
   ]
 -- {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE OverloadedStrings #-}

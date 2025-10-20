@@ -56,7 +56,7 @@ tokens :-
     Bearer $printable+
   | Token $printable+   { tok (\p s -> HEADER_VAL p s) }
 
-    > $printable+   { tok (\p s -> LINE p s) }
+    > $printable+   { tok (\p s -> LINE p (drop 1 s)) }
 
 {
 
