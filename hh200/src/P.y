@@ -8,6 +8,8 @@ import qualified Data.HashMap.Strict as HM
 import           Control.Monad.Trans.Except
 import           L
 import           Hh200.Types
+import qualified BEL
+
 }
 %name parse
 %tokentype { Token }
@@ -68,7 +70,7 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request_headers :: { [Binding] }
+request_headers :: { [Binding1] }
 request_headers : request_header                 { [$1] }
                 | request_headers request_header { ($1 ++ [$2]) }
 
@@ -81,36 +83,34 @@ request  : method url crlf request_headers braced crlf { RequestSpec { verb = ex
          | url crlf                                    { RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
-         { trace "rs1" $ ResponseSpec { asserts = $6, captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
+         { trace "rs1" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf response_captures crlf
-         { trace "rs2" $ ResponseSpec { asserts = [], captures = mkCaptures $4, output = [], statuses = map statusFrom $2 } }
+         { trace "rs2" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
-         { trace "rs3" $ ResponseSpec { asserts = [], captures = mkCaptures [], output = [], statuses = map statusFrom $2 } }
+         { trace "rs3" $ ResponseSpec { asserts = [],                output = [], statuses = map statusFrom $2 } }
 
          | response_captures crlf response_asserts crlf
-         { trace "rs4" $ ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
+         { trace "rs4" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
 
          | response_captures crlf
-         { trace "rs5" $ ResponseSpec { asserts = [], captures = mkCaptures $1, output = [], statuses = [] } }
+         { trace "rs5" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
 
--- newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
--- bindings :: { RhsDict }  -- PICKUP
-
-response_captures :: { [Binding] }
+response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
 
-bindings :: { [Binding] }
-bindings : binding          { [$1] }
-         | bindings binding { ($1 ++ [$2]) }
 
--- type Binding = (String, String)
--- type Binding = (String, BEL.Part)
+bindings :: { RhsDict }
+bindings : binding          { RhsDict (HM.fromList [$1]) }
+         | bindings binding { let (RhsDict acc) = $1 in
+                              RhsDict (HM.insert (fst $2) (snd $2) acc) }
 
-binding : identifier "=" jsonpath crlf { ($1, $3) }
-        | identifier "=" s crlf        { ($1, $3) }
-        | identifier "=" rhs crlf      { ($1, $3) }
+binding :: { Binding }
+binding : identifier "=" jsonpath crlf { ($1, BEL.L "$3") }
+        | identifier "=" rhs crlf      { ($1, BEL.L "$3") }
+        | identifier "=" s crlf        { ($1, BEL.R "$3") }
+
 
 response_asserts :: { [String] }
 response_asserts : "[" "Asserts" "]" crlf expr_lines { $5 }

@@ -24,7 +24,10 @@ module Hh200.Types
   , testOutsideWorld
   , present
   , module Network.HTTP.Types.Status
-  , Binding, mkCaptures
+  , Binding, Binding1
+  , RhsDict(..)
+  -- , mtRhsDict
+  -- , mkCaptures
   , show'
   ) where
 
@@ -129,24 +132,27 @@ headerJson = ("Content-Type", "application/json")
 newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
     deriving (Show, Eq)
 
+-- mtRhsDict :: RhsDict
+-- mtRhsDict = RhsDict HM.empty
 
-newtype RhsDict1 = RhsDict1 (HM.HashMap String Rhs)
-    deriving (Show, Eq)
 
-data Rhs =
-    RhsQuoted Text
-  | RhsJsonpath Text
-  | RhsBel Text
-  deriving (Show, Eq)
+-- newtype RhsDict1 = RhsDict1 (HM.HashMap String Rhs)
+--     deriving (Show, Eq)
 
-newtype StringString = StringString (HM.HashMap String String)
-    deriving (Show, Eq)
+-- data Rhs =
+--     RhsQuoted Text
+--   | RhsJsonpath Text
+--   | RhsBel Text
+--   deriving (Show, Eq)
 
-mkCaptures :: [Binding] -> RhsDict1
-mkCaptures bindings = RhsDict1 (HM.fromList $ map fromParsed bindings)
-    where
-    fromParsed :: Binding -> (String, Rhs)
-    fromParsed (a, b) = (a, RhsBel (Text.pack b))
+-- newtype StringString = StringString (HM.HashMap String String)
+--     deriving (Show, Eq)
+
+-- mkCaptures :: [Binding] -> RhsDict1
+-- mkCaptures bindings = RhsDict1 (HM.fromList $ map fromParsed bindings)
+--     where
+--     fromParsed :: Binding -> (String, Rhs)
+--     fromParsed (a, b) = (a, RhsBel (Text.pack b))
 
 mock :: Aeson.Value = [aesonQQ| { "data": { "token": "abcde9" } } |]
 
@@ -197,7 +203,8 @@ data RequestSpec = RequestSpec
   -- , url :: Text
   -- , payload :: Text
   , url :: String
-  , headers :: [Binding]
+  , headers :: [Binding1]  -- ??
+  -- , headers :: [String]
   , payload :: String
   , opts :: [String]
   -- , configs :: RhsDict
@@ -208,7 +215,7 @@ data RequestSpec = RequestSpec
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
   , output :: [String]
-  , captures :: RhsDict1
+  , captures :: RhsDict
   , asserts :: [String]  -- List of untyped expr line, input for evaluator.
   -- , asserts :: [Text]  -- List of untyped expr line, input for evaluator.
   }
@@ -408,8 +415,9 @@ data HhError = LibError
              | PointableError
     deriving (Show)
 
-type Binding = (String, String)
--- type Binding = (String, BEL.Part)
+type Binding1 = (String, String)
+type Binding = (String, BEL.Part)
+-- PICKUP hhs request_headers into RhsDict just like captures
 
 --------------------------------
 -- EXECUTIVE SUMMARY OF HH200 --
@@ -547,13 +555,13 @@ courseFrom x = do
                      -> IO (Env -> Env)
 
         evalCaptures resp (env, mrs) = do
-            let (RhsDict1 bindings) = case mrs of
-                    Nothing -> RhsDict1 HM.empty
+            let (RhsDict bindings) = case mrs of
+                    Nothing -> RhsDict HM.empty
                     Just rs -> captures rs
 
             ext <- foldlWithKeyM'
-                -- (\acc bK (bV :: BEL.Part) -> do  -- ??
-                (\acc bK (bV :: Rhs) -> do
+                (\acc bK (bV :: BEL.Part) -> do  -- ??
+                -- (\acc bK (bV :: Rhs) -> do
                     evaled :: Aeson.Value <- BEL.eval acc "rhs"
                     emaled :: Aeson.Value <- (case True of _ -> do pure Aeson.Null)
                     pure $ HM.insert bK (case bV of
