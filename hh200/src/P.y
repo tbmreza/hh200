@@ -3,6 +3,7 @@ module P where
 
 import Debug.Trace
 
+import qualified Data.Text as Text
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict as HM
 import           Control.Monad.Trans.Except
@@ -41,14 +42,12 @@ import qualified BEL
     "Asserts"   { KW_ASSERTS _ }
 
     method      { METHOD _ $$ }
-    header      { HEADER _ $$ }
 
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
     braced      { BRACED _ $$ }
     rhs         { RHS _ $$ }
 
-    jsonpath    { JSONPATH _ $$ }
 
     line         { LINE _ $$ }
 
@@ -58,7 +57,7 @@ import qualified BEL
 %%
 
 script : call_items    { Script { config = defaultScriptConfig, callItems = $1 } }
-       | response_asserts { Script { config = dbgScriptConfig, callItems = [] } }
+       | request       { Script { config = dbgScriptConfig, callItems = [] } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
@@ -72,9 +71,9 @@ deps : s      { [$1] }
 
 request  : method url crlf bindings braced crlf { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
          | method url crlf bindings crlf        { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
-         | method url crlf braced crlf                 { RequestSpec { verb = expectUpper    $1, url = $2,               payload = $4, opts = [] } }
-         | method url crlf                             { RequestSpec { verb = expectUpper    $1, url = $2,               payload = "", opts = [] } }
-         | url crlf                                    { RequestSpec { verb = expectUpper "GET", url = $1,               payload = "", opts = [] } }
+         | method url crlf braced crlf          { RequestSpec { verb = expectUpper    $1, url = $2, headers = RhsDict HM.empty, payload = $4, opts = [] } }
+         | method url crlf                      { RequestSpec { verb = expectUpper    $1, url = $2, headers = RhsDict HM.empty, payload = "", opts = [] } }
+         | url crlf                             { RequestSpec { verb = expectUpper "GET", url = $1, headers = RhsDict HM.empty, payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
          { trace "rs1" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
@@ -101,9 +100,8 @@ bindings : binding          { RhsDict (HM.fromList [$1]) }
                               RhsDict (HM.insert (fst $2) (snd $2) acc) }
 
 binding :: { Binding }
-binding : identifier ":" jsonpath crlf { ($1, BEL.L "$3") }
-        | identifier ":" rhs crlf      { ($1, BEL.L "$3") }
-        | identifier ":" s crlf        { ($1, BEL.R "$3") }
+binding : identifier ":" s crlf  { ($1, BEL.R (Text.pack "$3 ??: dead rule")) }
+        | identifier rhs crlf    { ($1, BEL.L (Text.pack (drop 1 $2))) }
 
 
 response_asserts :: { [String] }

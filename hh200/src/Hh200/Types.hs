@@ -130,28 +130,6 @@ headerJson = ("Content-Type", "application/json")
 newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
     deriving (Show, Eq)
 
--- mtRhsDict :: RhsDict
--- mtRhsDict = RhsDict HM.empty
-
-
--- newtype RhsDict1 = RhsDict1 (HM.HashMap String Rhs)
---     deriving (Show, Eq)
-
--- data Rhs =
---     RhsQuoted Text
---   | RhsJsonpath Text
---   | RhsBel Text
---   deriving (Show, Eq)
-
--- newtype StringString = StringString (HM.HashMap String String)
---     deriving (Show, Eq)
-
--- mkCaptures :: [Binding] -> RhsDict1
--- mkCaptures bindings = RhsDict1 (HM.fromList $ map fromParsed bindings)
---     where
---     fromParsed :: Binding -> (String, Rhs)
---     fromParsed (a, b) = (a, RhsBel (Text.pack b))
-
 mock :: Aeson.Value = [aesonQQ| { "data": { "token": "abcde9" } } |]
 
 -- Expect one matching Value or ??log.
@@ -238,32 +216,6 @@ assertsAreOk env got mrs = do
         Just rs -> map Text.pack $ asserts rs
         _ -> []
 
--- assertsEval1 :: Env -> Prim.Response a -> Maybe ResponseSpec -> CheckingResult ()
--- assertsEval1 env got mrs = do trace ("assertsEval1:" ++ show linesOrMt)
---     (case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
---         False -> Left ()
---
---         True ->
---             let mapped = map bel linesOrMt in
---             let msg = "lines:\t" ++ show (linesOrMt)
---                     ++ "\nmapped:\t" ++ show mapped
---                     ++ "\nrender:\t" ++ show "red"
---                     in
---             trace msg (Right ()))
---     where
---     bel :: String -> String
---
---     -- clo :: Text -> Either Text Text
---     -- clo = BEL.renderTemplateText env
---     h :: [String] -> CheckingResult ()
---     h lines =
---         Right ()
---     linesOrMt :: [String]
---     linesOrMt = case mrs of
---         Just rs -> asserts rs
---         _ -> []
---     expectCodes = expectCodesOrDefault mrs
-
 type Duration = Int
 newtype Subject = Subject String
     deriving (Show, Eq)
@@ -287,7 +239,7 @@ defaultScriptConfig :: ScriptConfig
 defaultScriptConfig = ScriptConfig
   { retries = 0
   , maxDuration = Nothing
-  , subjects1 = [Subject "a"]
+  , subjects1 = [Subject "default a"]
   , subjects = (Subject "a") Ls.:| []
   }
 
@@ -523,7 +475,6 @@ courseFrom x = do
         dorp a b = pure (b, a)
 
         stringRender :: String -> IO String
-        -- stringRender s = pure s
         stringRender s = do
             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
             pure $ stringOrMt rendered
@@ -556,69 +507,16 @@ courseFrom x = do
                     Just rs -> captures rs
 
             ext <- foldlWithKeyM'
-                (\acc bK (bV :: BEL.Part) -> do  -- ??
-                -- (\acc bK (bV :: Rhs) -> do
-                    evaled :: Aeson.Value <- BEL.eval acc "rhs"
-                    emaled :: Aeson.Value <- (case True of _ -> do pure Aeson.Null)
-                    pure $ HM.insert bK (case bV of
-                        _ -> do
-                            (Aeson.String "")
-                        _ -> (Aeson.String "")) acc)
+                (\(acc :: Env) bK (bV :: BEL.Part) -> do
+                    v <- (case bV of
+                        BEL.R t -> pure (Aeson.String t)
+                        BEL.L e -> BEL.eval acc e)
+
+                    pure $ HM.insert bK v acc)
                 env
                 bindings
 
-
-            -- -- foldlWithKey' :: FoldableWithKey t => (b -> Key t -> a -> b) -> b -> t a -> b
-            -- pure (\e ->
-            --     HM.foldlWithKey'
-            --         (\(acc :: Env) (bK :: String) (bV :: Rhs) ->
-            --             let Aeson.String (retr :: Text) = HM.lookupDefault (Aeson.String "") bK e in
-            --             (case bV of
-            --                 RhsQuoted rhs -> HM.insert bK (Aeson.String rhs)
-            --                 RhsJsonpath rhs ->
-            --                     case queryBody (show rhs) (validJsonBody resp) of
-            --                         Just val -> HM.insert bK val
-            --                         Nothing -> (\x -> x)
-            --                 RhsBel (rhs :: Text) ->
-            --                     -- let evaled = Aeson.String (Text.pack (safeBel1 acc (show' rhs))) in
-            --                     let evaled = Aeson.String "" in
-            --                     HM.insert bK evaled)
-            --             acc)
-            --         (e ::        HM.HashMap String Aeson.Value)
-            --         (bindings :: HM.HashMap String Rhs))
-
             pure (\e -> ext)
-
-
-
-
-
-
-
-        -- evalCaptures :: Prim.Response L8.ByteString
-        --              -> Maybe ResponseSpec
-        --              -> Env -> Env
-        -- evalCaptures resp mrs e =
-        --     let (RhsDict bindings) = case mrs of
-        --             Nothing -> RhsDict HM.empty
-        --             Just rs -> captures rs
-        --
-        --     in HM.foldlWithKey'
-        --         (\(acc :: Env) (bK :: String) (bV :: Rhs) ->
-        --             let Aeson.String (retr :: Text) = HM.lookupDefault (Aeson.String "") bK e in
-        --             (case bV of
-        --                 RhsQuoted rhs -> HM.insert bK (Aeson.String rhs)
-        --                 RhsJsonpath rhs ->
-        --                     case queryBody (show rhs) (validJsonBody resp) of
-        --                         Just val -> HM.insert bK val
-        --                         Nothing -> (\x -> x)
-        --                 RhsBel (rhs :: Text) ->
-        --                     -- let evaled = Aeson.String (Text.pack (safeBel1 acc (show' rhs))) in
-        --                     let evaled = Aeson.String "" in
-        --
-        --                     HM.insert bK evaled)
-        --             acc)
-        --         e bindings
 
         -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
         h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem

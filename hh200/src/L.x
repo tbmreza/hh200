@@ -38,9 +38,6 @@ tokens :-
     Captures { tok (\p _ -> KW_CAPTURES p) }
     Asserts  { tok (\p _ -> KW_ASSERTS p) }
 
-    Authorization
-  | Content    { tok (\p s -> HEADER p s) }
-
     $digit+  { tok (\p s -> DIGITS p s) }
     [\.\/=]  { tok (\p _ -> SEP p) }
 
@@ -51,7 +48,7 @@ tokens :-
     \{ $printable+ \}         { tok (\p s -> BRACED p s) }
     \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
     \$ $printable+            { tok (\p s -> JSONPATH p s) }
-    [$printable # =]+ \(\)    { tok (\p s -> RHS p s) }
+    : $printable+             { tok (\p s -> RHS p s) }
 
     > $printable+   { tok (\p s -> LINE p (drop 1 s)) }
 
@@ -67,9 +64,9 @@ data Token =
 
   | SEP      AlexPosn         -- /
   | METHOD   AlexPosn String  -- GET
-  | HEADER   AlexPosn String  -- GET
+
   | VERSION  AlexPosn String  -- HTTP/1.1
-  | STATUS   AlexPosn Int     -- 500  ??: rm from lexing job
+  | STATUS   AlexPosn Int     -- 500
 
   | BRACE_OPN  AlexPosn
   | BRACE_CLS  AlexPosn

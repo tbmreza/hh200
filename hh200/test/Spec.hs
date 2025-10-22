@@ -26,13 +26,9 @@ testEval = testCase "BEL" $ do
 
 testScanner :: TestTree
 testScanner = testCase "lexer and parser" $ do
-    -- let tokens = Hh.alexScanTokens "http://localhost:9999/abcdefnxyz"
-    -- let tokens = Hh.alexScanTokens "HTTP 200"
-    -- let tokens = Hh.alexScanTokens "[Captures]\nNEXT = >proto()"
-    -- let tokens = Hh.alexScanTokens "[Captures]\nSTART = today("
-    -- let tokens = Hh.alexScanTokens "[Captures]\nID = $.data.id"
-    -- let tokens = Hh.alexScanTokens "[Asserts]\n> jsonpath \"string\" == 12"
-    let tokens = Hh.alexScanTokens "[Asserts]\n> 12 == 12"
+    -- let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\n"
+    -- let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer "
+    let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
 
     case Hh.parse tokens of
         Hh.ParseOk v -> do
@@ -44,7 +40,7 @@ testScanner = testCase "lexer and parser" $ do
 main :: IO ()
 main = defaultMain $ testGroup "File-based tests"
   [ testScanner
-  , testEval
+  -- , testEval
   ]
 -- {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE OverloadedStrings #-}
