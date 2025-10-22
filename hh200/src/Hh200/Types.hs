@@ -24,10 +24,8 @@ module Hh200.Types
   , testOutsideWorld
   , present
   , module Network.HTTP.Types.Status
-  , Binding, Binding1
+  , Binding
   , RhsDict(..)
-  -- , mtRhsDict
-  -- , mkCaptures
   , show'
   ) where
 
@@ -203,8 +201,7 @@ data RequestSpec = RequestSpec
   -- , url :: Text
   -- , payload :: Text
   , url :: String
-  , headers :: [Binding1]  -- ??
-  -- , headers :: [String]
+  , headers :: RhsDict
   , payload :: String
   , opts :: [String]
   -- , configs :: RhsDict
@@ -340,7 +337,8 @@ defaultCallItem = CallItem
   , ciRequestSpec = RequestSpec
     { verb = expectUpper "GET"
     , url = "http://localhost:80"
-    , headers = [], payload = "", opts = []
+    , headers = RhsDict HM.empty
+    , payload = "", opts = []
     }
   , ciResponseSpec = Nothing
   }
@@ -415,9 +413,7 @@ data HhError = LibError
              | PointableError
     deriving (Show)
 
-type Binding1 = (String, String)
 type Binding = (String, BEL.Part)
--- PICKUP hhs request_headers into RhsDict just like captures
 
 --------------------------------
 -- EXECUTIVE SUMMARY OF HH200 --

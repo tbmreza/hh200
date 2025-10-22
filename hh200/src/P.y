@@ -49,7 +49,6 @@ import qualified BEL
     rhs         { RHS _ $$ }
 
     jsonpath    { JSONPATH _ $$ }
-    headerVal   { HEADER_VAL _ $$ }
 
     line         { LINE _ $$ }
 
@@ -70,17 +69,12 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request_headers :: { [Binding1] }
-request_headers : request_header                 { [$1] }
-                | request_headers request_header { ($1 ++ [$2]) }
 
-request_header : header ":" headerVal crlf { ($1, $3) }
-
-request  : method url crlf request_headers braced crlf { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
-         | method url crlf request_headers crlf        { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
-         | method url crlf braced crlf                 { RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = $4, opts = [] } }
-         | method url crlf                             { RequestSpec { verb = expectUpper    $1, url = $2, headers = [], payload = "", opts = [] } }
-         | url crlf                                    { RequestSpec { verb = expectUpper "GET", url = $1, headers = [], payload = "", opts = [] } }
+request  : method url crlf bindings braced crlf { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
+         | method url crlf bindings crlf        { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
+         | method url crlf braced crlf                 { RequestSpec { verb = expectUpper    $1, url = $2,               payload = $4, opts = [] } }
+         | method url crlf                             { RequestSpec { verb = expectUpper    $1, url = $2,               payload = "", opts = [] } }
+         | url crlf                                    { RequestSpec { verb = expectUpper "GET", url = $1,               payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
          { trace "rs1" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
@@ -89,7 +83,7 @@ response : "HTTP" response_codes crlf response_captures crlf response_asserts cr
          { trace "rs2" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
-         { trace "rs3" $ ResponseSpec { asserts = [],                output = [], statuses = map statusFrom $2 } }
+         { trace "rs3" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | response_captures crlf response_asserts crlf
          { trace "rs4" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
@@ -107,9 +101,9 @@ bindings : binding          { RhsDict (HM.fromList [$1]) }
                               RhsDict (HM.insert (fst $2) (snd $2) acc) }
 
 binding :: { Binding }
-binding : identifier "=" jsonpath crlf { ($1, BEL.L "$3") }
-        | identifier "=" rhs crlf      { ($1, BEL.L "$3") }
-        | identifier "=" s crlf        { ($1, BEL.R "$3") }
+binding : identifier ":" jsonpath crlf { ($1, BEL.L "$3") }
+        | identifier ":" rhs crlf      { ($1, BEL.L "$3") }
+        | identifier ":" s crlf        { ($1, BEL.R "$3") }
 
 
 response_asserts :: { [String] }

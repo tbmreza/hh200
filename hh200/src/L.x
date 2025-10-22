@@ -53,9 +53,6 @@ tokens :-
     \$ $printable+            { tok (\p s -> JSONPATH p s) }
     [$printable # =]+ \(\)    { tok (\p s -> RHS p s) }
 
-    Bearer $printable+
-  | Token $printable+   { tok (\p s -> HEADER_VAL p s) }
-
     > $printable+   { tok (\p s -> LINE p (drop 1 s)) }
 
 {
@@ -95,7 +92,6 @@ data Token =
   | RHS     AlexPosn String
 
   | JSONPATH    AlexPosn String
-  | HEADER_VAL  AlexPosn String
 
   | LINE  AlexPosn String
   deriving (Eq, Show)

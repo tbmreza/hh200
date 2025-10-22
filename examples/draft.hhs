@@ -1,11 +1,3 @@
 POST http://localhost:9999/echo.php
+{ "data": "ck" }
 HTTP 200
-[Captures]
-NEXT = > echo.php
-START = > today()
-Q_STR = > "salt and pepper"
-ID = $.data.id
-
-POST http://localhost:9999/{{NEXT}}&q={{Q_STR}}
-{ "data": "a" }
-HTTP 404
