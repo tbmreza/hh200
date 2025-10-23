@@ -391,7 +391,7 @@ type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
 runProcM :: Script -> Prim.Manager -> Env -> IO Lead
 runProcM script mgr env = do
     results <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
-    let (_, finalEnv, _) = results
+    let (_mci, finalEnv, _log) = results
     putStrLn $ ("finalEnv:\n" ++ show finalEnv)
     pure (switch results)
 
@@ -424,12 +424,6 @@ textOrMt _ = ""
 stringOrMt :: Aeson.Value -> String
 stringOrMt v = Text.unpack $ textOrMt v
 
--- Context-free evaluation.
---     where
---     e :: Env = HM.fromList [ ("yyyymmdd", Aeson.String "19700101")
---                            , ("undefined", Aeson.String "falsy")
---                            ]
-
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
@@ -461,7 +455,7 @@ courseFrom x = do
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
               , Prim.requestHeaders = [headerJson]
-              , Prim.requestBody = rawPayload $ rb
+              , Prim.requestBody = trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)
               }
 
         where
@@ -477,7 +471,7 @@ courseFrom x = do
         stringRender :: String -> IO String
         stringRender s = do
             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
-            pure $ stringOrMt rendered
+            trace ("s\t" ++ s ++ ";\n" ++ "rendered\t" ++ show rendered ++ ";") (pure $ stringOrMt rendered)
 
         rawPayload :: String -> Prim.RequestBody
         rawPayload x = Prim.RequestBodyLBS $ L8.pack x
@@ -542,7 +536,7 @@ courseFrom x = do
                     --
                     -- world's and spec's status matching
 
-                    res <- liftIO $ assertsAreOk env gotResp mrs
+                    res <- liftIO $ assertsAreOk env (trace ("gotResp:" ++ show (Prim.responseBody gotResp)) gotResp) mrs
                     case res of
                         False -> pure ci
                         _ -> h mgr rest
