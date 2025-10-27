@@ -1,15 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Types
@@ -19,66 +9,74 @@ module Hh200.Types
   , DepsClause(..), defaultDepsClause
   , Script(..), ScriptConfig(..), defaultScriptConfig, dbgScriptConfig
   , Snippet(..)
-  , pCallItem, CallItem, firstFailing
+  , pCallItem, CallItem, firstFailing, callItemIsDefault
   , UppercaseString, expectUpper
   , testOutsideWorld
-  , present
   , module Network.HTTP.Types.Status
   , Binding
   , RhsDict(..)
   , show'
+  , present
+  , oftenBodyless
   ) where
 
 import Debug.Trace
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
-import qualified Data.Char as Char (isUpper, toUpper)
-import qualified Data.ByteString       as S8
+-- import qualified Data.Char as Char (isUpper, toUpper) 
+-- import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
-import qualified Data.HashTable.IO as H
+-- import qualified Data.HashTable.IO as H
 import qualified Data.ByteString.Char8 as BS
 -- import Data.Key
-import GHC.Generics
+-- import GHC.Generics
 
-import Network.HTTP.Simple (setRequestMethod)
+-- import Network.HTTP.Simple (setRequestMethod)
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Network.HTTP.Client as Prim
   ( newManager, parseRequest, httpLbs, method, requestBody, requestHeaders, responseStatus, responseBody
-  , Manager, Response, Request, RequestBody(..), HttpException
+  , Manager, Response, Request, RequestBody(..)
+  -- , HttpException
   )
-import Network.HTTP.Types.Method
-import Control.Exception (try)
+-- import Control.Exception (try)
 import Control.Monad.Reader
-import Control.Monad.Writer
+-- import Control.Monad.Writer
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Data.Maybe (fromJust)
+-- import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import Control.Monad (forM_, when, unless, foldM)
+import Network.HTTP.Types.Header (HeaderName)
+-- import Control.Monad (forM_, when, unless, foldM)
+import Control.Monad (foldM)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
-import System.Directory (doesFileExist)
-import Control.Exception
-import Control.Concurrent (ThreadId)
-import qualified Control.Concurrent as Base
 
-import qualified Data.Vector as Vec
-import qualified Data.Vector as Aeson (Vector)
+-- import qualified Data.Vector as Vec
+-- import qualified Data.Vector as Aeson (Vector)
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+-- import qualified Data.Text.IO as Text
 import           Data.Text (Text)
-import qualified Text.Parsec.Error as Aeson (ParseError)
-import qualified Data.Aeson as Aeson (eitherDecode, decode)
+-- import qualified Text.Parsec.Error as Aeson (ParseError)
+-- import qualified Data.Aeson as Aeson (eitherDecode, decode)
+import qualified Data.Aeson as Aeson (decode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
-import Data.Aeson.QQ.Simple (aesonQQ)
-import qualified Data.Aeson.JSONPath as Aeson (jsonPath, query)
--- import qualified BEL (render, eval)
--- import qualified BEL (renderTemplateText)
+-- import Data.Aeson.QQ.Simple (aesonQQ)
+-- import qualified Data.Aeson.JSONPath as Aeson (jsonPath, query)
 import qualified BEL
 
--- tor :: Env -> Env
--- tor = \e -> e
+-- import System.Directory (doesFileExist)
+-- import Control.Exception
+-- import Control.Concurrent (ThreadId)
+-- import qualified Control.Concurrent as Base
+
+validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
+validJsonBody resp =
+    case Aeson.decode (Prim.responseBody resp) of
+        Nothing -> Aeson.Null
+        Just av -> av
+
 
 foldlWithKeyM'
   :: (Monad m)
@@ -91,25 +89,25 @@ foldlWithKeyM' f z0 hm =
   where
     step !acc (k, v) = f acc k v
 
-chk :: IO ()
-chk = do
-    let hm :: Env = HM.fromList
-            [ ("yyyymmdd", Aeson.String "19700101")
-            , ("undefined", Aeson.String "falsy")
-            ]
-    -- let hm = HM.fromList [("a", 1), ("b", 2), ("c", 3)]
-    total <- foldlWithKeyM' (\acc k v -> do
-              -- putStrLn $ "Visiting " ++ k
-              -- pure (acc + v)
-              pure acc
-            ) 0 hm
-    -- print total
-    pure ()
+-- chk :: IO ()
+-- chk = do
+--     let hm :: Env = HM.fromList
+--             [ ("yyyymmdd", Aeson.String "19700101")
+--             , ("undefined", Aeson.String "falsy")
+--             ]
+--     -- let hm = HM.fromList [("a", 1), ("b", 2), ("c", 3)]
+--     total <- foldlWithKeyM' (\acc k v -> do
+--               -- putStrLn $ "Visiting " ++ k
+--               -- pure (acc + v)
+--               pure acc
+--             ) 0 hm
+--     -- print total
+--     pure ()
 
 
-isFalse :: Aeson.Value -> Bool
-isFalse (Aeson.Bool False) = True
-isFalse _ = False
+-- isFalse :: Aeson.Value -> Bool
+-- isFalse (Aeson.Bool False) = True
+-- isFalse _ = False
 
 show' :: Text -> String
 show' t = trimQuotes $ show t
@@ -125,21 +123,20 @@ trimQuotes s =
 
 -- type Salad = (Prim.Request, (CallItem, Maybe ResponseSpec))  -- ??
 
+headerJson :: (HeaderName, BS.ByteString)
 headerJson = ("Content-Type", "application/json")
 
 newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
     deriving (Show, Eq)
 
-mock :: Aeson.Value = [aesonQQ| { "data": { "token": "abcde9" } } |]
-
--- Expect one matching Value or ??log.
-queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
-queryBody q root =
-    case Aeson.query q root of
-        Left _ -> Nothing
-        Right v -> case Vec.uncons v of
-            Nothing -> Nothing
-            Just (one, _) -> Just one
+-- -- Expect one matching Value or ??log.
+-- queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
+-- queryBody q root =
+--     case Aeson.query q root of
+--         Left _ -> Nothing
+--         Right v -> case Vec.uncons v of
+--             Nothing -> Nothing
+--             Just (one, _) -> Just one
 
 newtype Snippet = Snippet L8.ByteString
 
@@ -147,6 +144,7 @@ data DepsClause = DepsClause
   { deps :: [String]
   , itemName :: String
   }
+defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
 
 pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
@@ -243,20 +241,20 @@ defaultScriptConfig = ScriptConfig
   , subjects = (Subject "a") Ls.:| []
   }
 
-cfgs :: ScriptConfig -> [(String, Maybe String)]
-cfgs ScriptConfig {..} =
-    [ ("retries", Just $ show retries)
-    , ("maxDuration", Just "maxDuration |> show")
-    ]
-
-class PrettyPrint a where
-    pp :: a -> String
-
-instance PrettyPrint ScriptConfig where
-    --        as concrete script header  #! retries 1
-    --                                   #! max-duration 1m
-    -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
-    pp x = show x
+-- cfgs :: ScriptConfig -> [(String, Maybe String)]
+-- cfgs ScriptConfig {..} =
+--     [ ("retries", Just $ show retries)
+--     , ("maxDuration", Just "maxDuration |> show")
+--     ]
+--
+-- class PrettyPrint a where
+--     pp :: a -> String
+--
+-- instance PrettyPrint ScriptConfig where
+--     --        as concrete script header  #! retries 1
+--     --                                   #! max-duration 1m
+--     -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
+--     pp x = show x
 
 newtype UppercaseString = UppercaseString String
     deriving (Show, Eq)
@@ -264,6 +262,7 @@ newtype UppercaseString = UppercaseString String
 -- | __Partial__: Asserts uppercase input.
 expectUpper :: String -> UppercaseString
 expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
+expectUpper _ = undefined
 
 asMethod :: UppercaseString -> BS.ByteString
 asMethod (UppercaseString s) = BS.pack s
@@ -296,6 +295,8 @@ defaultCallItem = CallItem
   }
 callItemIsDefault :: CallItem -> Bool
 callItemIsDefault CallItem { ciName } = ciName == "default"
+
+-- gatherHostInfo :: IO HostInfo
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo
@@ -347,13 +348,12 @@ leadFrom failed el script = Lead
   , interpreterInfo = el
   }
 
--- gatherHostInfo :: IO HostInfo
-
-debugLead :: Lead
-debugLead = DebugLead
+_debugLead :: Lead
+_debugLead = DebugLead
   { firstFailing = Nothing
   , hostInfo = defaultHostInfo
   , echoScript = Nothing
+  , interpreterInfo = (HM.empty, [])
   }
 
 data InternalError = OutOfBounds
@@ -441,7 +441,7 @@ courseFrom x = do
     buildFrom env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
-            struct <- parseUrl env ci
+            struct <- parseUrl
 
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
@@ -449,7 +449,7 @@ courseFrom x = do
 
         -- Requests with json body.
         | otherwise = do
-            struct <- parseUrl env ci
+            struct <- parseUrl
             rb <- stringRender (payload $ ciRequestSpec ci)
 
             dorp (ci, (ciResponseSpec ci)) struct
@@ -459,8 +459,8 @@ courseFrom x = do
               }
 
         where
-        parseUrl :: Env -> CallItem -> IO Prim.Request
-        parseUrl env ci = do
+        parseUrl :: IO Prim.Request
+        parseUrl = do
             rendered <- stringRender (url $ ciRequestSpec ci)
             Prim.parseRequest rendered
 
@@ -474,7 +474,7 @@ courseFrom x = do
             trace ("s\t" ++ s ++ ";\n" ++ "rendered\t" ++ show rendered ++ ";") (pure $ stringOrMt rendered)
 
         rawPayload :: String -> Prim.RequestBody
-        rawPayload x = Prim.RequestBodyLBS $ L8.pack x
+        rawPayload s = Prim.RequestBodyLBS $ L8.pack s
 
     -- Results arrive here!
     liftIOWithMgr :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
@@ -483,13 +483,6 @@ courseFrom x = do
         h mgr pairs
 
         where
-        validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
-        validJsonBody resp =
-            let avOpt :: Maybe Aeson.Value = Aeson.decode (Prim.responseBody resp) in
-            case avOpt of
-                Nothing -> Aeson.Null
-                Just av -> av
-
         -- Reduce captures to Env extensions.
         evalCaptures :: Prim.Response L8.ByteString
                      -> (Env, Maybe ResponseSpec)
@@ -503,18 +496,19 @@ courseFrom x = do
             ext <- foldlWithKeyM'
                 (\(acc :: Env) bK (bV :: BEL.Part) -> do
                     v <- (case bV of
-                        BEL.R t -> pure (Aeson.String t)
-                        BEL.L e -> BEL.eval acc e)
+                        BEL.R t -> trace ("R:" ++ show t) $ pure (Aeson.String t)
+                        BEL.L e -> trace ("L:" ++ show e) $ BEL.eval acc e)
 
                     pure $ HM.insert bK v acc)
                 env
                 bindings
 
-            pure (\e -> ext)
+            -- ??: defer Aeson.decode until queried in bel (or anywhere else)
+            pure (\_env -> HM.insert "RESP_BODY" (validJsonBody resp) ext)
 
         -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
         h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
-        h mgr pairs = case pairs of
+        h mgr list = case list of
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
@@ -557,7 +551,7 @@ testOutsideWorld static@(Script { config = _, callItems = [] }) = do
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld sole@(
     Script
-      { config = ScriptConfig { subjects }
+      { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
     mgr <- Prim.newManager tlsManagerSettings
     let envNew :: Env = HM.fromList
@@ -567,9 +561,12 @@ testOutsideWorld sole@(
     runProcM sole mgr envNew
 
 -- -> NonLead | DebugLead | Lead
-testOutsideWorld flow@(Script { callItems }) = do
+testOutsideWorld flow@(Script { callItems = _ }) = do
     mgr <- Prim.newManager tlsManagerSettings
     runProcM flow mgr HM.empty
+
+testOutsideWorld unexpected = do
+    pure $ nonLead unexpected
 
 
 present :: Lead -> Maybe String

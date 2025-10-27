@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Cli (cli) where
@@ -25,8 +24,8 @@ data Args = Args
     }
 
 cli :: IO ()
-cli = go =<< execParser opts where
-    opts = info (args <**> helper) (fullDesc
+cli = go =<< execParser options where
+    options = info (args <**> helper) (fullDesc
                                  <> header "Run hh200 scripts") where
     args = Args
         -- Bound by order, not by name; allowing e.g. different casing between
@@ -65,8 +64,8 @@ go Args { source = Just src, debugConfig = True } = do
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just src } = do
-    ret :: Maybe Script <- runMaybeT $ do
-        script <- Scanner.analyze (Snippet $ L8.pack src)  -- ??: pack/unpack to Types.hs
+    _ret :: Maybe Script <- runMaybeT $ do
+        script <- Scanner.analyze (Snippet $ L8.pack src)
         liftIO (pure script)
 
     pure ()
@@ -94,7 +93,7 @@ go Args { call = False, source = Just path } = do
                 Nothing ->
                     -- No news is good news.
                     pure ()
-                Just l -> do
+                Just _l -> do
                     putStrLn $ case firstFailing lead of
                         Nothing -> "internal error"
                         Just ci -> "unimplemented pretty printer" ++ show ci  -- ??
