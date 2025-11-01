@@ -36,6 +36,7 @@ dependencies:
 - fast-logger
 - strict
 - keys
+- unordered-containers
 
 ghc-options:
 - -Wall

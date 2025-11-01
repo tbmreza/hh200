@@ -1,6 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Hh200.Cli (cli) where
+module Hh200.Cli
+  ( cli
+  -- Exported for testing:
+  , go, Args(..)
+  ) where
 
 import Debug.Trace
 

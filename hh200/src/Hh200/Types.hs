@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns #-} 
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -18,6 +18,8 @@ module Hh200.Types
   , show'
   , present
   , oftenBodyless
+  , assertsAreOk
+  -- , module BEL
   ) where
 
 import Debug.Trace
@@ -66,44 +68,21 @@ import qualified Data.Aeson.Types as Aeson (Value(..))
 -- import qualified Data.Aeson.JSONPath as Aeson (jsonPath, query)
 import qualified BEL
 
--- import System.Directory (doesFileExist)
--- import Control.Exception
--- import Control.Concurrent (ThreadId)
--- import qualified Control.Concurrent as Base
 
 validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
 validJsonBody resp =
     case Aeson.decode (Prim.responseBody resp) of
-        Nothing -> Aeson.Null
-        Just av -> av
+        Just av -> trace ("validJsonBody:\t" ++ show av) av
+        Nothing -> trace "validJsonBody NULL!!!" Aeson.Null
 
 
-foldlWithKeyM'
-  :: (Monad m)
-  => (a -> k -> v -> m a)
-  -> a
-  -> HM.HashMap k v
-  -> m a
-foldlWithKeyM' f z0 hm =
-  foldM step z0 (HM.toList hm)
-  where
+foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
+                            -> a
+                            -> HM.HashMap k v
+                            -> m a
+foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
+    where
     step !acc (k, v) = f acc k v
-
--- chk :: IO ()
--- chk = do
---     let hm :: Env = HM.fromList
---             [ ("yyyymmdd", Aeson.String "19700101")
---             , ("undefined", Aeson.String "falsy")
---             ]
---     -- let hm = HM.fromList [("a", 1), ("b", 2), ("c", 3)]
---     total <- foldlWithKeyM' (\acc k v -> do
---               -- putStrLn $ "Visiting " ++ k
---               -- pure (acc + v)
---               pure acc
---             ) 0 hm
---     -- print total
---     pure ()
-
 
 -- isFalse :: Aeson.Value -> Bool
 -- isFalse (Aeson.Bool False) = True
@@ -203,12 +182,11 @@ data ResponseSpec = ResponseSpec
 assertsAreOk :: Env -> Prim.Response a -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
     case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
-        False -> pure False
+        False -> trace ("dis falz:" ++ show (Prim.responseStatus got) ++ "and:" ++ show (expectCodesOrDefault mrs)) $ pure False
         _ -> do
-            values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt  -- ?? ensure desired BEL prints
+            values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt
             pure $ notElem (Aeson.Bool False) values
     where
-    -- linesOrMt :: [String]
     linesOrMt :: [Text]
     linesOrMt = case mrs of
         Just rs -> map Text.pack $ asserts rs
@@ -414,9 +392,6 @@ runProcM script mgr env = do
 emptyHanded :: ProcM CallItem
 emptyHanded = pure defaultCallItem
 
--- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
--- partitions :: Text -> [Part]
-
 textOrMt :: Aeson.Value -> Text
 textOrMt (Aeson.String t) = t
 textOrMt _ = ""
@@ -493,18 +468,17 @@ courseFrom x = do
                     Nothing -> RhsDict HM.empty
                     Just rs -> captures rs
 
-            ext <- foldlWithKeyM'
+            ext <- (foldlWithKeyM'
                 (\(acc :: Env) bK (bV :: BEL.Part) -> do
                     v <- (case bV of
                         BEL.R t -> trace ("R:" ++ show t) $ pure (Aeson.String t)
                         BEL.L e -> trace ("L:" ++ show e) $ BEL.eval acc e)
 
                     pure $ HM.insert bK v acc)
-                env
-                bindings
+                (HM.insert "RESP_BODY" (validJsonBody resp) env)
+                bindings)
 
-            -- ??: defer Aeson.decode until queried in bel (or anywhere else)
-            pure (\_env -> HM.insert "RESP_BODY" (validJsonBody resp) ext)
+            pure (\_env -> ext)
 
         -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
         h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
@@ -537,10 +511,12 @@ courseFrom x = do
 
 
 expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
-expectCodesOrDefault x =
-    case x of
+expectCodesOrDefault mrs =
+    case mrs of
         Nothing -> [status200]
-        Just s -> statuses s
+        Just rs -> case statuses rs of
+            [] -> [status200]
+            expectCodes -> expectCodes
 
 testOutsideWorld :: Script -> IO Lead
 
