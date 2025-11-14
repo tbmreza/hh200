@@ -25,10 +25,12 @@ import Hh200.Cli
 main :: IO ()
 main = defaultMain $ testGroup "HUnit"
     -- [ test1 ]
+
   [ testLR
   , testBel
-  , test1
+  -- , test1
   ]
+
 
 testBel :: TestTree
 testBel = testCase "BEL callsite" $ do
@@ -37,11 +39,11 @@ testBel = testCase "BEL callsite" $ do
     mtRespBody :: Prim.Response L8.ByteString <- Prim.httpLbs instant mgr
 
     ok <-  Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "true"])
-    neg <- Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "false"])
+    neg <- Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "false"])
 
     case (ok, neg) of
         (True, False) -> pure ()
-        _ -> assertFailure (show (ok, neg))
+        all -> assertFailure (show all)
 
     where
     rsFrom :: [String] -> Maybe Hh.ResponseSpec

@@ -93,14 +93,14 @@ go Args { call = False, source = Just path } = do
         Nothing -> exitWith (ExitFailure 1)
         Just s -> do
             lead <- testOutsideWorld s
-            case present lead of
-                Nothing ->
+            case noNews lead of
+                True ->
                     -- No news is good news.
                     pure ()
-                Just _l -> do
+                _ -> do
                     putStrLn $ case firstFailing lead of
                         Nothing -> "internal error"
-                        Just ci -> "unimplemented pretty printer" ++ show ci  -- ??
+                        Just ci -> present ci
                     hPutStrLn stderr "hh200 found an unmet expectation."
                     exitWith (ExitFailure 1)
 

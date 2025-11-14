@@ -9,63 +9,45 @@ module Hh200.Types
   , DepsClause(..), defaultDepsClause
   , Script(..), ScriptConfig(..), defaultScriptConfig, dbgScriptConfig
   , Snippet(..)
-  , pCallItem, CallItem, firstFailing, callItemIsDefault
-  , UppercaseString, expectUpper
+  , pCallItem, CallItem(..), firstFailing, callItemIsDefault
+  , UppercaseString, expectUpper, showVerb
   , testOutsideWorld
   , module Network.HTTP.Types.Status
   , Binding
   , RhsDict(..)
   , show'
-  , present
+  , present, noNews
   , oftenBodyless
   , assertsAreOk
-  -- , module BEL
   ) where
 
 import Debug.Trace
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
--- import qualified Data.Char as Char (isUpper, toUpper) 
--- import qualified Data.ByteString       as S8
 import qualified Data.HashMap.Strict as HM
--- import qualified Data.HashTable.IO as H
 import qualified Data.ByteString.Char8 as BS
--- import Data.Key
--- import GHC.Generics
 
--- import Network.HTTP.Simple (setRequestMethod)
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Network.HTTP.Client as Prim
   ( newManager, parseRequest, httpLbs, method, requestBody, requestHeaders, responseStatus, responseBody
   , Manager, Response, Request, RequestBody(..)
-  -- , HttpException
   )
--- import Control.Exception (try)
+
 import Control.Monad.Reader
--- import Control.Monad.Writer
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Data.Maybe (fromJust)
--- import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header (HeaderName)
--- import Control.Monad (forM_, when, unless, foldM)
 import Control.Monad (foldM)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 
--- import qualified Data.Vector as Vec
--- import qualified Data.Vector as Aeson (Vector)
 import qualified Data.Text as Text
--- import qualified Data.Text.IO as Text
 import           Data.Text (Text)
--- import qualified Text.Parsec.Error as Aeson (ParseError)
--- import qualified Data.Aeson as Aeson (eitherDecode, decode)
 import qualified Data.Aeson as Aeson (decode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
--- import Data.Aeson.QQ.Simple (aesonQQ)
--- import qualified Data.Aeson.JSONPath as Aeson (jsonPath, query)
 import qualified BEL
 
 
@@ -83,10 +65,6 @@ foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
 foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
     where
     step !acc (k, v) = f acc k v
-
--- isFalse :: Aeson.Value -> Bool
--- isFalse (Aeson.Bool False) = True
--- isFalse _ = False
 
 show' :: Text -> String
 show' t = trimQuotes $ show t
@@ -107,15 +85,6 @@ headerJson = ("Content-Type", "application/json")
 
 newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
     deriving (Show, Eq)
-
--- -- Expect one matching Value or ??log.
--- queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
--- queryBody q root =
---     case Aeson.query q root of
---         Left _ -> Nothing
---         Right v -> case Vec.uncons v of
---             Nothing -> Nothing
---             Just (one, _) -> Just one
 
 newtype Snippet = Snippet L8.ByteString
 
@@ -153,8 +122,6 @@ data Script =
 
 data RequestSpec = RequestSpec
   { verb :: UppercaseString
-  -- , url :: Text
-  -- , payload :: Text
   , url :: String
   , headers :: RhsDict
   , payload :: String
@@ -219,23 +186,11 @@ defaultScriptConfig = ScriptConfig
   , subjects = (Subject "a") Ls.:| []
   }
 
--- cfgs :: ScriptConfig -> [(String, Maybe String)]
--- cfgs ScriptConfig {..} =
---     [ ("retries", Just $ show retries)
---     , ("maxDuration", Just "maxDuration |> show")
---     ]
---
--- class PrettyPrint a where
---     pp :: a -> String
---
--- instance PrettyPrint ScriptConfig where
---     --        as concrete script header  #! retries 1
---     --                                   #! max-duration 1m
---     -- cfg in cfgs, map "#! {cfg.0} {cfg.1}"
---     pp x = show x
-
 newtype UppercaseString = UppercaseString String
     deriving (Show, Eq)
+
+showVerb :: UppercaseString -> String
+showVerb (UppercaseString s) = s
 
 -- | __Partial__: Asserts uppercase input.
 expectUpper :: String -> UppercaseString
@@ -370,8 +325,8 @@ runProcM :: Script -> Prim.Manager -> Env -> IO Lead
 runProcM script mgr env = do
     results <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
     let (_mci, finalEnv, _log) = results
-    putStrLn $ ("finalEnv:\n" ++ show finalEnv)
-    pure (switch results)
+    -- pure (switch results)
+    pure (switch (trace ("finalEnv:\n" ++ show finalEnv) $ results))
 
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
@@ -475,6 +430,8 @@ courseFrom x = do
                         BEL.L e -> trace ("L:" ++ show e) $ BEL.eval acc e)
 
                     pure $ HM.insert bK v acc)
+                -- Eagerly from the beginning of the fold, acc Env is initialized
+                -- with RESP_BODY.
                 (HM.insert "RESP_BODY" (validJsonBody resp) env)
                 bindings)
 
@@ -545,6 +502,15 @@ testOutsideWorld unexpected = do
     pure $ nonLead unexpected
 
 
-present :: Lead -> Maybe String
-present (NonLead {}) = Nothing
-present x = Just $ show x
+-- present :: Lead -> Maybe String
+-- present (NonLead {}) = Nothing
+-- present x = Just $ show x
+
+noNews :: Lead -> Bool
+noNews (NonLead {}) = True
+noNews _ = False
+
+present :: CallItem -> String
+present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
+ -- ++ "\n" ++ (show $ headers $ ciRequestSpec ci)  -- ?? show hashmap, if not empty
+ ++ "\n" ++ (payload $ ciRequestSpec ci)
