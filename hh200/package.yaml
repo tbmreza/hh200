@@ -52,6 +52,13 @@ ghc-options:
 
 library:
   source-dirs: src
+  exposed-modules:
+  - Hh200.Cli
+  - Hh200.ContentType
+  - Hh200.Execution
+  - Hh200.Fearless
+  - Hh200.Scanner
+  - Hh200.Types
   default-extensions:
   - OverloadedStrings
   dependencies:

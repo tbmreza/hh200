@@ -18,6 +18,7 @@ import qualified Network.HTTP.Client as Prim
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Hh200.Types as Hh
+import qualified Hh200.Execution as HhExec
 import qualified Hh200.Scanner as Hh
 
 import Hh200.Cli
@@ -38,8 +39,8 @@ testBel = testCase "BEL callsite" $ do
     instant <- Prim.parseRequest "http://localhost"
     mtRespBody :: Prim.Response L8.ByteString <- Prim.httpLbs instant mgr
 
-    ok <-  Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "true"])
-    neg <- Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "false"])
+    ok <-  HhExec.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "true"])
+    neg <- HhExec.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "false"])
 
     case (ok, neg) of
         (True, False) -> pure ()

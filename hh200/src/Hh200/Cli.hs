@@ -18,6 +18,7 @@ import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
 import           Hh200.Types
+import           Hh200.Execution (testOutsideWorld)
 import qualified Hh200.Scanner as Scanner
 
 data Args = Args
