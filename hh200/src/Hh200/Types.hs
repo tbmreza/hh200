@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-} 
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -26,6 +26,8 @@ import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
 
+-- import qualified Data.CaseInsensitive as CaseInsensitive (CI)
+import qualified Data.CaseInsensitive as CaseInsensitive (mk)
 import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
@@ -40,7 +42,7 @@ import Control.Monad.Trans.Maybe
 import Data.Maybe (fromJust)
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header (HeaderName)
-import Control.Monad (foldM)
+import Control.Monad (foldM, forM)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 
@@ -51,59 +53,38 @@ import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified BEL
 
 
-validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
-validJsonBody resp =
-    case Aeson.decode (Prim.responseBody resp) of
-        Just av -> trace ("validJsonBody:\t" ++ show av) av
-        Nothing -> trace "validJsonBody NULL!!!" Aeson.Null
+--------------------------------------------------------------------------------
+-- Type Aliases & Newtypes
+--------------------------------------------------------------------------------
 
-
-foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
-                            -> a
-                            -> HM.HashMap k v
-                            -> m a
-foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
-    where
-    step !acc (k, v) = f acc k v
-
-show' :: Text -> String
-show' t = trimQuotes $ show t
-
-trimQuotes :: String -> String
-trimQuotes s =
-  case s of
-    ('"':xs) -> case reverse xs of
-                  ('"':ys) -> reverse ys
-                  _        -> s
-    _        -> s
-
-
--- type Salad = (Prim.Request, (CallItem, Maybe ResponseSpec))  -- ??
-
-headerJson :: (HeaderName, BS.ByteString)
-headerJson = ("Content-Type", "application/json")
-
-newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
+newtype UppercaseString = UppercaseString String
     deriving (Show, Eq)
 
 newtype Snippet = Snippet L8.ByteString
 
-data DepsClause = DepsClause
-  { deps :: [String]
-  , itemName :: String
-  }
-defaultDepsClause :: DepsClause
-defaultDepsClause = DepsClause { deps = [], itemName = "" }
+-- ??: why didn't type alias suffice again?
+-- newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])  -- ?? guessed
+newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
+    deriving (Show, Eq)
 
-pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
-pCallItem dc rs opt =
-    CallItem
-      { ciDeps = deps dc
-      , ciName = itemName dc
-      , ciRequestSpec = rs
-      , ciResponseSpec = opt
-      }
+type Duration = Int
 
+newtype Subject = Subject String
+    deriving (Show, Eq)
+
+type Binding = (String, BEL.Part)
+
+type Env = HM.HashMap String Aeson.Value
+type Log = [String]
+
+-- Procedure "may" fail early, "reads" a shared http-client manager instance,
+-- "writes" log as it runs, modifies environment "states" while doing IO.
+type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
+
+
+--------------------------------------------------------------------------------
+-- Core Data Types
+--------------------------------------------------------------------------------
 
 data Script =
     Script
@@ -119,6 +100,25 @@ data Script =
       , callItems :: [CallItem]
       }
   deriving (Show, Eq)
+
+data ScriptConfig = ScriptConfig
+  { retries :: Int
+  , maxDuration :: Maybe Duration
+  , subjects1 :: [Subject]
+  , subjects :: Ls.NonEmpty Subject
+  } deriving (Show, Eq)
+
+data DepsClause = DepsClause
+  { deps :: [String]
+  , itemName :: String
+  }
+
+data CallItem = CallItem
+  { ciDeps :: [String]
+  , ciName :: String
+  , ciRequestSpec :: RequestSpec
+  , ciResponseSpec :: Maybe ResponseSpec
+  } deriving (Show, Eq)
 
 data RequestSpec = RequestSpec
   { verb :: UppercaseString
@@ -140,95 +140,6 @@ data ResponseSpec = ResponseSpec
   }
   deriving (Show, Eq)
 
-        -- Skip evaluating anything else (including user assertion lines) on unexpected
-        -- status code.
-        -- Even though it's more fitting to the fail-fast philosophy by short-circuiting,
-        -- we're mapping all the input lines to print BEL logs at once.
-
--- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
-assertsAreOk :: Env -> Prim.Response a -> Maybe ResponseSpec -> IO Bool
-assertsAreOk env got mrs = do
-    case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
-        False -> trace ("dis falz:" ++ show (Prim.responseStatus got) ++ "and:" ++ show (expectCodesOrDefault mrs)) $ pure False
-        _ -> do
-            values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt
-            pure $ notElem (Aeson.Bool False) values
-    where
-    linesOrMt :: [Text]
-    linesOrMt = case mrs of
-        Just rs -> map Text.pack $ asserts rs
-        _ -> []
-
-type Duration = Int
-newtype Subject = Subject String
-    deriving (Show, Eq)
-
-data ScriptConfig = ScriptConfig
-  { retries :: Int
-  , maxDuration :: Maybe Duration
-  , subjects1 :: [Subject]
-  , subjects :: Ls.NonEmpty Subject
-  } deriving (Show, Eq)
-
-dbgScriptConfig :: ScriptConfig
-dbgScriptConfig = ScriptConfig
-  { retries = 0
-  , maxDuration = Nothing
-  , subjects1 = [Subject "custommm"]
-  , subjects = (Subject "a") Ls.:| []
-  }
-
-defaultScriptConfig :: ScriptConfig
-defaultScriptConfig = ScriptConfig
-  { retries = 0
-  , maxDuration = Nothing
-  , subjects1 = [Subject "default a"]
-  , subjects = (Subject "a") Ls.:| []
-  }
-
-newtype UppercaseString = UppercaseString String
-    deriving (Show, Eq)
-
-showVerb :: UppercaseString -> String
-showVerb (UppercaseString s) = s
-
--- | __Partial__: Asserts uppercase input.
-expectUpper :: String -> UppercaseString
-expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
-expectUpper _ = undefined
-
-asMethod :: UppercaseString -> BS.ByteString
-asMethod (UppercaseString s) = BS.pack s
-
-oftenBodyless :: UppercaseString -> Bool
-oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
-
-data CallItem = CallItem
-  { ciDeps :: [String]
-  , ciName :: String
-  , ciRequestSpec :: RequestSpec
-  , ciResponseSpec :: Maybe ResponseSpec
-  } deriving (Show, Eq)
-
--- Mechanically, this is a corollary to http-client's defaultRequest.
---
--- "A default request value, a GET request of localhost/:80, with an empty
--- request body." - http-client hoogle
-defaultCallItem :: CallItem
-defaultCallItem = CallItem
-  { ciDeps = []
-  , ciName = "default"
-  , ciRequestSpec = RequestSpec
-    { verb = expectUpper "GET"
-    , url = "http://localhost:80"
-    , headers = RhsDict HM.empty
-    , payload = "", opts = []
-    }
-  , ciResponseSpec = Nothing
-  }
-callItemIsDefault :: CallItem -> Bool
-callItemIsDefault CallItem { ciName } = ciName == "default"
-
 -- gatherHostInfo :: IO HostInfo
 
 -- Host computer info: /etc/resolv.conf, execution time,
@@ -236,12 +147,6 @@ data HostInfo = HostInfo
   { hiUptime ::    Maybe String
   , hiHh200Conf :: Maybe ScriptConfig
   } deriving (Show, Eq)
-
-defaultHostInfo :: HostInfo
-defaultHostInfo = HostInfo
-  { hiUptime = Nothing
-  , hiHh200Conf = Nothing
-  }
 
 -- Everything one could ask for when debugging a failing script.
 data Lead =
@@ -264,6 +169,74 @@ data Lead =
       , echoScript ::   Maybe Script
       }
   deriving (Show)
+
+data InternalError = OutOfBounds
+                   | Todo
+    deriving (Show, Eq)
+
+data HhError = LibError
+             | SystemError
+             | PointableError
+    deriving (Show)
+
+
+--------------------------------------------------------------------------------
+-- Defaults & Smart Constructors
+--------------------------------------------------------------------------------
+
+defaultScriptConfig :: ScriptConfig
+defaultScriptConfig = ScriptConfig
+  { retries = 0
+  , maxDuration = Nothing
+  , subjects1 = [Subject "default a"]
+  , subjects = (Subject "a") Ls.:| []
+  }
+
+dbgScriptConfig :: ScriptConfig
+dbgScriptConfig = ScriptConfig
+  { retries = 0
+  , maxDuration = Nothing
+  , subjects1 = [Subject "custommm"]
+  , subjects = (Subject "a") Ls.:| []
+  }
+
+defaultDepsClause :: DepsClause
+defaultDepsClause = DepsClause { deps = [], itemName = "" }
+
+pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
+pCallItem dc rs opt =
+    CallItem
+      { ciDeps = deps dc
+      , ciName = itemName dc
+      , ciRequestSpec = rs
+      , ciResponseSpec = opt
+      }
+
+-- Mechanically, this is a corollary to http-client's defaultRequest.
+--
+-- "A default request value, a GET request of localhost/:80, with an empty
+-- request body." - http-client hoogle
+defaultCallItem :: CallItem
+defaultCallItem = CallItem
+  { ciDeps = []
+  , ciName = "default"
+  , ciRequestSpec = RequestSpec
+    { verb = expectUpper "GET"
+    , url = "http://localhost:80"
+    , headers = RhsDict HM.empty
+    , payload = "", opts = []
+    }
+  , ciResponseSpec = Nothing
+  }
+
+callItemIsDefault :: CallItem -> Bool
+callItemIsDefault CallItem { ciName } = ciName == "default"
+
+defaultHostInfo :: HostInfo
+defaultHostInfo = HostInfo
+  { hiUptime = Nothing
+  , hiHh200Conf = Nothing
+  }
 
 nonLead :: Script -> Lead
 nonLead x = NonLead
@@ -289,16 +262,71 @@ _debugLead = DebugLead
   , interpreterInfo = (HM.empty, [])
   }
 
-data InternalError = OutOfBounds
-                   | Todo
-    deriving (Show, Eq)
 
-data HhError = LibError
-             | SystemError
-             | PointableError
-    deriving (Show)
+--------------------------------------------------------------------------------
+-- Small Helpers / Utilities
+--------------------------------------------------------------------------------
 
-type Binding = (String, BEL.Part)
+show' :: Text -> String
+show' t = trimQuotes $ show t
+
+trimQuotes :: String -> String
+trimQuotes s =
+  case s of
+    ('"':xs) -> case reverse xs of
+                  ('"':ys) -> reverse ys
+                  _        -> s
+    _        -> s
+
+-- | __Partial__: Asserts uppercase input.
+expectUpper :: String -> UppercaseString
+expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
+expectUpper _ = undefined
+
+showVerb :: UppercaseString -> String
+showVerb (UppercaseString s) = s
+
+asMethod :: UppercaseString -> BS.ByteString
+asMethod (UppercaseString s) = BS.pack s
+
+oftenBodyless :: UppercaseString -> Bool
+oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
+
+validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
+validJsonBody resp =
+    case Aeson.decode (Prim.responseBody resp) of
+        Just av -> trace ("validJsonBody:\t" ++ show av) av
+        Nothing -> trace "validJsonBody NULL!!!" Aeson.Null
+
+asBS :: Aeson.Value -> BS.ByteString
+asBS _ = ""  -- ??
+
+textOrMt :: Aeson.Value -> Text
+textOrMt (Aeson.String t) = t
+textOrMt _ = ""
+
+stringOrMt :: Aeson.Value -> String
+stringOrMt v = Text.unpack $ textOrMt v
+
+foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
+                            -> a
+                            -> HM.HashMap k v
+                            -> m a
+foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
+    where
+    step !acc (k, v) = f acc k v
+
+traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
+traverseKV hm f =
+    forM (HM.toList hm) $ \(k, v) -> f k v
+
+headerJson :: (HeaderName, BS.ByteString)
+headerJson = ("Content-Type", "application/json")
+
+
+--------------------------------------------------------------------------------
+-- Logic / Execution
+--------------------------------------------------------------------------------
 
 --------------------------------
 -- EXECUTIVE SUMMARY OF HH200 --
@@ -313,12 +341,27 @@ type Binding = (String, BEL.Part)
 -- status codes mismatch, duration, filesystem, thread cancelled, offline
 
 
-type Env = HM.HashMap String Aeson.Value
-type Log = [String]
+-- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
+assertsAreOk :: Env -> Prim.Response a -> Maybe ResponseSpec -> IO Bool
+assertsAreOk env got mrs = do
+    case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
+        False -> trace ("dis falz:" ++ show (Prim.responseStatus got) ++ "and:" ++ show (expectCodesOrDefault mrs)) $ pure False
+        _ -> do
+            values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt
+            pure $ notElem (Aeson.Bool False) values
+    where
+    linesOrMt :: [Text]
+    linesOrMt = case mrs of
+        Just rs -> map Text.pack $ asserts rs
+        _ -> []
 
--- Procedure "may" fail early, "reads" a shared http-client manager instance,
--- "writes" log as it runs, modifies environment "states" while doing IO.
-type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
+expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
+expectCodesOrDefault mrs =
+    case mrs of
+        Nothing -> [status200]
+        Just rs -> case statuses rs of
+            [] -> [status200]
+            expectCodes -> expectCodes
 
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: Script -> Prim.Manager -> Env -> IO Lead
@@ -347,13 +390,6 @@ runProcM script mgr env = do
 emptyHanded :: ProcM CallItem
 emptyHanded = pure defaultCallItem
 
-textOrMt :: Aeson.Value -> Text
-textOrMt (Aeson.String t) = t
-textOrMt _ = ""
-
-stringOrMt :: Aeson.Value -> String
-stringOrMt v = Text.unpack $ textOrMt v
-
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
@@ -373,8 +409,14 @@ courseFrom x = do
         | null (payload $ ciRequestSpec ci) = do
             struct <- parseUrl
 
+            renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
+            -- renderedHeaders <- do
+            --     let (RhsDict unrenderedHeaders) = (headers $ ciRequestSpec ci)
+            --     pure [("user-agent", "quinlanarcher@gmail.com")]
+
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
+              , Prim.requestHeaders = renderedHeaders
               }
 
         -- Requests with json body.
@@ -389,6 +431,13 @@ courseFrom x = do
               }
 
         where
+        renderHeaders :: RhsDict -> IO [(HeaderName, BS.ByteString)]
+        renderHeaders (RhsDict bindings) = do
+            traverseKV bindings $
+                \(k :: String) (v :: BEL.Part) -> do
+                    av <- BEL.render env (Aeson.String "") [v]
+                    pure (CaseInsensitive.mk (BS.pack k), asBS av)
+
         parseUrl :: IO Prim.Request
         parseUrl = do
             rendered <- stringRender (url $ ciRequestSpec ci)
@@ -400,8 +449,10 @@ courseFrom x = do
 
         stringRender :: String -> IO String
         stringRender s = do
+            -- ??: this not a proper use of render; come back after unittesting rendering of mustached urls
             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
-            trace ("s\t" ++ s ++ ";\n" ++ "rendered\t" ++ show rendered ++ ";") (pure $ stringOrMt rendered)
+            -- trace ("s\t" ++ s ++ ";\n" ++ "rendered\t" ++ show rendered ++ ";") (pure $ stringOrMt rendered)
+            pure $ stringOrMt rendered
 
         rawPayload :: String -> Prim.RequestBody
         rawPayload s = Prim.RequestBodyLBS $ L8.pack s
@@ -443,6 +494,7 @@ courseFrom x = do
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
+                    _ <- liftIO $ putStrLn "??: catch offline HttpExceptionRequest, present in turn needs to show the script as is"
                     gotResp :: Prim.Response L8.ByteString <- liftIO (Prim.httpLbs req mgr)
 
                     -- Captures.
@@ -461,19 +513,11 @@ courseFrom x = do
                     --
                     -- world's and spec's status matching
 
-                    res <- liftIO $ assertsAreOk env (trace ("gotResp:" ++ show (Prim.responseBody gotResp)) gotResp) mrs
+                    -- res <- liftIO $ assertsAreOk env (trace ("gotResp:" ++ show (Prim.responseBody gotResp)) gotResp) mrs
+                    res <- liftIO $ assertsAreOk env gotResp mrs
                     case res of
                         False -> pure ci
                         _ -> h mgr rest
-
-
-expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
-expectCodesOrDefault mrs =
-    case mrs of
-        Nothing -> [status200]
-        Just rs -> case statuses rs of
-            [] -> [status200]
-            expectCodes -> expectCodes
 
 testOutsideWorld :: Script -> IO Lead
 
@@ -506,11 +550,11 @@ testOutsideWorld unexpected = do
 -- present (NonLead {}) = Nothing
 -- present x = Just $ show x
 
-noNews :: Lead -> Bool
-noNews (NonLead {}) = True
-noNews _ = False
-
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
  -- ++ "\n" ++ (show $ headers $ ciRequestSpec ci)  -- ?? show hashmap, if not empty
  ++ "\n" ++ (payload $ ciRequestSpec ci)
+
+noNews :: Lead -> Bool
+noNews (NonLead {}) = True
+noNews _ = False

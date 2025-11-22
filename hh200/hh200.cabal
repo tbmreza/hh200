@@ -48,6 +48,7 @@ library
     , base >=4.7 && <5
     , bel-expr
     , bytestring
+    , case-insensitive
     , directory
     , fast-logger
     , filepath
@@ -84,6 +85,7 @@ executable hh200
       async
     , base >=4.7 && <5
     , bytestring
+    , case-insensitive
     , directory
     , fast-logger
     , filepath
@@ -113,6 +115,7 @@ test-suite hh200-test
       async
     , base >=4.7 && <5
     , bytestring
+    , case-insensitive
     , directory
     , fast-logger
     , filepath

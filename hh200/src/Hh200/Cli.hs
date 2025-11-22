@@ -47,7 +47,7 @@ cli = go =<< execParser options where
 
         <*> switch ( long "call"
                   <> short 'C'
-                  <> help "delete" )
+                  <> help "Execute a script snippet directly" )
 
 
 go :: Args -> IO ()
@@ -63,24 +63,32 @@ go Args { source = Just src, debugConfig = True } = do
     case exists of
         False -> exitWith (ExitFailure 1)
         _ -> do
-            putStrLn "unimplemented"
+            analyzed :: Maybe Script <- runMaybeT $ do
+                script <- Scanner.analyze src
+                liftIO (pure script)
+            case analyzed of
+                Nothing -> exitWith (ExitFailure 1)
+                Just s -> print (config s)
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just src } = do
-    _ret :: Maybe Script <- runMaybeT $ do
+    analyzed :: Maybe Script <- runMaybeT $ do
         script <- Scanner.analyze (Snippet $ L8.pack src)
         liftIO (pure script)
 
-    pure ()
-
-    -- ??
-    -- case ret of
-    --     Nothing -> do
-    --         exitWith (ExitFailure 1)
-    --     Just s -> do
-    --         lead <- testOutsideWorld s
-    --         putStrLn $ present lead
+    case analyzed of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s -> do
+            lead <- testOutsideWorld s
+            case noNews lead of
+                True -> pure ()
+                _ -> do
+                    putStrLn $ case firstFailing lead of
+                        Nothing -> "internal error"
+                        Just ci -> present ci
+                    hPutStrLn stderr "hh200 found an unmet expectation."
+                    exitWith (ExitFailure 1)
 
 -- Script execution.
 -- hh200 flow.hhs

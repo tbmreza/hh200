@@ -37,6 +37,7 @@ dependencies:
 - strict
 - keys
 - unordered-containers
+- case-insensitive
 
 ghc-options:
 - -Wall
