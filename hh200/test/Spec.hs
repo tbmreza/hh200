@@ -15,19 +15,19 @@ import qualified Network.HTTP.Client as Prim
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Hh200.Types as Hh
-import qualified Hh200.Execution as HhExec
 import qualified Hh200.Scanner as Hh
+import qualified Hh200.Execution as HhExec
 
 import Hh200.Cli
 
 main :: IO ()
 main = defaultMain $ testGroup "HUnit"
-    -- [ test1 ]
+    [ test3 ]
 
-  [ testLR
-  , testBel
-  -- , test1
-  ]
+  -- [ testLR
+  -- , testBel
+  -- -- , test1
+  -- ]
 
 
 testBel :: TestTree
@@ -82,5 +82,18 @@ test1 = testCase "hh200 analyze" $ do
 -- test2 :: TestTree
 -- test2 = testCase "hh200 testOutsideWorld" $ do
 
--- test3 :: TestTree
--- test3 = testCase "hh200 present" $ do
+test3 :: TestTree
+test3 = testCase "hh200 present" $ do
+    let ciHello =
+            Hh.CallItem { Hh.ciDeps = []
+                        , Hh.ciName = "default"
+                        , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "GET"
+                                                            , Hh.url = "http://httpbin.org/anything"
+                                                            , Hh.headers = Hh.RhsDict HM.empty
+                                                            , Hh.payload = "", Hh.opts = []
+                                                            }
+                        , Hh.ciResponseSpec = Nothing
+                        }
+
+    case Hh.present ciHello of
+        all -> assertFailure all
