@@ -7,6 +7,7 @@ module Hh200.Execution
   , runProcM
   , assertsAreOk
   , ProcM
+  , status200
   ) where
 
 import Hh200.Types

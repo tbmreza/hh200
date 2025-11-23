@@ -14,11 +14,10 @@ import qualified Data.HashMap.Strict as HM
 import qualified Network.HTTP.Client as Prim
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import qualified Data.Text as Text
--- import qualified BEL
 
 import qualified Hh200.Types as Hh
 import qualified Hh200.Scanner as Hh
-import qualified Hh200.Execution as HhExec
+import qualified Hh200.Execution as Hh
 
 import Hh200.Cli
 
@@ -38,8 +37,8 @@ testBel = testCase "BEL callsite" $ do
     instant <- Prim.parseRequest "http://localhost"
     mtRespBody :: Prim.Response L8.ByteString <- Prim.httpLbs instant mgr
 
-    ok <-  HhExec.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "true"])
-    neg <- HhExec.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "false"])
+    ok <-  Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "true"])
+    neg <- Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "false"])
 
     case (ok, neg) of
         (True, False) -> pure ()
@@ -97,8 +96,7 @@ test3 = testCase "hh200 present" $ do
                                                             , Hh.opts = []
                                                             }
                         , Hh.ciResponseSpec = Just Hh.ResponseSpec
-                            -- { Hh.statuses = [Hh.status200]  -- ??
-                            { Hh.statuses = []
+                            { Hh.statuses = [Hh.status200]
                             , Hh.output = []
                             , Hh.captures = Hh.RhsDict HM.empty
                             , Hh.asserts = []
@@ -108,6 +106,7 @@ test3 = testCase "hh200 present" $ do
     expectedHello <- readFile "../examples/hello.hhs"
     assertEqual "hello.hhs" expectedHello (Hh.present ciHello)
 
+    -- ??: nop if payload is none
     -- -- 2. post_json.hhs
     -- let ciPost =
     --         Hh.CallItem { Hh.ciDeps = []
@@ -128,7 +127,7 @@ test3 = testCase "hh200 present" $ do
     --
     -- expectedPost <- readFile "../examples/post_json.hhs"
     -- assertEqual "post_json.hhs" expectedPost (Hh.present ciPost)
-    --
+
     -- -- 3. headers.hhs
     -- let ciHeaders =
     --         Hh.CallItem { Hh.ciDeps = []

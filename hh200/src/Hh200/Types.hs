@@ -233,11 +233,16 @@ showVerb (UppercaseString s) = s
 oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
+noNews :: Lead -> Bool
+noNews (NonLead {}) = True
+noNews _ = False
+
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
  ++ (showHeaders $ headers $ ciRequestSpec ci)
- ++ "\n" ++ (payload $ ciRequestSpec ci)
- ++ (showResponse $ ciResponseSpec ci)
+ -- ++ "\n" ++ (payload $ ciRequestSpec ci)
+ ++ (payload $ ciRequestSpec ci)
+ ++ (showResponse $ ciResponseSpec ci) ++ "\n"
 
 showHeaders :: RhsDict -> String
 showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm
@@ -251,7 +256,3 @@ showPart (BEL.L _) = "???"
 showResponse :: Maybe ResponseSpec -> String
 showResponse Nothing = ""
 showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (statuses rs))
-
-noNews :: Lead -> Bool
-noNews (NonLead {}) = True
-noNews _ = False
