@@ -1,0 +1,4 @@
+GET http://httpbin.org/headers
+Accept: application/json
+X-Custom-Header: my-value
+HTTP 200

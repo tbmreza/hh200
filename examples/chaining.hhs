@@ -1,0 +1,8 @@
+POST http://httpbin.org/post
+{ "token": "secret-token-123" }
+[Captures]
+MY_TOKEN = $.json.token
+
+GET http://httpbin.org/headers
+X-Auth-Token: {{MY_TOKEN}}
+HTTP 200

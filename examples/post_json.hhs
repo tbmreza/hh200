@@ -1,0 +1,3 @@
+POST http://httpbin.org/post
+{ "foo": "bar", "baz": 123 }
+HTTP 200

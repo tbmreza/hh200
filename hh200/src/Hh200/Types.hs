@@ -23,6 +23,8 @@ where
   -- ) where
 
 import Debug.Trace
+import Data.List (sortBy)
+import Data.Function (on)
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
@@ -233,8 +235,22 @@ oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
- -- ++ "\n" ++ (show $ headers $ ciRequestSpec ci)  -- ?? show hashmap, if not empty
+ ++ (showHeaders $ headers $ ciRequestSpec ci)
  ++ "\n" ++ (payload $ ciRequestSpec ci)
+ ++ (showResponse $ ciResponseSpec ci)
+
+showHeaders :: RhsDict -> String
+showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm
+  where
+    fmt (k, v) = "\n" ++ k ++ ": " ++ showPart v
+
+showPart :: BEL.Part -> String
+showPart (BEL.R t) = Text.unpack t
+showPart (BEL.L _) = "???"
+
+showResponse :: Maybe ResponseSpec -> String
+showResponse Nothing = ""
+showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (statuses rs))
 
 noNews :: Lead -> Bool
 noNews (NonLead {}) = True

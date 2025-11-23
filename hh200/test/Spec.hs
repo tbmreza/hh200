@@ -13,6 +13,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.HashMap.Strict as HM
 import qualified Network.HTTP.Client as Prim
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import qualified Data.Text as Text
+-- import qualified BEL
 
 import qualified Hh200.Types as Hh
 import qualified Hh200.Scanner as Hh
@@ -84,16 +86,93 @@ test1 = testCase "hh200 analyze" $ do
 
 test3 :: TestTree
 test3 = testCase "hh200 present" $ do
+    -- 1. hello.hhs
     let ciHello =
             Hh.CallItem { Hh.ciDeps = []
                         , Hh.ciName = "default"
                         , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "GET"
                                                             , Hh.url = "http://httpbin.org/anything"
                                                             , Hh.headers = Hh.RhsDict HM.empty
-                                                            , Hh.payload = "", Hh.opts = []
+                                                            , Hh.payload = ""
+                                                            , Hh.opts = []
                                                             }
-                        , Hh.ciResponseSpec = Nothing
+                        , Hh.ciResponseSpec = Just Hh.ResponseSpec
+                            -- { Hh.statuses = [Hh.status200]  -- ??
+                            { Hh.statuses = []
+                            , Hh.output = []
+                            , Hh.captures = Hh.RhsDict HM.empty
+                            , Hh.asserts = []
+                            }
                         }
 
-    expected <- readFile "../examples/hello.hhs"
-    assertEqual "present output matches file content" expected (Hh.present ciHello)
+    expectedHello <- readFile "../examples/hello.hhs"
+    assertEqual "hello.hhs" expectedHello (Hh.present ciHello)
+
+    -- -- 2. post_json.hhs
+    -- let ciPost =
+    --         Hh.CallItem { Hh.ciDeps = []
+    --                     , Hh.ciName = "default"
+    --                     , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "POST"
+    --                                                         , Hh.url = "http://httpbin.org/post"
+    --                                                         , Hh.headers = Hh.RhsDict HM.empty
+    --                                                         , Hh.payload = "{ \"foo\": \"bar\", \"baz\": 123 }"
+    --                                                         , Hh.opts = []
+    --                                                         }
+    --                     , Hh.ciResponseSpec = Just Hh.ResponseSpec
+    --                         { Hh.statuses = [Hh.status200]
+    --                         , Hh.output = []
+    --                         , Hh.captures = Hh.RhsDict HM.empty
+    --                         , Hh.asserts = []
+    --                         }
+    --                     }
+    --
+    -- expectedPost <- readFile "../examples/post_json.hhs"
+    -- assertEqual "post_json.hhs" expectedPost (Hh.present ciPost)
+    --
+    -- -- 3. headers.hhs
+    -- let ciHeaders =
+    --         Hh.CallItem { Hh.ciDeps = []
+    --                     , Hh.ciName = "default"
+    --                     , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "GET"
+    --                                                         , Hh.url = "http://httpbin.org/headers"
+    --                                                         , Hh.headers = Hh.RhsDict $ HM.fromList
+    --                                                             [ ("X-Custom-Header", BEL.R $ Text.pack "my-value")
+    --                                                             , ("Accept", BEL.R $ Text.pack "application/json")
+    --                                                             ]
+    --                                                         , Hh.payload = ""
+    --                                                         , Hh.opts = []
+    --                                                         }
+    --                     , Hh.ciResponseSpec = Just Hh.ResponseSpec
+    --                         { Hh.statuses = [Hh.status200]
+    --                         , Hh.output = []
+    --                         , Hh.captures = Hh.RhsDict HM.empty
+    --                         , Hh.asserts = []
+    --                         }
+    --                     }
+    --
+    -- expectedHeaders <- readFile "../examples/headers.hhs"
+    -- -- Note: HashMap order is not guaranteed, so this might fail if order differs.
+    -- -- For now, we assume simple equality check.
+    -- -- If it fails, we might need to normalize headers or check substring presence.
+    -- assertEqual "headers.hhs" expectedHeaders (Hh.present ciHeaders)
+    --
+    -- -- 4. failure.hhs
+    -- let ciFailure =
+    --         Hh.CallItem { Hh.ciDeps = []
+    --                     , Hh.ciName = "default"
+    --                     , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "GET"
+    --                                                         , Hh.url = "http://httpbin.org/status/404"
+    --                                                         , Hh.headers = Hh.RhsDict HM.empty
+    --                                                         , Hh.payload = ""
+    --                                                         , Hh.opts = []
+    --                                                         }
+    --                     , Hh.ciResponseSpec = Just Hh.ResponseSpec
+    --                         { Hh.statuses = [Hh.status404]
+    --                         , Hh.output = []
+    --                         , Hh.captures = Hh.RhsDict HM.empty
+    --                         , Hh.asserts = []
+    --                         }
+    --                     }
+    --
+    -- expectedFailure <- readFile "../examples/failure.hhs"
+    -- assertEqual "failure.hhs" expectedFailure (Hh.present ciFailure)
