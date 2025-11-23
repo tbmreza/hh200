@@ -95,5 +95,5 @@ test3 = testCase "hh200 present" $ do
                         , Hh.ciResponseSpec = Nothing
                         }
 
-    case Hh.present ciHello of
-        all -> assertFailure all
+    expected <- readFile "../examples/hello.hhs"
+    assertEqual "present output matches file content" expected (Hh.present ciHello)
