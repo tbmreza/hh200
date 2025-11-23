@@ -1,7 +1,13 @@
 # hh200 lang
 
 ## Contributing
-The project is in ideation phase. `DRAFT.md` is where I dump my thoughts. `hh200/` works if you want to play with what I got so far.
+The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
+`DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.
+
+### Surprises
+Some nuggets that are less than mundane when I learned them.
+- Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
+
 
 ## Features
 The following defining features sum up hh200 in trade-off terms.
@@ -10,7 +16,7 @@ The following defining features sum up hh200 in trade-off terms.
 Well-functioning system-under-test is the only thing that should matter; we're dodging the need for skipping cases in test scripts.
 
 #### 2. Regex, random, time batteries (compromising binary size)
-hh200 comes bundled with a full expression language BEL evaluator.
+hh200 comes integrated with a full expression language BEL evaluator.
   
 ## See also
 
@@ -20,7 +26,7 @@ hurl https://github.com/Orange-OpenSource/hurl
 </summary>
 Requests in "simple plain text format". You could invoke hurl HTTP client
 binary from your favorite general purpose language to achieve, for example,
-parallel test execution.
+parallel execution of hurl scripts.
 </details>
 
 <details>

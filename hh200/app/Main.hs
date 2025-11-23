@@ -2,21 +2,24 @@
 
 module Main (main) where
 
-import Hh200.Cli
-
--- -- Delete language extension and this block before v1  {
--- import qualified Network.HTTP.Client as Prim
--- import qualified Data.Aeson as Json
--- import qualified Data.ByteString.Lazy.Char8 as L8
--- import qualified Data.HashMap.Strict as HM
+--------------------------------------------------------------------------------
+-- MAIN THESIS OF HH200 (Handzalah, 2024)
+--------------------------------------------------------------------------------
 --
--- _keepCompiling :: IO ()
--- _keepCompiling = do
---     let d :: HM.HashMap String String = HM.fromList [("username", "admin0"), ("password", "admin1234")]
---     let ed :: L8.ByteString = Json.encode d
---     let body = Prim.RequestBodyLBS $ Json.encode d
---     return ()
--- -- }
+-- 3-step:        Scanner.analyze  Execution.testOutsideWorld  Types.present
+-- (deliverable)  (linter hints)   (reality)                   (counter-example)
+--
+--
+-- linter hints:
+--   lexer/parser, http idioms (GET with payload, webdav status code misuse)
+--
+-- reality:
+--   status codes mismatch, duration, filesystem, thread cancelled, offline
+--
+-- counter-example:
+--   hhs, curl
+
+import Hh200.Cli
 
 main :: IO ()
 main = cli

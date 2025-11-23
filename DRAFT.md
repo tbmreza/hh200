@@ -1,51 +1,59 @@
-what to do about:
-- Special-Use Domain Names
-- webdav semantics
-
-# hh200
-```
-summary:      statically-checked dsl for testing http servers
-extensions:   .hhs (script), 
-usecases      stress testing (massive parallelism, pretty execution reports),
-  (features): quick call (interpreter, user profile),
-              programming assistant (lsp, symbolic executor)
-others:       can read a subset of hurl
-
-## Parser
-Alex + Happy. monarch for syntax highlighting (maybe replace Alex if it makes sense).
-
-## Finding first counter-example fast
-### Flow interpreter
-### Web UI
-
-By default, hh200 opens the web browser for you to view the test execution live status and results.
-hh200 the language is designed to be self-contained in the semantics that it can express, which should
-allow the status dashboard to be a strictly read-only UI. We think that a dashboard that can control
-the runtime deemphasizes even if slightly the urgency of a full DSL for the task.
-
-As a bonus from this design decision, we prevent a class of test execution non-determinism.
-[locust] is a popular existing tool whose web UI might inspire you to think otherwise, and you should
-feel free to implement an "Edit" button in the dashboard if you find any use for that.
-
-[locust]: https://locust.io
+# PRIMARY (OR INDUSTRY) SPEC SOURCES
+## Syntax
+- https://hurl.dev/docs/request.html#structure
+## Cookies
+- https://www.rfc-editor.org/rfc/rfc6265.html "HTTP State Management Mechanism"
+- https://curl.se/docs/http-cookies.html      "curl HTTP Cookies"
 
 
+# Design decisions
+## General
+- "Connection: close" header sent by default; close the connection after the current request/response pair.
 
-hh200 is a tool for testing HTTP servers. From "Let me hit this URL with such params
-real quick," to "Let's see if this web service is enduring such & such test scenario",
-hh200 was born for such developer occurrences.
+# DONE LIST
+all protocols/specs about cookies
+server vs remote ports? remote == client
+httpie sends Connection: close header by default, curl doesn't
+plan a self-maintaining fork of httpLbs: do sync using gh actions
+Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS."
+http(s) secure
+    user story: distinct tls https (https://www.stackage.org/package/http-client-tls) and insecure http (https://hackage-content.haskell.org/package/http-client-0.7.19/docs/Network-HTTP-Client.html#g:4).
+    in curl, tls connection is determined by specified url, not headers (unverified chatgpt)
+https + Secure cookie attr
 
-hh200 the language expresses _what HTTP calls to make and how_.
-It is not innovative by enabling what weren't possible with general purpose languages before.
-Also see the state of hurl, which has been the inspiration for this project.
-```
 
-## cli
-flags: hh200 hello.hhs --verbose, --no-cache, --version
-subcommands: hh200 check hello.hhs, build-portable, format, parse curl.txt, 
-env: SLUG=100 hh200 hello.hhs
+# STASH
+simple but useful actual script; virtual user model
+    release date of host's linux kernel version  uname -r
+    GET https://kernel.org/releases.json
+    [Captures]
+    KERNEL_VER: "6.6"  # ??: uname -r  parsing
+    # Capture the object that contains the string KERNEL_VER
+    [Asserts]
+    > (jsonpath "$.data.timestamp") has KERNEL_VER  # has or contains ??depends on CEL or hurl
+    > eyeball KERNEL_VER (jsonpath "$.data.timestamp") "date"
+    # eyeball needle haystack dfs_else_bubble
 
-## syntax
+
+    the mainline branch of the linux kernel last released on (isodate), the date when "event in past <year>"
+    ??: pass on isodate to wiki on this day
+https://en.wikipedia.org/w/rest.php/v1/search/page?q=earth&limit=1
+https://en.wikipedia.org/wiki/November_5
+GET http://localhost:8080/get
+    {
+    "releases": [
+        {
+            "moniker": "mainline",
+            "version": "6.18-rc5",
+            "iseol": false,
+            "released": {
+                "timestamp": 1762729819,
+                "isodate": "2025-11-09"
+            },
+what to do about: Special-Use Domain Names, webdav semantics,
+
+## Syntax ideas
+
 - evaluate expr with {{ }} like hurl
 - unless replaces previous expression with arms
 - scoped variables; let stmt that isn't followed by indentation is global
@@ -91,194 +99,79 @@ callable g = copy f with
 mut f with
     method = PATCH
 
-### hh200 check hello.hhs > hello.hhsm
-parse :: filepath -> ast
-
-### hh200 run hello.hhsm
-eval :: ast -> env -> hhsm
-
-
-```
-## Running cabal test
-cd dev-server
-php -f router.php -S localhost:9999
-
-## Acknowledgments
-- https://github.com/glguy/toml-parser (ISC license)
-
-
-
-### Parser anew recipe
-
-stack new ...
-dependencies add array
-    stack test
-L.x starter from https://github.com/haskell/alex/blob/master/examples/Tokens_posn.x
-    alex ...
-    use alexScanTokens :: String -> [token]
-P.y starter from https://github.com/haskell/alex/blob/master/examples/tiny.y
-    happy ... --ghc
-    parse $ alexScanTokens "let k"
-
-P.y stash:
-    filepath    { PATH _ $$ }
-
-L.x stash:
-    $path+                         { tok (\p s -> PATH p s) }
-  | PATH    AlexPosn String
-
-
-Release 0.0.0-proto
-- etf encoder
-- OTP 27 requirement
-
-```
-erl -compile interpreter.erl && erl -run interpreter
-erl -run interpreter
-```
-
-{patch, "http://localhost:9999/ls"}
-{http,404}
-
-{post, "https://bivi-backend-dev.paradev.io/v2/login"}
-{json, #{username => "wardah.21", password => "ptiuser1234"}}
-{http,404}
-
-
-
-
-
-{patch, "http://localhost:9999/z"}
-{json, #{username => <<"wardah.21">>, password => "ptiuser1234"}}
-{http,404}
-
-
-
-curl -X POST https://bivi-backend-staging.paradev.io/v2/login \
-     -H "Content-Type: application/json" \
-     -d "$(head -c 1048576 </dev/zero | tr '\0' 'a')"  
-
-
-curl -X POST -H "Content-Type: application/json" -d '{"data": "'$(python -c "print('x' * 10**6)")'"}' https://bivi-backend-staging.paradev.io/v2/login
-curl -X POST -H "Content-Type: application/json" --data-binary @payload.json https://bivi-backend-staging.paradev.io/v2/login
-
-"/home/tbmreza/gh/hh200/building-blocks/etf/output.etf"
-
-??:
-suite manager:
-  watch ir changes
-  view reports
-  parse config values
-
-data Policy = Policy {
-    maxReruns :: Maybe Int,
-    maxRetriesPerCall :: Maybe Int,
-    timeMillisPerCall :: Maybe Int
-    } deriving (Eq, Show, Generic)
-
-https://hurl.dev/docs/request.html#structure
-
-
-
-
-STATIC PHASE
-
-On sight, if outputs exist and warn/error
-
-callable { deps: [name], name }
-
-Provision how many parallel clients are needed and which callables go to
-which clients
-	If then-prefixes is empty, spawn new client. The callable's dependants shall reuse that same client
-	clients<name, client_id>
-	If callable has deps, find clients.dep
-
-
-[callable]
-
-
-
-PRE SWEEP or exit clients
-
-At least 1 callable has empty then-prefixes
-
-Assert we have write permissions at output paths
-
-[callable]
-worker(init())
-
-
-FIRST SWEEP
-
-Callable is called if Acc.callstack contains callable.deps
-callable { been_called: true, err_stack: [] }
-
-If a callable has err, re-sweep with new env/world (fs, network)
-
-
-SECOND SWEEP
-
-Re-evaluate an unsuccessful callable before sweeping
-
-Send exit to clients
-
-## Erlang runtime (abandoned idea, unproductive overhead to our goal that is getting to first counter-example fast instead of being fault tolerant)
-### Development
-The shell might interfere with how we interact with `/bin/erl_call` sometimes, for example with the
-out-of-context message "erl_call:.:{N}: not enough arguments". Use another shell or look closer to
-what your shell does every step of the way.
-
-
-- [X] LR parser
-- [ ] agent parallelism phase 1 (4 agents)
-    - variable captures
-    - file reading built into the syntax
-    - counter-example and summary printing: Duration; Request string repr; 
-- [ ] agent parallelism benchmark
-- [ ] `hh200 prgn-nova-regression.hhs` debian packaging
-
-## old Makefile:
-reg:
-	cabal test
-	cabal run -j4 hh200 -- --version
-
-
-# test:
-# 	hh200 compile --io examples/hello.hhs [--policies specs.aimfor.toml]        # prints warnings to std err, or test on the outside world (dynamically-checked programming style) [override policies]
-# 	hh200 compile examples/index.hhs [--policies specs.aimfor.toml] > out.hhsm  # prints warnings to std err [override policies], or hhsm source to std out (indirectable)
-# 	hh200 interactive examples/hhsm/hello.hhsm                                  # asks confirmation before every side-effects
-
-locust:
-	# 901. ...905 (unacceptable perf) ...900 (acceptable) return 905 (less than aim)
-	# the number at which system under test falls off acceptable performance
-	aimfor [--config config.aimfor.toml] -n 1000 --specs specs.aimfor.toml smoke.hhs  # hh200 build examples/hello.hhs --policies specs.aimfor.toml  where build depends on parallelization strat
-
-	# properties of interest: "System under test can handle N parallel users."
-	# "Number of users is *the only factor* of any under-achievements." is a non-property as it's impossible to say about any unpure systems.
-	#
-	# To that goal, we increase a stride at a time our number of parallel users until we get unacceptable* perf.
-	#
-	# config.aimfor.toml: Mechanisms that shouldn't affect our property check.
-	# stride = 0  # handled as {n div 10} by runtime
-	# all_stats = 2  # "open|forget|quiet"
-	#
-	# *specs.aimfor.toml: worst acceptable execution stat of serving 1 user defined in numbers:
-	# max_reruns = 2
-	# max_retries_per_call = 2
-	# time_millis_per_call = 60_000
-	# # example: index.hhs contains C1 and C2 (where C2 is contrived to always fail) calls. Sequentially, C1 succeed and C2 failed the first time.
-	# # Then, C2 is retried {max_retries_per_call} times.
-	# # Then, the whole index.hhs is run {max_reruns} more times.
-
-help:
-	cabal build -j4
-	dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --help
-
-download:
-	cabal run -j4 hh200 -- --hello examples/debug.hhs download https://httpbin.org/latest.apk
-
-run:
-	cabal run -j4 hh200 -- examples/debug.hhs
-
-# # dist-newstyle/build/x86_64-linux/ghc-9.4.7/...
-# dist-newstyle/build/x86_64-linux/ghc-9.8.2/hh200-0.1.0.0/x/hh200/build/hh200/hh200 --hello examples/debug.hhs
+[Asserts]
+> jsonpath "$.json.kkk" == "vvv"
+
+POST https://bivi-backend.pti-cosmetics.com/v2/login
+GET http://localhost:9999/echo.php
+[Captures]
+RELAY: TOKEN
+
+
+POST https://sfa-api-testing.pti-cosmetics.com/login.php
+{ "username": "testing1", "password": "paragon" }
+HTTP 200
+[Captures]
+NNN: 9
+TOKEN: jsonpath "$.jwt"
+
+POST  https://sfa.pti-cosmetics.com/sfa2/web/index.php?r=delivery-order%2Fcreate-order
+jwt: eyabcd98
+HTTP 203
+
+
+-- matches("1234", "[0-9-]+")    "1234".matches("[0-9-]+")
+-- size("") == 0
+-- timestamp("") - timestamp("") = duration("")
+-- randInt(lo, hi)
+-- today() == dateIsoDate() dateIsoDateTime() dateIsoDateTimeZone() == dateIso()
+
+
+
+[Captures]
+BT = `I am {2 + 2} years old`
+ID = $.data.id
+START = today()
+Q_STR = "salt and pepper"
+[Asserts]
+> 12 != 120
+> false
+
+
+
+
+POST http://localhost:9999/echo.php
+{ "data": "ck" }
+HTTP 200
+[Captures]
+Q_STR = "salt and pepper"
+ID = $.data.id
+START =   today()
+[Asserts]
+> 12 == 12  # early return
+# jsonpath "$.data.name" == "alice"
+# implicit status == 200 assertion at the end
+
+POST http://localhost:9999/echo.php
+{ "data": "ck" }
+HTTP 200
+[Captures]
+Q_STR = "salt and pepper"
+ID = $.data.id
+START =   today()
+[Asserts]
+> 12 == 12  # early return
+# jsonpath "$.data.name" == "alice"
+# implicit status == 200 assertion at the end
+
+POST http://localhost:9999/{{START}}&q={{Q_STR}}
+{ "data": "a" }
+HTTP 404
+
+POST  http://localhost:9999/echo.php
+{ "kkk": "vvv" }
+HTTP 200
+[Captures]
+NNN: 9
+[Asserts]
+> true

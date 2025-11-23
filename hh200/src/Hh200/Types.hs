@@ -231,24 +231,6 @@ showVerb (UppercaseString s) = s
 oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
-
---------------------------------------------------------------------------------
--- Logic / Execution
---------------------------------------------------------------------------------
-
---------------------------------
--- EXECUTIVE SUMMARY OF HH200 --
---------------------------------
--- terminating:  analyze  testOutsideWorld  present
--- steps output (1. linter hints; 2. reality; 3. counter-example)
---
--- early 1:
--- lexer/parser, http idioms (GET with payload, webdav status code misuse)
---
--- early 2:
--- status codes mismatch, duration, filesystem, thread cancelled, offline
-
-
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
  -- ++ "\n" ++ (show $ headers $ ciRequestSpec ci)  -- ?? show hashmap, if not empty

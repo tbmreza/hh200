@@ -8,10 +8,7 @@ import Control.Monad.IO.Class
 import Control.Monad (unless)
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
--- import qualified Data.Text as T
--- import qualified Data.Text.IO as TIO
 import           Data.Text (Text)
--- import Data.Maybe (isJust)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.HashMap.Strict as HM
 import qualified Network.HTTP.Client as Prim
