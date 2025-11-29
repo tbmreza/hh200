@@ -4,7 +4,7 @@ github:              "tbmreza/hh200"
 license:             MIT
 author:              "Reza Handzalah"
 maintainer:          "rezahandzalah@gmail.com"
-copyright:           "2025 Reza"
+copyright:           "2024 Reza"
 
 extra-source-files:
 - README.md
@@ -62,9 +62,7 @@ library:
   default-extensions:
   - OverloadedStrings
   dependencies:
-  # - mtl
   - array
-  # - bytestring
   - hashtables
   - unordered-containers
   - text
@@ -73,8 +71,6 @@ library:
 
   - http-types
   - http-conduit
-  # - http-client
-  # - http-client-tls
   - toml-parser
   - yaml
   - vector

@@ -8,7 +8,17 @@ module Hh200.Execution
   , assertsAreOk
   , ProcM
   , status200
+  , testShotgun
   ) where
+
+-- testShotgun chatgpt
+import Control.Concurrent       (threadDelay)
+import Control.Concurrent.QSemN
+import Control.Exception        (bracket_)
+import Control.Monad            (forM)
+import Control.Concurrent.Async (mapConcurrently)
+import qualified Data.ByteString.Lazy as BL
+import Network.HTTP.Simple
 
 import Hh200.Types
 import Debug.Trace
@@ -330,3 +340,60 @@ testOutsideWorld flow@(Script { callItems = _ }) = do
 
 testOutsideWorld unexpected = do
     pure $ nonLead unexpected
+
+
+-- -- counter-example presentation based on mvar
+-- -- in the normal testOutsideWorld-present combo
+-- -- Script { callItems = HM.HashMap name [CallItem] }
+--
+-- -- duration-bound virtual user we name rps (in reference to locust RPS)
+-- -- integrates with vscode test runner
+-- testRps :: Minutes -> Script -> IO ()
+-- testOutsideWorld & testShotgun grow hand in hand, while testRps starts
+-- a web js server.
+testRps :: IO ()
+testRps = pure ()
+
+-- -- thread-based parallelism we name shotgun: based on async + QSemN
+-- Thread-based parallelism based on async and QSemN.
+-- Unlike testOutsideWorld, testShotgun is aware of what the (usually two) variables are.
+-- Almost like testOutsideWorld can step in a running testShotgun and contribute one number.
+-- testOutsideWorld (pre alpha) appends Pct to output/history.dat
+
+-- Limit concurrency with QSemN
+mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
+mapConcurrentlyBounded n actions = do
+    sem <- newQSemN n
+    mapConcurrently
+        (\act -> bracket_ (waitQSemN sem 1)
+                          (signalQSemN sem 1)
+                          act)
+        actions
+
+-- One HTTP request
+fetch :: Int -> IO BL.ByteString
+fetch i = do
+    putStrLn $ "Starting request " ++ show i
+    response <- httpLBS "https://httpbin.org/delay/1"
+    putStrLn $ "Finished request " ++ show i
+    pure (getResponseBody response)
+
+-- testShotgun :: Int -> Script -> IO Lead
+testShotgun :: Int -> Script -> IO DataPoint
+testShotgun n s = do
+    let jobs :: [IO L8.ByteString] = map fetch [1..40]   -- e.g., 40 requests total
+        workers = n                                      -- run n at a time
+
+    putStrLn "Running HTTP calls with 8 parallel workers…"
+    results <- mapConcurrentlyBounded workers jobs
+
+    putStrLn $ "Done. Got " ++ show (length results) ++ " responses."
+    pure $ mkDataPoint n
+
+-- ??: visualize this in 2D gp table
+data DataPoint = DataPoint
+  { shotgunN :: Int
+  , shotgunPct :: Double  -- Percentage of user assertions satisfying responses.
+  }
+mkDataPoint :: Int -> DataPoint
+mkDataPoint n = DataPoint { shotgunN = n, shotgunPct = 0.0 }

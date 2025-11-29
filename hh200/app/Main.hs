@@ -6,8 +6,10 @@ module Main (main) where
 -- MAIN THESIS OF HH200 (Handzalah, 2024)
 --------------------------------------------------------------------------------
 --
--- 3-step:        Scanner.analyze  Execution.testOutsideWorld  Types.present
--- (deliverable)  (linter hints)   (reality)                   (counter-example)
+--                                 Execution.testRps           Live.serve
+--                                 Execution.testShotgun       Graph.plot
+-- 3-step:        Scanner.analyze  Execution.testOutsideWorld  Cli.present
+-- (deliverable)  (linter hints)   (reality)                   (presentation)
 --
 --
 -- linter hints:
@@ -16,8 +18,9 @@ module Main (main) where
 -- reality:
 --   status codes mismatch, duration, filesystem, thread cancelled, offline
 --
--- counter-example:
---   hhs, curl
+-- presentation:
+--   hhs curl counter-example, gnuplot
+--
 
 import Hh200.Cli
 

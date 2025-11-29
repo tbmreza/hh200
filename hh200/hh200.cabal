@@ -13,7 +13,7 @@ homepage:       https://github.com/tbmreza/hh200#readme
 bug-reports:    https://github.com/tbmreza/hh200/issues
 author:         Reza Handzalah
 maintainer:     rezahandzalah@gmail.com
-copyright:      2025 Reza
+copyright:      2024 Reza
 license:        MIT
 build-type:     Simple
 extra-source-files:

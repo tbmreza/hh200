@@ -18,15 +18,16 @@ import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
 import           Hh200.Types
-import           Hh200.Execution (testOutsideWorld)
+import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
 
 data Args = Args
-    { source  :: Maybe String
-    , version :: Bool
-    , debugConfig :: Bool
-    , call :: Bool
-    }
+  { source  :: Maybe String
+  , version :: Bool
+  , debugConfig :: Bool
+  , call :: Bool
+  , shotgun :: Int
+  }
 
 cli :: IO ()
 cli = go =<< execParser options where
@@ -49,6 +50,13 @@ cli = go =<< execParser options where
         <*> switch ( long "call"
                   <> short 'C'
                   <> help "Execute a script snippet directly" )
+
+        <*> option auto ( long "shotgun"
+                       <> short 'S'
+                       <> help "Execute in N parallel workers at once"
+                       <> metavar "N"       -- Displays as: -S N or --shotgun N
+                       <> value 1           -- Default to 1 if flag is omitted
+                       <> showDefault )     -- Shows "[default: 1]" in help text
 
 
 go :: Args -> IO ()
@@ -90,6 +98,27 @@ go Args { call = True, source = Just src } = do
                         Just ci -> present ci
                     hPutStrLn stderr "hh200 found an unmet expectation."
                     exitWith (ExitFailure 1)
+
+-- Shotgun.
+-- hh200 flow.hhs --shotgun=4
+go Args { shotgun = n, call = False, source = Just path } = do
+    -- Check if output/o.dat has # x y value header and maybe first data row. Number of bullets also could be a sanity check for something.
+    -- let s = Script { config = defaultScriptConfig, callItems = [] }
+    -- dp <- testShotgun n s
+    analyzed :: Maybe Script <- runMaybeT $ do
+        script <- Scanner.analyze path
+        liftIO (pure script)
+
+    -- ??: with DataPoint extraction and plotting flow in cli
+
+    let dat = Dat []
+    case analyzed of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s -> do
+            dp <- testShotgun n s
+
+            pure ()
+    -- Rewrites output/o.dat at the end.
 
 -- Script execution.
 -- hh200 flow.hhs

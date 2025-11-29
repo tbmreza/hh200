@@ -23,12 +23,13 @@ import Hh200.Cli
 
 main :: IO ()
 main = defaultMain $ testGroup "HUnit"
-    [ test3 ]
+    -- [ test1 ]
 
-  -- [ testLR
-  -- , testBel
-  -- -- , test1
-  -- ]
+  [ testLR
+  , testBel
+  -- , test1
+  , test3
+  ]
 
 
 testBel :: TestTree

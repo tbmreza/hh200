@@ -63,7 +63,7 @@ newtype Subject = Subject String
 
 type Binding = (String, BEL.Part)
 
-type Env = HM.HashMap String Aeson.Value
+type Env = BEL.Env -- = HM.HashMap String Aeson.Value
 type Log = [String]
 
 
@@ -134,6 +134,7 @@ data HostInfo = HostInfo
   } deriving (Show, Eq)
 
 -- Everything one could ask for when debugging a failing script.
+-- ??: pct field to append to .dat
 data Lead =
     Lead
       { firstFailing :: Maybe CallItem
@@ -237,6 +238,7 @@ noNews :: Lead -> Bool
 noNews (NonLead {}) = True
 noNews _ = False
 
+-- ??: haskell override show; present :: Lead -> IO ()  that is printing (show l) before exitWith (ExitFailure 1)
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
  ++ (showHeaders $ headers $ ciRequestSpec ci)
@@ -256,3 +258,6 @@ showPart (BEL.L _) = "???"
 showResponse :: Maybe ResponseSpec -> String
 showResponse Nothing = ""
 showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (statuses rs))
+
+data Dat = Dat [(Text, Text, Text)]
+    deriving (Show)
