@@ -51,10 +51,12 @@ newtype UppercaseString = UppercaseString String
 
 newtype Snippet = Snippet L8.ByteString
 
--- ??: why didn't type alias suffice again?
--- newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])  -- ?? guessed
+-- newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
 newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
     deriving (Show, Eq)
+
+mtHM :: HM.HashMap k v
+mtHM = HM.empty
 
 type Duration = Int
 

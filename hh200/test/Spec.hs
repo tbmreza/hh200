@@ -3,21 +3,14 @@
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Control.Monad.Trans.Maybe
-import Control.Monad.IO.Class
-import Control.Monad (unless)
-import System.Directory (doesFileExist)
-import System.FilePath ((</>))
-import           Data.Text (Text)
-import qualified Data.ByteString.Lazy.Char8 as L8
-import qualified Data.HashMap.Strict as HM
-import qualified Network.HTTP.Client as Prim
-import Network.HTTP.Client.TLS (tlsManagerSettings)
-import qualified Data.Text as Text
 
-import qualified Hh200.Types as Hh
-import qualified Hh200.Scanner as Hh
-import qualified Hh200.Execution as Hh
+import Control.Monad.Trans.Maybe
+import qualified Network.HTTP.Client as Prim
+import qualified Network.HTTP.Client.TLS as Prim (tlsManagerSettings)
+
+import Hh200.Types as Hh
+import Hh200.Scanner as Hh
+import Hh200.Execution as Hh
 
 import Hh200.Cli
 
@@ -34,12 +27,12 @@ main = defaultMain $ testGroup "HUnit"
 
 testBel :: TestTree
 testBel = testCase "BEL callsite" $ do
-    mgr <- Prim.newManager tlsManagerSettings
-    instant <- Prim.parseRequest "http://localhost"
-    mtRespBody :: Prim.Response L8.ByteString <- Prim.httpLbs instant mgr
+    mgr <-        Prim.newManager Prim.tlsManagerSettings
+    instant <-    Prim.parseRequest "http://localhost"
+    mtRespBody <- Prim.httpLbs instant mgr -- :: Prim.Response L8.ByteString
 
-    ok <-  Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "true", "true"])
-    neg <- Hh.assertsAreOk HM.empty mtRespBody (rsFrom ["true", "false"])
+    ok <-  Hh.assertsAreOk mtHM mtRespBody (rsFrom ["true", "true", "true"])
+    neg <- Hh.assertsAreOk mtHM mtRespBody (rsFrom ["true", "false"])
 
     case (ok, neg) of
         (True, False) -> pure ()
@@ -50,7 +43,7 @@ testBel = testCase "BEL callsite" $ do
     rsFrom lines = Just $ Hh.ResponseSpec
       { Hh.statuses = []
       , Hh.output = []
-      , Hh.captures = Hh.RhsDict HM.empty
+      , Hh.captures = Hh.RhsDict mtHM
       , Hh.asserts = lines
       }
 
@@ -92,14 +85,16 @@ test3 = testCase "hh200 present" $ do
                         , Hh.ciName = "default"
                         , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "GET"
                                                             , Hh.url = "http://httpbin.org/anything"
-                                                            , Hh.headers = Hh.RhsDict HM.empty
+                                                            , Hh.headers = Hh.RhsDict mtHM
                                                             , Hh.payload = ""
                                                             , Hh.opts = []
                                                             }
                         , Hh.ciResponseSpec = Just Hh.ResponseSpec
                             { Hh.statuses = [Hh.status200]
                             , Hh.output = []
-                            , Hh.captures = Hh.RhsDict HM.empty
+                            -- , Hh.captures = Hh.RhsDict HM.empty
+                            -- , Hh.captures = Hh.emptyCaptures
+                            , Hh.captures = Hh.RhsDict mtHM
                             , Hh.asserts = []
                             }
                         }

@@ -21,23 +21,6 @@ description:         Please see the README on GitHub at <https://github.com/tbmr
 
 dependencies:
 - base >= 4.7 && < 5
-- text
-- transformers
-- process
-- optparse-applicative
-- http-client
-- http-client-tls
-- bytestring
-- mtl
-- filepath
-- random
-- async
-- directory
-- fast-logger
-- strict
-- keys
-- unordered-containers
-- case-insensitive
 
 ghc-options:
 - -Wall
@@ -62,13 +45,28 @@ library:
   default-extensions:
   - OverloadedStrings
   dependencies:
+  # from global
+  - text
+  - transformers
+  - process
+  - http-client
+  - http-client-tls
+  - bytestring
+  - mtl
+  - filepath
+  - random
+  - async
+  - directory
+  - fast-logger
+  - strict
+  - keys
+  - unordered-containers
+  - case-insensitive
+  # from library
   - array
   - hashtables
-  - unordered-containers
-  - text
   - split
   - ghc
-
   - http-types
   - http-conduit
   - toml-parser
@@ -78,9 +76,10 @@ library:
   - aeson
   - aeson-jsonpath >= 0.3.0.2 && < 0.4.0.0
   - bel-expr
+  - optparse-applicative
 
 executables:
-  hh200:  # `ls ~/.local/bin/` checks if `stack install` succeed.
+  hh200:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -100,5 +99,8 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - hh200
+    - http-client      # imported as Prim
+    - http-client-tls  # imported as Prim
+    - transformers
     - tasty
     - tasty-hunit
