@@ -102,5 +102,7 @@ test-suite hh200-test
     , http-client-tls
     , tasty
     , tasty-hunit
+    , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010

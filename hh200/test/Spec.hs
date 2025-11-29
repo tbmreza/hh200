@@ -7,6 +7,8 @@ import Test.Tasty.HUnit
 import Control.Monad.Trans.Maybe
 import qualified Network.HTTP.Client as Prim
 import qualified Network.HTTP.Client.TLS as Prim (tlsManagerSettings)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text as Text
 
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
@@ -19,6 +21,9 @@ main = defaultMain $ testGroup "HUnit"
     -- [ test1 ]
 
   [ testLR
+  , testLR_post
+  , testLR_invalid
+  , testLR_empty
   , testBel
   -- , test1
   , test3
@@ -57,10 +62,38 @@ testLR = testCase "lexer and parser" $ do
         Hh.ParseFailed _ -> do
             assertFailure $ show tokens
 
+testLR_post :: TestTree
+testLR_post = testCase "lexer and parser for POST" $ do
+    let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
+        tokens = Hh.alexScanTokens input
+
+    case Hh.parse tokens of
+        Hh.ParseOk _ -> pure ()
+        Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+testLR_invalid :: TestTree
+testLR_invalid = testCase "lexer and parser for invalid input" $ do
+    let input = "INVALID http://httpbin.org/post"
+        tokens = Hh.alexScanTokens input
+
+    case Hh.parse tokens of
+        Hh.ParseOk _ -> assertFailure "Should have failed to parse"
+        Hh.ParseFailed _ -> pure ()
+
+testLR_empty :: TestTree
+testLR_empty = testCase "lexer and parser for empty input" $ do
+    let input = ""
+        tokens = Hh.alexScanTokens input
+
+    case Hh.parse tokens of
+        Hh.ParseOk _ -> assertFailure "Should have failed to parse"
+        Hh.ParseFailed _ -> pure ()
+
 test1 :: TestTree
 test1 = testCase "hh200 analyze" $ do
     let normal = Args { call = False, source = Just "../examples/draft.hhs"
                       , version = False
+                      , shotgun = 1
                       , debugConfig = False
                       }
 
@@ -120,7 +153,7 @@ test3 = testCase "hh200 present" $ do
     --                         , Hh.asserts = []
     --                         }
     --                     }
-    --
+    -- 
     -- expectedPost <- readFile "../examples/post_json.hhs"
     -- assertEqual "post_json.hhs" expectedPost (Hh.present ciPost)
 

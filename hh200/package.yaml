@@ -104,3 +104,5 @@ tests:
     - transformers
     - tasty
     - tasty-hunit
+    - unordered-containers
+    - text
