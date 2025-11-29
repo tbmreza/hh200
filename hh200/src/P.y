@@ -18,7 +18,7 @@ import qualified BEL
 %error { parseError }
 %token
     d           { DIGITS _ $$ }
-    status      { STATUS _ $$ }
+
     identifier  { IDENTIFIER _ $$ }
 
 
@@ -101,7 +101,7 @@ bindings : binding          { RhsDict (HM.fromList [$1]) }
                               RhsDict (HM.insert (fst $2) (snd $2) acc) }
 
 binding :: { Binding }
-binding : identifier ":" s crlf  { ($1, BEL.R (Text.pack "$3 ??: dead rule")) }
+binding : identifier ":" s crlf  { ($1, BEL.R (Text.pack $3)) }
         | identifier rhs crlf    { ($1, BEL.L (Text.pack (drop 1 $2))) }
 
 

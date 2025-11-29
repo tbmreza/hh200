@@ -66,7 +66,7 @@ data Token =
   | METHOD   AlexPosn String  -- GET
 
   | VERSION  AlexPosn String  -- HTTP/1.1
-  | STATUS   AlexPosn Int     -- 500
+
 
   | BRACE_OPN  AlexPosn
   | BRACE_CLS  AlexPosn
