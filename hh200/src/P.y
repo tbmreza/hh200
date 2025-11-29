@@ -98,11 +98,11 @@ response_captures : "[" "Captures" "]" crlf bindings { $5 }
 bindings :: { RhsDict }
 bindings : binding          { RhsDict (HM.fromList [$1]) }
          | bindings binding { let (RhsDict acc) = $1 in
-                              RhsDict (HM.insert (fst $2) (snd $2) acc) }
+                              RhsDict (HM.insertWith (++) (fst $2) (snd $2) acc) }
 
 binding :: { Binding }
-binding : identifier ":" s crlf  { ($1, BEL.R (Text.pack $3)) }
-        | identifier rhs crlf    { ($1, BEL.L (Text.pack (drop 1 $2))) }
+binding : identifier ":" s crlf  { ($1, [BEL.R (Text.pack $3)]) }
+        | identifier rhs crlf    { ($1, [BEL.L (Text.pack (drop 1 $2))]) }
 
 
 response_asserts :: { [String] }

@@ -230,8 +230,8 @@ courseFrom x = do
         renderHeaders :: RhsDict -> IO [(HeaderName, BS.ByteString)]
         renderHeaders (RhsDict bindings) = do
             traverseKV bindings $
-                \(k :: String) (v :: BEL.Part) -> do
-                    av <- BEL.render env (Aeson.String "") [v]
+                \(k :: String) (v :: [BEL.Part]) -> do
+                    av <- BEL.render env (Aeson.String "") v
                     pure (CaseInsensitive.mk (BS.pack k), asBS av)
 
         parseUrl :: IO Prim.Request
@@ -271,11 +271,8 @@ courseFrom x = do
                     Just rs -> captures rs
 
             ext <- (foldlWithKeyM'
-                (\(acc :: Env) bK (bV :: BEL.Part) -> do
-                    v <- (case bV of
-                        BEL.R t -> trace ("R:" ++ show t) $ pure (Aeson.String t)
-                        BEL.L e -> trace ("L:" ++ show e) $ BEL.eval acc e)
-
+                (\(acc :: Env) bK (bV :: [BEL.Part]) -> do
+                    v <- BEL.render acc (Aeson.String "") bV
                     pure $ HM.insert bK v acc)
                 -- Eagerly from the beginning of the fold, acc Env is initialized
                 -- with RESP_BODY.

@@ -52,7 +52,7 @@ newtype UppercaseString = UppercaseString String
 newtype Snippet = Snippet L8.ByteString
 
 -- newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
-newtype RhsDict = RhsDict (HM.HashMap String BEL.Part)
+newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
     deriving (Show, Eq)
 
 mtHM :: HM.HashMap k v
@@ -63,7 +63,7 @@ type Duration = Int
 newtype Subject = Subject String
     deriving (Show, Eq)
 
-type Binding = (String, BEL.Part)
+type Binding = (String, [BEL.Part])
 
 type Env = BEL.Env -- = HM.HashMap String Aeson.Value
 type Log = [String]
@@ -251,7 +251,7 @@ present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec
 showHeaders :: RhsDict -> String
 showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm
   where
-    fmt (k, v) = "\n" ++ k ++ ": " ++ showPart v
+    fmt (k, v) = "\n" ++ k ++ ": " ++ unwords (map showPart v)
 
 showPart :: BEL.Part -> String
 showPart (BEL.R t) = Text.unpack t
