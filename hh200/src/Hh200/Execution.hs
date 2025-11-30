@@ -14,7 +14,7 @@ module Hh200.Execution
 -- testShotgun chatgpt
 import Control.Concurrent       (threadDelay)
 import Control.Concurrent.QSemN
-import Control.Exception        (bracket_)
+import Control.Exception        (bracket_, try)
 import Control.Monad            (forM)
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.ByteString.Lazy as BL
@@ -287,21 +287,22 @@ courseFrom x = do
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
-                    -- Unhandled offline HttpExceptionRequest.
-                    gotResp :: Prim.Response L8.ByteString <- liftIO (Prim.httpLbs req mgr)
+                    eitherResp <- liftIO ((try (Prim.httpLbs req mgr)) :: IO (Either HttpException (Prim.Response L8.ByteString)))
+                    case eitherResp of
+                        Left _ -> pure ci
+                        Right gotResp -> do
+                            -- Captures.
+                            env <- get
 
-                    -- Captures.
-                    env <- get
+                            upsertCaptures :: (Env -> Env) <- liftIO (evalCaptures gotResp (env, mrs))
 
-                    upsertCaptures :: (Env -> Env) <- liftIO (evalCaptures gotResp (env, mrs))
+                            -- Unless null Captures:
+                            modify upsertCaptures
 
-                    -- Unless null Captures:
-                    modify upsertCaptures
-
-                    res <- liftIO $ assertsAreOk env gotResp mrs
-                    case res of
-                        False -> pure ci
-                        _ -> h mgr rest
+                            res <- liftIO $ assertsAreOk env gotResp mrs
+                            case res of
+                                False -> pure ci
+                                _ -> h mgr rest
 
 testOutsideWorld :: Script -> IO Lead
 
