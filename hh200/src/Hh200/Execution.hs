@@ -14,8 +14,10 @@ module Hh200.Execution
 -- testShotgun chatgpt
 import Control.Concurrent       (threadDelay)
 import Control.Concurrent.QSemN
-import Control.Exception        (bracket_, try)
+import Control.Exception        (bracket, bracket_, try)
 import Control.Monad            (forM)
+-- import Control.Monad (replicateM)
+
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.ByteString.Lazy as BL
 import Network.HTTP.Simple
@@ -32,12 +34,14 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Client as Prim
   ( newManager, parseRequest, httpLbs, method, requestBody, requestHeaders, responseStatus, responseBody
   , Manager, Response, Request, RequestBody(..)
+  , closeManager
   )
 
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
+import Data.List (find)
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header (HeaderName)
 import Control.Monad (foldM, forM)
@@ -165,18 +169,15 @@ expectCodesOrDefault mrs =
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: Script -> Prim.Manager -> Env -> IO Lead
 runProcM script mgr env = do
-    results <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
-    let (_mci, finalEnv, _log) = results
-    -- pure (switch results)
-    pure (switch (trace ("finalEnv:\n" ++ show finalEnv) $ results))
+    (mci, finalEnv, log) <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
+    pure $ switch (mci, finalEnv, log)
 
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
-    switch (mci, e, l)
-        | "default" == (ciName $ fromJust mci) =
-            nonLead script
-        | otherwise =
-            leadFrom mci (e, l) script
+    switch (mci, e, l) =
+        case mci of
+            Just ci | "default" == ciName ci -> nonLead script
+            _                                -> leadFrom mci (e, l) script
 
 -- Env is modified, Log appended throughout the body of `courseFrom`.
 --
@@ -327,17 +328,17 @@ testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
-    mgr <- Prim.newManager tlsManagerSettings
     let envNew :: Env = HM.fromList
             [ ("yyyymmdd", Aeson.String "19700101")
             , ("undefined", Aeson.String "falsy")
             ]
-    runProcM sole mgr envNew
+    bracket (Prim.newManager tlsManagerSettings) Prim.closeManager $ \mgr ->
+      runProcM sole mgr envNew
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems = _ }) = do
-    mgr <- Prim.newManager tlsManagerSettings
-    runProcM flow mgr HM.empty
+    bracket (Prim.newManager tlsManagerSettings) Prim.closeManager $ \mgr ->
+      runProcM flow mgr HM.empty
 
 testOutsideWorld unexpected = do
     pure $ nonLead unexpected
@@ -381,15 +382,11 @@ fetch i = do
 
 testShotgun :: Int -> Script -> IO Lead
 testShotgun n checked = do
-    mgr <- Prim.newManager tlsManagerSettings
-    -- let jobs :: [IO L8.ByteString] = map fetch [1..2]
-
-    putStrLn "Running HTTP calls with n parallel workers…"
-    results <- mapConcurrentlyBounded n [runProcM checked mgr HM.empty, runProcM checked mgr HM.empty, runProcM checked mgr HM.empty, runProcM checked mgr HM.empty]
-
-    putStrLn $ "Done. Got " ++ show (length results) ++ " responses."
-
-    runProcM checked mgr HM.empty
+    bracket (Prim.newManager tlsManagerSettings) Prim.closeManager $ \mgr -> do
+      putStrLn $ "Running " ++ show n ++ " HTTP calls with " ++ show n ++ " parallel workers…"
+      results <- mapConcurrentlyBounded n (replicate n (runProcM checked mgr HM.empty))
+      putStrLn $ "Done. Got " ++ show (length results) ++ " responses."
+      pure $ fromMaybe (nonLead checked) (find (not . noNews) results)
 
 
 -- ??: visualize this in 2D gp table
