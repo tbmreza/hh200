@@ -190,6 +190,7 @@ emptyHanded = pure defaultCallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
+    lift $ Tf.tell ["Processing script with " ++ show (length $ callItems x) ++ " call items..."]
     env <- get
     pairs <- liftIO (mapM (buildFrom env) (callItems x))
     liftIOWithMgr pairs
@@ -263,23 +264,24 @@ courseFrom x = do
         -- Reduce captures to Env extensions.
         evalCaptures :: Prim.Response L8.ByteString
                      -> (Env, Maybe ResponseSpec)
-                     -> IO (Env -> Env)
+                     -> IO (Env -> Env, Log)
 
         evalCaptures resp (env, mrs) = do
             let (RhsDict bindings) = case mrs of
                     Nothing -> RhsDict HM.empty
                     Just rs -> captures rs
 
-            ext <- (foldlWithKeyM'
-                (\(acc :: Env) bK (bV :: [BEL.Part]) -> do
-                    v <- BEL.render acc (Aeson.String "") bV
-                    pure $ HM.insert bK v acc)
-                -- Eagerly from the beginning of the fold, acc Env is initialized
-                -- with RESP_BODY.
-                (HM.insert "RESP_BODY" (validJsonBody resp) env)
-                bindings)
+            let initialLog = if HM.null bindings then [] else ["Processing " ++ show (HM.size bindings) ++ " captures..."]
 
-            pure (\_env -> ext)
+            (ext, finalLog) <- foldlWithKeyM'
+                (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+                    v <- BEL.render acc (Aeson.String "") bV
+                    pure (HM.insert bK v acc, logs ++ ["  Captured `" ++ bK ++ "`"])
+                )
+                (HM.insert "RESP_BODY" (validJsonBody resp) env, initialLog)
+                bindings
+
+            pure (const ext, finalLog)
 
         -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
         h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
@@ -287,22 +289,32 @@ courseFrom x = do
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
+                    lift $ Tf.tell ["-- Executing call item `" ++ ciName ci ++ "`"]
+                    -- Unhandled offline HttpExceptionRequest.
                     eitherResp <- liftIO ((try (Prim.httpLbs req mgr)) :: IO (Either HttpException (Prim.Response L8.ByteString)))
                     case eitherResp of
-                        Left _ -> pure ci
-                        Right gotResp -> do
-                            -- Captures.
-                            env <- get
+                      Left e -> do
+                        lift $ Tf.tell ["HTTP request failed: " ++ show e]
+                        pure ci
+                      Right gotResp -> do
+                        lift $ Tf.tell ["Request completed with status: " ++ show (Prim.responseStatus gotResp)]
+                        -- Captures.
+                        env <- get
 
-                            upsertCaptures :: (Env -> Env) <- liftIO (evalCaptures gotResp (env, mrs))
+                        (upsertCaptures, captureLog) <- liftIO (evalCaptures gotResp (env, mrs))
+                        lift $ Tf.tell captureLog
 
-                            -- Unless null Captures:
-                            modify upsertCaptures
+                        -- Unless null Captures:
+                        modify upsertCaptures
 
-                            res <- liftIO $ assertsAreOk env gotResp mrs
-                            case res of
-                                False -> pure ci
-                                _ -> h mgr rest
+                        res <- liftIO $ assertsAreOk env gotResp mrs
+                        case res of
+                            False -> do
+                                lift $ Tf.tell ["Assertions failed."]
+                                pure ci
+                            _ -> do
+                                lift $ Tf.tell ["Assertions passed."]
+                                h mgr rest
 
 testOutsideWorld :: Script -> IO Lead
 
