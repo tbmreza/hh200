@@ -191,7 +191,7 @@ emptyHanded = pure defaultCallItem
 -- that turned out to be failing.
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
-    lift $ Tf.tell ["Processing script with " ++ show (length $ callItems x) ++ " call items..."]
+    lift $ Tf.tell [ScriptStart (length $ callItems x)]
     env <- get
     pairs <- liftIO (mapM (buildFrom env) (callItems x))
     liftIOWithMgr pairs
@@ -263,21 +263,17 @@ courseFrom x = do
 
         where
         -- Reduce captures to Env extensions.
-        evalCaptures :: Prim.Response L8.ByteString
-                     -> (Env, Maybe ResponseSpec)
-                     -> IO (Env -> Env, Log)
-
         evalCaptures resp (env, mrs) = do
             let (RhsDict bindings) = case mrs of
                     Nothing -> RhsDict HM.empty
                     Just rs -> captures rs
 
-            let initialLog = if HM.null bindings then [] else ["Processing " ++ show (HM.size bindings) ++ " captures..."]
+            let initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
 
             (ext, finalLog) <- foldlWithKeyM'
                 (\(acc, logs) bK (bV :: [BEL.Part]) -> do
                     v <- BEL.render acc (Aeson.String "") bV
-                    pure (HM.insert bK v acc, logs ++ ["  Captured `" ++ bK ++ "`"])
+                    pure (HM.insert bK v acc, logs ++ [Captured bK])
                 )
                 (HM.insert "RESP_BODY" (validJsonBody resp) env, initialLog)
                 bindings
@@ -290,15 +286,15 @@ courseFrom x = do
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
-                    lift $ Tf.tell ["-- Executing call item `" ++ ciName ci ++ "`"]
+                    lift $ Tf.tell [ItemStart (ciName ci)]
                     -- Unhandled offline HttpExceptionRequest.
                     eitherResp <- liftIO ((try (Prim.httpLbs req mgr)) :: IO (Either HttpException (Prim.Response L8.ByteString)))
                     case eitherResp of
                       Left e -> do
-                        lift $ Tf.tell ["HTTP request failed: " ++ show e]
+                        lift $ Tf.tell [HttpError (show e)]
                         pure ci
                       Right gotResp -> do
-                        lift $ Tf.tell ["Request completed with status: " ++ show (Prim.responseStatus gotResp)]
+                        lift $ Tf.tell [HttpStatus (statusCode $ Prim.responseStatus gotResp)]
                         -- Captures.
                         env <- get
 
@@ -311,10 +307,10 @@ courseFrom x = do
                         res <- liftIO $ assertsAreOk env gotResp mrs
                         case res of
                             False -> do
-                                lift $ Tf.tell ["Assertions failed."]
+                                lift $ Tf.tell [AssertsFailed]
                                 pure ci
                             _ -> do
-                                lift $ Tf.tell ["Assertions passed."]
+                                lift $ Tf.tell [AssertsPassed]
                                 h mgr rest
 
 testOutsideWorld :: Script -> IO Lead

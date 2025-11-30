@@ -66,7 +66,19 @@ newtype Subject = Subject String
 type Binding = (String, [BEL.Part])
 
 type Env = BEL.Env -- = HM.HashMap String Aeson.Value
-type Log = [String]
+
+data TraceEvent
+  = ScriptStart Int
+  | ItemStart String
+  | HttpError String
+  | HttpStatus Int
+  | CapturesStart Int
+  | Captured String
+  | AssertsFailed
+  | AssertsPassed
+  deriving (Show, Eq)
+
+type Log = [TraceEvent]
 
 
 --------------------------------------------------------------------------------
