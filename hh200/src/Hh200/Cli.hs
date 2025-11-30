@@ -8,6 +8,9 @@ module Hh200.Cli
 
 import Debug.Trace
 
+import Control.Monad (unless)
+import Data.Maybe (fromMaybe)
+
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.IO.Class
@@ -99,48 +102,56 @@ go Args { call = True, source = Just src } = do
                     hPutStrLn stderr "hh200 found an unmet expectation."
                     exitWith (ExitFailure 1)
 
--- Shotgun.
--- hh200 flow.hhs --shotgun=4
-go Args { shotgun = n, call = False, source = Just path } = do
     -- Check if output/o.dat has # x y value header and maybe first data row. Number of bullets also could be a sanity check for something.
     -- let s = Script { config = defaultScriptConfig, callItems = [] }
     -- dp <- testShotgun n s
-    analyzed :: Maybe Script <- runMaybeT $ do
-        script <- Scanner.analyze path
-        liftIO (pure script)
-
-    -- ??: with DataPoint extraction and plotting flow in cli
-
-    let dat = Dat []
-    case analyzed of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s -> do
-            dp <- testShotgun n s
-
-            pure ()
-    -- Rewrites output/o.dat at the end.
 
 -- Script execution.
 -- hh200 flow.hhs
 go Args { call = False, source = Just path } = do
-    analyzed :: Maybe Script <- runMaybeT $ do
-        script <- Scanner.analyze path
-        liftIO (pure script)
-
-    case analyzed of
+    mScript <- runMaybeT (Scanner.analyze path)
+    
+    script <- case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just s -> do
-            lead <- testOutsideWorld s
-            case noNews lead of
-                True ->
-                    -- No news is good news.
-                    pure ()
-                _ -> do
-                    putStrLn $ case firstFailing lead of
-                        Nothing -> "internal error"
-                        Just ci -> present ci
-                    hPutStrLn stderr "hh200 found an unmet expectation."
-                    exitWith (ExitFailure 1)
+        Just s  -> pure s
+
+    lead <- testOutsideWorld script
+
+    -- No news is good news, otherwise:
+    unless (noNews lead) $ do
+        putStrLn $ case firstFailing lead of
+            -- The third and final step of hh200 (presentation).
+            Just ci -> present ci
+            -- Expect no interesting news other than first failing CallItem.
+            Nothing -> undefined
+
+        hPutStrLn stderr "hh200 found an unmet expectation."
+        exitWith (ExitFailure 1)
+
+-- Shotgun.
+-- hh200 flow.hhs --shotgun=4
+go Args { shotgun = n, call = False, source = Just path } = do
+    mScript <- runMaybeT (Scanner.analyze path)
+    
+    script <- case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> pure s
+
+    lead <- testShotgun n script
+
+    -- ??: with DataPoint extraction and plotting flow in cli
+
+    pure ()
+
+    -- let dat = Dat []
+    -- -- case analyzed of
+    -- case Nothing of
+    --     Nothing -> exitWith (ExitFailure 1)
+    --     Just checked -> do
+    --         lead <- testShotgun n checked
+    --         pure ()
+
+    -- Rewrites output/o.dat at the end.
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)

@@ -287,7 +287,7 @@ courseFrom x = do
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
-                    _ <- liftIO $ putStrLn "??: catch offline HttpExceptionRequest, present in turn needs to show the script as is"
+                    -- Unhandled offline HttpExceptionRequest.
                     gotResp :: Prim.Response L8.ByteString <- liftIO (Prim.httpLbs req mgr)
 
                     -- Captures.
@@ -298,15 +298,6 @@ courseFrom x = do
                     -- Unless null Captures:
                     modify upsertCaptures
 
-                    -- Asserts.
-                    -- nice to have bel lines statically checked regardless of the outside
-                    -- world but full evaluation of bel requires outside world results.
-                    --
-                    -- a line doesn't mutate the Env.
-                    --
-                    -- world's and spec's status matching
-
-                    -- res <- liftIO $ assertsAreOk env (trace ("gotResp:" ++ show (Prim.responseBody gotResp)) gotResp) mrs
                     res <- liftIO $ assertsAreOk env gotResp mrs
                     case res of
                         False -> pure ci
@@ -375,17 +366,18 @@ fetch i = do
     putStrLn $ "Finished request " ++ show i
     pure (getResponseBody response)
 
--- testShotgun :: Int -> Script -> IO Lead
-testShotgun :: Int -> Script -> IO DataPoint
-testShotgun n s = do
-    let jobs :: [IO L8.ByteString] = map fetch [1..40]   -- e.g., 40 requests total
-        workers = n                                      -- run n at a time
+testShotgun :: Int -> Script -> IO Lead
+testShotgun n checked = do
+    mgr <- Prim.newManager tlsManagerSettings
+    -- let jobs :: [IO L8.ByteString] = map fetch [1..2]
 
-    putStrLn "Running HTTP calls with 8 parallel workers…"
-    results <- mapConcurrentlyBounded workers jobs
+    putStrLn "Running HTTP calls with n parallel workers…"
+    results <- mapConcurrentlyBounded n [runProcM checked mgr HM.empty, runProcM checked mgr HM.empty, runProcM checked mgr HM.empty, runProcM checked mgr HM.empty]
 
     putStrLn $ "Done. Got " ++ show (length results) ++ " responses."
-    pure $ mkDataPoint n
+
+    runProcM checked mgr HM.empty
+
 
 -- ??: visualize this in 2D gp table
 data DataPoint = DataPoint
