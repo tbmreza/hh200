@@ -87,25 +87,15 @@ go Args { source = Just src, debugConfig = True } = do
                 Nothing -> exitWith (ExitFailure 1)
                 Just s -> print (config s)
 
+-- Script execution.
+-- hh200 flow.hhs
+go Args { shotgun = 1, call = False, source = Just path } =
+    runAnalyzedScript (Scanner.analyze path)
+
 -- Inline program execution.
 -- hh200 --call "GET ..."
-go Args { call = True, source = Just src } = do
-    analyzed :: Maybe Script <- runMaybeT $ do
-        script <- Scanner.analyze (Snippet $ L8.pack src)
-        liftIO (pure script)
-
-    case analyzed of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s -> do
-            lead <- testOutsideWorld s
-            case noNews lead of
-                True -> pure ()
-                _ -> do
-                    putStrLn $ case firstFailing lead of
-                        Nothing -> "internal error"
-                        Just ci -> present ci
-                    hPutStrLn stderr "hh200 found an unmet expectation."
-                    exitWith (ExitFailure 1)
+go Args { call = True, source = Just src } =
+    runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack src))
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
@@ -118,10 +108,38 @@ go Args { rps = True, source = Just path } = do
 
     testRps script
     
--- Script execution.
--- hh200 flow.hhs
-go Args { shotgun = 1, call = False, source = Just path } = do
+-- Shotgun.
+-- hh200 flow.hhs --shotgun=4
+go Args { shotgun = n, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
+    
+    script <- case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> pure s
+
+    lead <- testShotgun n script
+
+    -- ?? : with DataPoint extraction and plotting flow in cli
+
+    pure ()
+
+    -- let dat = Dat []
+    -- -- case analyzed of
+    -- case Nothing of
+    --     Nothing -> exitWith (ExitFailure 1)
+    --     Just checked -> do
+    --         lead <- testShotgun n checked
+    --         pure ()
+
+    -- Rewrites output/o.dat at the end.
+
+-- Verifiable with `echo $?` which prints last exit code in shell.
+go _ = exitWith (ExitFailure 1)
+
+
+runAnalyzedScript :: MaybeT IO Script -> IO ()
+runAnalyzedScript action = do
+    mScript <- runMaybeT action
 
     script <- case mScript of
         Nothing -> exitWith (ExitFailure 1)
@@ -139,31 +157,3 @@ go Args { shotgun = 1, call = False, source = Just path } = do
 
         hPutStrLn stderr "hh200 found an unmet expectation."
         exitWith (ExitFailure 1)
-
--- Shotgun.
--- hh200 flow.hhs --shotgun=4
-go Args { shotgun = n, call = False, source = Just path } = do
-    mScript <- runMaybeT (Scanner.analyze path)
-    
-    script <- case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s  -> pure s
-
-    lead <- testShotgun n script
-
-    -- ??: with DataPoint extraction and plotting flow in cli
-
-    pure ()
-
-    -- let dat = Dat []
-    -- -- case analyzed of
-    -- case Nothing of
-    --     Nothing -> exitWith (ExitFailure 1)
-    --     Just checked -> do
-    --         lead <- testShotgun n checked
-    --         pure ()
-
-    -- Rewrites output/o.dat at the end.
-
--- Verifiable with `echo $?` which prints last exit code in shell.
-go _ = exitWith (ExitFailure 1)
