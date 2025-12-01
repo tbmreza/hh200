@@ -1,0 +1,49 @@
+{
+	"tokenizer": {
+		"root": [
+			{ "include": "@whitespace" },
+			{ "include": "@comments" },
+			{ "include": "@methods" },
+			{ "include": "@keywords" },
+			{ "include": "@strings" },
+			{ "include": "@numbers" },
+			{ "include": "@identifiers" },
+			{ "include": "@delimiters" }
+		],
+
+		"whitespace": [
+			["\\s+", "white"]
+		],
+
+		"comments": [
+			["#.*", "comment"]
+		],
+
+		"methods": [
+			["\\b(?:[Gg][Ee][Tt]|[Pp][Oo][Ss][Tt]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Pp][Aa][Tt][Cc][Hh]|[Oo][Pp][Tt][Ii][Oo][Nn][Ss]|[Hh][Ee][Aa][Dd])(?![a-zA-Z0-9\\-_])", "keyword"]
+		],
+
+		"keywords": [
+			["\\b(?:then|HTTP|Configs|Captures|Asserts)(?![a-zA-Z0-9\\-_])", "keyword"]
+		],
+
+		"strings": [
+			["http[^\\s#]+", "string.link"],
+			["\"[^\"]*\"", "string"]
+		],
+
+		"numbers": [
+			["\\d+", "number"]
+		],
+
+		"identifiers": [
+			["[a-zA-Z_][a-zA-Z0-9\\-_]*", "identifier"]
+		],
+
+		"delimiters": [
+			["[{}[\\\\]():]", "delimiter"],
+			["[.\\/=]", "delimiter"],
+			["[>$]", "delimiter"]
+		]
+	}
+}
