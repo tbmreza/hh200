@@ -1,0 +1,97 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "hh200",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#methods"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#identifiers"
+    },
+    {
+      "include": "#delimiters"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.hh200",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "methods": {
+      "patterns": [
+        {
+          "name": "keyword.control.hh200",
+          "match": "\\b(?i:GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.hh200",
+          "match": "\\b(then|HTTP|Configs|Captures|Asserts)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.hh200",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.hh200",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "markup.underline.link.hh200",
+          "match": "http[^\\s#]+"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hh200",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.hh200",
+          "match": "[a-zA-Z_][a-zA-Z0-9\\-_]*"
+        }
+      ]
+    },
+    "delimiters": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.hh200",
+          "match": "[{}[\\\\\]():./=>]"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.hh200"
+}
