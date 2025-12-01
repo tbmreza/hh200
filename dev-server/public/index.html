@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics Dashboard</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        select { padding: 5px; font-size: 16px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+
+    <h1>Metrics Dashboard</h1>
+
+    <label for="tableSelect">Select Metric:</label>
+    <select id="tableSelect">
+        <option value="" disabled selected>Loading tables...</option>
+    </select>
+
+    <div id="dataContainer">
+        <h2 id="currentTable"></h2>
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const tableSelect = document.getElementById('tableSelect');
+        const dataTableBody = document.querySelector('#dataTable tbody');
+        const currentTableTitle = document.getElementById('currentTable');
+
+        // Fetch tables on load
+        fetch('/api/tables')
+            .then(response => response.json())
+            .then(data => {
+                tableSelect.innerHTML = '<option value="" disabled selected>Select a table</option>';
+                data.tables.forEach(table => {
+                    const option = document.createElement('option');
+                    option.value = table;
+                    option.textContent = table;
+                    tableSelect.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.error('Error fetching tables:', err);
+                tableSelect.innerHTML = '<option disabled>Error loading tables</option>';
+            });
+
+        // Fetch data when table is selected
+        tableSelect.addEventListener('change', (e) => {
+            const tableName = e.target.value;
+            currentTableTitle.textContent = tableName;
+
+            fetch(`/api/data/${tableName}`)
+                .then(response => response.json())
+                .then(data => {
+                    dataTableBody.innerHTML = '';
+                    if (data.data && data.data.length > 0) {
+                        data.data.forEach(row => {
+                            const tr = document.createElement('tr');
+
+                            // Try to format timestamp if it looks like one
+                            let tsDisplay = row.timestamp;
+                            if (typeof row.timestamp === 'number') {
+                                tsDisplay = new Date(row.timestamp).toLocaleString();
+                            }
+
+                            tr.innerHTML = `
+                                <td>${tsDisplay}</td>
+                                <td>${row.value}</td>
+                            `;
+                            dataTableBody.appendChild(tr);
+                        });
+                    } else {
+                        dataTableBody.innerHTML = '<tr><td colspan="2">No data available</td></tr>';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error fetching data:', err);
+                    dataTableBody.innerHTML = '<tr><td colspan="2">Error loading data</td></tr>';
+                });
+        });
+    </script>
+</body>
+</html>
