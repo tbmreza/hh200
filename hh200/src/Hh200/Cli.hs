@@ -108,7 +108,8 @@ go Args { call = True, source = Just src } = do
 
 -- Script execution.
 -- hh200 flow.hhs
-go Args { call = False, source = Just path } = do
+-- go Args { call = False, source = Just path } = do
+go Args { shotgun = 1, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     
     script <- case mScript of

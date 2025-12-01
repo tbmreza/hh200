@@ -377,12 +377,14 @@ fetch i = do
     pure (getResponseBody response)
 
 testShotgun :: Int -> Script -> IO Lead
-testShotgun n checked = do
-    bracket (Prim.newManager tlsManagerSettings) Prim.closeManager $ \mgr -> do
-      putStrLn $ "Running " ++ show n ++ " HTTP calls with " ++ show n ++ " parallel workers…"
-      results <- mapConcurrentlyBounded n (replicate n (runProcM checked mgr HM.empty))
-      putStrLn $ "Done. Got " ++ show (length results) ++ " responses."
-      pure $ fromMaybe (nonLead checked) (find (not . noNews) results)
+testShotgun n checked = bracket (Prim.newManager tlsManagerSettings) -- acquire
+                                Prim.closeManager                    -- release
+                                (\with -> do
+    putStrLn $ "Running HTTP calls with " ++ show n ++ " parallel workers…"
+    results <- mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
+
+    -- pure $ fromMaybe (nonLead checked) (find (not . noNews) results))  -- ??
+    pure $ nonLead checked)
 
 
 -- ??: visualize this in 2D gp table
