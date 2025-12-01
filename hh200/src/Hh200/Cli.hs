@@ -29,6 +29,7 @@ data Args = Args
   , version :: Bool
   , debugConfig :: Bool
   , call :: Bool
+  , rps :: Bool
   , shotgun :: Int
   }
 
@@ -53,6 +54,10 @@ cli = go =<< execParser options where
         <*> switch ( long "call"
                   <> short 'C'
                   <> help "Execute a script snippet directly" )
+
+        <*> switch ( long "rps"
+                  <> short 'R'
+                  <> help "Start \"requests per second\" mode" )
 
         <*> option auto ( long "shotgun"
                        <> short 'S'
@@ -102,16 +107,22 @@ go Args { call = True, source = Just src } = do
                     hPutStrLn stderr "hh200 found an unmet expectation."
                     exitWith (ExitFailure 1)
 
-    -- Check if output/o.dat has # x y value header and maybe first data row. Number of bullets also could be a sanity check for something.
-    -- let s = Script { config = defaultScriptConfig, callItems = [] }
-    -- dp <- testShotgun n s
+-- Inserts timeseries data to a file database and optionally serves a web frontend.
+-- hh200 flow.hhs --rps
+go Args { rps = True, source = Just path } = do
+    mScript <- runMaybeT (Scanner.analyze path)
 
+    script <- case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> pure s
+
+    testRps script
+    
 -- Script execution.
 -- hh200 flow.hhs
--- go Args { call = False, source = Just path } = do
 go Args { shotgun = 1, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
-    
+
     script <- case mScript of
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s

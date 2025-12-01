@@ -3,12 +3,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Execution
-  ( testOutsideWorld
+  ( testOutsideWorld , testShotgun, testRps
   , runProcM
   , assertsAreOk
   , ProcM
   , status200
-  , testShotgun
   ) where
 
 -- testShotgun chatgpt
@@ -347,10 +346,11 @@ testOutsideWorld unexpected = do
 -- -- duration-bound virtual user we name rps (in reference to locust RPS)
 -- -- integrates with vscode test runner
 -- testRps :: Minutes -> Script -> IO ()
--- testOutsideWorld & testShotgun grow hand in hand, while testRps starts
--- a web js server.
-testRps :: IO ()
-testRps = pure ()
+-- testOutsideWorld & testShotgun grow hand in hand, while testRps
+-- starts a web js server.
+-- inserts to sqlite db.
+testRps :: Script -> IO ()
+testRps checked = pure ()
 
 -- -- thread-based parallelism we name shotgun: based on async + QSemN
 -- Thread-based parallelism based on async and QSemN.
