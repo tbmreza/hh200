@@ -1,0 +1,14 @@
+{
+  "name": "dev-server",
+  "version": "1.0.0",
+  "description": "Simple dev server with sqlite demo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "populate": "node populate_db.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.7"
+  }
+}
