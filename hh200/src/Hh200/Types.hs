@@ -252,7 +252,6 @@ noNews :: Lead -> Bool
 noNews (NonLead {}) = True
 noNews _ = False
 
--- ??: haskell override show; present :: Lead -> IO ()  that is printing (show l) before exitWith (ExitFailure 1)
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
  ++ (showHeaders $ headers $ ciRequestSpec ci)

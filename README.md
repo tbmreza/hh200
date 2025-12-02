@@ -7,6 +7,7 @@ The project is in ideation phase (Update late 2025: slowly transitioning to a ha
 ### Surprises
 Some nuggets that are less than mundane when I learned them.
 - Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
+- Show in haskell is not intended to be overriden. https://stackoverflow.com/q/9288883
 
 
 ## Features

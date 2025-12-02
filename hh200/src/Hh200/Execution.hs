@@ -17,6 +17,8 @@ import Control.Exception        (bracket, bracket_, try)
 import Control.Monad            (forM)
 -- import Control.Monad (replicateM)
 
+import qualified Data.Text.Encoding as TE
+
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.ByteString.Lazy as BL
 import Network.HTTP.Simple
@@ -48,7 +50,7 @@ import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import qualified Data.Text as Text
 import           Data.Text (Text)
-import qualified Data.Aeson as Aeson (decode)
+import qualified Data.Aeson as Aeson (decode, encode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified BEL
 
@@ -115,7 +117,8 @@ validJsonBody resp =
         Nothing -> trace "validJsonBody NULL!!!" Aeson.Null
 
 asBS :: Aeson.Value -> BS.ByteString
-asBS _ = ""  -- ??
+asBS (Aeson.String t) = TE.encodeUtf8 t
+asBS v                = BL.toStrict (Aeson.encode v)
 
 textOrMt :: Aeson.Value -> Text
 textOrMt (Aeson.String t) = t
@@ -246,7 +249,7 @@ courseFrom x = do
 
         stringRender :: String -> IO String
         stringRender s = do
-            -- ??: this not a proper use of render; come back after unittesting rendering of mustached urls
+            -- PICKUP this not a proper use of render; come back after unittesting rendering of mustached urls
             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
             -- trace ("s\t" ++ s ++ ";\n" ++ "rendered\t" ++ show rendered ++ ";") (pure $ stringOrMt rendered)
             pure $ stringOrMt rendered
@@ -344,13 +347,16 @@ testOutsideWorld unexpected = do
 -- -- Script { callItems = HM.HashMap name [CallItem] }
 --
 -- -- duration-bound virtual user we name rps (in reference to locust RPS)
--- -- integrates with vscode test runner
--- testRps :: Minutes -> Script -> IO ()
 -- testOutsideWorld & testShotgun grow hand in hand, while testRps
 -- starts a web js server.
 -- inserts to sqlite db.
+
+-- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 testRps :: Script -> IO ()
-testRps checked = pure ()
+testRps checked = do
+    -- The web server is lazy: no start if no row is inserted to db.
+    -- Inserts every second (or to a second-windowed timeseries data).
+    pure ()
 
 -- -- thread-based parallelism we name shotgun: based on async + QSemN
 -- Thread-based parallelism based on async and QSemN.
@@ -367,14 +373,6 @@ mapConcurrentlyBounded n actions = do
                           (signalQSemN sem 1)
                           act)
         actions
-
--- One HTTP request
-fetch :: Int -> IO BL.ByteString
-fetch i = do
-    putStrLn $ "Starting request " ++ show i
-    response <- httpLBS "https://httpbin.org/delay/1"
-    putStrLn $ "Finished request " ++ show i
-    pure (getResponseBody response)
 
 testShotgun :: Int -> Script -> IO Lead
 testShotgun n checked = bracket (Prim.newManager tlsManagerSettings) -- acquire

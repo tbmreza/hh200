@@ -106,6 +106,7 @@ go Args { rps = True, source = Just path } = do
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
+    -- Unminuted mode.
     testRps script
     
 -- Shotgun.

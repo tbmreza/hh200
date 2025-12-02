@@ -23,7 +23,8 @@ https + Secure cookie attr
 
 
 # STASH
-simple but useful actual script; virtual user model
+`ls ~/.local/bin/` checks if `stack install` succeed.
+simple but useful actual script
     release date of host's linux kernel version  uname -r
     GET https://kernel.org/releases.json
     [Captures]
@@ -33,7 +34,21 @@ simple but useful actual script; virtual user model
     > (jsonpath "$.data.timestamp") has KERNEL_VER  # has or contains ??depends on CEL or hurl
     > eyeball KERNEL_VER (jsonpath "$.data.timestamp") "date"
     # eyeball needle haystack dfs_else_bubble
+thread-based parallelism we name shotgun: based on async + QSemN
+    plotter: data point (N, %)
+counter-example presentation based on mvar
+duration-bound virtual user we name rps (in reference to locust RPS)
+whether DataPoint should generalize for all modes of Execution with pro cons
+after above three, decide if doing 1 mill parallel requests is already in sight
 
+
+                    -- Asserts.
+                    -- nice to have bel lines statically checked regardless of the outside
+                    -- world but full evaluation of bel requires outside world results.
+                    --
+                    -- a line doesn't mutate the Env.
+                    --
+                    -- world's and spec's status matching
 
     the mainline branch of the linux kernel last released on (isodate), the date when "event in past <year>"
     ??: pass on isodate to wiki on this day
