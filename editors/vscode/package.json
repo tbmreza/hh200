@@ -1,0 +1,25 @@
+{
+  "name": "hh200-language-support",
+  "displayName": "hh200 Language Support",
+  "description": "Syntax highlighting for hh200 language",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "hh200",
+      "aliases": ["hh200", "hh200"],
+      "extensions": [".hh200"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "hh200",
+      "scopeName": "source.hh200",
+      "path": "./syntaxes/hh200.tmLanguage.json"
+    }]
+  }
+}
