@@ -6,7 +6,7 @@ module Main (main) where
 -- MAIN THESIS OF HH200 (Handzalah, 2024)
 --------------------------------------------------------------------------------
 --
---                                 Execution.testRps           Live.serve
+--                                 Execution.testRps           Graph.serve
 --                                 Execution.testShotgun       Graph.plot
 -- 3-step:        Scanner.analyze  Execution.testOutsideWorld  Cli.present
 -- (deliverable)  (linter hints)   (reality)                   (presentation)

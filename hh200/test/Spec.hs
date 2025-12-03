@@ -18,9 +18,10 @@ import Hh200.Cli
 
 main :: IO ()
 main = defaultMain $ testGroup "HUnit"
-    -- [ test1 ]
+    -- [ testBel ]
 
   [ testLR
+  , testLR_mustache
   , testLR_post
   , testLR_invalid
   , testLR_empty
@@ -62,6 +63,15 @@ testLR = testCase "lexer and parser" $ do
         Hh.ParseFailed _ -> do
             assertFailure $ show tokens
 
+testLR_mustache :: TestTree
+testLR_mustache = testCase "lexer and parser for valid mustached" $ do
+    let input = "POST http://httpbin.org/post&unused={{100}}"
+        tokens = Hh.alexScanTokens input
+
+    case Hh.parse tokens of
+        Hh.ParseOk _ -> pure ()
+        Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
 testLR_post :: TestTree
 testLR_post = testCase "lexer and parser for POST" $ do
     let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
@@ -90,7 +100,7 @@ testLR_empty = testCase "lexer and parser for empty input" $ do
         Hh.ParseFailed _ -> pure ()
 
 test1 :: TestTree
-test1 = testCase "hh200 analyze" $ do
+test1 = testCase "linter hints" $ do
     let normal = Args { call = False, source = Just "../examples/draft.hhs"
                       , version = False
                       , shotgun = 1
@@ -108,10 +118,19 @@ test1 = testCase "hh200 analyze" $ do
 
 
 -- test2 :: TestTree
--- test2 = testCase "hh200 testOutsideWorld" $ do
+-- test2 = testCase "reality" $ do
+
+-- test3_serve :: TestTree
+-- test3_serve = testCase "presentation: graph serve" $ do
+
+-- test3_plot :: TestTree
+-- test3_plot = testCase "presentation: graph plot" $ do
+
+-- test3_present :: TestTree
+-- test3_present = testCase "presentation: cli present" $ do
 
 test3 :: TestTree
-test3 = testCase "hh200 present" $ do
+test3 = testCase "del in favor of test3_which" $ do
     -- 1. hello.hhs
     let ciHello =
             Hh.CallItem { Hh.ciDeps = []

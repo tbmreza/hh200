@@ -152,8 +152,10 @@ assertsAreOk env got mrs = do
     case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
         False -> trace ("dis falz:" ++ show (Prim.responseStatus got) ++ "and:" ++ show (expectCodesOrDefault mrs)) $ pure False
         _ -> do
-            values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt
-            pure $ notElem (Aeson.Bool False) values
+            -- values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt
+            exprs <- mapM (BEL.eval2 env) linesOrMt
+            let values = map (BEL.finalValue env) exprs
+            pure $ notElem (Aeson.Bool False) (trace (show values) values)
     where
     linesOrMt :: [Text]
     linesOrMt = case mrs of
