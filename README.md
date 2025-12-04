@@ -1,5 +1,7 @@
 # hh200 lang
 
+[![CI](https://github.com/tbmreza/hh200/actions/workflows/ci.yml/badge.svg)](https://github.com/tbmreza/hh200/actions/workflows/ci.yml)
+
 ## Contributing
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
 `DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.
