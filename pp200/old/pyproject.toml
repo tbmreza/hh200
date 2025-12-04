@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pp200"
+version = "0.1.0"
+description = "From the creator of hh200"
+authors = [{name = "Reza", email = "rezahandzalah@gmail.com"}]
+dependencies = [ "httpx" , "loguru" , "gevent" , "hypothesis" ]
+
+[project.urls]
+Homepage = "https://github.com/tbmreza/pp200"
+Repository = "https://github.com/tbmreza/pp200.git"
