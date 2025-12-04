@@ -149,18 +149,26 @@ headerJson = ("Content-Type", "application/json")
 -- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
 assertsAreOk :: Env -> Prim.Response a -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
-    case elem (Prim.responseStatus got) (expectCodesOrDefault mrs) of
-        False -> trace ("dis falz:" ++ show (Prim.responseStatus got) ++ "and:" ++ show (expectCodesOrDefault mrs)) $ pure False
-        _ -> do
-            -- values :: [Aeson.Value] <- mapM (BEL.eval env) linesOrMt
-            exprs <- mapM (BEL.eval2 env) linesOrMt
-            let values = map (BEL.finalValue env) exprs
-            pure $ notElem (Aeson.Bool False) (trace (show values) values)
-    where
-    linesOrMt :: [Text]
-    linesOrMt = case mrs of
-        Just rs -> map Text.pack $ asserts rs
-        _ -> []
+    let status =     Prim.responseStatus got
+        expectList = expectCodesOrDefault mrs
+
+    if status `notElem` expectList then do
+        -- ??: test piped std out presentation
+        putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
+        pure False
+    else
+        checkAssertions
+  where
+    -- Extract lines safely; if Nothing, default to empty list
+    assertionLines :: [Text]
+    assertionLines = maybe [] (map Text.pack . asserts) mrs
+
+    -- Whether False can't be found in values.
+    checkAssertions :: IO Bool
+    checkAssertions = do
+        results <- mapM (BEL.eval env) assertionLines
+        let values = map (BEL.finalValue env) results
+        pure (Aeson.Bool False `notElem` values)
 
 expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
 expectCodesOrDefault mrs =
