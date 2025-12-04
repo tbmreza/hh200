@@ -89,7 +89,7 @@ go Args { source = Just src, debugConfig = True } = do
 
 -- Script execution.
 -- hh200 flow.hhs
-go Args { shotgun = 1, call = False, source = Just path } =
+go Args { shotgun = 1, call = False, rps = False, source = Just path } =
     runAnalyzedScript (Scanner.analyze path)
 
 -- Inline program execution.

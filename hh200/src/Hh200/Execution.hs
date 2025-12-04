@@ -24,6 +24,7 @@ import qualified Data.ByteString.Lazy as BL
 import Network.HTTP.Simple
 
 import Hh200.Types
+import Hh200.Graph (connect)
 import Debug.Trace
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.HashMap.Strict as HM
@@ -366,6 +367,7 @@ testRps :: Script -> IO ()
 testRps checked = do
     -- The web server is lazy: no start if no row is inserted to db.
     -- Inserts every second (or to a second-windowed timeseries data).
+    connect "timeseries.db"
     pure ()
 
 -- -- thread-based parallelism we name shotgun: based on async + QSemN

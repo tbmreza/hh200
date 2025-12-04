@@ -42,10 +42,10 @@ library:
   - Hh200.Fearless
   - Hh200.Scanner
   - Hh200.Types
+  - Hh200.Graph
   default-extensions:
   - OverloadedStrings
   dependencies:
-  # from global
   - text
   - transformers
   - process
@@ -62,6 +62,8 @@ library:
   - keys
   - unordered-containers
   - case-insensitive
+  - sqlite-simple
+  - time
   # from library
   - array
   - hashtables

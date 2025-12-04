@@ -120,8 +120,8 @@ test1 = testCase "linter hints" $ do
 -- test2 :: TestTree
 -- test2 = testCase "reality" $ do
 
--- test3_serve :: TestTree
--- test3_serve = testCase "presentation: graph serve" $ do
+-- test3_connect :: TestTree
+-- test3_connect = testCase "presentation: graph connect" $ do
 
 -- test3_plot :: TestTree
 -- test3_plot = testCase "presentation: graph plot" $ do

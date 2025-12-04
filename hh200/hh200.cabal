@@ -32,6 +32,7 @@ library
       Hh200.Fearless
       Hh200.Scanner
       Hh200.Types
+      Hh200.Graph
   other-modules:
       L
       P
@@ -66,8 +67,10 @@ library
     , process
     , random
     , split
+    , sqlite-simple
     , strict
     , text
+    , time
     , toml-parser
     , transformers
     , unordered-containers
