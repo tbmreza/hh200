@@ -20,6 +20,12 @@
       "language": "hh200",
       "scopeName": "source.hh200",
       "path": "./syntaxes/hh200.tmLanguage.json"
-    }]
+    }],
+    "configurationDefaults": {
+      "[hh200]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+      }
+    }
   }
 }
