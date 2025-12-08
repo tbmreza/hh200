@@ -1,2 +1,5 @@
 node_modules/
 metrics.db
+metrics.db-journal
+metrics.db-shm
+bun.lockb

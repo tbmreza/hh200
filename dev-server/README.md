@@ -2,24 +2,23 @@
 
 This folder contains development server utilities for testing and demonstration purposes.
 
-## Node.js SQLite Demo Server
+## SQLite Demo Server
 
-A simple Express.js server that serves timeseries data from an SQLite database.
+A simple web app that serves timeseries data from an SQLite database.
 
-### Setup and Run
 1. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 2. Populate the database (creates `metrics.db` with sample data):
    ```bash
-   npm run populate
+   bun run populate
    ```
 
 3. Start the server:
    ```bash
-   npm run start
+   bun run start
    ```
 
 4. Access the dashboard at [http://localhost:3000](http://localhost:3000).
