@@ -10,12 +10,10 @@ module Hh200.Execution
   , status200
   ) where
 
--- testShotgun chatgpt
 import Control.Concurrent       (threadDelay)
 import Control.Concurrent.QSemN
 import Control.Exception        (bracket, bracket_, try)
 import Control.Monad            (forM)
--- import Control.Monad (replicateM)
 
 import qualified Data.Text.Encoding as TE
 
@@ -24,7 +22,7 @@ import qualified Data.ByteString.Lazy as BL
 import Network.HTTP.Simple
 
 import Hh200.Types
-import Hh200.Graph (connect)
+import Hh200.Graph (connect, plot)
 import Debug.Trace
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.HashMap.Strict as HM
@@ -125,9 +123,6 @@ textOrMt :: Aeson.Value -> Text
 textOrMt (Aeson.String t) = t
 textOrMt _ = ""
 
-stringOrMt :: Aeson.Value -> String
-stringOrMt v = Text.unpack $ textOrMt v
-
 foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
                             -> a
                             -> HM.HashMap k v
@@ -143,9 +138,6 @@ traverseKV hm f =
 headerJson :: (HeaderName, BS.ByteString)
 headerJson = ("Content-Type", "application/json")
 
---------------------------------------------------------------------------------
--- Logic / Execution
---------------------------------------------------------------------------------
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
 assertsAreOk :: Env -> Prim.Response a -> Maybe ResponseSpec -> IO Bool
@@ -233,11 +225,13 @@ courseFrom x = do
         -- Requests with json body.
         | otherwise = do
             struct <- parseUrl
+            -- Render payloads.
             rb <- stringRender (payload $ ciRequestSpec ci)
 
             dorp (ci, (ciResponseSpec ci)) struct
               { Prim.method = asMethod (verb $ ciRequestSpec ci)
               , Prim.requestHeaders = [headerJson]
+                -- ??: if Prim provides RequestBodyLBS for Aeson.Value or haskell structs
               , Prim.requestBody = trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)
               }
 
@@ -251,6 +245,7 @@ courseFrom x = do
 
         parseUrl :: IO Prim.Request
         parseUrl = do
+            -- Render urls.
             rendered <- stringRender (url $ ciRequestSpec ci)
             Prim.parseRequest rendered
 
@@ -260,10 +255,13 @@ courseFrom x = do
 
         stringRender :: String -> IO String
         stringRender s = do
-            -- PICKUP this not a proper use of render; come back after unittesting rendering of mustached urls
+
             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
-            -- trace ("s\t" ++ s ++ ";\n" ++ "rendered\t" ++ show rendered ++ ";") (pure $ stringOrMt rendered)
+
             pure $ stringOrMt rendered
+
+        stringOrMt :: Aeson.Value -> String
+        stringOrMt v = Text.unpack $ textOrMt v
 
         rawPayload :: String -> Prim.RequestBody
         rawPayload s = Prim.RequestBodyLBS $ L8.pack s
@@ -337,30 +335,20 @@ testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
-    let envNew :: Env = HM.fromList
-            [ ("yyyymmdd", Aeson.String "19700101")
-            , ("undefined", Aeson.String "falsy")
-            ]
-    bracket (Prim.newManager tlsManagerSettings) Prim.closeManager $ \mgr ->
-      runProcM sole mgr envNew
+    bracket (Prim.newManager tlsManagerSettings)
+            Prim.closeManager
+            (\with -> runProcM sole with HM.empty)
+
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems = _ }) = do
-    bracket (Prim.newManager tlsManagerSettings) Prim.closeManager $ \mgr ->
-      runProcM flow mgr HM.empty
+    bracket (Prim.newManager tlsManagerSettings)
+            Prim.closeManager
+            (\with -> runProcM flow with HM.empty)
 
 testOutsideWorld unexpected = do
     pure $ nonLead unexpected
 
-
--- -- counter-example presentation based on mvar
--- -- in the normal testOutsideWorld-present combo
--- -- Script { callItems = HM.HashMap name [CallItem] }
---
--- -- duration-bound virtual user we name rps (in reference to locust RPS)
--- testOutsideWorld & testShotgun grow hand in hand, while testRps
--- starts a web js server.
--- inserts to sqlite db.
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 testRps :: Script -> IO ()
@@ -369,12 +357,6 @@ testRps checked = do
     -- Inserts every second (or to a second-windowed timeseries data).
     connect "timeseries.db"
     pure ()
-
--- -- thread-based parallelism we name shotgun: based on async + QSemN
--- Thread-based parallelism based on async and QSemN.
--- Unlike testOutsideWorld, testShotgun is aware of what the (usually two) variables are.
--- Almost like testOutsideWorld can step in a running testShotgun and contribute one number.
--- testOutsideWorld (pre alpha) appends Pct to output/history.dat
 
 -- Limit concurrency with QSemN
 mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
@@ -394,6 +376,7 @@ testShotgun n checked = bracket (Prim.newManager tlsManagerSettings) -- acquire
     results <- mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
 
     -- pure $ fromMaybe (nonLead checked) (find (not . noNews) results))  -- ??
+    -- plot forks results
     pure $ nonLead checked)
 
 

@@ -27,7 +27,7 @@ main = defaultMain $ testGroup "HUnit"
   , testLR_empty
   , testBel
   -- , test1
-  , test3
+  -- , test3
   ]
 
 
@@ -126,12 +126,8 @@ test1 = testCase "linter hints" $ do
 -- test3_plot :: TestTree
 -- test3_plot = testCase "presentation: graph plot" $ do
 
--- test3_present :: TestTree
--- test3_present = testCase "presentation: cli present" $ do
-
-test3 :: TestTree
-test3 = testCase "del in favor of test3_which" $ do
-    -- 1. hello.hhs
+test3_present :: TestTree
+test3_present = testCase "presentation: cli present" $ do
     let ciHello =
             Hh.CallItem { Hh.ciDeps = []
                         , Hh.ciName = "default"

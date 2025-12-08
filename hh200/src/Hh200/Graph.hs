@@ -1,5 +1,6 @@
 module Hh200.Graph
   ( connect
+  , plot
   ) where
 
 import           Control.Exception              (bracket)
@@ -15,27 +16,33 @@ data TimeseriesData = TimeseriesData
   } deriving (Eq, Show)
 
 instance FromRow TimeseriesData where
-  fromRow = TimeseriesData <$> field <*> field
+    fromRow = TimeseriesData <$> field <*> field
 
 instance ToRow TimeseriesData where
-  toRow (TimeseriesData ts val) = toRow (ts, val)
+    toRow (TimeseriesData ts val) = toRow (ts, val)
 
 connect :: FilePath -> IO ()
 connect dbPath =
-  bracket (open dbPath) close $ \conn -> do
-    putStrLn $ "Connected to SQLite database: " ++ dbPath
-    createTable conn
-    insertDummyData conn
-    putStrLn "Dummy data inserted."
+    bracket (open dbPath :: IO Connection)
+            (close)
+            (\with -> do
+                putStrLn $ "Connected to SQLite database: " ++ dbPath
+                createTable with
+                insertDummyData with
+                putStrLn "Dummy data inserted.")
 
 createTable :: Connection -> IO ()
 createTable conn =
-  execute_ conn "CREATE TABLE IF NOT EXISTS timeseries_data (timestamp INTEGER PRIMARY KEY, value REAL)"
+    execute_ conn "CREATE TABLE IF NOT EXISTS timeseries_data (timestamp INTEGER PRIMARY KEY, value REAL)"
 
+-- ??: seeing the frontend at dev-server is believing
 insertDummyData :: Connection -> IO ()
 insertDummyData conn = do
-  void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886400 :: Int64, 10.5 :: Double)
-  void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886460 :: Int64, 12.3 :: Double)
-  void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886520 :: Int64, 11.8 :: Double)
-  void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886580 :: Int64, 15.1 :: Double)
-  void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886640 :: Int64, 13.7 :: Double)
+    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886400 :: Int64, 10.5 :: Double)
+    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886460 :: Int64, 12.3 :: Double)
+    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886520 :: Int64, 11.8 :: Double)
+    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886580 :: Int64, 15.1 :: Double)
+    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886640 :: Int64, 13.7 :: Double)
+
+
+plot = 9
