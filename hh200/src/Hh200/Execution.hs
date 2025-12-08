@@ -28,14 +28,9 @@ import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CaseInsensitive (mk)
-import Network.HTTP.Client.TLS
 import qualified Data.ByteString.Lazy.Char8 as L8
 
-import qualified Network.HTTP.Client as Prim
-  ( newManager, parseRequest, httpLbs, method, requestBody, requestHeaders, responseStatus, responseBody
-  , Manager, Response, Request, RequestBody(..)
-  , closeManager
-  )
+import qualified Hh200.Http as Http
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -55,7 +50,7 @@ import qualified BEL
 
 -- Procedure "may" fail early, "reads" a shared http-client manager instance,
 -- "writes" log as it runs, modifies environment "states" while doing IO.
-type ProcM = MaybeT (Tf.RWST Prim.Manager Log Env IO)
+type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 
 --------------------------------------------------------------------------------
 -- Defaults & Smart Constructors
@@ -109,9 +104,9 @@ _debugLead = DebugLead
 asMethod :: UppercaseString -> BS.ByteString
 asMethod (UppercaseString s) = BS.pack s
 
-validJsonBody :: Prim.Response L8.ByteString -> Aeson.Value
+validJsonBody :: Http.Response -> Aeson.Value
 validJsonBody resp =
-    case Aeson.decode (Prim.responseBody resp) of
+    case Aeson.decode (Http.getBody resp) of
         Just av -> trace ("validJsonBody:\t" ++ show av) av
         Nothing -> trace "validJsonBody NULL!!!" Aeson.Null
 
@@ -140,9 +135,9 @@ headerJson = ("Content-Type", "application/json")
 
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
-assertsAreOk :: Env -> Prim.Response a -> Maybe ResponseSpec -> IO Bool
+assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
-    let status =     Prim.responseStatus got
+    let status =     Http.getStatus got
         expectList = expectCodesOrDefault mrs
 
     if status `notElem` expectList then do
@@ -172,7 +167,7 @@ expectCodesOrDefault mrs =
             expectCodes -> expectCodes
 
 -- Return to user the CallItem which we suspect will fail again.
-runProcM :: Script -> Prim.Manager -> Env -> IO Lead
+runProcM :: Script -> Http.Manager -> Env -> IO Lead
 runProcM script mgr env = do
     (mci, finalEnv, log) <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
     pure $ switch (mci, finalEnv, log)
@@ -206,7 +201,7 @@ courseFrom x = do
     -- [X] dict passing
     -- [ ] concurrency
     -- Build Request and echo CallItem parts.
-    buildFrom :: Env -> CallItem -> IO (Prim.Request, (CallItem, Maybe ResponseSpec))
+    buildFrom :: Env -> CallItem -> IO (Http.Request, (CallItem, Maybe ResponseSpec))
     buildFrom env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
@@ -217,10 +212,10 @@ courseFrom x = do
             --     let (RhsDict unrenderedHeaders) = (headers $ ciRequestSpec ci)
             --     pure [("user-agent", "quinlanarcher@gmail.com")]
 
-            dorp (ci, (ciResponseSpec ci)) struct
-              { Prim.method = asMethod (verb $ ciRequestSpec ci)
-              , Prim.requestHeaders = renderedHeaders
-              }
+            dorp (ci, (ciResponseSpec ci)) $
+                Http.setRequestHeaders renderedHeaders $
+                Http.setMethod (asMethod (verb $ ciRequestSpec ci))
+                struct
 
         -- Requests with json body.
         | otherwise = do
@@ -228,12 +223,11 @@ courseFrom x = do
             -- Render payloads.
             rb <- stringRender (payload $ ciRequestSpec ci)
 
-            dorp (ci, (ciResponseSpec ci)) struct
-              { Prim.method = asMethod (verb $ ciRequestSpec ci)
-              , Prim.requestHeaders = [headerJson]
-                -- ??: if Prim provides RequestBodyLBS for Aeson.Value or haskell structs
-              , Prim.requestBody = trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)
-              }
+            dorp (ci, (ciResponseSpec ci)) $
+                Http.setRequestBody (trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)) $
+                Http.setRequestHeaders [headerJson] $
+                Http.setMethod (asMethod (verb $ ciRequestSpec ci))
+                struct
 
         where
         renderHeaders :: RhsDict -> IO [(HeaderName, BS.ByteString)]
@@ -243,11 +237,11 @@ courseFrom x = do
                     av <- BEL.render env (Aeson.String "") v
                     pure (CaseInsensitive.mk (BS.pack k), asBS av)
 
-        parseUrl :: IO Prim.Request
+        parseUrl :: IO Http.Request
         parseUrl = do
             -- Render urls.
             rendered <- stringRender (url $ ciRequestSpec ci)
-            Prim.parseRequest rendered
+            Http.parseRequest rendered
 
         -- Return swapped product (`dorp` is prod reversed).
         dorp :: a -> b -> IO (b, a)
@@ -263,13 +257,13 @@ courseFrom x = do
         stringOrMt :: Aeson.Value -> String
         stringOrMt v = Text.unpack $ textOrMt v
 
-        rawPayload :: String -> Prim.RequestBody
-        rawPayload s = Prim.RequestBodyLBS $ L8.pack s
+        rawPayload :: String -> Http.RequestBody
+        rawPayload s = Http.lbsBody $ L8.pack s
 
     -- Results arrive here!
-    liftIOWithMgr :: [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
+    liftIOWithMgr :: [(Http.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
     liftIOWithMgr pairs = do
-        mgr :: Prim.Manager <- ask
+        mgr :: Http.Manager <- ask
         h mgr pairs
 
         where
@@ -292,20 +286,20 @@ courseFrom x = do
             pure (const ext, finalLog)
 
         -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
-        h :: Prim.Manager -> [(Prim.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
+        h :: Http.Manager -> [(Http.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
         h mgr list = case list of
                 [] -> emptyHanded
 
                 (req, (ci, mrs)) : rest -> do
                     lift $ Tf.tell [ItemStart (ciName ci)]
                     -- Unhandled offline HttpExceptionRequest.
-                    eitherResp <- liftIO ((try (Prim.httpLbs req mgr)) :: IO (Either HttpException (Prim.Response L8.ByteString)))
+                    eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
                     case eitherResp of
                       Left e -> do
                         lift $ Tf.tell [HttpError (show e)]
                         pure ci
                       Right gotResp -> do
-                        lift $ Tf.tell [HttpStatus (statusCode $ Prim.responseStatus gotResp)]
+                        lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
                         -- Captures.
                         env <- get
 
@@ -335,15 +329,15 @@ testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
-    bracket (Prim.newManager tlsManagerSettings)
-            Prim.closeManager
+    bracket Http.newManager
+            Http.closeManager
             (\with -> runProcM sole with HM.empty)
 
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems = _ }) = do
-    bracket (Prim.newManager tlsManagerSettings)
-            Prim.closeManager
+    bracket Http.newManager
+            Http.closeManager
             (\with -> runProcM flow with HM.empty)
 
 testOutsideWorld unexpected = do
@@ -369,8 +363,8 @@ mapConcurrentlyBounded n actions = do
         actions
 
 testShotgun :: Int -> Script -> IO Lead
-testShotgun n checked = bracket (Prim.newManager tlsManagerSettings) -- acquire
-                                Prim.closeManager                    -- release
+testShotgun n checked = bracket Http.newManager      -- acquire
+                                Http.closeManager    -- release
                                 (\with -> do
     putStrLn $ "Running HTTP calls with " ++ show n ++ " parallel workers…"
     results <- mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))

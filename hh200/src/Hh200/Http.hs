@@ -1,0 +1,60 @@
+module Hh200.Http
+  ( Manager
+  , Request
+  , Response
+  , RequestBody
+  , HttpException
+  , newManager
+  , closeManager
+  , parseRequest
+  , httpLbs
+  , setMethod
+  , setRequestHeaders
+  , setRequestBody
+  , lbsBody
+  , getStatus
+  , getBody
+  ) where
+
+import qualified Network.HTTP.Client as HC
+import qualified Network.HTTP.Client.TLS as HCT
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Char8 as BS
+import Network.HTTP.Types.Status (Status)
+import Network.HTTP.Types.Header (HeaderName)
+
+type Manager = HC.Manager
+type Request = HC.Request
+type Response = HC.Response LBS.ByteString
+type RequestBody = HC.RequestBody
+type HttpException = HC.HttpException
+
+newManager :: IO Manager
+newManager = HC.newManager HCT.tlsManagerSettings
+
+closeManager :: Manager -> IO ()
+closeManager = HC.closeManager
+
+parseRequest :: String -> IO Request
+parseRequest = HC.parseRequest
+
+httpLbs :: Request -> Manager -> IO Response
+httpLbs = HC.httpLbs
+
+setMethod :: BS.ByteString -> Request -> Request
+setMethod m r = r { HC.method = m }
+
+setRequestHeaders :: [(HeaderName, BS.ByteString)] -> Request -> Request
+setRequestHeaders h r = r { HC.requestHeaders = h }
+
+setRequestBody :: RequestBody -> Request -> Request
+setRequestBody b r = r { HC.requestBody = b }
+
+lbsBody :: LBS.ByteString -> RequestBody
+lbsBody = HC.RequestBodyLBS
+
+getStatus :: Response -> Status
+getStatus = HC.responseStatus
+
+getBody :: Response -> LBS.ByteString
+getBody = HC.responseBody
