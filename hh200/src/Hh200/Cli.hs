@@ -9,7 +9,7 @@ module Hh200.Cli
 import Debug.Trace
 
 import Control.Monad (unless)
-import Data.Maybe (fromMaybe)
+-- import Data.Maybe (fromMaybe)
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Monad.Trans.Maybe
@@ -118,7 +118,7 @@ go Args { shotgun = n, call = False, source = Just path } = do
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
-    lead <- testShotgun n script
+    _lead <- testShotgun n script
 
     -- ?? : with DataPoint extraction and plotting flow in cli
 
@@ -139,8 +139,8 @@ go _ = exitWith (ExitFailure 1)
 
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
-runAnalyzedScript action = do
-    mScript <- runMaybeT action
+runAnalyzedScript mis = do
+    mScript <- runMaybeT mis
 
     script <- case mScript of
         Nothing -> exitWith (ExitFailure 1)

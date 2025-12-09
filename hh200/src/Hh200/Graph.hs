@@ -35,7 +35,6 @@ createTable :: Connection -> IO ()
 createTable conn =
     execute_ conn "CREATE TABLE IF NOT EXISTS timeseries_data (timestamp INTEGER PRIMARY KEY, value REAL)"
 
--- ??: seeing the frontend at dev-server is believing
 insertDummyData :: Connection -> IO ()
 insertDummyData conn = do
     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886400 :: Int64, 10.5 :: Double)

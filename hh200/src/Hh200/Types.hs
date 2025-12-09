@@ -22,23 +22,16 @@ where
   -- , Log
   -- ) where
 
-import Debug.Trace
-import Data.List (sortBy)
-import Data.Function (on)
-import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
-import qualified Data.HashMap.Strict as HM
-import qualified Data.ByteString.Char8 as BS
-
-import qualified Data.CaseInsensitive as CaseInsensitive (mk)
 import qualified Data.ByteString.Lazy.Char8 as L8
-
-import Network.HTTP.Types.Status
-import Network.HTTP.Types.Header (HeaderName)
-
-import qualified Data.Text as Text
+import           Data.Function (on)
+import qualified Data.HashMap.Strict as HM
+import           Data.List (sortBy)
+import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import           Data.Text (Text)
-import qualified Data.Aeson as Aeson (decode)
-import qualified Data.Aeson.Types as Aeson (Value(..))
+import qualified Data.Text as Text
+
+import           Network.HTTP.Types.Status
+
 import qualified BEL
 
 

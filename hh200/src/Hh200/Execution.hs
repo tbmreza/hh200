@@ -355,6 +355,7 @@ testRps checked = do
 -- Limit concurrency with QSemN
 mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
 mapConcurrentlyBounded n actions = do
+    -- ??: read up in the book what underlies this fn
     sem <- newQSemN n
     mapConcurrently
         (\act -> bracket_ (waitQSemN sem 1)

@@ -21,6 +21,16 @@ A simple web app that serves timeseries data from an SQLite database.
    bun run start
    ```
 
+### ghci
+```
+ghci  # after installing sqlite lib globally via cabal install --lib sqlite-simple
+:set -XOverloadedStrings
+import Database.SQLite.Simple
+conn <- open "metrics.db"
+execute conn "INSERT INTO cpu_usage (timestamp, value) VALUES (?, ?)" ("1765195198680", "80.12")
+close conn
+```
+
 4. Access the dashboard at [http://localhost:3000](http://localhost:3000).
 
 ## PHP Echo Server
