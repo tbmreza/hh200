@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  hh200:
+    build:
+      context: ../../
+      dockerfile: bin/docker/Dockerfile
+    ports:
+      - "8080:8080" # Expose port for hh200 web UI
+    command: ["hh200", "--web", "--port", "8080"]
+    depends_on:
+      - httpbin
+
+  httpbin:
+    image: kennethreitz/httpbin
+    ports:
+      - "8000:80" # Expose port for httpbin
