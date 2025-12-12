@@ -1,5 +1,3 @@
-# ??: php dev-server url redirection
-
 GET https://fbi.com:9999/ly
 [Config]
 location: true

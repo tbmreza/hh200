@@ -141,8 +141,7 @@ assertsAreOk env got mrs = do
         expectList = expectCodesOrDefault mrs
 
     if status `notElem` expectList then do
-        -- ??: test piped std out presentation
-        putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
+        putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList  -- ??: test piped std out presentation
         pure False
     else
         checkAssertions
@@ -355,7 +354,6 @@ testRps checked = do
 -- Limit concurrency with QSemN
 mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
 mapConcurrentlyBounded n actions = do
-    -- ??: read up in the book what underlies this fn
     sem <- newQSemN n
     mapConcurrently
         (\act -> bracket_ (waitQSemN sem 1)
@@ -375,7 +373,6 @@ testShotgun n checked = bracket Http.newManager      -- acquire
     pure $ nonLead checked)
 
 
--- ??: visualize this in 2D gp table
 data DataPoint = DataPoint
   { shotgunN :: Int
   , shotgunPct :: Double  -- Percentage of user assertions satisfying responses.
