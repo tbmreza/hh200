@@ -109,3 +109,36 @@ GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3q
 HTTP [200 201] ("/downloads/img-{{row}}.jpg" fresh)
 
 ```
+
+## Generating GHC Eventlog
+
+To generate the GHC eventlog for the `hh200` executable, follow these steps:
+
+1.  **Enable event logging in `package.yaml`**:
+    Add the `-eventlog` flag to the `ghc-options` for the `hh200` executable in the `package.yaml` file:
+
+    ```yaml
+    executables:
+      hh200:
+        main:                Main.hs
+        source-dirs:         app
+        ghc-options:
+        - -threaded
+        - -rtsopts
+        - -with-rtsopts=-N
+        - -eventlog
+    ```
+
+2.  **Build the project**:
+    Build the project using `stack`:
+
+    ```sh
+    stack build
+    ```
+
+3.  **Run the executable with RTS options**:
+    Run the executable with the `+RTS -l -RTS` flags to generate the eventlog file. This will create a `hh200.eventlog` file in the current directory.
+
+    ```sh
+    stack exec hh200 -- your_script.hhs +RTS -l -RTS
+    ```

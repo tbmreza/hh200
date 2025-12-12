@@ -89,6 +89,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -eventlog
     dependencies:
     - hh200
 
