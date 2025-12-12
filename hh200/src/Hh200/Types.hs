@@ -98,6 +98,7 @@ data ScriptConfig = ScriptConfig
   , maxDuration :: Maybe Duration
   , subjects1 :: [Subject]
   , subjects :: Ls.NonEmpty Subject
+  , useTls :: Bool
   } deriving (Show, Eq)
 
 data DepsClause = DepsClause
@@ -183,6 +184,7 @@ defaultScriptConfig = ScriptConfig
   , maxDuration = Nothing
   , subjects1 = [Subject "default a"]
   , subjects = (Subject "a") Ls.:| []
+  , useTls = True
   }
 
 dbgScriptConfig :: ScriptConfig
@@ -191,6 +193,7 @@ dbgScriptConfig = ScriptConfig
   , maxDuration = Nothing
   , subjects1 = [Subject "custommm"]
   , subjects = (Subject "a") Ls.:| []
+  , useTls = True
   }
 
 defaultDepsClause :: DepsClause

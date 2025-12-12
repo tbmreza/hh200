@@ -328,14 +328,14 @@ testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
-    bracket Http.newManager
+    bracket (Http.newManager (useTls $ config sole))
             Http.closeManager
             (\with -> runProcM sole with HM.empty)
 
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems = _ }) = do
-    bracket Http.newManager
+    bracket (Http.newManager (useTls $ config flow))
             Http.closeManager
             (\with -> runProcM flow with HM.empty)
 
@@ -362,7 +362,7 @@ mapConcurrentlyBounded n actions = do
         actions
 
 testShotgun :: Int -> Script -> IO Lead
-testShotgun n checked = bracket Http.newManager      -- acquire
+testShotgun n checked = bracket (Http.newManager (useTls $ config checked))      -- acquire
                                 Http.closeManager    -- release
                                 (\with -> do
     putStrLn $ "Running HTTP calls with " ++ show n ++ " parallel workers…"

@@ -25,6 +25,7 @@ main = defaultMain $ testGroup "HUnit"
   , testLR_post
   , testLR_invalid
   , testLR_empty
+  , testLR_config
   , testBel
   -- , test1
   -- , test3
@@ -98,6 +99,18 @@ testLR_empty = testCase "lexer and parser for empty input" $ do
     case Hh.parse tokens of
         Hh.ParseOk _ -> assertFailure "Should have failed to parse"
         Hh.ParseFailed _ -> pure ()
+
+testLR_config :: TestTree
+testLR_config = testCase "lexer and parser for config" $ do
+    let input = "[Configs]\nuse-tls: false\n\nGET http://httpbin.org/get"
+        tokens = Hh.alexScanTokens input
+
+    case Hh.parse tokens of
+        Hh.ParseOk s -> do
+            case Hh.useTls (Hh.config s) of
+                False -> pure ()
+                True -> assertFailure "Should have parsed use-tls: false"
+        Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
 test1 :: TestTree
 test1 = testCase "linter hints" $ do

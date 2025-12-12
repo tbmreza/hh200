@@ -57,11 +57,24 @@ import qualified BEL
 
 %%
 
-script : call_items    { Script { config = defaultScriptConfig, callItems = $1 } }
+script : configs call_items    { Script { config = $1, callItems = $2 } }
+       | call_items    { Script { config = defaultScriptConfig, callItems = $1 } }
        | request       { Script { config = dbgScriptConfig, callItems = [] } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
+
+configs : "[" "Configs" "]" crlf config_items { foldl (\cfg f -> f cfg) defaultScriptConfig $5 }
+
+config_items : config_item              { [$1] }
+             | config_items config_item { $1 ++ [$2] }
+
+config_item : identifier ":" identifier crlf 
+    { \c -> case ($1, $3) of
+        ("use-tls", "false") -> c { useTls = False }
+        ("use-tls", "true")  -> c { useTls = True }
+        _ -> trace ("Unknown config: " ++ $1) c 
+    }
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }
