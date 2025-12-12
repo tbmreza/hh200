@@ -87,6 +87,7 @@ rule : ...
 stack purge  # rm -rf .stack-work
 stack run
 ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
+stack exec hh200 -- --version +RTS -l -RTS  # generates .eventlog
 ```
 
 ## Modelling parallel test users

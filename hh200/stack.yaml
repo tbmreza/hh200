@@ -39,7 +39,7 @@ extra-deps:
   - aeson-jsonpath-0.3.0.2@sha256:765111f324a33a61ae95d0fd91ae7f6bbf01893d1717781e160ec87986f438a3,4203
   # - github: tbmreza/bel-expr
   #   commit: 985f6e8d0
-  - /home/tbmreza/gh/bel-expr
+  - ../../bel-expr
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
