@@ -141,8 +141,8 @@ assertsAreOk env got mrs = do
         expectList = expectCodesOrDefault mrs
 
     if status `notElem` expectList then do
-        -- PICKUP merge with log telling
-        putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList  -- ??: test piped std out presentation
+        -- ??: merge with log telling after it's clear what to print to stdout
+        putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
         pure False
     else
         checkAssertions
@@ -370,7 +370,8 @@ testShotgun n checked = bracket (Http.newManager (useTls $ config checked))
 
     let msg = "Running HTTP calls with " ++ show n ++ " parallel workers…"
 
-    leads <- trace msg $ mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
+    -- ??: print interpreterInfo
+    leads :: [Lead] <- trace msg $ mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
 
     putStrLn "exit code"
 
