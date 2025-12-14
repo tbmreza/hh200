@@ -26,6 +26,7 @@ main = defaultMain $ testGroup "HUnit"
   , testLR_invalid
   , testLR_empty
   , testLR_config
+  , testLR_tlsInference
   , testBel
   , test1
   , test3_present
@@ -109,9 +110,31 @@ testLR_config = testCase "lexer and parser for config" $ do
     case Hh.parse tokens of
         Hh.ParseOk s -> do
             case Hh.useTls (Hh.config s) of
-                False -> pure ()
-                True -> assertFailure "Should have parsed use-tls: false"
+                Just False -> pure ()
+                _ -> assertFailure "Should have parsed use-tls: false"
         Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+testLR_tlsInference :: TestTree
+testLR_tlsInference = testCase "tls inference from url scheme" $ do
+    let inputHttps = "GET https://httpbin.org/get"
+        tokensHttps = Hh.alexScanTokens inputHttps
+
+    case Hh.parse tokensHttps of
+        Hh.ParseOk s -> do
+            case Hh.effectiveTls s of
+                True -> pure ()
+                False -> assertFailure "Should have inferred TLS for https"
+        Hh.ParseFailed _ -> assertFailure $ "Failed to parse https: " ++ show tokensHttps
+
+    let inputHttp = "GET http://httpbin.org/get"
+        tokensHttp = Hh.alexScanTokens inputHttp
+
+    case Hh.parse tokensHttp of
+        Hh.ParseOk s -> do
+            case Hh.effectiveTls s of
+                False -> pure ()
+                True -> assertFailure "Should have inferred no TLS for http"
+        Hh.ParseFailed _ -> assertFailure $ "Failed to parse http: " ++ show tokensHttp
 
 test1 :: TestTree
 test1 = testCase "linter hints" $ do

@@ -216,8 +216,8 @@ happyReduction_9 _
         (HappyTerminal (IDENTIFIER _ happy_var_1))
          =  HappyAbsSyn9
                  (\c -> case (happy_var_1, stripColon happy_var_2) of
-        ("use-tls", "false") -> c { useTls = False }
-        ("use-tls", "true")  -> c { useTls = True }
+        ("use-tls", "false") -> c { useTls = Just False }
+        ("use-tls", "true")  -> c { useTls = Just True }
         _ -> trace ("Unknown config: " ++ happy_var_1) c
         )
 happyReduction_9 _ _ _  = notHappyAtAll 

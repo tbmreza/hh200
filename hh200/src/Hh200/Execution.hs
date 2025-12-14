@@ -333,14 +333,14 @@ testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
-    bracket (Http.newManager (useTls $ config sole))
+    bracket (Http.newManager (effectiveTls sole))
             Http.closeManager
             (\with -> runProcM sole with HM.empty)
 
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems = _ }) = do
-    bracket (Http.newManager (useTls $ config flow))
+    bracket (Http.newManager (effectiveTls flow))
             Http.closeManager
             (\with -> runProcM flow with HM.empty)
 
@@ -366,7 +366,7 @@ mapConcurrentlyBounded n actions = do
         actions
 
 testShotgun :: Int -> Script -> IO ()
-testShotgun n checked = bracket (Http.newManager (useTls $ config checked))
+testShotgun n checked = bracket (Http.newManager (effectiveTls checked))
                                 Http.closeManager
                                 (\with -> do
 

@@ -71,8 +71,8 @@ config_items : config_item              { [$1] }
 
 config_item : identifier rhs crlf 
     { \c -> case ($1, stripColon $2) of
-        ("use-tls", "false") -> c { useTls = False }
-        ("use-tls", "true")  -> c { useTls = True }
+        ("use-tls", "false") -> c { useTls = Just False }
+        ("use-tls", "true")  -> c { useTls = Just True }
         _ -> trace ("Unknown config: " ++ $1) c 
     }
 

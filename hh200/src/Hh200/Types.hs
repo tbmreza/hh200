@@ -25,7 +25,7 @@ where
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Function (on)
 import qualified Data.HashMap.Strict as HM
-import           Data.List (sortBy)
+import           Data.List (sortBy, isPrefixOf)
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -92,7 +92,7 @@ data ScriptConfig = ScriptConfig
   , maxDuration :: Maybe Duration
   , subjects1 :: [Subject]
   , subjects :: Ls.NonEmpty Subject
-  , useTls :: Bool
+  , useTls :: Maybe Bool
   } deriving (Show, Eq)
 
 data DepsClause = DepsClause
@@ -168,7 +168,7 @@ defaultScriptConfig = ScriptConfig
   , maxDuration = Nothing
   , subjects1 = [Subject "default a"]
   , subjects = (Subject "a") Ls.:| []
-  , useTls = True
+  , useTls = Nothing
   }
 
 dbgScriptConfig :: ScriptConfig
@@ -177,8 +177,17 @@ dbgScriptConfig = ScriptConfig
   , maxDuration = Nothing
   , subjects1 = [Subject "custommm"]
   , subjects = (Subject "a") Ls.:| []
-  , useTls = True
+  , useTls = Nothing
   }
+
+effectiveTls :: Script -> Bool
+effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
+effectiveTls Script { callItems = [] } = True
+effectiveTls Script { callItems = (c:_) } =
+    let u = url (ciRequestSpec c)
+    in if "https" `isPrefixOf` u then True
+       else if "http" `isPrefixOf` u then False
+       else True
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
