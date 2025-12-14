@@ -4,23 +4,6 @@
 
 module Hh200.Types
 where
-  -- ( HostInfo(..), defaultHostInfo
-  -- , RequestSpec(..)
-  -- , ResponseSpec(..)
-  -- , DepsClause(..), defaultDepsClause
-  -- , Script(..), ScriptConfig(..), defaultScriptConfig, dbgScriptConfig
-  -- , Snippet(..)
-  -- , pCallItem, CallItem(..), firstFailing, callItemIsDefault
-  -- , UppercaseString, expectUpper, showVerb
-  -- , module Network.HTTP.Types.Status
-  -- , Binding
-  -- , RhsDict(..)
-  -- , show'
-  -- , present, noNews
-  -- , oftenBodyless
-  -- , Env
-  -- , Log
-  -- ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Function (on)
@@ -126,8 +109,6 @@ data ResponseSpec = ResponseSpec
   -- , asserts :: [Text]  -- List of untyped expr line, input for evaluator.
   }
   deriving (Show, Eq)
-
--- gatherHostInfo :: IO HostInfo
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo

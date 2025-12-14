@@ -10,33 +10,28 @@ module Hh200.Execution
   , status200
   ) where
 
-import Control.Concurrent       (threadDelay)
 import Control.Concurrent.QSemN
 import Control.Exception        (bracket, bracket_, try)
-import Control.Monad            (forM)
 
 import qualified Data.Text.Encoding as TE
 
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.ByteString.Lazy as BL
-import Network.HTTP.Simple
 
 import Hh200.Types
-import Hh200.Graph (connect, plot)
+import Hh200.Graph (connect)
 import Debug.Trace
-import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CaseInsensitive (mk)
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Hh200.Http as Http
+import Hh200.Scanner (gatherHostInfo)
 
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
-import Data.Maybe (fromJust, fromMaybe)
-import Data.List (find)
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Header (HeaderName)
 import Control.Monad (foldM, forM)
@@ -73,20 +68,20 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
-nonLead :: Script -> Lead
-nonLead x = Lead
+nonLead :: Script -> HostInfo -> Lead
+nonLead x hi = Lead
   { leadKind = Non
   , firstFailing = Nothing
-  , hostInfo = defaultHostInfo
+  , hostInfo = hi
   , interpreterInfo = (HM.empty, [])
   , echoScript = Just x
   }
 
-leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> Lead
-leadFrom failed el script = Lead
+leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
+leadFrom failed el script hi = Lead
   { leadKind = Normal
   , firstFailing = failed
-  , hostInfo = defaultHostInfo
+  , hostInfo = hi
   , echoScript = Just script
   , interpreterInfo = el
   }
@@ -171,8 +166,8 @@ expectCodesOrDefault mrs =
             expectCodes -> expectCodes
 
 -- Return to user the CallItem which we suspect will fail again.
-runProcM :: Script -> Http.Manager -> Env -> IO Lead
-runProcM script mgr env = do
+runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
+runProcM script mgr env hi = do
     (mci, finalEnv, log) <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
     pure $ switch (mci, finalEnv, log)
 
@@ -180,8 +175,8 @@ runProcM script mgr env = do
     switch :: (Maybe CallItem, Env, Log) -> Lead
     switch (mci, e, l) =
         trace ("final: " ++ show l) $ case mci of
-            Just ci | "default" == ciName ci -> nonLead script
-            _                                -> leadFrom mci (e, l) script
+            Just ci | "default" == ciName ci -> nonLead script hi
+            _                                -> leadFrom mci (e, l) script hi
 
 -- Env is modified, Log appended throughout the body of `courseFrom`.
 --
@@ -326,23 +321,26 @@ testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
 testOutsideWorld static@(Script { config = _, callItems = [] }) = do
-    pure $ nonLead static
+    hi <- gatherHostInfo
+    pure $ nonLead static hi
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld sole@(
     Script
       { config = ScriptConfig { subjects = _ }
       , callItems = [_] }) = do
+    hi <- gatherHostInfo
     bracket (Http.newManager (effectiveTls sole))
             Http.closeManager
-            (\with -> runProcM sole with HM.empty)
+            (\with -> runProcM sole with HM.empty hi)
 
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script { callItems = _ }) = do
+    hi <- gatherHostInfo
     bracket (Http.newManager (effectiveTls flow))
             Http.closeManager
-            (\with -> runProcM flow with HM.empty)
+            (\with -> runProcM flow with HM.empty hi)
 
 
 
@@ -366,21 +364,23 @@ mapConcurrentlyBounded n actions = do
         actions
 
 testShotgun :: Int -> Script -> IO ()
-testShotgun n checked = bracket (Http.newManager (effectiveTls checked))
-                                Http.closeManager
-                                (\with -> do
+testShotgun n checked = do
+    hi <- gatherHostInfo
+    bracket (Http.newManager (effectiveTls checked))
+            Http.closeManager
+            (\with -> do
 
-    let msg = "Running HTTP calls with " ++ show n ++ " parallel workers…"
+                let msg = "Running HTTP calls with " ++ show n ++ " parallel workers…"
 
-    -- ??: print interpreterInfo
-    leads :: [Lead] <- trace msg $ mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
+                -- ??: print interpreterInfo
+                leads :: [Lead] <- trace msg $ mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty hi))
 
-    putStrLn "exit code"
+                putStrLn "exit code"
 
-    -- pure $ fromMaybe (nonLead checked) (find (not . noNews) results))  -- ??
-    -- plot forks results
-    -- pure $ nonLead checked
-    )
+                -- pure $ fromMaybe (nonLead checked) (find (not . noNews) results))  -- ??
+                -- plot forks results
+                -- pure $ nonLead checked
+            )
 
 
 -- thread's:  system start-end times  script success pct  memory
