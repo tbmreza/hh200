@@ -327,14 +327,14 @@ testOutsideWorld static@(Script {config = _, callItems = []}) = do
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld sole@(Script {config = ScriptConfig {subjects = _}, callItems = [_]}) = do
     hi <- pure $ gatherHostInfo sole
-    bracket (Http.newManager (effectiveTls $ config sole)) Http.closeManager $ \with ->
+    bracket (Http.newManager (effectiveTls (config sole) hi)) Http.closeManager $ \with ->
         runProcM sole with HM.empty hi
 
 
 -- -> NonLead | DebugLead | Lead
 testOutsideWorld flow@(Script {callItems = _}) = do
     hi <- pure $ gatherHostInfo flow
-    bracket (Http.newManager (effectiveTls $ config flow)) Http.closeManager $ \with ->
+    bracket (Http.newManager (effectiveTls (config flow) hi)) Http.closeManager $ \with ->
         runProcM flow with HM.empty hi
 
 
@@ -361,7 +361,7 @@ mapConcurrentlyBounded n actions = do
 testShotgun :: Int -> Script -> IO ()
 testShotgun n checked = do
     hi <- pure $ gatherHostInfo checked
-    bracket (Http.newManager (effectiveTls $ config checked)) Http.closeManager $ \with -> do
+    bracket (Http.newManager (effectiveTls (config checked) hi)) Http.closeManager $ \with -> do
         let msg = "testShotgun: checked=" ++ show checked
         _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
             runProcM checked with HM.empty hi

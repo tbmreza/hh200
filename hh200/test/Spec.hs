@@ -7,8 +7,8 @@ import Test.Tasty.HUnit
 import Control.Monad.Trans.Maybe
 import qualified Network.HTTP.Client as Prim
 import qualified Network.HTTP.Client.TLS as Prim (tlsManagerSettings)
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as Text
+-- import qualified Data.HashMap.Strict as HM -- Removed as mtHM is from Hh200.Types
+-- import qualified Data.Text as Text -- Removed as Text is not directly used
 
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
@@ -44,15 +44,15 @@ testBel = testCase "BEL callsite" $ do
 
     case (ok, neg) of
         (True, False) -> pure ()
-        all -> assertFailure (show all)
+        otherCases -> assertFailure (show otherCases)
 
     where
     rsFrom :: [String] -> Maybe Hh.ResponseSpec
-    rsFrom lines = Just $ Hh.ResponseSpec
+    rsFrom rsLines = Just $ Hh.ResponseSpec
       { Hh.statuses = []
       , Hh.output = []
       , Hh.captures = Hh.RhsDict mtHM
-      , Hh.asserts = lines
+      , Hh.asserts = rsLines
       }
 
 testLR :: TestTree
@@ -60,7 +60,7 @@ testLR = testCase "lexer and parser" $ do
     let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
 
     case Hh.parse tokens of
-        Hh.ParseOk v -> do
+        Hh.ParseOk _ -> do
             pure ()
         Hh.ParseFailed _ -> do
             assertFailure $ show tokens
@@ -116,40 +116,37 @@ testLR_config = testCase "lexer and parser for config" $ do
 
 testLR_tlsInference :: TestTree
 testLR_tlsInference = testCase "tls inference from url scheme" $ do
-    let inputHttps = "GET https://httpbin.org/get"
-        tokensHttps = Hh.alexScanTokens inputHttps
+    let inputHttps = Hh.Snippet "GET https://httpbin.org/get"
 
-    case Hh.parse tokensHttps of
-        Hh.ParseOk s -> do
-            case Hh.effectiveTls s of
-                True -> pure ()
-                False -> assertFailure "Should have inferred TLS for https"
-        Hh.ParseFailed _ -> assertFailure $ "Failed to parse https: " ++ show tokensHttps
+    (Just (sHttps, hiHttps)) <- runMaybeT $ Hh.analyzeWithHostInfo inputHttps
+    case Hh.effectiveTls (Hh.config sHttps) hiHttps of
+        True -> pure ()
+        False -> assertFailure "Should have inferred TLS for https"
 
-    let inputHttp = "GET http://httpbin.org/get"
-        tokensHttp = Hh.alexScanTokens inputHttp
+    let inputHttp = Hh.Snippet "GET http://httpbin.org/get"
 
-    case Hh.parse tokensHttp of
-        Hh.ParseOk s -> do
-            case Hh.effectiveTls s of
-                False -> pure ()
-                True -> assertFailure "Should have inferred no TLS for http"
-        Hh.ParseFailed _ -> assertFailure $ "Failed to parse http: " ++ show tokensHttp
+    (Just (sHttp, hiHttp)) <- runMaybeT $ Hh.analyzeWithHostInfo inputHttp
+    case Hh.effectiveTls (Hh.config sHttp) hiHttp of
+        False -> pure ()
+        True -> assertFailure "Should have inferred no TLS for http"
 
 test1 :: TestTree
 test1 = testCase "linter hints" $ do
-    let cli = Args { call = False, source = Just "../examples/get_json.hhs"
+    let testCli = Args { call = False, source = Just "../examples/get_json.hhs"
                    , version = False
                    , shotgun = 1
                    , debugConfig = False
+                   , rps = False -- Added to initialize missing field
                    }
-        Just path = source cli
 
-    ms <- runMaybeT (Hh.analyze path)
+    case source testCli of
+        Just path -> do
+            ms <- runMaybeT (Hh.analyze path)
 
-    case ms of
-        Just els@(Hh.Script {Hh.callItems = []}) -> assertFailure $ show els  -- ??: linter model
-        els -> pure ()
+            case ms of
+                Just els@(Hh.Script {Hh.callItems = []}) -> assertFailure $ show els  -- ??: linter model
+                _ -> pure () -- Renamed els to _
+        Nothing -> assertFailure "Source path is Nothing"
 
 
 -- test2 :: TestTree

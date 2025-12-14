@@ -206,9 +206,10 @@ dbgScriptConfig = ScriptConfig
   , useTls = Nothing
   }
 
-effectiveTls :: ScriptConfig -> Bool
-effectiveTls ScriptConfig { useTls = Just b } = b
-effectiveTls ScriptConfig { useTls = Nothing } = True -- Default to TLS if not specified
+effectiveTls :: ScriptConfig -> HostInfo -> Bool
+effectiveTls ScriptConfig { useTls = Just b } _ = b
+effectiveTls ScriptConfig { useTls = Nothing } HostInfo { hiTls = Just b } = b
+effectiveTls _ _ = True -- Default to TLS if not specified by either ScriptConfig or HostInfo
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
