@@ -24,7 +24,7 @@ import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
 
 data Args = Args
-  { source  :: Maybe String
+  { source :: Maybe String
   , version :: Bool
   , debugConfig :: Bool
   , call :: Bool

@@ -18,7 +18,7 @@ import Hh200.Cli
 
 main :: IO ()
 main = defaultMain $ testGroup "HUnit"
-    -- [ testBel ]
+    -- [ test3_present ]
 
   [ testLR
   , testLR_mustache
@@ -27,8 +27,8 @@ main = defaultMain $ testGroup "HUnit"
   , testLR_empty
   , testLR_config
   , testBel
-  -- , test1
-  -- , test3
+  , test1
+  , test3_present
   ]
 
 
@@ -115,20 +115,18 @@ testLR_config = testCase "lexer and parser for config" $ do
 
 test1 :: TestTree
 test1 = testCase "linter hints" $ do
-    let normal = Args { call = False, source = Just "../examples/draft.hhs"
-                      , version = False
-                      , shotgun = 1
-                      , debugConfig = False
-                      }
+    let cli = Args { call = False, source = Just "../examples/get_json.hhs"
+                   , version = False
+                   , shotgun = 1
+                   , debugConfig = False
+                   }
+        Just path = source cli
 
-    let (Just path) = source normal
+    ms <- runMaybeT (Hh.analyze path)
 
-    Just analyzed <- runMaybeT $ do
-        script <- Hh.analyze path
-        pure script
-
-    case analyzed == Hh.Script { Hh.config = Hh.defaultScriptConfig, Hh.callItems = [] } of
-        _ -> assertFailure $ show analyzed
+    case ms of
+        Just els@(Hh.Script {Hh.callItems = []}) -> assertFailure $ show els  -- ??: linter model
+        els -> pure ()
 
 
 -- test2 :: TestTree
