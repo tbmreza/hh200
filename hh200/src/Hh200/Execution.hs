@@ -344,8 +344,7 @@ testOutsideWorld flow@(Script { callItems = _ }) = do
             Http.closeManager
             (\with -> runProcM flow with HM.empty)
 
-testOutsideWorld unexpected = do
-    pure $ nonLead unexpected
+
 
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.

@@ -57,9 +57,9 @@ import qualified BEL
 
 %%
 
-script : configs call_items    { Script { config = $1, callItems = $2 } }
-       | call_items    { Script { config = defaultScriptConfig, callItems = $1 } }
-       | request       { Script { config = dbgScriptConfig, callItems = [] } }
+script : configs call_items    { Script { kind = Regular, config = $1, callItems = $2 } }
+       | call_items    { Script { kind = Regular, config = defaultScriptConfig, callItems = $1 } }
+       | request       { Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }

@@ -44,7 +44,6 @@ newtype UppercaseString = UppercaseString String
 
 newtype Snippet = Snippet L8.ByteString
 
--- newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
 newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
     deriving (Show, Eq)
 
@@ -78,19 +77,14 @@ type Log = [TraceEvent]
 -- Core Data Types
 --------------------------------------------------------------------------------
 
-data Script =
-    Script
-      { config :: ScriptConfig
-      , callItems :: [CallItem]
-      }
-  | StaticScript
-      { config :: ScriptConfig
-      , callItems :: [CallItem]
-      }
-  | SoleScript
-      { config :: ScriptConfig
-      , callItems :: [CallItem]
-      }
+data ScriptKind = Regular | Static | Sole
+    deriving (Show, Eq)
+
+data Script = Script
+  { kind :: ScriptKind
+  , config :: ScriptConfig
+  , callItems :: [CallItem]
+  }
   deriving (Show, Eq)
 
 data ScriptConfig = ScriptConfig
