@@ -74,8 +74,9 @@ defaultCallItem = CallItem
   }
 
 nonLead :: Script -> Lead
-nonLead x = NonLead
-  { firstFailing = Nothing
+nonLead x = Lead
+  { leadKind = Non
+  , firstFailing = Nothing
   , hostInfo = defaultHostInfo
   , interpreterInfo = (HM.empty, [])
   , echoScript = Just x
@@ -83,15 +84,17 @@ nonLead x = NonLead
 
 leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> Lead
 leadFrom failed el script = Lead
-  { firstFailing = failed
+  { leadKind = Normal
+  , firstFailing = failed
   , hostInfo = defaultHostInfo
   , echoScript = Just script
   , interpreterInfo = el
   }
 
 _debugLead :: Lead
-_debugLead = DebugLead
-  { firstFailing = Nothing
+_debugLead = Lead
+  { leadKind = Debug
+  , firstFailing = Nothing
   , hostInfo = defaultHostInfo
   , echoScript = Nothing
   , interpreterInfo = (HM.empty, [])

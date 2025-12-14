@@ -146,26 +146,13 @@ data LeadKind = Normal | Debug | Non
 
 -- Everything one could ask for when debugging a failing script.
 -- ??: pct field to append to .dat
-data Lead =
-    Lead
-      { firstFailing :: Maybe CallItem
-      , hostInfo ::     HostInfo
-      , interpreterInfo :: (Env, Log)
-      , echoScript ::   Maybe Script
-      }
-  | DebugLead
-      { firstFailing :: Maybe CallItem
-      , hostInfo ::     HostInfo
-      , interpreterInfo :: (Env, Log)
-      , echoScript ::   Maybe Script
-      }
-  | NonLead
-      { firstFailing :: Maybe CallItem
-      , hostInfo ::     HostInfo
-      , interpreterInfo :: (Env, Log)
-      , echoScript ::   Maybe Script
-      }
-  deriving (Show)
+data Lead = Lead
+  { leadKind ::        LeadKind
+  , firstFailing ::    Maybe CallItem
+  , hostInfo ::        HostInfo
+  , interpreterInfo :: (Env, Log)
+  , echoScript ::      Maybe Script
+  } deriving (Show)
 
 data InternalError = OutOfBounds
                    | Todo
@@ -248,7 +235,7 @@ oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
 noNews :: Lead -> Bool
-noNews (NonLead {}) = True
+noNews (Lead { leadKind = Non }) = True
 noNews _ = False
 
 present :: CallItem -> String
