@@ -63,6 +63,7 @@ library
     , http-types
     , keys
     , mtl
+    , network-uri >=2.6 && <3
     , optparse-applicative
     , parsec
     , process

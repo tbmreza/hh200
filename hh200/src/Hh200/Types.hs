@@ -3,12 +3,53 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Types
-where
+    ( UppercaseString (..)
+    , Snippet (..)
+    , RhsDict (..)
+    , mtHM
+    , Duration
+    , Subject (..)
+    , Binding
+    , Env
+    , TraceEvent (..)
+    , Log
+    , ScriptKind (..)
+    , Script (..)
+    , ScriptConfig (..)
+    , DepsClause (..)
+    , CallItem (..)
+    , RequestSpec (..)
+    , ResponseSpec (..)
+    , HostInfo (..)
+    , LeadKind (..)
+    , Lead (..)
+    , InternalError (..)
+    , HhError (..)
+    , defaultScriptConfig
+    , dbgScriptConfig
+    , effectiveTls
+    , defaultDepsClause
+    , pCallItem
+    , callItemIsDefault
+    , defaultHostInfo
+    , defaultLead
+    , show'
+    , trimQuotes
+    , expectUpper
+    , showVerb
+    , oftenBodyless
+    , noNews
+    , present
+    , showHeaders
+    , showPart
+    , showResponse
+    , Dat (..)
+    ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Function (on)
 import qualified Data.HashMap.Strict as HM
-import           Data.List (sortBy, isPrefixOf)
+import           Data.List (sortBy)
 import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -112,8 +153,12 @@ data ResponseSpec = ResponseSpec
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo
-  { hiUptime ::    Maybe String
-  , hiHh200Conf :: Maybe ScriptConfig
+  { hiAddr ::        Maybe String
+  , hiHh200Conf ::   Maybe ScriptConfig
+  , hiHost ::        Maybe String
+  , hiPort ::        Maybe Int
+  , hiTls ::         Maybe Bool
+  , hiUptime ::      Maybe String
   } deriving (Show, Eq)
 
 data LeadKind = Normal | Debug | Non
@@ -161,14 +206,9 @@ dbgScriptConfig = ScriptConfig
   , useTls = Nothing
   }
 
-effectiveTls :: Script -> Bool
-effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
-effectiveTls Script { callItems = [] } = True
-effectiveTls Script { callItems = (c:_) } =
-    let u = url (ciRequestSpec c)
-    in if "https" `isPrefixOf` u then True
-       else if "http" `isPrefixOf` u then False
-       else True
+effectiveTls :: ScriptConfig -> Bool
+effectiveTls ScriptConfig { useTls = Just b } = b
+effectiveTls ScriptConfig { useTls = Nothing } = True -- Default to TLS if not specified
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
@@ -187,9 +227,22 @@ callItemIsDefault CallItem { ciName } = ciName == "default"
 
 defaultHostInfo :: HostInfo
 defaultHostInfo = HostInfo
-  { hiUptime = Nothing
+  { hiAddr = Nothing
   , hiHh200Conf = Nothing
+  , hiHost = Nothing
+  , hiPort = Nothing
+  , hiTls = Nothing
+  , hiUptime = Nothing
   }
+
+defaultLead :: Lead
+defaultLead = Lead
+    { leadKind = Normal
+    , firstFailing = Nothing
+    , hostInfo = defaultHostInfo
+    , interpreterInfo = (HM.empty, [])
+    , echoScript = Nothing
+    }
 
 
 --------------------------------------------------------------------------------

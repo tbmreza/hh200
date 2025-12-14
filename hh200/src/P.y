@@ -90,19 +90,19 @@ request  : method url crlf bindings braced crlf { RequestSpec { verb = expectUpp
          | url crlf                             { RequestSpec { verb = expectUpper "GET", url = $1, headers = RhsDict HM.empty, payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
-         { trace "rs1" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
+         { ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf response_captures crlf
-         { trace "rs2" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
+         { ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
-         { trace "rs3" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
+         { ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | response_captures crlf response_asserts crlf
-         { trace "rs4" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
+         { ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
 
          | response_captures crlf
-         { trace "rs5" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
+         { ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
 
 response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }

@@ -11,12 +11,13 @@ module Hh200.Scanner
     ) where
 
 import Debug.Trace
-import Hh200.Types
+import Hh200.Types (Script(..), HostInfo(..), Snippet(..), CallItem(..), RequestSpec(..), url, hiHh200Conf, defaultHostInfo)
 import L
 import P
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 import System.Directory (doesFileExist)
+import Network.URI (parseURI, uriScheme, uriAuthority, uriPort, uriRegName)
 
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
@@ -45,13 +46,32 @@ readScript path = do
             -- putStrLn $ show tokensOrPanic
             pure $ Just s
 
+gatherHostInfo :: Script -> HostInfo
+gatherHostInfo script =
+    let mUrl = case callItems script of
+                (ci:_) -> Just (url (ciRequestSpec ci))
+                _      -> Nothing
+        (host, port, tls) = case mUrl >>= parseURI of
+            Just uri ->
+                let scheme = uriScheme uri
+                    isTls = if scheme == "https:" then Just True else if scheme == "http:" then Just False else Nothing
+                    mAuth = uriAuthority uri
+                in case mAuth of
+                    Just auth -> (Just (uriRegName auth), readPort (uriPort auth), isTls)
+                    Nothing   -> (Nothing, Nothing, isTls)
+            Nothing -> (Nothing, Nothing, Nothing)
+    in defaultHostInfo { hiHost = host, hiPort = port, hiTls = tls }
+    where
+        readPort :: String -> Maybe Int
+        readPort (':':ps) = case reads ps of
+                                [(p, "")] -> Just p
+                                _         -> Nothing
+        readPort _        = Nothing
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
+    analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
 
-gatherHostInfo :: IO HostInfo
-gatherHostInfo = do
-    return defaultHostInfo
 
 instance Analyze FilePath where
     -- -> Nothing | StaticScript | SoleScript? | Script
@@ -65,27 +85,29 @@ instance Analyze FilePath where
             _ -> do
                 readScript path
 
+    analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
+    analyzeWithHostInfo path = do
+        script <- analyze path
+        pure (script, gatherHostInfo script)
+
+
 instance Analyze Snippet where
     -- -> Nothing | SoleScript
     analyze :: Snippet -> MaybeT IO Script
     analyze s@(Snippet _) = do
-        let opt :: Maybe Script = Hh200.Scanner.scriptFrom s
+        (script, _) <- analyzeWithHostInfo s
+        pure script
 
-        -- liftIO (putStrLn "casing Snippet::analyze....")
+    analyzeWithHostInfo :: Snippet -> MaybeT IO (Script, HostInfo)
+    analyzeWithHostInfo s@(Snippet _) = do
+        let opt :: Maybe Script = Hh200.Scanner.scriptFrom s
 
         MaybeT $ case opt of
             Nothing -> do
                 trace "analyzed Nothing" (return Nothing)
             Just baseScript -> do
-                hi <- gatherHostInfo
-                let scOpt :: Maybe ScriptConfig = hiHh200Conf hi
-                return (Just $ soleScript baseScript scOpt)
-
-        where
-        soleScript :: Script -> Maybe ScriptConfig -> Script
-        soleScript base _ =
-            let effective = config base in  -- ??: https://httpie.io/docs/cli/configurable-options
-            let build :: Script = base
-                  { config = effective
-                  } in
-            build
+                let hi = gatherHostInfo baseScript
+                let scriptWithConfig = case hiHh200Conf hi of
+                                            Just sc -> baseScript { config = sc }
+                                            Nothing -> baseScript
+                return (Just (scriptWithConfig, hi))

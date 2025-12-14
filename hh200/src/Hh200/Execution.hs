@@ -168,8 +168,8 @@ expectCodesOrDefault mrs =
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
-    (mci, finalEnv, log) <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
-    pure $ switch (mci, finalEnv, log)
+    (mci, finalEnv, procLog) <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
+    pure $ switch (mci, finalEnv, procLog)
 
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
@@ -320,34 +320,29 @@ courseFrom x = do
 testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
-testOutsideWorld static@(Script { config = _, callItems = [] }) = do
-    hi <- gatherHostInfo
+testOutsideWorld static@(Script {config = _, callItems = []}) = do
+    hi <- pure $ gatherHostInfo static
     pure $ nonLead static hi
 
 -- -> NonLead | DebugLead | Lead
-testOutsideWorld sole@(
-    Script
-      { config = ScriptConfig { subjects = _ }
-      , callItems = [_] }) = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls sole))
-            Http.closeManager
-            (\with -> runProcM sole with HM.empty hi)
+testOutsideWorld sole@(Script {config = ScriptConfig {subjects = _}, callItems = [_]}) = do
+    hi <- pure $ gatherHostInfo sole
+    bracket (Http.newManager (effectiveTls $ config sole)) Http.closeManager $ \with ->
+        runProcM sole with HM.empty hi
 
 
 -- -> NonLead | DebugLead | Lead
-testOutsideWorld flow@(Script { callItems = _ }) = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls flow))
-            Http.closeManager
-            (\with -> runProcM flow with HM.empty hi)
+testOutsideWorld flow@(Script {callItems = _}) = do
+    hi <- pure $ gatherHostInfo flow
+    bracket (Http.newManager (effectiveTls $ config flow)) Http.closeManager $ \with ->
+        runProcM flow with HM.empty hi
 
 
 
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 testRps :: Script -> IO ()
-testRps checked = do
+testRps _ = do
     -- The web server is lazy: no start if no row is inserted to db.
     -- Inserts every second (or to a second-windowed timeseries data).
     connect "timeseries.db"
@@ -365,22 +360,12 @@ mapConcurrentlyBounded n actions = do
 
 testShotgun :: Int -> Script -> IO ()
 testShotgun n checked = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls checked))
-            Http.closeManager
-            (\with -> do
-
-                let msg = "Running HTTP calls with " ++ show n ++ " parallel workers…"
-
-                -- ??: print interpreterInfo
-                leads :: [Lead] <- trace msg $ mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty hi))
-
-                putStrLn "exit code"
-
-                -- pure $ fromMaybe (nonLead checked) (find (not . noNews) results))  -- ??
-                -- plot forks results
-                -- pure $ nonLead checked
-            )
+    hi <- pure $ gatherHostInfo checked
+    bracket (Http.newManager (effectiveTls $ config checked)) Http.closeManager $ \with -> do
+        let msg = "testShotgun: checked=" ++ show checked
+        _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
+            runProcM checked with HM.empty hi
+        pure ()
 
 
 -- thread's:  system start-end times  script success pct  memory

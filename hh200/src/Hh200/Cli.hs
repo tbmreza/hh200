@@ -6,7 +6,7 @@ module Hh200.Cli
   , go, Args(..)
   ) where
 
-import Debug.Trace
+
 
 import Control.Monad (unless)
 

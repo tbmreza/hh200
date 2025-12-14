@@ -65,6 +65,7 @@ library:
   - case-insensitive
   - sqlite-simple
   - time
+  - network-uri >= 2.6 && < 3
   # from library
   - array
   - hashtables
