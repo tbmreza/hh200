@@ -9,7 +9,6 @@ module Hh200.Cli
 import Debug.Trace
 
 import Control.Monad (unless)
--- import Data.Maybe (fromMaybe)
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Monad.Trans.Maybe
@@ -108,7 +107,7 @@ go Args { rps = True, source = Just path } = do
 
     -- Unminuted mode.
     testRps script
-    
+
 -- Shotgun.
 -- hh200 flow.hhs --shotgun=4
 go Args { shotgun = n, call = False, source = Just path } = do
@@ -122,15 +121,7 @@ go Args { shotgun = n, call = False, source = Just path } = do
 
     -- ?? : with DataPoint extraction and plotting flow in cli
 
-    pure ()
-
-    -- let dat = Dat []
-    -- -- case analyzed of
-    -- case Nothing of
-    --     Nothing -> exitWith (ExitFailure 1)
-    --     Just checked -> do
-    --         lead <- testShotgun n checked
-    --         pure ()
+    exitWith (ExitFailure 1)
 
     -- Rewrites output/o.dat at the end.
 

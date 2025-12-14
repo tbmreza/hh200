@@ -102,6 +102,7 @@ testLR_empty = testCase "lexer and parser for empty input" $ do
 
 testLR_config :: TestTree
 testLR_config = testCase "lexer and parser for config" $ do
+    -- ??: proper url scheme reading after tls logic via shotgun ok
     let input = "[Configs]\nuse-tls: false\n\nGET http://httpbin.org/get"
         tokens = Hh.alexScanTokens input
 

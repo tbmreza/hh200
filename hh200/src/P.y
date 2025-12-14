@@ -69,8 +69,8 @@ configs : "[" "Configs" "]" crlf config_items { foldl (\cfg f -> f cfg) defaultS
 config_items : config_item              { [$1] }
              | config_items config_item { $1 ++ [$2] }
 
-config_item : identifier ":" identifier crlf 
-    { \c -> case ($1, $3) of
+config_item : identifier rhs crlf 
+    { \c -> case ($1, stripColon $2) of
         ("use-tls", "false") -> c { useTls = False }
         ("use-tls", "true")  -> c { useTls = True }
         _ -> trace ("Unknown config: " ++ $1) c 
@@ -148,6 +148,8 @@ call_items : call_item crlf           { [$1] }
 statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
 
+stripColon :: String -> String
+stripColon s = dropWhile (\c -> c == ':' || c == ' ') s
 
 parseError :: [Token] -> E a
 parseError tokens = failE $ "Parse error on tokens: " ++ show tokens

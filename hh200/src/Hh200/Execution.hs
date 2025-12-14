@@ -141,11 +141,13 @@ assertsAreOk env got mrs = do
         expectList = expectCodesOrDefault mrs
 
     if status `notElem` expectList then do
+        -- PICKUP merge with log telling
         putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList  -- ??: test piped std out presentation
         pure False
     else
         checkAssertions
-  where
+
+    where
     -- Extract lines safely; if Nothing, default to empty list
     assertionLines :: [Text]
     assertionLines = maybe [] (map Text.pack . asserts) mrs
@@ -174,7 +176,7 @@ runProcM script mgr env = do
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
     switch (mci, e, l) =
-        case mci of
+        trace ("final: " ++ show l) $ case mci of
             Just ci | "default" == ciName ci -> nonLead script
             _                                -> leadFrom mci (e, l) script
 
@@ -361,21 +363,28 @@ mapConcurrentlyBounded n actions = do
                           act)
         actions
 
-testShotgun :: Int -> Script -> IO Lead
-testShotgun n checked = bracket (Http.newManager (useTls $ config checked))      -- acquire
-                                Http.closeManager    -- release
+testShotgun :: Int -> Script -> IO ()
+testShotgun n checked = bracket (Http.newManager (useTls $ config checked))
+                                Http.closeManager
                                 (\with -> do
-    putStrLn $ "Running HTTP calls with " ++ show n ++ " parallel workers…"
-    results <- mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
+
+    let msg = "Running HTTP calls with " ++ show n ++ " parallel workers…"
+
+    leads <- trace msg $ mapConcurrentlyBounded n (replicate n (runProcM checked with HM.empty))
+
+    putStrLn "exit code"
 
     -- pure $ fromMaybe (nonLead checked) (find (not . noNews) results))  -- ??
     -- plot forks results
-    pure $ nonLead checked)
+    -- pure $ nonLead checked
+    )
 
 
-data DataPoint = DataPoint
-  { shotgunN :: Int
-  , shotgunPct :: Double  -- Percentage of user assertions satisfying responses.
-  }
-mkDataPoint :: Int -> DataPoint
-mkDataPoint n = DataPoint { shotgunN = n, shotgunPct = 0.0 }
+-- thread's:  system start-end times  script success pct  memory
+-- data DataPoint = DataPoint
+--   { shotgunN :: Int
+--   , shotgunPct :: Double  -- Percentage of user assertions satisfying responses.
+--   }
+
+-- mkDataPoint :: Int -> DataPoint
+-- mkDataPoint n = DataPoint { shotgunN = n, shotgunPct = 0.0 }
