@@ -133,6 +133,8 @@ headerJson = ("Content-Type", "application/json")
 
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
+-- ??
+-- debug is a special assertion line that always evaluates to true, main functionality being its side effect of printing to stdout.
 assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
     let status =     Http.getStatus got
@@ -140,7 +142,7 @@ assertsAreOk env got mrs = do
 
     if status `notElem` expectList then do
         -- ??: merge with log telling after it's clear what to print to stdout
-        putStrLn $ "Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
+        putStrLn $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
         pure False
     else
         checkAssertions
