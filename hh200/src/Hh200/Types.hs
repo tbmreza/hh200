@@ -55,6 +55,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 
 import           Network.HTTP.Types.Status
+import           Network.URI (parseURI, uriScheme)
 
 import qualified BEL
 
@@ -205,8 +206,12 @@ dbgScriptConfig = ScriptConfig
   , useTls = Nothing
   }
 
-effectiveTls :: ScriptConfig -> Bool
-effectiveTls ScriptConfig { useTls = Just b } = b
+effectiveTls :: Script -> Bool
+effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
+effectiveTls Script { callItems = (ci:_) } =
+    case parseURI (url (ciRequestSpec ci)) of
+        Just uri | uriScheme uri == "http:" -> False
+        _ -> True
 effectiveTls _ = True -- Default to TLS if not specified
 
 defaultDepsClause :: DepsClause
