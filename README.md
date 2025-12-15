@@ -20,6 +20,21 @@ Well-functioning system-under-test is the only thing that should matter; we're d
 
 #### 2. Regex, random, time batteries (compromising binary size)
 hh200 comes integrated with a full expression language BEL evaluator.
+
+## Installation
+
+### Debian/Ubuntu
+
+You can install `hh200` by adding our APT repository to your system.
+
+```bash
+# Add the repository source (trusted, since it is unsigned for now)
+echo "deb [trusted=yes] https://tbmreza.github.io/hh200/ ./" | sudo tee /etc/apt/sources.list.d/hh200.list
+
+# Update and install
+sudo apt-get update
+sudo apt-get install hh200
+```
   
 ## See also
 

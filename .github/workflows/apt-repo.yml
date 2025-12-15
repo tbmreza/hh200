@@ -1,0 +1,85 @@
+name: Build and Publish APT Repo
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Setup Haskell Stack
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          stack-version: 'latest'
+
+      - name: Cache ~/.stack
+        uses: actions/cache@v3
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-stack-${{ hashFiles('hh200/stack.yaml.lock', 'hh200/package.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Build
+        run: |
+          cd hh200
+          stack build --copy-bins --local-bin-path ../bin_dist
+
+      - name: Package Deb
+        run: |
+          # Get version from package.yaml
+          VERSION=$(grep '^version:' hh200/package.yaml | awk '{print $2}')
+          ./bin/create-deb.sh ./bin_dist/hh200 $VERSION amd64
+
+      - name: Deploy to gh-pages
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+          # Prepare repo directory
+          mkdir -p repo
+
+          # Try to clone existing gh-pages
+          if git clone --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} repo_clone 2>/dev/null; then
+            echo "Existing gh-pages found."
+            mv repo_clone/.git repo/
+            mv repo_clone/* repo/ 2>/dev/null || true
+            rm -rf repo_clone
+            cd repo
+          else
+            echo "No gh-pages branch found. Creating new one."
+            cd repo
+            git init
+            git checkout -b gh-pages
+            git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          fi
+
+          # At this point we are in 'repo' directory
+
+          # Move new deb files from parent dist/
+          cp ../dist/*.deb .
+
+          # Update repo index (using script from parent)
+          ../bin/update-repo.sh .
+
+          # Commit and Push
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update APT repository with version $VERSION"
+            git push origin gh-pages
+          fi
