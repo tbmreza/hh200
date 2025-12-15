@@ -1,0 +1,6 @@
+## Expect
+# stdout: VString ""
+POST http://localhost:9999/echo.php
+HTTP 200
+[Asserts]
+>debug $.key
