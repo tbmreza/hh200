@@ -44,7 +44,6 @@ module Hh200.Types
     , showPart
     , showResponse
     , Dat (..)
-    , tmpRs
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -152,10 +151,6 @@ data ResponseSpec = ResponseSpec
   -- , asserts :: [Text]  -- List of untyped expr line, input for evaluator.
   }
   deriving (Show, Eq)
-tmpRs :: ResponseSpec
--- ok:
--- tmpRs = ResponseSpec {statuses = [Status {statusCode = 404, statusMessage = ""}], output = [], captures = RhsDict (HM.fromList []), asserts = ["true"]}
-tmpRs = ResponseSpec {statuses = [Status {statusCode = 404, statusMessage = ""}], output = [], captures = RhsDict (HM.fromList []), asserts = ["debug data"]}
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo

@@ -90,19 +90,22 @@ request  : method url crlf bindings braced crlf { RequestSpec { verb = expectUpp
          | url crlf                             { RequestSpec { verb = expectUpper "GET", url = $1, headers = RhsDict HM.empty, payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
-         { ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
+         { trace "RSa" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf response_captures crlf
-         { ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
+         { trace "RSb" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
+
+         | "HTTP" response_codes crlf response_asserts crlf
+         { trace "RSc" $ ResponseSpec { asserts = $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
-         { ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
+         { trace "RSd" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | response_captures crlf response_asserts crlf
-         { ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
+         { trace "RSe" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
 
          | response_captures crlf
-         { ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
+         { trace "RSf" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
 
 response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
@@ -131,7 +134,7 @@ response_codes : d                { [read $1] }
 
 call_item : deps_clause request response { trace "call_itemA" (pCallItem $1 $2 (Just $3)) }
           | deps_clause request          { trace "call_itemB" (pCallItem $1 $2 Nothing) }
-          | request response             { trace ("call_itemC: " ++ show $2) pCallItem defaultDepsClause $1 (Just tmpRs) }
+          | request response             { trace ("call_itemC: " ++ show $2) pCallItem defaultDepsClause $1 (Just $2) }
           | request                      { trace "call_itemD" (pCallItem defaultDepsClause $1 Nothing) } 
 
 
