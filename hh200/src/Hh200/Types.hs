@@ -153,11 +153,10 @@ data ResponseSpec = ResponseSpec
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo
-  { hiAddr ::        Maybe String
-  , hiHh200Conf ::   Maybe ScriptConfig
-  , hiHost ::        Maybe String
-  , hiPort ::        Maybe Int
-  , hiTls ::         Maybe Bool
+  { hiHh200Conf ::   Maybe ScriptConfig
+  , hiHostname ::    Maybe String
+  , hiOs ::          Maybe String
+  , hiArch ::        Maybe String
   , hiUptime ::      Maybe String
   } deriving (Show, Eq)
 
@@ -206,10 +205,9 @@ dbgScriptConfig = ScriptConfig
   , useTls = Nothing
   }
 
-effectiveTls :: ScriptConfig -> HostInfo -> Bool
-effectiveTls ScriptConfig { useTls = Just b } _ = b
-effectiveTls ScriptConfig { useTls = Nothing } HostInfo { hiTls = Just b } = b
-effectiveTls _ _ = True -- Default to TLS if not specified by either ScriptConfig or HostInfo
+effectiveTls :: ScriptConfig -> Bool
+effectiveTls ScriptConfig { useTls = Just b } = b
+effectiveTls _ = True -- Default to TLS if not specified
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
@@ -228,11 +226,10 @@ callItemIsDefault CallItem { ciName } = ciName == "default"
 
 defaultHostInfo :: HostInfo
 defaultHostInfo = HostInfo
-  { hiAddr = Nothing
-  , hiHh200Conf = Nothing
-  , hiHost = Nothing
-  , hiPort = Nothing
-  , hiTls = Nothing
+  { hiHh200Conf = Nothing
+  , hiHostname = Nothing
+  , hiOs = Nothing
+  , hiArch = Nothing
   , hiUptime = Nothing
   }
 

@@ -26,7 +26,6 @@ main = defaultMain $ testGroup "HUnit"
   , testLR_invalid
   , testLR_empty
   , testLR_config
-  , testLR_tlsInference
   , testBel
   , test1
   , test3_present
@@ -114,21 +113,7 @@ testLR_config = testCase "lexer and parser for config" $ do
                 _ -> assertFailure "Should have parsed use-tls: false"
         Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
-testLR_tlsInference :: TestTree
-testLR_tlsInference = testCase "tls inference from url scheme" $ do
-    let inputHttps = Hh.Snippet "GET https://httpbin.org/get"
 
-    (Just (sHttps, hiHttps)) <- runMaybeT $ Hh.analyzeWithHostInfo inputHttps
-    case Hh.effectiveTls (Hh.config sHttps) hiHttps of
-        True -> pure ()
-        False -> assertFailure "Should have inferred TLS for https"
-
-    let inputHttp = Hh.Snippet "GET http://httpbin.org/get"
-
-    (Just (sHttp, hiHttp)) <- runMaybeT $ Hh.analyzeWithHostInfo inputHttp
-    case Hh.effectiveTls (Hh.config sHttp) hiHttp of
-        False -> pure ()
-        True -> assertFailure "Should have inferred no TLS for http"
 
 test1 :: TestTree
 test1 = testCase "linter hints" $ do

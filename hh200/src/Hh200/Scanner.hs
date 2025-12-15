@@ -11,16 +11,20 @@ module Hh200.Scanner
     ) where
 
 import Debug.Trace
-import Hh200.Types (Script(..), HostInfo(..), Snippet(..), CallItem(..), RequestSpec(..), url, hiHh200Conf, defaultHostInfo)
+import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
 import L
 import P
 
 import qualified Data.ByteString.Lazy.Char8 as L8
 import System.Directory (doesFileExist)
-import Network.URI (parseURI, uriScheme, uriAuthority, uriPort, uriRegName)
+-- import Network.URI (parseURI, uriScheme, uriAuthority, uriPort, uriRegName) -- Unused now
 
 import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
+
+import System.Process (readProcess)
+import qualified System.Info as Info
+import Control.Exception (try, IOException)
 
 scriptFrom :: Snippet -> Maybe Script
 scriptFrom (Snippet s) =
@@ -46,27 +50,28 @@ readScript path = do
             -- putStrLn $ show tokensOrPanic
             pure $ Just s
 
-gatherHostInfo :: Script -> HostInfo
-gatherHostInfo script =
-    let mUrl = case callItems script of
-                (ci:_) -> Just (url (ciRequestSpec ci))
-                _      -> Nothing
-        (host, port, tls) = case mUrl >>= parseURI of
-            Just uri ->
-                let scheme = uriScheme uri
-                    isTls = if scheme == "https:" then Just True else if scheme == "http:" then Just False else Nothing
-                    mAuth = uriAuthority uri
-                in case mAuth of
-                    Just auth -> (Just (uriRegName auth), readPort (uriPort auth), isTls)
-                    Nothing   -> (Nothing, Nothing, isTls)
-            Nothing -> (Nothing, Nothing, Nothing)
-    in defaultHostInfo { hiHost = host, hiPort = port, hiTls = tls }
-    where
-        readPort :: String -> Maybe Int
-        readPort (':':ps) = case reads ps of
-                                [(p, "")] -> Just p
-                                _         -> Nothing
-        readPort _        = Nothing
+gatherHostInfo :: IO HostInfo
+gatherHostInfo = do
+    hn <- tryReadProcess "hostname" []
+    up <- tryReadProcess "uptime" ["-p"]
+    
+    pure defaultHostInfo
+        { hiHostname = hn
+        , hiUptime = up
+        , hiOs = Just Info.os
+        , hiArch = Just Info.arch
+        }
+
+tryReadProcess :: FilePath -> [String] -> IO (Maybe String)
+tryReadProcess cmd args = do
+    result <- try (readProcess cmd args "") :: IO (Either IOException String)
+    case result of
+        Left _ -> pure Nothing
+        Right s -> pure (Just (trim s))
+
+trim :: String -> String
+trim = f . f
+  where f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
@@ -88,7 +93,8 @@ instance Analyze FilePath where
     analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
     analyzeWithHostInfo path = do
         script <- analyze path
-        pure (script, gatherHostInfo script)
+        hi <- liftIO gatherHostInfo
+        pure (script, hi)
 
 
 instance Analyze Snippet where
@@ -106,7 +112,7 @@ instance Analyze Snippet where
             Nothing -> do
                 trace "analyzed Nothing" (return Nothing)
             Just baseScript -> do
-                let hi = gatherHostInfo baseScript
+                hi <- liftIO gatherHostInfo
                 let scriptWithConfig = case hiHh200Conf hi of
                                             Just sc -> baseScript { config = sc }
                                             Nothing -> baseScript
