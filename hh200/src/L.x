@@ -1,7 +1,7 @@
 {
 module L where
 }
-%wrapper "posn"
+%wrapper "monadUserState"
 
 $white = [\ \t]
 $newline = [\n\r]
@@ -54,7 +54,27 @@ tokens :-
 
 {
 
-tok f p s = f p s
+tok :: (AlexPosn -> String -> Token) -> AlexInput -> Int -> Alex Token
+tok f (p, _, _, s) len = return (f p (take len s))
+
+data AlexUserState = AlexUserState
+alexInitUserState = AlexUserState
+
+alexEOF :: Alex Token
+alexEOF = do
+    (p, _, _, _) <- alexGetInput
+    return (EOF p)
+
+alexScanTokens :: String -> [Token]
+alexScanTokens str = case runAlex str gather of
+    Left err -> error err
+    Right toks -> toks
+  where
+    gather = do
+        t <- alexMonadScan
+        case t of 
+            EOF _ -> return []
+            _ -> (t:) <$> gather
 
 data Token =
     LN  AlexPosn  -- (token line terminator)
@@ -91,6 +111,7 @@ data Token =
   | JSONPATH    AlexPosn String
 
   | LINE  AlexPosn String
+  | EOF   AlexPosn
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
