@@ -57,8 +57,10 @@ tokens :-
 tok :: (AlexPosn -> String -> Token) -> AlexInput -> Int -> Alex Token
 tok f (p, _, _, s) len = return (f p (take len s))
 
-data AlexUserState = AlexUserState
-alexInitUserState = AlexUserState
+data AlexUserState = AlexUserState {
+    usCount :: Int
+}
+alexInitUserState = AlexUserState { usCount = 0 }
 
 alexEOF :: Alex Token
 alexEOF = do

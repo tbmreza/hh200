@@ -28,6 +28,7 @@ main = defaultMain $ testGroup "HUnit"
   , testBel
   , test1
   , test3_present
+  , testLSP_state
   ]
 
 
@@ -179,3 +180,24 @@ test3_present = testCase "presentation: cli present" $ do
 
     expectedHello <- readFile "../examples/hello.hhs"
     assertEqual "hello.hhs" expectedHello (Hh.present ciHello)
+
+testLSP_state :: TestTree
+testLSP_state = testCase "lexer state" $ do
+    let input = "GET /"
+        action :: Hh.Alex (Hh.Token, Int)
+        action = do
+            -- Set state
+            Hh.alexSetUserState (Hh.AlexUserState { Hh.usCount = 42 })
+            -- Read token (consumes "GET")
+            t <- Hh.alexMonadScan
+            -- Read state
+            us <- Hh.alexGetUserState
+            return (t, Hh.usCount us)
+
+    case Hh.runAlex input action of
+        Right (tok, count) -> do
+            assertEqual "State check" 42 count
+            case tok of
+               Hh.METHOD _ "GET" -> pure ()
+               _ -> assertFailure $ "Unexpected token: " ++ show tok
+        Left err -> assertFailure $ "Lexer error: " ++ err
