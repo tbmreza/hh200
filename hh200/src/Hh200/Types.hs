@@ -165,7 +165,6 @@ data LeadKind = Normal | Debug | Non
     deriving (Show, Eq)
 
 -- Everything one could ask for when debugging a failing script.
--- ??: pct field to append to .dat
 data Lead = Lead
   { leadKind ::        LeadKind
   , firstFailing ::    Maybe CallItem
