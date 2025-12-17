@@ -1,9 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 
 module Main where
 
+-- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import Language.LSP.Server
 import Language.LSP.Protocol.Types
+  ( InitializeResult(..)
+  , ServerCapabilities
+  , ServerInfo(..)
+  , Uri(..)
+  )
+
 import Language.LSP.Protocol.Message
 import Control.Monad.IO.Class
 import qualified Data.Text.IO as T
@@ -24,6 +32,7 @@ main = do
     , doInitialize = \env _req -> pure $ Right env
     , staticHandlers = \_caps -> handlers
     , interpretHandler = \env -> Iso (runLspT env) liftIO
+    -- , options = defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "runtime red wall dismissable, server still attached"))}
     , options = defaultOptions
     }
   pure ()

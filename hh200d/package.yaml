@@ -6,7 +6,7 @@ dependencies:
   - text
 
 executables:
-  hh200d-exe:
+  hh200d:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

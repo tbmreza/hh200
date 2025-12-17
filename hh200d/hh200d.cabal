@@ -8,7 +8,7 @@ name:           hh200d
 version:        0.1.0.0
 build-type:     Simple
 
-executable hh200d-exe
+executable hh200d
   main-is: Main.hs
   other-modules:
       Paths_hh200d
