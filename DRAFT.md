@@ -23,7 +23,6 @@ https + Secure cookie attr
 
 
 # STASH
-          | request response             { trace ("call_itemC: " ++ show $2) pCallItem defaultDepsClause $1 (Just $2) }
 [Asserts]
 > debug $.data
 Based on the "MAIN THESIS" comments in app/Main.hs and the structure I verified in src/Hh200/Cli.hs, here are the questions an academic reviewer might have, focused on the
