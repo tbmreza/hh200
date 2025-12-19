@@ -3,7 +3,7 @@
 module Hh200.Cli
   ( cli
   -- Exported for testing:
-  , go, Args(..)
+  , go, Args(..), optsInfo
   ) where
 
 
@@ -30,11 +30,13 @@ data Args = Args
   , call :: Bool
   , rps :: Bool
   , shotgun :: Int
-  }
+  } deriving (Show, Eq)
 
 cli :: IO ()
-cli = go =<< execParser options where
-    options = info (args <**> helper) (fullDesc
+cli = go =<< execParser optsInfo
+
+optsInfo :: ParserInfo Args
+optsInfo = info (args <**> helper) (fullDesc
                                  <> header "Run hh200 scripts") where
     args = Args
         -- Bound by order, not by name; allowing e.g. different casing between

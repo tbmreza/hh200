@@ -109,5 +109,9 @@ tests:
     - transformers
     - tasty
     - tasty-hunit
+    - tasty-golden
+    - silently
     - unordered-containers
     - text
+    - optparse-applicative
+    - bytestring

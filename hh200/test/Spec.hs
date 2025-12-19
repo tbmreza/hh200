@@ -14,11 +14,14 @@ import Hh200.Execution as Hh
 
 import Hh200.Cli
 
+import qualified CliSpec
+
 main :: IO ()
 main = defaultMain $ testGroup "HUnit"
     -- [ test3_present ]
 
-  [ testLR
+  [ CliSpec.spec
+  , testLR
   , testLR_mustache
   , testLR_post
   , testLR_invalid

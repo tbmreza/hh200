@@ -1,0 +1,15 @@
+Run hh200 scripts
+
+Usage: hh200 [SOURCE] [-V|--version] [-F|--debug-config] [-C|--call] [-R|--rps] 
+             [-S|--shotgun N]
+
+Available options:
+  SOURCE                   Path of source program
+  -V,--version             Print version info and exit
+  -F,--debug-config        Read environment and script header to determine the
+                           config values without executing script's
+                           side-effects.
+  -C,--call                Execute a script snippet directly
+  -R,--rps                 Start "requests per second" mode
+  -S,--shotgun N           Execute in N parallel workers at once (default: 1)
+  -h,--help                Show this help text

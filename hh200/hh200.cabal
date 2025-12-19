@@ -96,16 +96,21 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      CliSpec
       Paths_hh200
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , hh200
     , http-client
     , http-client-tls
+    , optparse-applicative
+    , silently
     , tasty
+    , tasty-golden
     , tasty-hunit
     , text
     , transformers
