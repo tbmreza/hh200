@@ -3,6 +3,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- ??: linter model accommodates hh200d first and foremost
+-- https://github.com/microsoft/vscode-extension-samples/tree/main/lsp-sample
+
 -- Re-export lexer and parser generated code.
 module Hh200.Scanner
     ( module Hh200.Scanner

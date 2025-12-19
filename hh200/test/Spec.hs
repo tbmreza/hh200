@@ -144,8 +144,8 @@ test1 = testCase "linter hints" $ do
             ms <- runMaybeT (Hh.analyze path)
 
             case ms of
-                Just els@(Hh.Script {Hh.callItems = []}) -> assertFailure $ show els  -- ??: linter model accommodates lsp first and foremost
-                                                                                      -- https://github.com/microsoft/vscode-extension-samples/tree/main/lsp-sample
+                Just els@(Hh.Script {Hh.callItems = []}) -> assertFailure $ show els
+
                 _ -> pure ()
         Nothing -> assertFailure "Source path is Nothing"
 
