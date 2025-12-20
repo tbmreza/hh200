@@ -14,29 +14,31 @@ import Hh200.Execution as Hh
 
 import Hh200.Cli
 
-import qualified CliSpec
+import qualified GoldenCli
+import qualified BlindLsp
 
+-- Separate module for user-facing features: GoldenCli.spec, BlindLsp.spec, GoldenNetw.spec
+-- Naming scheme for the 3 steps: testScanner_ testExecution_ testGraph_
 main :: IO ()
-main = defaultMain $ testGroup "HUnit"
+main = defaultMain $ testGroup ""
     -- [ test3_present ]
 
-  [ CliSpec.spec
-  , testLR
-  , testLR_mustache
-  , testLR_post
-  , testLR_invalid
-  , testLR_empty
-  , testLR_config
-  , testLR_tlsInference
-  , testBel
-  , test1
-  , test3_present
-  , testLSP_state
+  [ GoldenCli.spec
+  , BlindLsp.spec
+  -- , GoldenNetw.spec
+  , testScanner_lr
+  , testScanner_lrMustache
+  , testScanner_lrPost
+  , testScanner_lrInvalid
+  , testScanner_lrEmpty
+  , testScanner_lrConfig
+  , testScanner_TlsInference
+  , testExecution_bel
   ]
 
 
-testBel :: TestTree
-testBel = testCase "BEL callsite" $ do
+testExecution_bel :: TestTree
+testExecution_bel = testCase "BEL callsite" $ do
     mgr <-        Prim.newManager Prim.tlsManagerSettings
     instant <-    Prim.parseRequest "http://localhost"
     mtRespBody <- Prim.httpLbs instant mgr -- :: Prim.Response L8.ByteString
@@ -57,8 +59,8 @@ testBel = testCase "BEL callsite" $ do
       , Hh.asserts = rsLines
       }
 
-testLR :: TestTree
-testLR = testCase "lexer and parser" $ do
+testScanner_lr :: TestTree
+testScanner_lr = testCase "lexer and parser" $ do
     let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
 
     case Hh.parse tokens of
@@ -67,8 +69,8 @@ testLR = testCase "lexer and parser" $ do
         Hh.ParseFailed _ -> do
             assertFailure $ show tokens
 
-testLR_mustache :: TestTree
-testLR_mustache = testCase "lexer and parser for valid mustached" $ do
+testScanner_lrMustache :: TestTree
+testScanner_lrMustache = testCase "lexer and parser for valid mustached" $ do
     let input = "POST http://httpbin.org/post&unused={{100}}"
         tokens = Hh.alexScanTokens input
 
@@ -76,8 +78,8 @@ testLR_mustache = testCase "lexer and parser for valid mustached" $ do
         Hh.ParseOk _ -> pure ()
         Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
-testLR_post :: TestTree
-testLR_post = testCase "lexer and parser for POST" $ do
+testScanner_lrPost :: TestTree
+testScanner_lrPost = testCase "lexer and parser for POST" $ do
     let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
         tokens = Hh.alexScanTokens input
 
@@ -85,8 +87,8 @@ testLR_post = testCase "lexer and parser for POST" $ do
         Hh.ParseOk _ -> pure ()
         Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
-testLR_invalid :: TestTree
-testLR_invalid = testCase "lexer and parser for invalid input" $ do
+testScanner_lrInvalid :: TestTree
+testScanner_lrInvalid = testCase "lexer and parser for invalid input" $ do
     let input = "INVALID http://httpbin.org/post"
         tokens = Hh.alexScanTokens input
 
@@ -94,8 +96,8 @@ testLR_invalid = testCase "lexer and parser for invalid input" $ do
         Hh.ParseOk _ -> assertFailure "Should have failed to parse"
         Hh.ParseFailed _ -> pure ()
 
-testLR_empty :: TestTree
-testLR_empty = testCase "lexer and parser for empty input" $ do
+testScanner_lrEmpty :: TestTree
+testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
     let input = ""
         tokens = Hh.alexScanTokens input
 
@@ -103,8 +105,8 @@ testLR_empty = testCase "lexer and parser for empty input" $ do
         Hh.ParseOk _ -> assertFailure "Should have failed to parse"
         Hh.ParseFailed _ -> pure ()
 
-testLR_config :: TestTree
-testLR_config = testCase "lexer and parser for config" $ do
+testScanner_lrConfig :: TestTree
+testScanner_lrConfig = testCase "lexer and parser for config" $ do
     let input = "[Configs]\nuse-tls: false\n\nGET http://httpbin.org/get"
         tokens = Hh.alexScanTokens input
 
@@ -115,8 +117,8 @@ testLR_config = testCase "lexer and parser for config" $ do
                 _ -> assertFailure "Should have parsed use-tls: false"
         Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
-testLR_tlsInference :: TestTree
-testLR_tlsInference = testCase "tls inference from url scheme" $ do
+testScanner_TlsInference :: TestTree
+testScanner_TlsInference = testCase "tls inference from url scheme" $ do
     let inputHttps = Hh.Snippet "GET https://httpbin.org/get"
 
     (Just sHttps) <- runMaybeT $ Hh.analyze inputHttps
@@ -130,77 +132,3 @@ testLR_tlsInference = testCase "tls inference from url scheme" $ do
     case Hh.effectiveTls sHttp of
         False -> pure ()
         True -> assertFailure "Should have inferred no TLS for http"
-
-
-
-test1 :: TestTree
-test1 = testCase "linter hints" $ do
-    let testCli = Args { call = False, source = Just "../examples/get_json.hhs"
-                   , version = False
-                   , shotgun = 1
-                   , debugConfig = False
-                   , rps = False
-                   }
-
-    case source testCli of
-        Just path -> do
-            ms <- runMaybeT (Hh.analyze path)
-
-            case ms of
-                Just els@(Hh.Script {Hh.callItems = []}) -> assertFailure $ show els
-
-                _ -> pure ()
-        Nothing -> assertFailure "Source path is Nothing"
-
-
--- test2 :: TestTree
--- test2 = testCase "reality" $ do
-
--- test3_connect :: TestTree
--- test3_connect = testCase "presentation: graph connect" $ do
-
--- test3_plot :: TestTree
--- test3_plot = testCase "presentation: graph plot" $ do
-
-test3_present :: TestTree
-test3_present = testCase "presentation: cli present" $ do
-    let ciHello =
-            Hh.CallItem { Hh.ciDeps = []
-                        , Hh.ciName = "default"
-                        , Hh.ciRequestSpec = Hh.RequestSpec { Hh.verb = Hh.expectUpper "GET"
-                                                            , Hh.url = "http://httpbin.org/anything"
-                                                            , Hh.headers = Hh.RhsDict mtHM
-                                                            , Hh.payload = ""
-                                                            , Hh.opts = []
-                                                            }
-                        , Hh.ciResponseSpec = Just Hh.ResponseSpec
-                            { Hh.statuses = [Hh.status200]
-                            , Hh.output = []
-                            , Hh.captures = Hh.RhsDict mtHM
-                            , Hh.asserts = []
-                            }
-                        }
-
-    expectedHello <- readFile "../examples/hello.hhs"
-    assertEqual "hello.hhs" expectedHello (Hh.present ciHello)
-
-testLSP_state :: TestTree
-testLSP_state = testCase "lexer state" $ do
-    let input = "GET /"
-        action :: Hh.Alex (Hh.Token, Int)
-        action = do
-            -- Set state
-            Hh.alexSetUserState (Hh.AlexUserState { Hh.usCount = 42 })
-            -- Read token (consumes "GET")
-            t <- Hh.alexMonadScan
-            -- Read state
-            us <- Hh.alexGetUserState
-            return (t, Hh.usCount us)
-
-    case Hh.runAlex input action of
-        Right (tok, count) -> do
-            assertEqual "State check" 42 count
-            case tok of
-               Hh.METHOD _ "GET" -> pure ()
-               _ -> assertFailure $ "Unexpected token: " ++ show tok
-        Left err -> assertFailure $ "Lexer error: " ++ err

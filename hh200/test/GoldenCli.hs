@@ -1,4 +1,4 @@
-module CliSpec where
+module GoldenCli where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -8,6 +8,9 @@ import Options.Applicative
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 import Hh200.Cli
+
+-- PICKUP set to run dev-server requiring tests
+-- HH200_DEV=1 stack test
 
 spec :: TestTree
 spec = testGroup "CLI"

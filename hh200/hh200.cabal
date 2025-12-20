@@ -96,7 +96,8 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      CliSpec
+      BlindLsp
+      GoldenCli
       Paths_hh200
   hs-source-dirs:
       test
