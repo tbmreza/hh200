@@ -98,6 +98,7 @@ test-suite hh200-test
   other-modules:
       BlindLsp
       GoldenCli
+      GoldenNetw
       Paths_hh200
   hs-source-dirs:
       test

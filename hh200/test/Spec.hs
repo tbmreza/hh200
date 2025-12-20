@@ -16,6 +16,7 @@ import Hh200.Cli
 
 import qualified GoldenCli
 import qualified BlindLsp
+import qualified GoldenNetw
 
 -- Separate module for user-facing features: GoldenCli.spec, BlindLsp.spec, GoldenNetw.spec
 -- Naming scheme for the 3 steps: testScanner_ testExecution_ testGraph_
@@ -25,7 +26,7 @@ main = defaultMain $ testGroup ""
 
   [ GoldenCli.spec
   , BlindLsp.spec
-  -- , GoldenNetw.spec
+  , GoldenNetw.spec
   , testScanner_lr
   , testScanner_lrMustache
   , testScanner_lrPost
