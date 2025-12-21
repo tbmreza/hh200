@@ -3,6 +3,8 @@
 
 module Main where
 
+-- import Hh200.Scanner
+
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import Language.LSP.Server
 import Language.LSP.Protocol.Types
