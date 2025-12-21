@@ -1,39 +1,17 @@
-# hh200d LSP Server
+# hh200d
 
-This is a minimal Haskell LSP server bootstrapped with `stack`.
+hh200 language server implementation
 
-## Prerequisites
-
-- `stack`
-- `nvim` (NeoVim)
-
-## Building
-
-```bash
-stack build
+```sh
+stack install
 ```
 
-## Neovim Configuration
+## Roadmap
 
-To attach this LSP server to your buffer, use the following Lua snippet in your Neovim config (or run it as a command `:lua ...`). This assumes you are opening a file within this project directory.
-
-```lua
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "haskell",
-  callback = function()
-    vim.lsp.start({
-      name = "hh200d",
-      cmd = { "stack", "exec", "--", "hh200d-exe" },
-      root_dir = vim.fs.dirname(vim.fs.find({ "stack.yaml", ".git" }, { path = vim.api.nvim_buf_get_name(0), upward = true })[1]),
-    })
-  end,
-})
-```
-
-Alternatively, for a one-off test on the current buffer:
-
-```lua
-:lua vim.lsp.start({ name = 'hh200d', cmd = {'stack', 'exec', '--', 'hh200d-exe'}, root_dir = vim.loop.cwd() })
-```
-
-Verify attachment with `:LspInfo`. You should see "hh200d" listed under "Active Clients" or "attached to this buffer".
+- [ ] **Diagnostics**: Real-time syntax and semantic error reporting.
+- [ ] **Hover Documentation**: Show type information and documentation when hovering over symbols.
+- [ ] **Go to Definition**: Jump to the definition of variables, functions, and types.
+- [ ] **Code Completion**: Context-aware autocompletion for keywords and symbols.
+- [ ] **Rename**: Safe global renaming of symbols.
+- [ ] **Formatting**: Automatic code formatting.
+- [ ] **Document Symbols**: Outline view of symbols in the current file.

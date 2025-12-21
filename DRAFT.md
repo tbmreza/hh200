@@ -24,6 +24,7 @@ https + Secure cookie attr
 
 
 # STASH
+hh200-docs page for hh200d
 POST http://localhost:9999/echo.php
 { "foo": "bar", "baz": 123 }
 HTTP 200

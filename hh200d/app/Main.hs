@@ -10,16 +10,31 @@ import Language.LSP.Protocol.Types
   , ServerCapabilities
   , ServerInfo(..)
   , Uri(..)
+  , PublishDiagnosticsParams(..)
+  , Diagnostic(..)
+  , Range(..)
+  , Position(..)
+  , DiagnosticSeverity(..)
+  , DidSaveTextDocumentParams(..)
+  , TextDocumentIdentifier(..)
   )
 
 import Language.LSP.Protocol.Message
 import Control.Monad.IO.Class
 import qualified Data.Text.IO as T
 
+validate :: Uri -> [Diagnostic]
+validate _ = []
+
 handlers :: Handlers (LspM ())
 handlers = mconcat
   [ notificationHandler SMethod_Initialized $ \_not -> do
       liftIO $ T.putStrLn "Server initialized"
+  , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
+      let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
+          diags = validate uri
+      sendNotification SMethod_TextDocumentPublishDiagnostics $
+        PublishDiagnosticsParams uri Nothing diags
   ]
 
 main :: IO ()
