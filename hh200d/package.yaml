@@ -4,6 +4,7 @@ dependencies:
   - base >= 4.7 && < 5
   - lsp
   - text
+  - hh200
 
 executables:
   hh200d:
