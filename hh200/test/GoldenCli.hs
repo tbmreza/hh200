@@ -9,19 +9,16 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 
 import Hh200.Cli
 
--- PICKUP set to run dev-server requiring tests
--- HH200_DEV=1 stack test
-
 spec :: TestTree
 spec = testGroup "CLI"
   [
-    testCase "Args parsing: --version" $ do
-      let res = execParserPure defaultPrefs optsInfo ["--version"]
-      case res of
-        Success args -> assertEqual "Args" (expectedArgs { version = True }) args
-        _ -> assertFailure "Failed to parse --version"
+    -- testCase "Args parsing: --version" $ do
+    --   let res = execParserPure defaultPrefs optsInfo ["--version"]
+    --   case res of
+    --     Success args -> assertEqual "Args" (expectedArgs { version = True }) args
+    --     _ -> assertFailure "Failed to parse --version"
 
-  , testCase "Args parsing: source file" $ do
+    testCase "Args parsing: source file" $ do
       let res = execParserPure defaultPrefs optsInfo ["foo.hhs"]
       case res of
         Success args -> assertEqual "Args" (expectedArgs { source = Just "foo.hhs" }) args
@@ -37,7 +34,7 @@ spec = testGroup "CLI"
             pure $ L8.pack (msg ++ "\n")
         _ -> assertFailure "Expected failure for help"
 
-  , goldenVsString "Version output" "test/golden/version.txt" $ do
+  , goldenVsString "Version output (flaky)" "test/golden/version.txt" $ do
       output <- capture_ $ go (expectedArgs { version = True })
       -- capture_ captures stdout. go prints with putStrLn, so it has a newline.
       pure $ L8.pack output

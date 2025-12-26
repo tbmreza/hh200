@@ -288,6 +288,8 @@ courseFrom x = do
                     eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
                     case eitherResp of
                       Left e -> do
+                        -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
+                        -- ??
                         lift $ Tf.tell [HttpError (show e)]
                         pure ci
                       Right gotResp -> do

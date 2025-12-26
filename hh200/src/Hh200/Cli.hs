@@ -15,7 +15,8 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.IO.Class
 import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.Directory (doesFileExist)
-import           System.IO (hPutStrLn, stderr)
+import           System.IO (hPutStrLn, stderr, stdout)
+import qualified System.IO (hFlush)
 import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
@@ -67,12 +68,13 @@ optsInfo = info (args <**> helper) (fullDesc
                        <> value 1           -- Default to 1 if flag is omitted
                        <> showDefault )     -- Shows "[default: 1]" in help text
 
-
 go :: Args -> IO ()
 
 -- Print executable version.
 -- hh200 --version
-go Args { version = True } = putStrLn $ showVersion Paths_hh200.version
+go Args { version = True } = do
+    putStrLn $ showVersion Paths_hh200.version
+    System.IO.hFlush stdout
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config

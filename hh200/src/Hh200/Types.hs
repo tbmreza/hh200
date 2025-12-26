@@ -60,10 +60,6 @@ import           Network.URI (parseURI, uriScheme)
 import qualified BEL
 
 
---------------------------------------------------------------------------------
--- Type Aliases & Newtypes
---------------------------------------------------------------------------------
-
 newtype UppercaseString = UppercaseString String
     deriving (Show, Eq)
 
@@ -291,7 +287,8 @@ showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList
 
 showPart :: BEL.Part -> String
 showPart (BEL.R t) = Text.unpack t
-showPart (BEL.L _) = "???"
+-- showPart (BEL.L _) = "???"
+showPart (BEL.L t) = Text.unpack t
 
 showResponse :: Maybe ResponseSpec -> String
 showResponse Nothing = ""

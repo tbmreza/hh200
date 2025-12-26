@@ -1,6 +1,6 @@
 module Hh200.Graph
   ( connect
-  , plot
+  -- , plot
   ) where
 
 import           Control.Exception              (bracket)
@@ -44,4 +44,4 @@ insertDummyData conn = do
     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886640 :: Int64, 13.7 :: Double)
 
 
-plot = 9
+-- plot = 9

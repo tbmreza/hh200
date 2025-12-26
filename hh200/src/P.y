@@ -124,7 +124,7 @@ binding : identifier ":" s crlf  { ($1, [BEL.R (Text.pack $3)]) }
 response_asserts :: { [String] }
 response_asserts : "[" "Asserts" "]" crlf expr_lines { $5 }
 
-expr_lines : line crlf           { [$1] }
+expr_lines : line crlf       { [$1] }
            | expr_lines line { ($1 ++ [$2]) }
 
 response_codes :: { [Int] }
@@ -132,14 +132,14 @@ response_codes : d                { [read $1] }
                | response_codes d { $1 ++ [read $2] }
 
 
-call_item : deps_clause request response { trace "call_itemA" (pCallItem $1 $2 (Just $3)) }
-          | deps_clause request          { trace "call_itemB" (pCallItem $1 $2 Nothing) }
-          | request response             { trace ("call_itemC: " ++ show $2) pCallItem defaultDepsClause $1 (Just $2) }
-          | request                      { trace "call_itemD" (pCallItem defaultDepsClause $1 Nothing) } 
+call_item : deps_clause request response { pCallItem $1 $2 (Just $3) }
+          | deps_clause request          { pCallItem $1 $2 Nothing }
+          | request response             { pCallItem defaultDepsClause $1 (Just $2) }
+          | request                      { pCallItem defaultDepsClause $1 Nothing } 
 
 
-call_items : call_item crlf           { [$1] }
-           | call_items call_item crlf  { $1 ++ [$2] }
+call_items : call_item crlf            { [$1] }
+           | call_items call_item crlf { $1 ++ [$2] }
 
 {
 

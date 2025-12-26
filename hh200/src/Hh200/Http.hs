@@ -23,6 +23,11 @@ import qualified Data.ByteString.Char8 as BS
 import Network.HTTP.Types.Status (Status)
 import Network.HTTP.Types.Header (HeaderName)
 
+-- Guessed (any benchmark results will validate or override) criteria for
+-- Manager sharing:
+-- 1. Unchanging hosts: fully analyzed hhs script can tell when to instantiate
+--                      new Manager.
+-- 2. Load test mode
 type Manager = HC.Manager
 type Request = HC.Request
 type Response = HC.Response LBS.ByteString
