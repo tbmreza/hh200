@@ -155,25 +155,25 @@ stripColon :: String -> String
 stripColon s = dropWhile (\c -> c == ':' || c == ' ') s
 
 parseError :: [Token] -> E a
-parseError tokens = failE $ "Parse error on tokens: " ++ show tokens
+parseError tokens = failE ("Parse error on tokens: " ++ show tokens) tokens
 
-data E a = ParseOk a | ParseFailed String
+data E a = ParseOk a | ParseFailed String [Token]
 
 thenE :: E a -> (a -> E b) -> E b
 m `thenE` k =
    case m of
        ParseOk a     -> k a
-       ParseFailed e -> ParseFailed e
+       ParseFailed e ts -> ParseFailed e ts
 
 returnE :: a -> E a
 returnE a = ParseOk a
 
-failE :: String -> E a
-failE err = ParseFailed err
+failE :: String -> [Token] -> E a
+failE err tokens = ParseFailed err tokens
 
-catchE :: E a -> (String -> E a) -> E a
+catchE :: E a -> (String -> [Token] -> E a) -> E a
 catchE m k =
    case m of
       ParseOk a     -> ParseOk a
-      ParseFailed e -> k e
+      ParseFailed e ts -> k e ts
 }

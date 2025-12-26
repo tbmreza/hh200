@@ -67,7 +67,7 @@ testScanner_lr = testCase "lexer and parser" $ do
     case Hh.parse tokens of
         Hh.ParseOk _ -> do
             pure ()
-        Hh.ParseFailed _ -> do
+        Hh.ParseFailed _ _ -> do
             assertFailure $ show tokens
 
 testScanner_lrMustache :: TestTree
@@ -77,7 +77,7 @@ testScanner_lrMustache = testCase "lexer and parser for valid mustached" $ do
 
     case Hh.parse tokens of
         Hh.ParseOk _ -> pure ()
-        Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
+        Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
 testScanner_lrPost :: TestTree
 testScanner_lrPost = testCase "lexer and parser for POST" $ do
@@ -86,7 +86,7 @@ testScanner_lrPost = testCase "lexer and parser for POST" $ do
 
     case Hh.parse tokens of
         Hh.ParseOk _ -> pure ()
-        Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
+        Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
 testScanner_lrInvalid :: TestTree
 testScanner_lrInvalid = testCase "lexer and parser for invalid input" $ do
@@ -95,7 +95,7 @@ testScanner_lrInvalid = testCase "lexer and parser for invalid input" $ do
 
     case Hh.parse tokens of
         Hh.ParseOk _ -> assertFailure "Should have failed to parse"
-        Hh.ParseFailed _ -> pure ()
+        Hh.ParseFailed _ _ -> pure ()
 
 testScanner_lrEmpty :: TestTree
 testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
@@ -104,7 +104,7 @@ testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
 
     case Hh.parse tokens of
         Hh.ParseOk _ -> assertFailure "Should have failed to parse"
-        Hh.ParseFailed _ -> pure ()
+        Hh.ParseFailed _ _ -> pure ()
 
 testScanner_lrConfig :: TestTree
 testScanner_lrConfig = testCase "lexer and parser for config" $ do
@@ -116,7 +116,7 @@ testScanner_lrConfig = testCase "lexer and parser for config" $ do
             case Hh.useTls (Hh.config s) of
                 Just False -> pure ()
                 _ -> assertFailure "Should have parsed use-tls: false"
-        Hh.ParseFailed _ -> assertFailure $ "Failed to parse: " ++ show tokens
+        Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
 testScanner_TlsInference :: TestTree
 testScanner_TlsInference = testCase "tls inference from url scheme" $ do
