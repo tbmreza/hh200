@@ -14,8 +14,11 @@ import Control.Concurrent.QSemN
 import Control.Exception        (bracket, bracket_, try)
 
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TEE
 
 import Control.Concurrent.Async (mapConcurrently)
+import qualified Network.HTTP.Client as HC
+import qualified Network.HTTP.Client.TLS as HCT
 import qualified Data.ByteString.Lazy as BL
 
 import Hh200.Types
@@ -23,7 +26,7 @@ import Hh200.Graph (connect)
 import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.CaseInsensitive as CaseInsensitive (mk)
+import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Hh200.Http as Http
@@ -39,9 +42,12 @@ import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import qualified Data.Text as Text
 import           Data.Text (Text)
-import qualified Data.Aeson as Aeson (decode, encode)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified BEL
+import Data.Maybe (fromMaybe)
 
 -- Procedure "may" fail early, "reads" a shared http-client manager instance,
 -- "writes" log as it runs, modifies environment "states" while doing IO.
@@ -102,11 +108,23 @@ _debugLead = Lead
 asMethod :: UppercaseString -> BS.ByteString
 asMethod (UppercaseString s) = BS.pack s
 
-validJsonBody :: Http.Response -> Aeson.Value
-validJsonBody resp =
-    case Aeson.decode (Http.getBody resp) of
-        Just av -> av
-        Nothing -> Aeson.Null
+validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
+validJsonBody req resp = Aeson.Object $
+    KeyMap.fromList [ (Key.fromText "body", bodyValue)
+                    , (Key.fromText "headers", headersValue)
+                    , (Key.fromText "status", Aeson.Number (fromIntegral $ statusCode $ Http.getStatus resp))
+                    , (Key.fromText "request", requestValue)
+                    ]
+
+    where
+    bodyBytes = Http.getBody resp
+    bodyValue = fromMaybe (Aeson.String (TE.decodeUtf8With TEE.lenientDecode (BL.toStrict bodyBytes))) (Aeson.decode bodyBytes)
+    headersValue = Aeson.Object $ KeyMap.fromList $ map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) (Http.getHeaders resp)
+    requestValue = Aeson.Object $ KeyMap.fromList
+        [ (Key.fromText "method", Aeson.String (TE.decodeUtf8With TEE.lenientDecode (HC.method req)))
+        , (Key.fromText "headers", requestHeadersValue)
+        ]
+    requestHeadersValue = Aeson.Object $ KeyMap.fromList $ map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) (HC.requestHeaders req)
 
 asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
@@ -261,29 +279,7 @@ courseFrom x = do
         where
 
         -- Reduce captures to Env extensions.
-        evalCaptures resp (env, mrs) = do
-            let (RhsDict bindings) = case mrs of
-                    Nothing -> RhsDict HM.empty
-                    Just rs -> captures rs
-
-                initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
-
-            -- (ext, finalLog) <- foldlWithKeyM'
-            --     (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-            --         v <- BEL.render acc (Aeson.String "") bV
-            --         pure (HM.insert bK v acc, logs ++ [Captured bK]))
-            --     (HM.insert "RESP_BODY" (validJsonBody resp) env, initialLog)
-            --     bindings
-            (ext, finalLog) <- foldlWithKeyM'
-                (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-                    v <- BEL.render acc (Aeson.String "") bV
-                    pure (HM.insert bK v acc, logs ++ [Captured bK]))
-                ((HM.insert "RESP_BODY" (validJsonBody resp) env), initialLog)
-                bindings
-
-            pure (const ext, finalLog)
-
-        evalCaptures1 resp (env, mrs) = do
+        evalCaptures (env, mrs) = do
             let (RhsDict bindings) = case mrs of
                     Nothing -> RhsDict HM.empty
                     Just rs -> captures rs
@@ -292,7 +288,6 @@ courseFrom x = do
                 (\(acc, logs) bK (bV :: [BEL.Part]) -> do
                     v <- BEL.render acc (Aeson.String "") bV
                     pure (HM.insert bK v acc, logs ++ [Captured bK]))
-                -- ((HM.insert "RESP_BODY" (validJsonBody resp) env), initialLog)
                 (env, initialLog)
                 bindings
             pure (const ext, finalLog)
@@ -317,17 +312,10 @@ courseFrom x = do
                         -- Captures.
                         env <- get
 
-                        -- let initialEnv = HM.insert "RESP_BODY" (validJsonBody resp) env, []
-                        --
-                        -- $ sigil RESP_BODY insertion happens regardless of Captures block.
-                        -- @ sigil (request echo) doesn't need for response to arrive but we'll soon see.
+                        let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
 
-                        -- let !initialEnv = trace ("HMI TRACE: " ++ show (validJsonBody gotResp)) $ HM.insert "RESP_BODY" (validJsonBody gotResp) env
-                        let !initialEnv = HM.insert "RESP_BODY" (validJsonBody gotResp) env
+                        (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
 
-                        (upsertCaptures, captureLog) <- liftIO (evalCaptures1 gotResp (initialEnv, mrs))
-
-                        -- (upsertCaptures, captureLog) <- liftIO (evalCaptures gotResp (env, mrs))
                         lift $ Tf.tell captureLog
 
                         -- Unless null Captures:

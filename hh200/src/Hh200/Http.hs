@@ -14,6 +14,7 @@ module Hh200.Http
   , lbsBody
   , getStatus
   , getBody
+  , getHeaders
   ) where
 
 import qualified Network.HTTP.Client as HC
@@ -21,7 +22,7 @@ import qualified Network.HTTP.Client.TLS as HCT
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BS
 import Network.HTTP.Types.Status (Status)
-import Network.HTTP.Types.Header (HeaderName)
+import Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
 -- Guessed (any benchmark results will validate or override) criteria for
 -- Manager sharing:
@@ -65,3 +66,6 @@ getStatus = HC.responseStatus
 
 getBody :: Response -> LBS.ByteString
 getBody = HC.responseBody
+
+getHeaders :: Response -> ResponseHeaders
+getHeaders = HC.responseHeaders
