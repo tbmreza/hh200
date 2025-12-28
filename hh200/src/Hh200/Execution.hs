@@ -105,8 +105,8 @@ asMethod (UppercaseString s) = BS.pack s
 validJsonBody :: Http.Response -> Aeson.Value
 validJsonBody resp =
     case Aeson.decode (Http.getBody resp) of
-        Just av -> trace ("validJsonBody:\t" ++ show av) av
-        Nothing -> trace "validJsonBody NULL!!!" Aeson.Null
+        Just av -> av
+        Nothing -> Aeson.Null
 
 asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
@@ -259,45 +259,75 @@ courseFrom x = do
         h mgr pairs
 
         where
+
         -- Reduce captures to Env extensions.
         evalCaptures resp (env, mrs) = do
             let (RhsDict bindings) = case mrs of
                     Nothing -> RhsDict HM.empty
                     Just rs -> captures rs
 
-            let initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+                initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
 
+            -- (ext, finalLog) <- foldlWithKeyM'
+            --     (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+            --         v <- BEL.render acc (Aeson.String "") bV
+            --         pure (HM.insert bK v acc, logs ++ [Captured bK]))
+            --     (HM.insert "RESP_BODY" (validJsonBody resp) env, initialLog)
+            --     bindings
             (ext, finalLog) <- foldlWithKeyM'
                 (\(acc, logs) bK (bV :: [BEL.Part]) -> do
                     v <- BEL.render acc (Aeson.String "") bV
-                    pure (HM.insert bK v acc, logs ++ [Captured bK])
-                )
-                (HM.insert "RESP_BODY" (validJsonBody resp) env, initialLog)
+                    pure (HM.insert bK v acc, logs ++ [Captured bK]))
+                ((HM.insert "RESP_BODY" (validJsonBody resp) env), initialLog)
                 bindings
 
+            pure (const ext, finalLog)
+
+        evalCaptures1 resp (env, mrs) = do
+            let (RhsDict bindings) = case mrs of
+                    Nothing -> RhsDict HM.empty
+                    Just rs -> captures rs
+                initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+            (ext, finalLog) <- foldlWithKeyM'
+                (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+                    v <- BEL.render acc (Aeson.String "") bV
+                    pure (HM.insert bK v acc, logs ++ [Captured bK]))
+                -- ((HM.insert "RESP_BODY" (validJsonBody resp) env), initialLog)
+                (env, initialLog)
+                bindings
             pure (const ext, finalLog)
 
         -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
         h :: Http.Manager -> [(Http.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
         h mgr list = case list of
-                [] -> emptyHanded
+            [] -> emptyHanded
 
-                (req, (ci, mrs)) : rest -> do
-                    lift $ Tf.tell [ItemStart (ciName ci)]
-                    -- Unhandled offline HttpExceptionRequest.
-                    eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
-                    case eitherResp of
-                      Left e -> do
+            (req, (ci, mrs)) : rest -> do
+                lift $ Tf.tell [ItemStart (ciName ci)]
+                -- Unhandled offline HttpExceptionRequest.
+                eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
+                case eitherResp of
+                    Left e -> do
                         -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
                         -- ??
                         lift $ Tf.tell [HttpError (show e)]
                         pure ci
-                      Right gotResp -> do
+                    Right gotResp -> do
                         lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
                         -- Captures.
                         env <- get
 
-                        (upsertCaptures, captureLog) <- liftIO (evalCaptures gotResp (env, mrs))
+                        -- let initialEnv = HM.insert "RESP_BODY" (validJsonBody resp) env, []
+                        --
+                        -- $ sigil RESP_BODY insertion happens regardless of Captures block.
+                        -- @ sigil (request echo) doesn't need for response to arrive but we'll soon see.
+
+                        -- let !initialEnv = trace ("HMI TRACE: " ++ show (validJsonBody gotResp)) $ HM.insert "RESP_BODY" (validJsonBody gotResp) env
+                        let !initialEnv = HM.insert "RESP_BODY" (validJsonBody gotResp) env
+
+                        (upsertCaptures, captureLog) <- liftIO (evalCaptures1 gotResp (initialEnv, mrs))
+
+                        -- (upsertCaptures, captureLog) <- liftIO (evalCaptures gotResp (env, mrs))
                         lift $ Tf.tell captureLog
 
                         -- Unless null Captures:
