@@ -37,7 +37,7 @@ module Hh200.Types
     , trimQuotes
     , expectUpper
     , showVerb
-    , oftenBodyless
+    -- , oftenBodyless
     , noNews
     , present
     , showHeaders
@@ -94,10 +94,6 @@ data TraceEvent
 
 type Log = [TraceEvent]
 
-
---------------------------------------------------------------------------------
--- Core Data Types
---------------------------------------------------------------------------------
 
 data ScriptKind = Regular | Static | Sole
     deriving (Show, Eq)
@@ -177,10 +173,6 @@ data HhError = LibError
     deriving (Show)
 
 
---------------------------------------------------------------------------------
--- Defaults & Smart Constructors
---------------------------------------------------------------------------------
-
 defaultScriptConfig :: ScriptConfig
 defaultScriptConfig = ScriptConfig
   { retries = 0
@@ -241,21 +233,6 @@ defaultLead = Lead
     }
 
 
---------------------------------------------------------------------------------
--- Small Helpers / Utilities
---------------------------------------------------------------------------------
-
-show' :: Text -> String
-show' t = trimQuotes $ show t
-
-trimQuotes :: String -> String
-trimQuotes s =
-  case s of
-    ('"':xs) -> case reverse xs of
-                  ('"':ys) -> reverse ys
-                  _        -> s
-    _        -> s
-
 -- | __Partial__: Asserts uppercase input.
 expectUpper :: String -> UppercaseString
 expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
@@ -263,9 +240,6 @@ expectUpper _ = undefined
 
 showVerb :: UppercaseString -> String
 showVerb (UppercaseString s) = s
-
-oftenBodyless :: UppercaseString -> Bool
-oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
 noNews :: Lead -> Bool
 noNews (Lead { leadKind = Non }) = True
@@ -280,7 +254,7 @@ present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec
 
 showHeaders :: RhsDict -> String
 showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm
-  where
+    where
     fmt (k, v) = "\n" ++ k ++ ": " ++ unwords (map showPart v)
 
 showPart :: BEL.Part -> String
@@ -294,3 +268,17 @@ showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (status
 
 data Dat = Dat [(Text, Text, Text)]
     deriving (Show)
+
+--------------------------------------------------------------------------------
+-- More lib than app code
+--------------------------------------------------------------------------------
+show' :: Text -> String
+show' t = trimQuotes $ show t
+
+trimQuotes :: String -> String
+trimQuotes s =
+  case s of
+    ('"':xs) -> case reverse xs of
+                  ('"':ys) -> reverse ys
+                  _        -> s
+    _        -> s

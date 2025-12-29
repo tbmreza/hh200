@@ -19,10 +19,10 @@ module Hh200.Http
 
 import qualified Network.HTTP.Client as HC
 import qualified Network.HTTP.Client.TLS as HCT
+import           Network.HTTP.Types.Status (Status)
+import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BS
-import Network.HTTP.Types.Status (Status)
-import Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
 -- Guessed (any benchmark results will validate or override) criteria for
 -- Manager sharing:

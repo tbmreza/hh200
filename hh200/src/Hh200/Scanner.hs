@@ -3,9 +3,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- ??: linter model accommodates hh200d first and foremost
--- https://github.com/microsoft/vscode-extension-samples/tree/main/lsp-sample
-
 -- Re-export lexer and parser generated code.
 module Hh200.Scanner
     ( module Hh200.Scanner
@@ -14,22 +11,22 @@ module Hh200.Scanner
     ) where
 
 import Debug.Trace
+
+import           System.Directory (doesFileExist)
+import           System.Process (readProcess)
+import qualified System.Info as Info
+
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.IO.Class
+import           Control.Exception (try, IOException)
+
+import qualified Data.ByteString.Lazy.Char8 as L8
+import           Data.Char (toLower)
+import           Data.List (isPrefixOf)
+
 import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
 import L
 import P
-
-import qualified Data.ByteString.Lazy.Char8 as L8
-import System.Directory (doesFileExist)
--- import Network.URI (parseURI, uriScheme, uriAuthority, uriPort, uriRegName) -- Unused now
-
-import Control.Monad.Trans.Maybe
-import Control.Monad.IO.Class
-
-import System.Process (readProcess)
-import qualified System.Info as Info
-import Control.Exception (try, IOException)
-import Data.Char (toLower)
-import Data.List (isPrefixOf)
 
 scriptFrom :: Snippet -> Maybe Script
 scriptFrom (Snippet s) =
@@ -51,8 +48,6 @@ readScript path = do
             putStrLn $ show m
             pure Nothing
         ParseOk s -> do
-            -- putStrLn "\t SCANNER:"
-            -- putStrLn $ show tokensOrPanic
             pure $ Just s
 
 gatherHostInfo :: IO HostInfo
@@ -75,8 +70,8 @@ tryReadProcess cmd args = do
         Right s -> pure (Just (trim s))
 
 trim :: String -> String
-trim = f . f
-  where f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
+trim = f . f where
+    f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
@@ -137,15 +132,15 @@ complete input pos =
     let prefix = take pos input
         revPrefix = reverse prefix
         partial = reverse $ takeWhile (`notElem` (" \t\n" :: String)) revPrefix
-        
+
         -- Determine context by scanning the prefix
         tokens = case scanSafe prefix of
             Right ts -> ts
             Left _ -> [] -- Fallback if scan fails
-        
+
         blockHeaders = filter isBlockHeader tokens
         lastBlock = if null blockHeaders then Nothing else Just (last blockHeaders)
-        
+
         isBlockHeader (KW_CONFIGS _) = True
         isBlockHeader (KW_CAPTURES _) = True
         isBlockHeader (KW_ASSERTS _) = True
@@ -165,7 +160,7 @@ complete input pos =
 extractCaptures :: [Token] -> [String]
 extractCaptures [] = []
 extractCaptures (KW_CAPTURES _ : rest) = collectIds rest
-  where
+    where
     collectIds (IDENTIFIER _ s : ts) = s : collectIds ts
     -- Stop at next block header or EOF, skip other tokens (like COLON, RHS)
     collectIds (t:ts)
@@ -206,7 +201,7 @@ getPos t = case t of
 
 tokenSpan :: Token -> (Int, Int)
 tokenSpan t = (offset, len)
-  where 
+    where
     (AlexPn offset _ _) = getPos t
     len = case t of
         LN _ -> 1
@@ -244,7 +239,8 @@ hover input pos =
             case filter (covering pos) tokens of
                 (t:_) -> docFor t
                 [] -> Nothing
-  where
+
+    where
     covering p t = 
         let (start, len) = tokenSpan t
         in p >= start && p < (start + len)
@@ -277,7 +273,8 @@ documentSymbols input =
     case scanSafe input of
         Left _ -> []
         Right tokens -> findSymbols tokens
-  where
+
+    where
     findSymbols :: [Token] -> [(String, (Int, Int))]
     findSymbols [] = []
     findSymbols (t:ts) = 
@@ -369,9 +366,8 @@ extractNameFromToken t p = case t of
     _ -> Nothing
 
 checkInterpolation :: String -> Int -> Maybe String
-checkInterpolation s relPos = 
-    findVar s 0
-  where
+checkInterpolation s relPos = findVar s 0
+    where
     findVar [] _ = Nothing
     findVar ('{':'{':rest) i =
         let (name, remainder) = span (`notElem` ("}" :: String)) rest
@@ -417,7 +413,7 @@ findUsageOccurrences name (t:ts) =
 
 findOffsets :: String -> String -> [Int]
 findOffsets name s = scan s 0
-  where
+    where
     scan [] _ = []
     scan ('{':'{':rest) i =
         let (n, remainder) = span (`notElem` ("}" :: String)) rest
@@ -442,6 +438,8 @@ collectIdsForCaps (t:ts)
     | isBlockStart t = extractCapturesWithPos (t:ts)
     | otherwise = collectIdsForCaps ts
 collectIdsForCaps [] = []
+
+-- ??: after lsp format on save, implement Text based alternative implementation and bench
 formatRange :: String -> ((Int, Int), (Int, Int)) -> [((Int, Int), (Int, Int), String)]
 formatRange input ((startL, startC), (endL, endC)) = 
     let allLines = lines input
@@ -470,4 +468,3 @@ replaceStr old new str@(c:cs) =
     if old `isPrefixOf` str
     then new ++ replaceStr old new (drop (length old) str)
     else c : replaceStr old new cs
-

@@ -96,13 +96,13 @@ response : "HTTP" response_codes crlf response_captures crlf response_asserts cr
          { trace "RSb" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf response_asserts crlf
-         { trace "RSc" $ ResponseSpec { asserts = $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
+         { trace "" $ ResponseSpec { asserts = $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
          { trace "RSd" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | response_captures crlf response_asserts crlf
-         { trace "RSe" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
+         { trace "RSe" $ ResponseSpec { asserts = $3, captures = $1, output = [], statuses = [] } }
 
          | response_captures crlf
          { trace "RSf" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }

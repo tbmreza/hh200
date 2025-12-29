@@ -11,53 +11,47 @@ module Hh200.Execution
   , status200
   ) where
 
-import Control.Concurrent.QSemN
-import Control.Exception        (bracket, bracket_, try)
+import Debug.Trace
 
+import           Control.Concurrent.QSemN
+import           Control.Exception        (bracket, bracket_, try)
+import           Control.Concurrent.Async (mapConcurrently)
+import           Control.Monad.Reader
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Control.Monad (foldM, forM)
+import qualified Control.Monad.Trans.RWS.Strict as Tf
+
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TEE
-
-import Control.Concurrent.Async (mapConcurrently)
-import qualified Network.HTTP.Client as HC
-import qualified Network.HTTP.Client.TLS as HCT
 import qualified Data.ByteString.Lazy as BL
-
-import Hh200.Types
-import Hh200.Graph (connect)
-import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.ByteString.Lazy.Char8 as L8
-
-import qualified Hh200.Http as Http
-import Hh200.Scanner (gatherHostInfo)
-import Hh200.ContentType (headerJson)
-
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Trans.Maybe
-import Network.HTTP.Types.Status
-import Network.HTTP.Types.Header (HeaderName)
-import Control.Monad (foldM, forM)
-import qualified Control.Monad.Trans.RWS.Strict as Tf
-
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson (Value(..))
+
+import qualified Network.HTTP.Client as HC
+import qualified Network.HTTP.Client.TLS as HCT
+import           Network.HTTP.Types.Status
+import           Network.HTTP.Types.Header (HeaderName)
+
 import qualified BEL
-import Data.Maybe (fromMaybe)
+import qualified Hh200.Http as Http
+import           Hh200.Types
+import           Hh200.Graph (connect)
+import           Hh200.Scanner (gatherHostInfo)
+import           Hh200.ContentType (headerJson)
 
 -- Procedure "may" fail early, "reads" a shared http-client manager instance,
 -- "writes" log as it runs, modifies environment "states" while doing IO.
 type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
-
---------------------------------------------------------------------------------
--- Defaults & Smart Constructors
---------------------------------------------------------------------------------
 
 -- Mechanically, this is a corollary to http-client's defaultRequest.
 --
@@ -103,10 +97,6 @@ _debugLead = Lead
   , interpreterInfo = (HM.empty, [])
   }
 
---------------------------------------------------------------------------------
--- Small Helpers / Utilities
---------------------------------------------------------------------------------
-
 asMethod :: UppercaseString -> BS.ByteString
 asMethod (UppercaseString s) = BS.pack s
 
@@ -135,18 +125,6 @@ asBS v                = BL.toStrict (Aeson.encode v)
 textOrMt :: Aeson.Value -> Text
 textOrMt (Aeson.String t) = t
 textOrMt _ = ""
-
-foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
-                            -> a
-                            -> HM.HashMap k v
-                            -> m a
-foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
-    where
-    step !acc (k, v) = f acc k v
-
-traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
-traverseKV hm f =
-    forM (HM.toList hm) $ \(k, v) -> f k v
 
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
@@ -329,6 +307,10 @@ courseFrom x = do
                                 lift $ Tf.tell [AssertsPassed]
                                 h mgr rest
 
+--------------------------------------------------------------------------------
+-- hh200 modes
+--------------------------------------------------------------------------------
+
 testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
@@ -388,3 +370,18 @@ testShotgun n checked = do
 
 -- mkDataPoint :: Int -> DataPoint
 -- mkDataPoint n = DataPoint { shotgunN = n, shotgunPct = 0.0 }
+
+--------------------------------------------------------------------------------
+-- More lib than app code
+--------------------------------------------------------------------------------
+foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
+                            -> a
+                            -> HM.HashMap k v
+                            -> m a
+foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
+    where
+    step !acc (k, v) = f acc k v
+
+traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
+traverseKV hm f =
+    forM (HM.toList hm) $ \(k, v) -> f k v
