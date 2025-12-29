@@ -12,6 +12,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as HttpTypes
+import Control.Concurrent.MVar (newMVar)
 
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
@@ -26,22 +27,23 @@ import qualified GoldenNetw
 -- Separate module for user-facing features: GoldenCli.spec, BlindLsp.spec, GoldenNetw.spec
 -- Naming scheme for the 3 steps: testScanner_ testExecution_ testGraph_
 main :: IO ()
-main = defaultMain $ testGroup ""
+main = do
+    lock <- newMVar ()
+    defaultMain $ testGroup ""
     -- [ test3_present ]
-
-  [ GoldenCli.spec
-  , BlindLsp.spec
-  , GoldenNetw.spec
-  , testScanner_lr
-  , testScanner_lrMustache
-  , testScanner_lrPost
-  , testScanner_lrInvalid
-  , testScanner_lrEmpty
-  , testScanner_lrConfig
-  , testScanner_TlsInference
-  , testExecution_bel
-  , testExecution_validJsonBody
-  ]
+      [ GoldenCli.spec lock
+      , BlindLsp.spec
+      , GoldenNetw.spec lock
+      , testScanner_lr
+      , testScanner_lrMustache
+      , testScanner_lrPost
+      , testScanner_lrInvalid
+      , testScanner_lrEmpty
+      , testScanner_lrConfig
+      , testScanner_TlsInference
+      , testExecution_bel
+      , testExecution_validJsonBody
+      ]
 
 
 testExecution_bel :: TestTree

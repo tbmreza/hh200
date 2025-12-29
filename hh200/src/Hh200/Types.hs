@@ -65,6 +65,7 @@ newtype UppercaseString = UppercaseString String
 
 newtype Snippet = Snippet L8.ByteString
 
+-- Cookie is a native concept in BEL.
 newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
     deriving (Show, Eq)
 
@@ -134,7 +135,6 @@ data RequestSpec = RequestSpec
   , headers :: RhsDict
   , payload :: String
   , opts :: [String]
-  -- , cookies :: RhsDict
   }
   deriving (Show, Eq)
 

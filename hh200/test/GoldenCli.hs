@@ -6,11 +6,13 @@ import Test.Tasty.Golden
 import System.IO.Silently (capture_)
 import Options.Applicative
 import qualified Data.ByteString.Lazy.Char8 as L8
+import Control.Concurrent.MVar (MVar, withMVar)
+import Data.Char (isSpace)
 
 import Hh200.Cli
 
-spec :: TestTree
-spec = testGroup "CLI"
+spec :: MVar () -> TestTree
+spec lock = testGroup "CLI"
   [
     -- testCase "Args parsing: --version" $ do
     --   let res = execParserPure defaultPrefs optsInfo ["--version"]
@@ -35,10 +37,22 @@ spec = testGroup "CLI"
         _ -> assertFailure "Expected failure for help"
 
   , goldenVsString "Version output (flaky)" "test/golden/version.txt" $ do
-      output <- capture_ $ go (expectedArgs { version = True })
+      output <- withMVar lock $ \_ -> capture_ $ go (expectedArgs { version = True })
       -- capture_ captures stdout. go prints with putStrLn, so it has a newline.
-      pure $ L8.pack output
+      -- Strip ANSI codes and trim leading/trailing whitespace.
+      pure $ L8.pack $ dropWhile isSpace $ reverse $ dropWhile isSpace $ reverse $ stripAnsi output
   ]
+
+stripAnsi :: String -> String
+stripAnsi s = case s of
+    [] -> []
+    '\ESC':'[':rest -> 
+        let (_codes, remainder) = break (== 'm') rest
+        in case remainder of
+             ('m':xs) -> stripAnsi xs
+             _ -> stripAnsi rest -- Malformed, just continue
+    x:xs -> x : stripAnsi xs
+
 
 expectedArgs :: Args
 expectedArgs =
