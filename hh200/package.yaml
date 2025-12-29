@@ -115,3 +115,5 @@ tests:
     - text
     - optparse-applicative
     - bytestring
+    - aeson
+    - http-types

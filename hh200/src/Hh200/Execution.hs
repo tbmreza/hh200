@@ -6,6 +6,7 @@ module Hh200.Execution
   ( testOutsideWorld , testShotgun, testRps
   , runProcM
   , assertsAreOk
+  , validJsonBody
   , ProcM
   , status200
   ) where
@@ -321,7 +322,7 @@ courseFrom x = do
                         -- Unless null Captures:
                         modify upsertCaptures
 
-                        res <- liftIO $ assertsAreOk env gotResp mrs
+                        res <- liftIO $ assertsAreOk initialEnv gotResp mrs
                         case res of
                             False -> do
                                 lift $ Tf.tell [AssertsFailed]

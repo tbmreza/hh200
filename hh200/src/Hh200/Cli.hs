@@ -143,15 +143,6 @@ runAnalyzedScript mis = do
 
     lead <- testOutsideWorld script
 
-    -- user script directed via:
-    -- specially named Captures (probably more general, deferrable semantics)
-    -- special assertion fn "debug"
-    -- GOAL asserts_block.hhs to print response body (to see that the echo
-    -- server indeed echoes) using >debug $
-    -- if $ is syntax for response body (jsonpath), what's syntax for request body? response headers?
-    -- @.headers  $.headers  %.params.start
-    putStrLn "goal: print response body on demand"
-
     -- No news is good news, otherwise:
     unless (noNews lead) $ do
         putStrLn $ case firstFailing lead of

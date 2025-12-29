@@ -134,7 +134,6 @@ data RequestSpec = RequestSpec
   , headers :: RhsDict
   , payload :: String
   , opts :: [String]
-  -- , configs :: RhsDict
   -- , cookies :: RhsDict
   }
   deriving (Show, Eq)
@@ -144,7 +143,6 @@ data ResponseSpec = ResponseSpec
   , output :: [String]
   , captures :: RhsDict
   , asserts :: [String]  -- List of untyped expr line, input for evaluator.
-  -- , asserts :: [Text]  -- List of untyped expr line, input for evaluator.
   }
   deriving (Show, Eq)
 
