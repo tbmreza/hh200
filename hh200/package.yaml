@@ -117,3 +117,5 @@ tests:
     - bytestring
     - aeson
     - http-types
+    - directory
+    - filepath

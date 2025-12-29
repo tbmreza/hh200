@@ -43,14 +43,15 @@ spec lock = testGroup "CLI"
       pure $ L8.pack $ dropWhile isSpace $ reverse $ dropWhile isSpace $ reverse $ stripAnsi output
   ]
 
+-- "Version output (flaky)" case stays flaky until we better justify this function.
 stripAnsi :: String -> String
 stripAnsi s = case s of
     [] -> []
     '\ESC':'[':rest -> 
-        let (_codes, remainder) = break (== 'm') rest
+        let (_codes, remainder) = break (\c -> c >= '@' && c <= '~') rest
         in case remainder of
-             ('m':xs) -> stripAnsi xs
-             _ -> stripAnsi rest -- Malformed, just continue
+             (c:xs) | c >= '@' && c <= '~' -> stripAnsi xs
+             _ -> stripAnsi rest -- Malformed or incomplete, skip
     x:xs -> x : stripAnsi xs
 
 

@@ -23,6 +23,7 @@ import Hh200.Cli
 import qualified GoldenCli
 import qualified BlindLsp
 import qualified GoldenNetw
+import qualified ContentTypeSpec
 
 -- Separate module for user-facing features: GoldenCli.spec, BlindLsp.spec, GoldenNetw.spec
 -- Naming scheme for the 3 steps: testScanner_ testExecution_ testGraph_
@@ -31,10 +32,12 @@ main = do
     lock <- newMVar ()
     defaultMain $ testGroup ""
     -- [ test3_present ]
-      [ GoldenCli.spec lock
-      , BlindLsp.spec
-      , GoldenNetw.spec lock
-      , testScanner_lr
+          [ GoldenCli.spec lock
+          , BlindLsp.spec
+          , GoldenNetw.spec lock
+          , ContentTypeSpec.spec
+          , testScanner_lr
+      
       , testScanner_lrMustache
       , testScanner_lrPost
       , testScanner_lrInvalid

@@ -97,6 +97,7 @@ test-suite hh200-test
   main-is: Spec.hs
   other-modules:
       BlindLsp
+      ContentTypeSpec
       GoldenCli
       GoldenNetw
       Paths_hh200
@@ -107,6 +108,8 @@ test-suite hh200-test
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
+    , filepath
     , hh200
     , http-client
     , http-client-tls

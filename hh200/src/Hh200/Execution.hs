@@ -32,6 +32,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 
 import qualified Hh200.Http as Http
 import Hh200.Scanner (gatherHostInfo)
+import Hh200.ContentType (headerJson)
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -146,9 +147,6 @@ foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
 traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
 traverseKV hm f =
     forM (HM.toList hm) $ \(k, v) -> f k v
-
-headerJson :: (HeaderName, BS.ByteString)
-headerJson = ("Content-Type", "application/json")
 
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
