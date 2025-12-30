@@ -19,6 +19,7 @@ import Language.LSP.Protocol.Types
   , DiagnosticSeverity(..)
   , DidSaveTextDocumentParams(..)
   , TextDocumentIdentifier(..)
+  , DidChangeConfigurationParams(..)
   )
 
 import Language.LSP.Protocol.Message
@@ -46,8 +47,13 @@ handlers = mconcat
           diags = validate uri
       sendNotification SMethod_TextDocumentPublishDiagnostics $
         PublishDiagnosticsParams uri Nothing diags
+  , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg -> do
+      liftIO $ T.putStrLn "Received workspace/didChangeConfiguration"
+      return ()
   ]
 
+-- | This function is called when the client sends a `workspace/didChangeConfiguration` notification.
+handleConfig :: Config -> LspM Config ()
 handleConfig cfg = do
     liftIO $ T.putStrLn $ "Config changed: " <> Text.pack (show cfg)
     pure ()
