@@ -5,6 +5,7 @@ dependencies:
   - lsp
   - text
   - hh200
+  - aeson
 
 executables:
   hh200d:
