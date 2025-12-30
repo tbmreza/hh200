@@ -38,7 +38,6 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson (Value(..))
 
 import qualified Network.HTTP.Client as HC
-import qualified Network.HTTP.Client.TLS as HCT
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName)
 

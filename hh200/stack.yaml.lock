@@ -13,8 +13,8 @@ packages:
     hackage: aeson-jsonpath-0.3.0.2@sha256:765111f324a33a61ae95d0fd91ae7f6bbf01893d1717781e160ec87986f438a3,4203
 snapshots:
 - completed:
-    sha256: 0d61fd2be255f5c425cd92dbb4a78d1f70af2c138f3ec921e98b97ae182b044c
-    size: 679291
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/23/4.yaml
+    sha256: d90eb1418667a225998b173817300e5ae2e1500ed03c0a9457cc2a0e78a0122a
+    size: 726337
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml
   original:
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/23/4.yaml
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml

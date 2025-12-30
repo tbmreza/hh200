@@ -35,10 +35,18 @@ type Response = HC.Response LBS.ByteString
 type RequestBody = HC.RequestBody
 type HttpException = HC.HttpException
 
+-- newManager :: Bool -> IO Manager
+-- newManager useTls = if useTls
+--     then HC.newManager HCT.tlsManagerSettings
+--     else HC.newManager HC.defaultManagerSettings
 newManager :: Bool -> IO Manager
 newManager useTls = if useTls
-    then HC.newManager HCT.tlsManagerSettings
+    then HC.newManager HCT.tlsManagerFork
     else HC.newManager HC.defaultManagerSettings
+
+-- newManager :: Bool -> IO Manager
+-- newManager useTls =
+--     HC.newManager HC.defaultManagerSettings
 
 closeManager :: Manager -> IO ()
 closeManager = HC.closeManager

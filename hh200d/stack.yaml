@@ -1,7 +1,8 @@
-resolver: lts-23.7
+snapshot:
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml
 packages:
 - .
 extra-deps:
   - ../hh200
-  - aeson-jsonpath-0.3.0.2@sha256:765111f324a33a61ae95d0fd91ae7f6bbf01893d1717781e160ec87986f438a3,4203
   - ../../bel-expr
+  - ../../http-client/http-client-tls

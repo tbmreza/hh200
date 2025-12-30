@@ -6,6 +6,13 @@
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
 `DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.
 
+```yaml
+# stack.yaml
+
+snapshot:
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml
+```
+
 ### Surprises
 Some nuggets that are less than mundane when I learned them.
 - Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
@@ -21,21 +28,6 @@ Well-functioning system-under-test is the only thing that should matter; we're d
 #### 2. Regex, random, time batteries (compromising binary size)
 hh200 comes integrated with a full expression language BEL evaluator.
 
-## Installation
-
-### Debian/Ubuntu
-
-You can install `hh200` by adding our APT repository to your system.
-
-```bash
-# Add the repository source (trusted, since it is unsigned for now)
-echo "deb [trusted=yes] https://tbmreza.github.io/hh200/ ./" | sudo tee /etc/apt/sources.list.d/hh200.list
-
-# Update and install
-sudo apt-get update
-sudo apt-get install hh200
-```
-  
 ## See also
 
 <details>
