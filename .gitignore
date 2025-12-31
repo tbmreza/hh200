@@ -25,3 +25,4 @@ cabal.project.local~
 draft.hhs
 trash.*
 errors.err
+output/

@@ -1,6 +1,9 @@
 # PRIMARY (OR INDUSTRY) SPEC SOURCES
 ## Syntax
 - https://hh200-docs.pages.dev/#structure  https://hurl.dev/docs/request.html#structure
+```
+@.headers  $.headers  %.params.start
+```
 ## Cookies
 - https://www.rfc-editor.org/rfc/rfc6265.html "HTTP State Management Mechanism"
 - https://curl.se/docs/http-cookies.html      "curl HTTP Cookies"
@@ -24,6 +27,33 @@ https + Secure cookie attr
 
 
 # STASH
+oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
+oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
+
+
+Debug traceStack and stack run --profile -- ../examples/asserts_block.hhs +RTS -xc
+[ ScriptStart 1
+, ItemStart ""
+, HttpError "HttpExceptionRequest Request {\n  host = \"example.io\"
+                                           \n  port = 443
+                                           \n  secure = True
+                                           \n  requestHeaders = [(\"authorization\",\"<REDACTED>\")]
+                                           \n  path = \"/v2/target-template\"
+                                           \n  queryString          = \"?project_id=24& year=2025&month=12&salesarea=5\"
+                                           \n  method               = \"GET\"
+                                           \n  proxy                = Nothing
+                                           \n  rawBody              = False
+                                           \n  redirectCount        = 10
+                                           \n  responseTimeout      = ResponseTimeoutDefault
+                                           \n  requestVersion       = HTTP/1.1
+                                           \n  proxySecureMode      = ProxySecureWithConnect
+                                           \n}
+                                \n (InternalException
+                                       (HandshakeFailed
+                                           (Error_Protocol \"certificate rejected: [NameMismatch \\\"example.io\\\"]\"
+                                            CertificateUnknown)))"
+]
+
 hh200-docs page for hh200d
 POST http://localhost:9999/echo.php
 { "foo": "bar", "baz": 123 }
@@ -108,20 +138,20 @@ mut f with
 [Asserts]
 > jsonpath "$.json.kkk" == "vvv"
 
-POST https://bivi-backend.pti-cosmetics.com/v2/login
+POST https://host.com/v2/login
 GET http://localhost:9999/echo.php
 [Captures]
 RELAY: TOKEN
 
 
-POST https://sfa-api-testing.pti-cosmetics.com/login.php
+POST https://host.com/login.php
 { "username": "testing1", "password": "paragon" }
 HTTP 200
 [Captures]
 NNN: 9
 TOKEN: jsonpath "$.jwt"
 
-POST  https://sfa.pti-cosmetics.com/sfa2/web/index.php?r=delivery-order%2Fcreate-order
+POST  https://host.com/sfa2/web/index.php?r=delivery-order%2Fcreate-order
 jwt: eyabcd98
 HTTP 203
 
