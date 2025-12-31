@@ -5,10 +5,11 @@
 
 module Main where
 
-import Hh200.Scanner
+import qualified Hh200.Scanner
 
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import           Language.LSP.Server
+import           Language.LSP.VFS (virtualFileText, VirtualFile)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
   ( InitializeResult(..)
@@ -21,8 +22,13 @@ import           Language.LSP.Protocol.Types
   , Position(..)
   , DiagnosticSeverity(..)
   , DidSaveTextDocumentParams(..)
+  , DidOpenTextDocumentParams(..)
+  , DidChangeTextDocumentParams(..)
+  , TextDocumentItem(..)
+  , VersionedTextDocumentIdentifier(..)
   , TextDocumentIdentifier(..)
   , DidChangeConfigurationParams(..)
+  , toNormalizedUri
   )
 
 import           Control.Monad.IO.Class
@@ -44,8 +50,27 @@ data Config = Config { verbose :: Bool }
 instance FromJSON Config where
     parseJSON = withObject "Config" $ \v -> Config <$> v .:? "verbose" .!= False
 
-validate :: Uri -> [Diagnostic]
-validate _ = []
+validate :: Uri -> LspM Config [Diagnostic]
+validate uri = do
+    mdoc <- getVirtualFile (toNormalizedUri uri)
+    case mdoc of
+        Nothing -> return []
+        Just vf -> do
+            let content = Text.unpack (virtualFileText vf)
+            let errs = Hh200.Scanner.diagnostics content
+            return $ map toDiagnostic errs
+
+toDiagnostic :: ((Int, Int), String) -> Diagnostic
+toDiagnostic ((l, c), msg) =
+    let pos = Position (fromIntegral (l - 1)) (fromIntegral (c - 1))
+        range = Range pos pos
+    in Diagnostic range (Just DiagnosticSeverity_Error) Nothing Nothing (Just "hh200") (Text.pack msg) Nothing Nothing Nothing
+
+validateAndPublish :: Uri -> LspM Config ()
+validateAndPublish uri = do
+    diags <- validate uri
+    sendNotification SMethod_TextDocumentPublishDiagnostics $
+        PublishDiagnosticsParams uri Nothing diags
 
 handlers :: Handlers (LspM Config)
 handlers = mconcat
@@ -54,9 +79,15 @@ handlers = mconcat
 
   , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
       let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
-          diags = validate uri
-      sendNotification SMethod_TextDocumentPublishDiagnostics $
-        PublishDiagnosticsParams uri Nothing diags
+      validateAndPublish uri
+
+  , notificationHandler SMethod_TextDocumentDidOpen $ \msg -> do
+      let TNotificationMessage _ _ (DidOpenTextDocumentParams (TextDocumentItem uri _ _ _)) = msg
+      validateAndPublish uri
+
+  , notificationHandler SMethod_TextDocumentDidChange $ \msg -> do
+      let TNotificationMessage _ _ (DidChangeTextDocumentParams (VersionedTextDocumentIdentifier uri _) _) = msg
+      validateAndPublish uri
 
   , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg -> do
       -- (auto) This handler satisfies the LSP client that the notification is recognized.
