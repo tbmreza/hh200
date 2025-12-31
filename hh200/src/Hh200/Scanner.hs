@@ -21,7 +21,7 @@ import           Control.Monad.IO.Class
 import           Control.Exception (try, IOException)
 
 import qualified Data.ByteString.Lazy.Char8 as L8
-import           Data.Char (toLower)
+import           Data.Char (toLower, isDigit)
 import           Data.List (isPrefixOf)
 
 import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
@@ -255,18 +255,35 @@ hover input pos =
 diagnostics :: String -> [((Int, Int), String)]
 diagnostics input = 
     case scanSafe input of
-        Left err -> [((1, 1), "Lexical error: " ++ err)]
+        Left err -> 
+            let pos = extractPos err
+            in [(pos, "Lexical error: " ++ err)]
         Right tokens ->
             case parse tokens of
                 ParseOk _ -> []
-                ParseFailed err errTokens -> 
+                ParseFailed err errTokens ->
                     case errTokens of
-                        (t:_) -> 
+                        (t:_) ->
                             let (AlexPn _ line col) = getPos t
                             in [((line, col), err)]
-                        [] -> 
+                        [] ->
                             -- Error at EOF or empty tokens list
                             [((1, 1), err)]
+
+    where
+    extractPos :: String -> (Int, Int)
+    extractPos msg =
+        let p = "lexical error at line "
+        in if p `isPrefixOf` msg
+            then
+                let rest = drop (length p) msg
+                    (l, rest2) = span isDigit rest
+                    rest3 = dropWhile (not . isDigit) rest2
+                    (c, _) = span isDigit rest3
+                in case (reads l, reads c) of
+                    ([(ln, _)], [(cn, _)]) -> (ln, cn)
+                    _ -> (1, 1)
+            else (1, 1)
 
 documentSymbols :: String -> [(String, (Int, Int))]
 documentSymbols input = 

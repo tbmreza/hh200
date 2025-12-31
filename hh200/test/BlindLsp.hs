@@ -171,16 +171,18 @@ testLSP_hover = testGroup "LSP hover"
 
 testLSP_diagnostics :: TestTree
 testLSP_diagnostics = testGroup "LSP diagnostics"
-    [ testCase "Diagnostic Parser Error" $ do
+  [ testCase "Diagnostic Parser Error" $ do
         let input = "GET" -- Missing URL, invalid grammar
-        let diags = Hh.diagnostics input
+            diags = Hh.diagnostics input
         assertBool "Has diagnostics" (not (null diags))
+
         -- Expect error. "Parse error..."
         let ((line, _), msg) = head diags
+
         -- Line 1.
         assertEqual "Error on line 1" 1 line
         assertBool "Message indicates parse error" ("Parse error" `isInfixOf` msg)
-    ]
+  ]
 
 testLSP_symbols :: TestTree
 testLSP_symbols = testGroup "LSP symbols"
