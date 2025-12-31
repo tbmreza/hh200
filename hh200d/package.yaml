@@ -6,6 +6,8 @@ dependencies:
   - text
   - hh200
   - aeson
+  - network
+  - co-log-core
 
 executables:
   hh200d:

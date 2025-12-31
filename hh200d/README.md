@@ -4,6 +4,13 @@ hh200 language server implementation
 
 ```sh
 stack install
+hh200d --port 9994
+```
+
+```lua
+:lua vim.lsp.start({ name = 'hh200d', cmd = vim.lsp.rpc.connect('127.0.0.1', 9994), root_dir = vim.fs.dirname(vim.fs.find({'stack.yaml', '.git'}, { path = startpath })[1]), })
+:lua vim.lsp.start({ name = 'hh200d', cmd = vim.lsp.rpc.connect('127.0.0.1', 9994), root_dir = vim.fn.getcwd(), })
+
 ```
 
 ## Roadmap

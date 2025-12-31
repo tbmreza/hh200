@@ -30,6 +30,14 @@ import qualified Data.Text.IO as T
 import qualified Data.Text as Text
 import           Data.Aeson hiding (defaultOptions)
 
+-- TCP
+import           Network.Socket
+import           System.Environment (getArgs)
+import           System.IO
+import           Control.Monad (void, forever)
+import           Control.Exception (bracket)
+import           Colog.Core (LogAction (..), WithSeverity (..))
+
 data Config = Config { verbose :: Bool }
     deriving (Show)
 
@@ -78,18 +86,46 @@ beforeResponse env _req = pure $ Right env
 ih :: LanguageContextEnv Config -> LspM Config <~> IO
 ih env = Iso (runLspT env) liftIO
 
+ioLogger :: LogAction IO (WithSeverity LspServerLog)
+ioLogger = LogAction $ \_ -> return ()
+
+lspLogger :: LogAction (LspM Config) (WithSeverity LspServerLog)
+lspLogger = LogAction $ \_ -> return ()
+
 main :: IO ()
 main = do
-    _int <- runServer $
-        ServerDefinition
-          { defaultConfig =    Config False
-          , configSection =    "hh200d"
-          , parseConfig =      configResult
-          , onConfigChange =   handleConfig
-          , doInitialize =     beforeResponse
-          , staticHandlers =   sh
-          , interpretHandler = ih
-          , options =          defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "runtime red wall dismissable, server still attached"))}
-          -- , options = defaultOptions
-          }
-    pure ()
+    args <- getArgs
+    case args of
+        ["--port", p] -> runTcp (read p)
+        _             -> runStdio
+
+lspServerDef :: ServerDefinition Config
+lspServerDef =
+    ServerDefinition
+      { defaultConfig =    Config False
+      , configSection =    "hh200d"
+      , parseConfig =      configResult
+      , onConfigChange =   handleConfig
+      , doInitialize =     beforeResponse
+      , staticHandlers =   sh
+      , interpretHandler = ih
+      , options =          defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "runtime red wall dismissable, server still attached"))}
+      }
+
+runStdio :: IO ()
+runStdio = void $ runServer lspServerDef
+
+runTcp :: Int -> IO ()
+runTcp port = do
+    sock <- socket AF_INET Stream 0
+    setSocketOption sock ReuseAddr 1
+    bind sock (SockAddrInet (fromIntegral port) (tupleToHostAddress (127, 0, 0, 1)))
+    listen sock 2
+    putStrLn $ "Listening on port " ++ show port
+    forever $ do
+        (conn, _addr) <- accept sock
+        putStrLn "Connection accepted"
+        hdl <- socketToHandle conn ReadWriteMode
+        hSetBuffering hdl NoBuffering
+        _ <- runServerWithHandles ioLogger lspLogger hdl hdl lspServerDef
+        hClose hdl
