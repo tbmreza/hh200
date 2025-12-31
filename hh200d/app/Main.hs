@@ -1,13 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE DataKinds #-}
 
 module Main where
 
 import Hh200.Scanner
 
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
-import Language.LSP.Server
-import Language.LSP.Protocol.Types
+import           Language.LSP.Server
+import           Language.LSP.Protocol.Message
+import           Language.LSP.Protocol.Types
   ( InitializeResult(..)
   , ServerCapabilities
   , ServerInfo(..)
@@ -22,18 +24,16 @@ import Language.LSP.Protocol.Types
   , DidChangeConfigurationParams(..)
   )
 
-import Language.LSP.Protocol.Message
-import Control.Monad.IO.Class
+import           Control.Monad.IO.Class
 import qualified Data.Text.IO as T
 import qualified Data.Text as Text
-import Data.Aeson hiding (defaultOptions)
+import           Data.Aeson hiding (defaultOptions)
 
 data Config = Config { verbose :: Bool }
-  deriving (Show)
+    deriving (Show)
 
 instance FromJSON Config where
-  parseJSON = withObject "Config" $ \v ->
-    Config <$> v .:? "verbose" .!= False
+    parseJSON = withObject "Config" $ \v -> Config <$> v .:? "verbose" .!= False
 
 validate :: Uri -> [Diagnostic]
 validate _ = []
@@ -65,29 +65,29 @@ handleConfig cfg = do
 sh :: a -> Handlers (LspM Config)
 sh caps = handlers
 
--- configResult :: a -> Value -> Either Text a
+configResult :: Config -> Value -> Either Text.Text Config
 configResult old v =
     case fromJSON v of
         Success newConfig -> Right newConfig
         Error e -> Left (Text.pack e)
 
+-- beforeResponse :: LanguageContextEnv config -> TMessage 'Method_Initialize -> IO (Either (TResponseError 'Method_Initialize) a)
+beforeResponse env req = pure $ Right env
+
+ih env = Iso (runLspT env) liftIO
+
 main :: IO ()
 main = do
     _int <- runServer $
         ServerDefinition
-          { defaultConfig = Config False
-          , configSection = "hh200d"
-          , parseConfig = configResult
-          -- , parseConfig = \_old v ->
-          --       case fromJSON v of
-          --         Success newConfig -> Right newConfig
-          --         Error e -> Left (Text.pack e)
-          , onConfigChange = handleConfig
-          , doInitialize = \env _req -> pure $ Right env
-          -- , staticHandlers = \_caps -> handlers
-          , staticHandlers = sh
-          , interpretHandler = \env -> Iso (runLspT env) liftIO
-          -- , options = defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "runtime red wall dismissable, server still attached"))}
-          , options = defaultOptions
+          { defaultConfig =    Config False
+          , configSection =    "hh200d"
+          , parseConfig =      configResult
+          , onConfigChange =   handleConfig
+          , doInitialize =     beforeResponse
+          , staticHandlers =   sh
+          , interpretHandler = ih
+          , options =          defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "runtime red wall dismissable, server still attached"))}
+          -- , options = defaultOptions
           }
     pure ()
