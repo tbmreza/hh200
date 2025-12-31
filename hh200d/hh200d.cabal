@@ -19,6 +19,7 @@ executable hh200d
       aeson
     , base >=4.7 && <5
     , co-log-core
+    , gitrev
     , hh200
     , lsp
     , network

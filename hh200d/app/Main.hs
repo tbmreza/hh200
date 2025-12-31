@@ -2,6 +2,7 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Main where
 
@@ -38,6 +39,7 @@ import           Control.Monad.IO.Class
 import qualified Data.Text.IO as T
 import qualified Data.Text as Text
 import           Data.Aeson hiding (defaultOptions)
+import           Development.GitRev (gitHash)
 
 -- TCP
 import           Network.Socket
@@ -159,9 +161,9 @@ lspServerDef =
       , doInitialize =     beforeResponse
       , staticHandlers =   sh
       , interpretHandler = ih
-      , options =          defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "abc45commithash"))}
+      , options =          defaultOptions {optServerInfo = Just (ServerInfo "" (Just "abc45commithash"))}
       }
--- PICKUP poke around: compile time commit hash, LspInfo activate multiple clients then kill by id
+-- PICKUP poke around: LspInfo activate multiple clients then kill by id
 
 runStdio :: IO ()
 runStdio = void $ runServer lspServerDef
