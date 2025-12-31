@@ -458,7 +458,7 @@ collectIdsForCaps [] = []
 
 -- ??: after lsp format on save, implement Text based alternative implementation and bench
 formatRange :: String -> ((Int, Int), (Int, Int)) -> [((Int, Int), (Int, Int), String)]
-formatRange input ((startL, startC), (endL, endC)) = 
+formatRange    input     ((startL, startC), (endL, endC)) =
     let allLines = lines input
         -- Assume single line for this test case
         targetLine = if length allLines >= startL then allLines !! (startL - 1) else ""
@@ -466,10 +466,12 @@ formatRange input ((startL, startC), (endL, endC)) =
         -- "{\"a\":1, \"b\":2}" -> startC=1, endC=16.
         -- take (16 - 1 + 1) . drop (1 - 1)
         subStr = take (endC - startC + 1) $ drop (startC - 1) targetLine
-        
+
         formatted = if not (null subStr) && head subStr == '{'
                     then simpleJsonFormat subStr
                     else subStr
+
+    -- [ ((Int, Int),       (Int, Int),   String) ]
     in [ ((startL, startC), (endL, endC), formatted) ]
 
 simpleJsonFormat :: String -> String

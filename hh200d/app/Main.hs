@@ -75,25 +75,25 @@ validateAndPublish uri = do
 handlers :: Handlers (LspM Config)
 handlers = mconcat
   [ notificationHandler SMethod_Initialized $ \_not -> do
-      liftIO $ T.putStrLn "Server initialized"
+        liftIO $ T.putStrLn "Server initialized"
 
   , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
-      let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
-      validateAndPublish uri
+        let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
+        validateAndPublish uri
 
   , notificationHandler SMethod_TextDocumentDidOpen $ \msg -> do
-      let TNotificationMessage _ _ (DidOpenTextDocumentParams (TextDocumentItem uri _ _ _)) = msg
-      validateAndPublish uri
+        let TNotificationMessage _ _ (DidOpenTextDocumentParams (TextDocumentItem uri _ _ _)) = msg
+        validateAndPublish uri
 
   , notificationHandler SMethod_TextDocumentDidChange $ \msg -> do
-      let TNotificationMessage _ _ (DidChangeTextDocumentParams (VersionedTextDocumentIdentifier uri _) _) = msg
-      validateAndPublish uri
+        let TNotificationMessage _ _ (DidChangeTextDocumentParams (VersionedTextDocumentIdentifier uri _) _) = msg
+        validateAndPublish uri
 
   , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg -> do
-      -- (auto) This handler satisfies the LSP client that the notification is recognized.
-      -- The actual configuration update is managed by the library via `onConfigChange`.
-      liftIO $ T.putStrLn "Received workspace/didChangeConfiguration"
-      return ()
+        -- (auto) This handler satisfies the LSP client that the notification is recognized.
+        -- The actual configuration update is managed by the library via `onConfigChange`.
+        liftIO $ T.putStrLn "Received workspace/didChangeConfiguration"
+        return ()
   ]
 
 -- (auto) This callback is invoked by the library (via `onConfigChange`) when the 
