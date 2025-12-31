@@ -29,6 +29,9 @@ import           Language.LSP.Protocol.Types
   , TextDocumentIdentifier(..)
   , DidChangeConfigurationParams(..)
   , toNormalizedUri
+  , TextEdit(..)
+  , DocumentRangeFormattingParams(..)
+  , type (|?)(..)
   )
 
 import           Control.Monad.IO.Class
@@ -94,6 +97,20 @@ handlers = mconcat
         -- The actual configuration update is managed by the library via `onConfigChange`.
         liftIO $ T.putStrLn "Received workspace/didChangeConfiguration"
         return ()
+
+  , requestHandler SMethod_TextDocumentRangeFormatting $ \req responder -> do
+        let TRequestMessage _ _ _ (DocumentRangeFormattingParams _ (TextDocumentIdentifier uri) range _opts) = req
+        mdoc <- getVirtualFile (toNormalizedUri uri)
+        case mdoc of
+            Nothing -> responder (Right (InL []))
+            Just vf -> do
+                let content = Text.unpack (virtualFileText vf)
+                let Range (Position sl sc) (Position el ec) = range
+                let startPos = (fromIntegral sl + 1, fromIntegral sc + 1)
+                let endPos = (fromIntegral el + 1, fromIntegral ec + 1)
+                let updates = Hh200.Scanner.formatRange content (startPos, endPos)
+                let edits = [ TextEdit (Range (Position (fromIntegral r1 - 1) (fromIntegral c1 - 1)) (Position (fromIntegral r2 - 1) (fromIntegral c2 - 1))) (Text.pack txt) | ((r1, c1), (r2, c2), txt) <- updates ]
+                responder (Right (InL edits))
   ]
 
 -- (auto) This callback is invoked by the library (via `onConfigChange`) when the 
