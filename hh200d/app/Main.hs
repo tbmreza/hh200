@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Main where
 
@@ -71,9 +72,10 @@ configResult old v =
         Success newConfig -> Right newConfig
         Error e -> Left (Text.pack e)
 
--- beforeResponse :: LanguageContextEnv config -> TMessage 'Method_Initialize -> IO (Either (TResponseError 'Method_Initialize) a)
-beforeResponse env req = pure $ Right env
+beforeResponse :: LanguageContextEnv Config -> TMessage Method_Initialize -> IO (Either (TResponseError Method_Initialize) (LanguageContextEnv Config))
+beforeResponse env _req = pure $ Right env
 
+ih :: LanguageContextEnv Config -> LspM Config <~> IO
 ih env = Iso (runLspT env) liftIO
 
 main :: IO ()
