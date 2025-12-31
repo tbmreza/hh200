@@ -51,11 +51,13 @@ handlers :: Handlers (LspM Config)
 handlers = mconcat
   [ notificationHandler SMethod_Initialized $ \_not -> do
       liftIO $ T.putStrLn "Server initialized"
+
   , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
       let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
           diags = validate uri
       sendNotification SMethod_TextDocumentPublishDiagnostics $
         PublishDiagnosticsParams uri Nothing diags
+
   , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg -> do
       -- (auto) This handler satisfies the LSP client that the notification is recognized.
       -- The actual configuration update is managed by the library via `onConfigChange`.
@@ -109,8 +111,9 @@ lspServerDef =
       , doInitialize =     beforeResponse
       , staticHandlers =   sh
       , interpretHandler = ih
-      , options =          defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "runtime red wall dismissable, server still attached"))}
+      , options =          defaultOptions {optServerInfo = Just (ServerInfo "??: this compiles but isn't effective at setting server doc at LspInfo" (Just "abc45commithash"))}
       }
+-- PICKUP poke around: compile time commit hash, LspInfo activate multiple clients then kill by id
 
 runStdio :: IO ()
 runStdio = void $ runServer lspServerDef
@@ -120,6 +123,7 @@ runTcp port = do
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
     bind sock (SockAddrInet (fromIntegral port) (tupleToHostAddress (127, 0, 0, 1)))
+    -- Expect one client (a text editor) to connect at a time.
     listen sock 2
     putStrLn $ "Listening on port " ++ show port
     forever $ do
