@@ -1,0 +1,67 @@
+
+-- Grammar for Hh200 DSL
+
+comment "#" ;
+
+terminator ConfigItem "" ;
+terminator Binding "" ;
+terminator Str "" ;
+terminator Int "" ;
+
+-- Wrappers for basic types
+Str. Str ::= String ;
+Int. Int ::= Integer ;
+
+-- Toplevel
+Script. Script ::= [TopLevel] ;
+
+terminator TopLevel "" ;
+TopLevelConfig. TopLevel ::= ConfigBlock ;
+TopLevelCall. TopLevel ::= CallItem ;
+
+-- Configs
+ConfigBlock. ConfigBlock ::= "[" "Configs" "]" [ConfigItem] ;
+ConfigItem. ConfigItem ::= Ident ":" String ;
+
+-- Call items
+CallItem. CallItem ::= DepsClause Request Response ;
+CallItemNoResponse. CallItem ::= DepsClause Request ;
+
+-- Deps clause
+DepsClause. DepsClause ::= [Str] "then" String ;
+NoDepsClause. DepsClause ::= String ;
+
+-- Request
+Request. Request ::= Method Url [Binding] "{" String "}" ;
+RequestNoPayload. Request ::= Method Url [Binding] ;
+RequestNoBindings. Request ::= Method Url "{" String "}" ;
+RequestMin. Request ::= Method Url ;
+
+-- Bindings
+Binding. Binding ::= Ident ":" String ;
+
+-- Response
+Response. Response ::= "HTTP" [Int] ResponseBody ;
+ResponseNoCodes. Response ::= ResponseBody ;
+
+ResponseBody. ResponseBody ::= Captures Asserts ;
+ResponseBodyCapturesOnly. ResponseBody ::= Captures ;
+ResponseBodyAssertsOnly. ResponseBody ::= Asserts ;
+
+-- Captures
+Captures. Captures ::= "[" "Captures" "]" [Binding] ;
+
+-- Asserts
+Asserts. Asserts ::= "[" "Asserts" "]" [Str] ;
+
+
+-- Primitives
+MethodGET. Method ::= "GET" ;
+MethodPOST. Method ::= "POST" ;
+MethodPUT. Method ::= "PUT" ;
+MethodDELETE. Method ::= "DELETE" ;
+MethodPATCH. Method ::= "PATCH" ;
+MethodOPTIONS. Method ::= "OPTIONS" ;
+MethodHEAD. Method ::= "HEAD" ;
+
+Url. Url ::= Ident ; -- For now, we'll just use Ident for URLs

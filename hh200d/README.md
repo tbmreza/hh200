@@ -1,25 +1,42 @@
 # hh200d
 
-hh200 language server implementation
+This is the language server for the hh200 DSL.
 
-```sh
-stack install
-hh200d --port 9994
-```
+## Building
 
-```lua
-:lua vim.lsp.start({ name = 'hh200d', cmd = vim.lsp.rpc.connect('127.0.0.1', 9994), root_dir = vim.fs.dirname(vim.fs.find({'stack.yaml', '.git'}, { path = startpath })[1]), })
-:lua vim.lsp.start({ name = 'hh200d', cmd = vim.lsp.rpc.connect('127.0.0.1', 9994), root_dir = vim.fn.getcwd(), })
-:lua vim.lsp.start({ name = 'hh200d', cmd = vim.lsp.rpc.connect('127.0.0.1', 9994), settings = { someOption = 12 } })
+This project uses `stack` to build. Before building, you need to generate the parser files from the BNFC grammar.
+
+### 1. Install BNFC
+
+If you don't have `bnfc` installed, you can install it using `cabal`:
 
 ```
+cabal install BNFC
+```
 
-## Roadmap
+Make sure that `~/.cabal/bin` is in your `PATH`.
 
-- [ ] **Diagnostics**: Real-time syntax and semantic error reporting.
-- [ ] **Hover Documentation**: Show type information and documentation when hovering over symbols.
-- [ ] **Go to Definition**: Jump to the definition of variables, functions, and types.
-- [ ] **Code Completion**: Context-aware autocompletion for keywords and symbols.
-- [ ] **Rename**: Safe global renaming of symbols.
-- [ ] **Formatting**: Automatic code formatting.
-- [ ] **Document Symbols**: Outline view of symbols in the current file.
+### 2. Clone Dependencies
+
+This project has a local dependency on the `bel-expr` library. Clone it into the project root:
+
+```
+git clone https://github.com/tbmreza/bel-expr.git ../bel-expr
+```
+
+### 3. Generate Parser Files
+
+To generate the parser files, run the following command from the project root:
+
+```
+bnfc --haskell -m -o hh200d/src/Hh200 hh200d/src/Hh200.cf
+```
+
+### 4. Build the Project
+
+Once the parser files have been generated, you can build the project using `stack`:
+
+```
+cd hh200d
+stack build
+```
