@@ -52,7 +52,7 @@ main = do
 testExecution_bel :: TestTree
 testExecution_bel = testCase "BEL callsite" $ do
     mgr <-        Prim.newManager Prim.tlsManagerSettings
-    instant <-    Prim.parseRequest "http://localhost"
+    instant <-    Prim.parseRequest "http://localhost:3000"
     mtRespBody <- Prim.httpLbs instant mgr -- :: Prim.Response L8.ByteString
 
     ok <-  Hh.assertsAreOk mtHM mtRespBody (rsFrom ["true", "true", "true"])

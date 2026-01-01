@@ -10,6 +10,10 @@ dependencies:
   - co-log-core
   - gitrev
 
+library:
+  source-dirs: src
+  build-tools:
+    - bnfc:bnfc
 executables:
   hh200d:
     main:                Main.hs
