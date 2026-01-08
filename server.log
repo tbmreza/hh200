@@ -1,0 +1,16 @@
+$ bun run server.ts
+1 | import { Database } from "bun:sqlite";
+2 |
+3 | const db = new Database("metrics.db", { readonly: true });
+               ^
+SQLiteError: unable to open database file
+      errno: 14,
+ byteOffset: -1,
+       code: "SQLITE_CANTOPEN"
+
+      at new Database (bun:sqlite:240:28)
+      at /app/dev-server/server.ts:3:12
+      at loadAndEvaluateModule (2:1)
+
+Bun v1.2.14 (Linux x64 baseline)
+error: script "start" exited with code 1
