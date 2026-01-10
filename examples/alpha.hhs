@@ -1,0 +1,20 @@
+## post request with cookies and a JSON body,
+## save the application/pdf response to a file.
+
+# POST http://localhost:9999/mkpdf.php
+POST http://localhost:9999/echo.php
+Cookie: session_id=abc123; user_token=xyz789
+# Cookie: more=def45
+# Content-Type: application/json
+Content-Type: application
+{
+  "title": "My Document",
+  "content": "Document content here",
+  "format": "A4"
+}
+HTTP 200
+# [Asserts]
+# >debug RESP_BODY
+# >header "Content-Type" == "application/pdf"
+# [Configs]
+# output: output.pdf

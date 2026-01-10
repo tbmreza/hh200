@@ -163,7 +163,6 @@ lspServerDef =
       , interpretHandler = ih
       , options =          defaultOptions {optServerInfo = Just (ServerInfo "hh200d" (Just $(gitHash)))}
       }
--- PICKUP poke around: LspInfo activate multiple clients then kill by id
 
 runStdio :: IO ()
 runStdio = void $ runServer lspServerDef

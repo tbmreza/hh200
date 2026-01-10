@@ -3,14 +3,17 @@ module P where
 
 import Debug.Trace
 
+import           Data.List (intercalate)
 import qualified Data.Text as Text
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict as HM
 import           Control.Monad.Trans.Except
-import           L
-import           Hh200.Types
-import Network.HTTP.Types.Status
+-- import           Network.HTTP.Types.Status (Status, mkStatus)
+import           Network.HTTP.Types.Status (mkStatus)
+
 import qualified BEL
+import           Hh200.Types
+import           L
 
 }
 %name parse
@@ -22,7 +25,7 @@ import qualified BEL
     identifier  { IDENTIFIER _ $$ }
 
 
-    newline        { LN _ }
+    newline     { LN _ }
 
     "="         { SEP _ }
     "/"         { SEP _ }
@@ -50,7 +53,7 @@ import qualified BEL
     rhs         { RHS _ $$ }
 
 
-    line         { LINE _ $$ }
+    line        { LINE _ $$ }
 
 
 %monad { E } { thenE } { returnE }
@@ -148,7 +151,7 @@ call_items : call_item crlf            { [$1] }
 -- traceWithLine :: Token -> String -> a -> a
 -- traceWithLine tok msg val = trace (msg ++ " at line " ++ show (getLineNum tok)) val
 
-statusFrom :: Int -> Status
+-- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
 
 stripColon :: String -> String
@@ -156,6 +159,14 @@ stripColon s = dropWhile (\c -> c == ':' || c == ' ') s
 
 parseError :: [Token] -> E a
 parseError tokens = failE ("Parse error on tokens: " ++ show tokens) tokens
+
+-- parseError :: Show a => [a] -> E b
+-- parseError tokens = failE ("Parse error on tokens:\n" ++ prettyTokens) tokens
+  -- where
+    -- -- Adds a tab/indent before every token
+    -- prettyTokens = intercalate "\n" $ map (\t -> "    " ++ show t) tokens
+
+
 
 data E a = ParseOk a | ParseFailed String [Token]
 
