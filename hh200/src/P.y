@@ -86,11 +86,11 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 
-request  : method url crlf bindings braced crlf { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
-         | method url crlf bindings crlf        { RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
-         | method url crlf braced crlf          { RequestSpec { verb = expectUpper    $1, url = $2, headers = RhsDict HM.empty, payload = $4, opts = [] } }
-         | method url crlf                      { RequestSpec { verb = expectUpper    $1, url = $2, headers = RhsDict HM.empty, payload = "", opts = [] } }
-         | url crlf                             { RequestSpec { verb = expectUpper "GET", url = $1, headers = RhsDict HM.empty, payload = "", opts = [] } }
+request  : method url crlf bindings braced crlf { trace "rq1" $ RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = $5, opts = [] } }
+         | method url crlf bindings crlf        { trace "rq2" $ RequestSpec { verb = expectUpper    $1, url = $2, headers = $4, payload = "", opts = [] } }
+         | method url crlf braced crlf          { trace "rq3" $ RequestSpec { verb = expectUpper    $1, url = $2, headers = RhsDict HM.empty, payload = $4, opts = [] } }
+         | method url crlf                      { trace "rq4" $ RequestSpec { verb = expectUpper    $1, url = $2, headers = RhsDict HM.empty, payload = "", opts = [] } }
+         | url crlf                             { trace "rq5" $ RequestSpec { verb = expectUpper "GET", url = $1, headers = RhsDict HM.empty, payload = "", opts = [] } }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
          { trace "RSa" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
