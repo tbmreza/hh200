@@ -10,8 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-ob_start();
-
 echo "=== PHP ECHO SERVER ===\n\n";
 
 // Request Method and URI
@@ -106,7 +104,4 @@ if (isset($_SERVER['HTTP_USER_AGENT'])) {
 }
 
 echo "\n=== END ===\n";
-
-$output = ob_get_flush();
-file_put_contents('php://stderr', $output);
 ?>

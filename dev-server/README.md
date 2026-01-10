@@ -41,7 +41,8 @@ A simple PHP script that echoes back request details (headers, body, etc.).
 To start the echo server on port 9999:
 
 ```bash
-php -S localhost:9999 -f echo.php
+php -S localhost:9999 echo.php     # isomorphic echo
+php -S localhost:9999 request.php  # echoes request to response body
 ```
 
 You can then send requests to [http://localhost:9999](http://localhost:9999) to see them echoed back.
