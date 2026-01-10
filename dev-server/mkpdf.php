@@ -21,6 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 
+// ??: in symfony, fix 400; proper routing for echo.php and mkpdf.php
+if (!$data || empty($data['title']) || empty($data['content'])) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Bad Request: "title" and "content" are required fields.']);
+    exit;
+}
+
 $title = $data['title'];
 $content = $data['content'];
 

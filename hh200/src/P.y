@@ -60,9 +60,8 @@ import           L
 
 %%
 
-script : crlf configs call_items    { Script { kind = Regular, config = $2, callItems = $3 } }
-       | crlf call_items    { Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
-       | crlf request       { Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
+script : crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
+       | crlf configs            { trace "rootZ" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
@@ -99,7 +98,7 @@ response : "HTTP" response_codes crlf response_captures crlf response_asserts cr
          { trace "RSb" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf response_asserts crlf
-         { trace "" $ ResponseSpec { asserts = $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
+         { trace "RSc" $ ResponseSpec { asserts = $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }
 
          | "HTTP" response_codes crlf
          { trace "RSd" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2 } }

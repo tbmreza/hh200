@@ -27,6 +27,12 @@ https + Secure cookie attr
 
 
 # STASH
+       | crlf request            { trace "root2" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
+
+script : crlf configs call_items { trace "root0" $ Script { kind = Regular, config = $2, callItems = $3 } }
+       | crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
+       | crlf configs            { trace "rootZ" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
+
 oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
