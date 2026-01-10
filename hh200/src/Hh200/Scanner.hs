@@ -34,18 +34,18 @@ scriptFrom (Snippet s) =
     let parsed :: E Script = parse tokensOrPanic in
 
     case parsed of
-        ParseFailed d _ -> trace (show d) Nothing
+        ParseFailed d _ -> trace d Nothing
         ParseOk sole -> Just sole
 
 readScript :: FilePath -> IO (Maybe Script)
 readScript path = do
     loaded <- readFile path
     let tokensOrPanic = alexScanTokens loaded
-    let parsed :: E Script = parse tokensOrPanic
+        parsed :: E Script = parse tokensOrPanic
 
     case parsed of
         ParseFailed m _ -> do
-            putStrLn $ show m
+            putStrLn m
             pure Nothing
         ParseOk s -> do
             pure $ Just s

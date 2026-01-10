@@ -158,14 +158,42 @@ stripColon :: String -> String
 stripColon s = dropWhile (\c -> c == ':' || c == ' ') s
 
 parseError :: [Token] -> E a
-parseError tokens = failE ("Parse error on tokens: " ++ show tokens) tokens
+parseError tokens = failE ("Parse error on tokens:\n" ++ prettyTokens tokens) tokens
 
--- parseError :: Show a => [a] -> E b
--- parseError tokens = failE ("Parse error on tokens:\n" ++ prettyTokens) tokens
-  -- where
-    -- -- Adds a tab/indent before every token
-    -- prettyTokens = intercalate "\n" $ map (\t -> "    " ++ show t) tokens
+prettyTokens :: [Token] -> String
+prettyTokens = intercalate "\n" . map (("  " ++) . prettyToken) . take 10
 
+prettyToken :: Token -> String
+prettyToken t = case t of
+    LN p           -> "LN " ++ showPos p
+    DIGITS p s     -> "DIGITS " ++ showPos p ++ " " ++ show s
+    IDENTIFIER p s -> "IDENTIFIER " ++ showPos p ++ " " ++ show s
+    SEP p          -> "SEP " ++ showPos p
+    METHOD p s     -> "METHOD " ++ showPos p ++ " " ++ show s
+    VERSION p s    -> "VERSION " ++ showPos p ++ " " ++ show s
+    BRACE_OPN p    -> "BRACE_OPN " ++ showPos p
+    BRACE_CLS p    -> "BRACE_CLS " ++ showPos p
+    PAREN_OPN p    -> "PAREN_OPN " ++ showPos p
+    PAREN_CLS p    -> "PAREN_CLS " ++ showPos p
+    LIST_OPN p     -> "LIST_OPN " ++ showPos p
+    LIST_CLS p     -> "LIST_CLS " ++ showPos p
+    COLON p        -> "COLON " ++ showPos p
+    QUOTE p        -> "QUOTE " ++ showPos p
+    KW_THEN p      -> "KW_THEN " ++ showPos p
+    KW_HTTP p      -> "KW_HTTP " ++ showPos p
+    KW_CONFIGS p   -> "KW_CONFIGS " ++ showPos p
+    KW_CAPTURES p  -> "KW_CAPTURES " ++ showPos p
+    KW_ASSERTS p   -> "KW_ASSERTS " ++ showPos p
+    URL p s        -> "URL " ++ showPos p ++ " " ++ show s
+    QUOTED p s     -> "QUOTED " ++ showPos p ++ " " ++ show s
+    BRACED p s     -> "BRACED " ++ showPos p ++ " " ++ show s
+    RHS p s        -> "RHS " ++ showPos p ++ " " ++ show s
+    JSONPATH p s   -> "JSONPATH " ++ showPos p ++ " " ++ show s
+    LINE p s       -> "LINE " ++ showPos p ++ " " ++ show s
+    EOF p          -> "EOF " ++ showPos p
+
+showPos :: AlexPosn -> String
+showPos (AlexPn _ l c) = "(" ++ show l ++ ":" ++ show c ++ ")"
 
 
 data E a = ParseOk a | ParseFailed String [Token]
