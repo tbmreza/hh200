@@ -86,6 +86,9 @@ request  : method url crlf bindings braced crlf { trace "rq1" $ RequestSpec { ve
 response : "HTTP" response_codes crlf response_captures crlf response_asserts crlf
          { trace "RSa" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
 
+         | "HTTP" response_codes crlf response_asserts crlf response_captures crlf
+         { trace "RSa_inv" $ ResponseSpec { asserts = $4, captures = $6, output = [], statuses = map statusFrom $2 } }
+
          | "HTTP" response_codes crlf response_captures crlf
          { trace "RSb" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2 } }
 
@@ -98,8 +101,14 @@ response : "HTTP" response_codes crlf response_captures crlf response_asserts cr
          | response_captures crlf response_asserts crlf
          { trace "RSe" $ ResponseSpec { asserts = $3, captures = $1, output = [], statuses = [] } }
 
+         | response_asserts crlf response_captures crlf
+         { trace "RSe_inv" $ ResponseSpec { asserts = $1, captures = $3, output = [], statuses = [] } }
+
          | response_captures crlf
          { trace "RSf" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [] } }
+
+         | response_asserts crlf
+         { trace "RSg" $ ResponseSpec { asserts = $1, captures = RhsDict HM.empty, output = [], statuses = [] } }
 
 response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
