@@ -34,7 +34,11 @@ tokens :-
 
     then     { tok (\p _ -> KW_THEN p) }
     HTTP     { tok (\p _ -> KW_HTTP p) }
+
     Configs  { tok (\p _ -> KW_CONFIGS p) }
+    Form     { tok (\p _ -> KW_FORM p) }
+    Cookies  { tok (\p _ -> KW_COOKIES p) }
+
     Captures { tok (\p _ -> KW_CAPTURES p) }
     Asserts  { tok (\p _ -> KW_ASSERTS p) }
 
@@ -101,7 +105,11 @@ data Token =
 
   | KW_THEN      AlexPosn
   | KW_HTTP      AlexPosn
+
   | KW_CONFIGS   AlexPosn
+  | KW_FORM      AlexPosn
+  | KW_COOKIES   AlexPosn
+
   | KW_CAPTURES  AlexPosn
   | KW_ASSERTS   AlexPosn
 

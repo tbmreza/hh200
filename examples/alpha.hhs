@@ -7,6 +7,10 @@ Cookie: session_id=abc123; user_token=xyz789  # ??: ast type; parser
 # Cookie: more=def45
 # Content-Type: application/json  # ??: ast type; parser
 Content-Type: application
+
+[Configs]
+output: output.pdf
+
 { "title": "bisa", "content": "isi pdfnya." }
 # { "content": "isi pdfnya." }  # ??: multi line braced
 # {
@@ -18,5 +22,3 @@ HTTP 200
 [Asserts]
 >header "Content-Type" == "application/pdf"
 
-# [Configs]
-# output: output.pdf
