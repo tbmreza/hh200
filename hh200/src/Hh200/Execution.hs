@@ -64,7 +64,7 @@ defaultCallItem = CallItem
     { verb = expectUpper "GET"
     , url = "http://localhost:80"
     , headers = RhsDict HM.empty
-    , payload = "", opts = []
+    , payload = "", configs = RhsDict HM.empty
     }
   , ciResponseSpec = Nothing
   }

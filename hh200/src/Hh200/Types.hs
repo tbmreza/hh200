@@ -130,7 +130,7 @@ data RequestSpec = RequestSpec
   , url :: String
   , headers :: RhsDict
   , payload :: String
-  , opts :: [String]
+  , configs :: RhsDict
   }
   deriving (Show, Eq)
 

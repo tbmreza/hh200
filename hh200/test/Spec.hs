@@ -42,6 +42,8 @@ main = do
       , testScanner_lrInvalid
       , testScanner_lrEmpty
       , testScanner_TlsInference
+      , testScanner_lrResponseOrder
+      , testScanner_lrRequestConfigs
       , testExecution_bel
       , testExecution_validJsonBody
       ]
@@ -177,3 +179,46 @@ testScanner_TlsInference = testCase "tls inference from url scheme" $ do
     case Hh.effectiveTls sHttp of
         False -> pure ()
         True -> assertFailure "Should have inferred no TLS for http"
+
+-- (auto)
+testScanner_lrResponseOrder :: TestTree
+testScanner_lrResponseOrder = testGroup "lexer and parser for response block order"
+    [ testCase "Captures before Asserts" $ do
+        let input = "GET http://localhost\n\nHTTP 200\n[Captures]\nfoo: bar\n\n[Asserts]\n> true\n"
+            tokens = Hh.alexScanTokens input
+        case Hh.parse tokens of
+            Hh.ParseOk s -> do
+                let ci = head (Hh.callItems s)
+                case Hh.ciResponseSpec ci of
+                    Just rs -> do
+                        assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
+                        assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                    Nothing -> assertFailure "Should have response spec"
+            Hh.ParseFailed err _ -> assertFailure $ "Failed to parse: " ++ err
+
+    , testCase "Asserts before Captures" $ do
+        let input = "GET http://localhost\n\nHTTP 200\n[Asserts]\n> true\n\n[Captures]\nfoo: bar\n"
+            tokens = Hh.alexScanTokens input
+        case Hh.parse tokens of
+            Hh.ParseOk s -> do
+                let ci = head (Hh.callItems s)
+                case Hh.ciResponseSpec ci of
+                    Just rs -> do
+                        assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
+                        assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                    Nothing -> assertFailure "Should have response spec"
+            Hh.ParseFailed err _ -> assertFailure $ "Failed to parse: " ++ err
+    ]
+
+testScanner_lrRequestConfigs :: TestTree
+testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $ do
+    let input = "GET http://localhost\nAuthorization: Bearer token\n[Configs]\nretry: 3\n\n{ \"body\": \"here\" }\n"
+        tokens = Hh.alexScanTokens input
+    case Hh.parse tokens of
+        Hh.ParseOk s -> do
+            let ci = head (Hh.callItems s)
+                rs = Hh.ciRequestSpec ci
+            assertBool "Has configs" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.configs rs in hm))
+            assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.payload rs)
+        Hh.ParseFailed err _ -> assertFailure $ "Failed to parse: " ++ err
+
