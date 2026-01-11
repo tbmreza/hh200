@@ -1,14 +1,14 @@
 ## post request with cookies and a JSON body,
 ## save the application/pdf response to a file.
 
-# POST http://localhost:9998/mkpdf.php
+# POST http://localhost:9998/mkpdf.php  # ??: symfony routing component
 POST http://localhost:9999/echo.php
-Cookie: session_id=abc123; user_token=xyz789
+Cookie: session_id=abc123; user_token=xyz789  # ??: ast type; parser
 # Cookie: more=def45
-# Content-Type: application/json
+# Content-Type: application/json  # ??: ast type; parser
 Content-Type: application
 { "title": "bisa", "content": "isi pdfnya." }
-# { "content": "isi pdfnya." }
+# { "content": "isi pdfnya." }  # ??: multi line braced
 # {
 #   "title": "My Document",
 #   "content": "Document content here",
@@ -18,5 +18,5 @@ HTTP 200
 [Asserts]
 >header "Content-Type" == "application/pdf"
 
-# [Configs]  -- ??: decide semantics of script level vs callitem level configs
+# [Configs]
 # output: output.pdf

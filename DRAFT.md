@@ -27,11 +27,27 @@ https + Secure cookie attr
 
 
 # STASH
-       | crlf request            { trace "root2" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
 
-script : crlf configs call_items { trace "root0" $ Script { kind = Regular, config = $2, callItems = $3 } }
-       | crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
+script : crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
        | crlf configs            { trace "rootZ" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
+
+crlf : {- optional newline -} { }
+     | crlf newline           { }
+
+configs : "[" "Configs" "]" crlf config_items { foldl (\cfg f -> f cfg) defaultScriptConfig $5 }
+configs : "[" "Configs" "]" crlf  { Nothing }
+
+config_items : config_item              { [$1] }
+             | config_items config_item { $1 ++ [$2] }
+
+config_item : identifier rhs crlf 
+    { \c -> case ($1, stripColon $2) of
+        ("use-tls", "false") -> c { useTls = Just False }
+        ("use-tls", "true")  -> c { useTls = Just True }
+        _ -> trace ("Unknown config: " ++ $1) c 
+    }
+
+
 
 oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]

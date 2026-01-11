@@ -9,6 +9,7 @@ POST https://bivi-backend-staging.paradev.io/v2/login
 HTTP [200 201]
 [Captures]
 TOKEN = $.data.token
+TOKEN: $.data.token
 
 "check health" "authentication" then
 "get before"

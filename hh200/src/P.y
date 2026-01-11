@@ -66,17 +66,9 @@ script : crlf call_items         { trace "root1" $ Script { kind = Regular, conf
 crlf : {- optional newline -} { }
      | crlf newline           { }
 
-configs : "[" "Configs" "]" crlf config_items { foldl (\cfg f -> f cfg) defaultScriptConfig $5 }
+configs :: { RhsDict }
+configs : "[" "Configs" "]" crlf bindings { $5 }
 
-config_items : config_item              { [$1] }
-             | config_items config_item { $1 ++ [$2] }
-
-config_item : identifier rhs crlf 
-    { \c -> case ($1, stripColon $2) of
-        ("use-tls", "false") -> c { useTls = Just False }
-        ("use-tls", "true")  -> c { useTls = Just True }
-        _ -> trace ("Unknown config: " ++ $1) c 
-    }
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }

@@ -4,7 +4,7 @@
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Maybe
 import qualified Network.HTTP.Client as Prim
 import qualified Network.HTTP.Client.TLS as Prim (tlsManagerSettings)
 import qualified Network.HTTP.Client.Internal as PrimInternal
@@ -12,7 +12,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Network.HTTP.Types as HttpTypes
-import Control.Concurrent.MVar (newMVar)
+import           Control.Concurrent.MVar (newMVar)
 
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
@@ -31,22 +31,21 @@ main :: IO ()
 main = do
     lock <- newMVar ()
     defaultMain $ testGroup ""
-    -- [ test3_present ]
-          [ GoldenCli.spec lock
-          , BlindLsp.spec
-          , GoldenNetw.spec lock
-          , ContentTypeSpec.spec
-          , testScanner_lr
+      [ GoldenCli.spec lock
+      , BlindLsp.spec
+      , GoldenNetw.spec lock
+      , ContentTypeSpec.spec
       
+      , testScanner_lr
       , testScanner_lrMustache
       , testScanner_lrPost
       , testScanner_lrInvalid
       , testScanner_lrEmpty
-      , testScanner_lrConfig
       , testScanner_TlsInference
       , testExecution_bel
       , testExecution_validJsonBody
       ]
+      -- , testScanner_lrConfig
 
 
 testExecution_bel :: TestTree
@@ -151,17 +150,17 @@ testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
         Hh.ParseOk _ -> assertFailure "Should have failed to parse"
         Hh.ParseFailed _ _ -> pure ()
 
-testScanner_lrConfig :: TestTree
-testScanner_lrConfig = testCase "lexer and parser for config" $ do
-    let input = "[Configs]\nuse-tls: false\n\nGET http://httpbin.org/get"
-        tokens = Hh.alexScanTokens input
-
-    case Hh.parse tokens of
-        Hh.ParseOk s -> do
-            case Hh.useTls (Hh.config s) of
-                Just False -> pure ()
-                _ -> assertFailure "Should have parsed use-tls: false"
-        Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
+-- testScanner_lrConfig :: TestTree
+-- testScanner_lrConfig = testCase "lexer and parser for config" $ do
+--     let input = "[Configs]\nuse-tls: false\n\nGET http://httpbin.org/get"
+--         tokens = Hh.alexScanTokens input
+--
+--     case Hh.parse tokens of
+--         Hh.ParseOk s -> do
+--             case Hh.useTls (Hh.config s) of
+--                 Just False -> pure ()
+--                 _ -> assertFailure "Should have parsed use-tls: false"
+--         Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
 testScanner_TlsInference :: TestTree
 testScanner_TlsInference = testCase "tls inference from url scheme" $ do
