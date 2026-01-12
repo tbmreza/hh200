@@ -24,9 +24,78 @@ http(s) secure
     in curl, tls connection is determined by specified url, not headers (unverified chatgpt)
 https + Secure cookie attr
 `ls ~/.local/bin/` checks if `stack install` succeed.
+auto multi line braced: gemini %x JSON hallucination,
 
 
 # STASH
+
+│ ✓  WriteFile Writing to hh200/src/L.x                                                                                                                                          │
+│                                                                                                                                                                                │
+│  1   {                                                                                                                                                                         │
+│  2   module L where                                                                                                                                                            │
+│  3   }                                                                                                                                                                         │
+│  4 - %wrapper "monadUserState"                                                                                                                                                 │
+│  4   %x JSON JSON_STRING                                                                                                                                                       │
+│  5 + %wrapper "monadUserState"                                                                                                                                                 │
+│  6                                                                                                                                                                             │
+│  7   $white = [ \ \t]                                                                                                                                                          │
+│  8   $newline = [\n\r]                                                                                                                                                         │
+│ ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ │
+│ 47         Asserts  { tok (\p _ -> KW_ASSERTS p) }                                                                                                                             │
+│ 48                                                                                                                                                                             │
+│ 49         $digit+  { tok (\p s -> DIGITS p s) }                                                                                                                               │
+│ 50 -       [\.\/=]  { tok (\p _ -> SEP p) }                                                                                                                                    │
+│ 50 +       [\.\/=\]  { tok (\p _ -> SEP p) }                                                                                                                                   │
+│ 51                                                                                                                                                                             │
+│ 52         http [$printable # [$newline $white \#]]+   { tok (\p s -> URL p s) }                                                                                               │
+│ 53
+
+  3. Static Analysis for Load Configuration
+   * Description: Implement validation rules in Scanner.hs to ensure load profiles make sense before execution starts.
+       * Checks: Ensure ramp-down doesn't go below zero, total duration fits within global timeouts, and syntax for profile chains is valid.
+   * Labels: static-analyzer
+
+  Phase 2: Execution Engine Refactor
+
+Refactor `Execution.hs` to Worker Pool Model
+Description: Deprecate the current mapConcurrentlyBounded approach. Implement a "Worker Pool" architecture where N virtual users (VUs) are spawned, but their execution loops
+are controlled by a central "Pacer" or "Scheduler" that utilizes the Rate Limiter from Task 2.
+   * Labels: load-testing-tool
+
+Implement Dynamic Load Scheduler
+Description: Connect the DSL profile (Task 1) to the Rate Limiter (Task 2). The scheduler needs to calculate the target RPS for the current millisecond (e.g., if ramping
+from 0 to 100 over 10s, at t=5s the target is 50 RPS) and adjust the Rate Limiter's bucket refill rate dynamically.
+   * Labels: load-testing-tool
+
+  Phase 3: Monitoring & reporting
+
+  6. Centralized Metrics Aggregator
+   * Description: With many threads running, writing to stdout or a single SQLite file naively will cause contention. Create a high-performance, in-memory aggregator (using
+     atomic counters or a bounded queue) to collect stats (latency histograms, error counts) from workers.
+   * Labels: load-testing-tool
+
+  7. Real-time CLI Dashboard
+   * Description: Replace the simple text output with a TUI (Text User Interface) or updated CLI output that shows:
+       * Current RPS vs Target RPS.
+       * Active Virtual Users.
+       * Progress through the defined Load Profile (e.g., "Phase 2/3: Holding 100 RPS").
+   * Labels: load-testing-tool
+
+  Summary Table for GitHub
+
+
+  ┌─────────┬────────────────────────────────────────────┬────────────────────────────────────┬────────────┐
+  │ Task ID │ Title                                      │ Labels                             │ Dependency │
+  ├─────────┼────────────────────────────────────────────┼────────────────────────────────────┼────────────┤
+  │ 1       │ [DSL] Add Load Profile Grammar             │ static-analyzer, load-testing-tool │ -          │
+  │ 2       │ [Core] Implement Token Bucket Rate Limiter │ load-testing-tool                  │ -          │
+  │ 3       │ [Linter] Validate Load Profile Logic       │ static-analyzer                    │ Task 1     │
+  │ 4       │ [Engine] Switch to Paced Worker Pool       │ load-testing-tool                  │ Task 2     │
+  │ 5       │ [Engine] Dynamic Scheduler Implementation  │ load-testing-tool                  │ Task 1, 4  │
+  │ 6       │ [Stats] In-Memory Metrics Aggregator       │ load-testing-tool                  │ Task 4     │
+  │ 7       │ [CLI] Real-time Load Dashboard             │ load-testing-tool                  │ Task 5, 6  │
+  └─────────┴────────────────────────────────────────────┴────────────────────────────────────┴────────────┘
+
 
 script : crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
        | crlf configs            { trace "rootZ" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }

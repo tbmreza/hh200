@@ -12,7 +12,7 @@ Content-Type: application
 output: output.pdf
 
 { "title": "bisa", "content": "isi pdfnya." }
-# { "content": "isi pdfnya." }  # ??: multi line braced
+# { "content": "isi pdfnya." }  # PICKUP syn for ramp; lsp planning
 # {
 #   "title": "My Document",
 #   "content": "Document content here",

@@ -1,0 +1,5 @@
+POST http://localhost:9999/post
+{
+  "key": "value"
+}
+HTTP 200
