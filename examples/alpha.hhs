@@ -12,7 +12,7 @@ Content-Type: application
 output: output.pdf
 
 { "title": "bisa", "content": "isi pdfnya." }
-# { "content": "isi pdfnya." }  # PICKUP syn for ramp; lsp planning
+# { "content": "isi pdfnya." }  # ??: exhaustive list of load-profile fields: ramp, max-rps, delay
 # {
 #   "title": "My Document",
 #   "content": "Document content here",

@@ -1,0 +1,17 @@
+## load profile is cli-dictated, Configs to override in CallItem level.
+
+POST http://localhost:9999/echo.php
+Cookie: session_id=abc123; user_token=xyz789
+Content-Type: application
+
+[Configs]
+output: output.pdf
+mode: load
+load: skip if possible
+# smart-skip-load: true  # ??: assess how expensive this is: cache variables on first run, then exclude from load test profile
+
+{ "title": "bisa", "content": "isi pdfnya." }
+HTTP 200
+[Asserts]
+>header "Content-Type" == "application/pdf"
+
