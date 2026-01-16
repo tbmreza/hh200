@@ -22,7 +22,7 @@ tokens :-
   | [Oo][Pp][Tt][Ii][Oo][Nn][Ss]
   | [Hh][Ee][Aa][Dd]              { tok (\p s -> METHOD p s) }
 
-    \{       { tok (\p _ -> BRACE_OPN p) }
+    \{                        { tokBraceEnclosed }
     \}       { tok (\p _ -> BRACE_CLS p) }
     \(       { tok (\p _ -> PAREN_OPN p) }
     \)       { tok (\p _ -> PAREN_CLS p) }
@@ -49,7 +49,6 @@ tokens :-
 
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
-    \{ $printable+ \}         { tok (\p s -> BRACED p s) }
     \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
     \$ $printable+            { tok (\p s -> JSONPATH p s) }
     : $printable+             { tok (\p s -> RHS p s) }
@@ -60,6 +59,34 @@ tokens :-
 
 tok :: (AlexPosn -> String -> Token) -> AlexInput -> Int -> Alex Token
 tok f (p, _, _, s) len = return (f p (take len s))
+
+tokBraceEnclosed :: AlexInput -> Int -> Alex Token
+tokBraceEnclosed (p, _, _, s) _ = do
+  case scanBalanced 1 False (drop 1 s) "{" of
+    Left err -> alexError err
+    Right (res, rest) -> do
+      alexSetInput (advancePos p res, if null res then ' ' else last res, [], rest)
+      return (BRACE_ENCLOSED p res)
+
+scanBalanced :: Int -> Bool -> String -> String -> Either String (String, String)
+scanBalanced 0 _ s acc = Right (reverse acc, s)
+scanBalanced _ _ [] _ = Left "lexical error: unbalanced braces"
+scanBalanced n inStr (c:cs) acc
+  | inStr = case c of
+      '\\' -> case cs of
+                (x:xs) -> scanBalanced n True xs (x:c:acc)
+                []     -> Left "lexical error: escaped EOF"
+      '"'  -> scanBalanced n False cs (c:acc)
+      _    -> scanBalanced n True  cs (c:acc)
+  | otherwise = case c of
+      '{' -> scanBalanced (n+1) False cs (c:acc)
+      '}' -> scanBalanced (n-1) False cs (c:acc)
+      '"' -> scanBalanced n     True  cs (c:acc)
+      _   -> scanBalanced n     False cs (c:acc)
+
+advancePos :: AlexPosn -> String -> AlexPosn
+advancePos p [] = p
+advancePos p (c:cs) = advancePos (alexMove p c) cs
 
 data AlexUserState = AlexUserState {
     usCount :: Int
@@ -116,6 +143,7 @@ data Token =
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
   | BRACED  AlexPosn String
+  | BRACE_ENCLOSED AlexPosn String
   | RHS     AlexPosn String
 
   | JSONPATH    AlexPosn String
@@ -125,4 +153,14 @@ data Token =
   deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
+tokenPosn (BRACE_ENCLOSED p _) = p
+tokenPosn t = case t of
+    LN p -> p
+    IDENTIFIER p _ -> p
+    SEP p -> p
+    METHOD p _ -> p
+    URL p _ -> p
+    QUOTED p _ -> p
+    RHS p _ -> p
+    _ -> error "tokenPosn: not implemented for all tokens"
 }

@@ -1,6 +1,9 @@
 ## PICKUP goal: prints String "tmp oops", fails Asserts block
 POST http://localhost:9999/api/echo
-{ "foo": "bar", "baz": 123 }
+{
+  "foo": "bar",
+  "baz": 123
+}
 HTTP 200
 [Asserts]  # ??: where do Script's CallItem and Asserts block part ways, with goal of deciding to include Asserts in pretty print or not
 # >debug $.foo

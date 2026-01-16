@@ -39,6 +39,7 @@ main = do
       , testScanner_lr
       , testScanner_lrMustache
       , testScanner_lrPost
+      , testScanner_lrPostMultiline
       , testScanner_lrInvalid
       , testScanner_lrEmpty
       , testScanner_TlsInference
@@ -128,6 +129,15 @@ testScanner_lrMustache = testCase "lexer and parser for valid mustached" $ do
 testScanner_lrPost :: TestTree
 testScanner_lrPost = testCase "lexer and parser for POST" $ do
     let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
+        tokens = Hh.alexScanTokens input
+
+    case Hh.parse tokens of
+        Hh.ParseOk _ -> pure ()
+        Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+testScanner_lrPostMultiline :: TestTree
+testScanner_lrPostMultiline = testCase "lexer and parser for POST with multiline JSON" $ do
+    let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{\n  \"foo\": \"bar\",\n  \"baz\": 123\n}"
         tokens = Hh.alexScanTokens input
 
     case Hh.parse tokens of

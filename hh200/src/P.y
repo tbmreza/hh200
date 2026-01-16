@@ -50,7 +50,8 @@ import           L
 
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
-    braced      { BRACED _ $$ }
+    braced      { BRACE_ENCLOSED _ $$ }
+    braced_old  { BRACED _ $$ }
     rhs         { RHS _ $$ }
 
 
@@ -171,6 +172,7 @@ prettyToken t = case t of
     URL p s        -> "URL " ++ showPos p ++ " " ++ show s
     QUOTED p s     -> "QUOTED " ++ showPos p ++ " " ++ show s
     BRACED p s     -> "BRACED " ++ showPos p ++ " " ++ show s
+    BRACE_ENCLOSED p s -> "BRACE_ENCLOSED " ++ showPos p ++ " " ++ show s
     RHS p s        -> "RHS " ++ showPos p ++ " " ++ show s
     JSONPATH p s   -> "JSONPATH " ++ showPos p ++ " " ++ show s
     LINE p s       -> "LINE " ++ showPos p ++ " " ++ show s

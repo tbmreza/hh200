@@ -1,5 +1,0 @@
-# Status Mismatch: Got Status {statusCode = 200, statusMessage = "OK"}, Expected [Status {statusCode = 202, statusMessage = ""}]
-POST http://localhost:9999/api/echo
-{ "foo": "bar", "baz": 123 }
-HTTP 202
-

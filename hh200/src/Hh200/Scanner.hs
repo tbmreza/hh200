@@ -194,6 +194,7 @@ getPos t = case t of
     URL p _ -> p
     QUOTED p _ -> p
     BRACED p _ -> p
+    BRACE_ENCLOSED p _ -> p
     RHS p _ -> p
     JSONPATH p _ -> p
     LINE p _ -> p
@@ -226,6 +227,7 @@ tokenSpan t = (offset, len)
         URL _ s -> length s
         QUOTED _ s -> length s -- includes quotes
         BRACED _ s -> length s -- includes braces
+        BRACE_ENCLOSED _ s -> length s
         RHS _ s -> length s -- includes colon
         JSONPATH _ s -> length s
         LINE _ s -> length s -- includes >
