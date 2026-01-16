@@ -4,14 +4,13 @@
 POST http://localhost:9999/api/echo
 Cookie: session_id=abc123; user_token=xyz789  # ??: ast type; parser
 # Cookie: more=def45
-# Content-Type: application/json  # ??: ast type; parser
-Content-Type: application
+Content-Type: application/json
 
 [Configs]
 output: output.pdf
 
 { "title": "bisa", "content": "isi pdfnya." }
-# { "content": "isi pdfnya." }  # ??: exhaustive list of load-profile fields: ramp, max-rps, delay
+# { "content": "isi pdfnya." }  
 # {
 #   "title": "My Document",
 #   "content": "Document content here",

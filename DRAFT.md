@@ -29,6 +29,12 @@ auto multi line braced: gemini %x JSON hallucination,
 
 # STASH
 
+        EPrint e@(VString s) -> do
+            let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
+            -- print (trace ("gotcha" ++ show e) tmp)
+            print (trace ("gotcha" ++ show e ++ "\nenv:\t" ++ show env) tmp)
+
+
 │ ✓  WriteFile Writing to hh200/src/L.x                                                                                                                                          │
 │                                                                                                                                                                                │
 │  1   {                                                                                                                                                                         │

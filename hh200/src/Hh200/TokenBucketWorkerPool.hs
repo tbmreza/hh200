@@ -1,5 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- ??: exhaustive list of load-profile fields: ramp, max-rps, delay
+
 module Hh200.TokenBucketWorkerPool (main) where
 
 import Control.Concurrent (threadDelay)

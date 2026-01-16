@@ -245,11 +245,12 @@ noNews :: Lead -> Bool
 noNews (Lead { leadKind = Non }) = True
 noNews _ = False
 
+-- Pretty-print.
 present :: CallItem -> String
 present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
  ++ (showHeaders $ headers $ ciRequestSpec ci)
- -- ++ "\n" ++ (payload $ ciRequestSpec ci)
- ++ (payload $ ciRequestSpec ci)
+ ++ "\n" ++ (payload $ ciRequestSpec ci)
+ -- ++ (payload $ ciRequestSpec ci)
  ++ (showResponse $ ciResponseSpec ci) ++ "\n"
 
 showHeaders :: RhsDict -> String

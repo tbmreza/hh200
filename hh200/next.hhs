@@ -1,1 +1,5 @@
-unimplemented pretty printerCallItem {ciDeps = [], ciName = "", ciRequestSpec = RequestSpec {verb = UppercaseString "POST", url = "http://localhost:9999/echo.php", headers = [("Authorization","Bearer 2{{today}}")], payload = "", opts = []}, ciResponseSpec = Just (ResponseSpec {statuses = [Status {statusCode = 203, statusMessage = ""}], output = [], captures = JsonpathQueries (fromList [])})}
+# Status Mismatch: Got Status {statusCode = 200, statusMessage = "OK"}, Expected [Status {statusCode = 202, statusMessage = ""}]
+POST http://localhost:9999/api/echo
+{ "foo": "bar", "baz": 123 }
+HTTP 202
+
