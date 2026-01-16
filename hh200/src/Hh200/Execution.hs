@@ -147,7 +147,13 @@ assertsAreOk env got mrs = do
     checkAssertions = do
         results <- mapM (BEL.eval env) assertionLines
         let values = map (BEL.finalValue env) results
-        pure (Aeson.Bool False `notElem` values)
+            hasFailure = Aeson.Bool False `elem` values
+
+        if hasFailure then do
+            putStrLn "# False assertion found"
+            pure False
+        else
+            pure True
 
 expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
 expectCodesOrDefault mrs =
