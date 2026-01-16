@@ -377,15 +377,6 @@ testShotgun n checked = do
         pure ()
 
 
--- thread's:  system start-end times  script success pct  memory
--- data DataPoint = DataPoint
---   { shotgunN :: Int
---   , shotgunPct :: Double  -- Percentage of user assertions satisfying responses.
---   }
-
--- mkDataPoint :: Int -> DataPoint
--- mkDataPoint n = DataPoint { shotgunN = n, shotgunPct = 0.0 }
-
 --------------------------------------------------------------------------------
 -- More lib than app code
 --------------------------------------------------------------------------------

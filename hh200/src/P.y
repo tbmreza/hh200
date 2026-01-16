@@ -135,11 +135,6 @@ call_items : call_item crlf            { [$1] }
 
 {
 
--- getLineNum :: Token -> Int
--- getLineNum (Token (AlexPn _ line _) _) = line
--- traceWithLine :: Token -> String -> a -> a
--- traceWithLine tok msg val = trace (msg ++ " at line " ++ show (getLineNum tok)) val
-
 -- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
 
