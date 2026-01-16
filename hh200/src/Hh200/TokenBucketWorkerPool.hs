@@ -40,7 +40,7 @@ data RateLimiter = RateLimiter
 newRateLimiter :: Int -> STM RateLimiter
 newRateLimiter cap = do
     t <- newTVar cap
-    return $ RateLimiter t cap
+    pure $ RateLimiter t cap
 
 -- | Refill the bucket periodically
 runRefill :: RateLimiter -> Int -> IO ()
@@ -62,7 +62,7 @@ waitAndConsumeToken rl = atomically $ do
 worker :: Int -> TQueue Job -> RateLimiter -> IO ()
 worker wId queue rl = forever $ do
     -- 1. Get job (blocks if queue empty)
-    -- PICKUP CallItem --> callJob with goal of composing runRWST with virtualUser; hardcode if needed 1 VU and default max rps
+    -- ??: CallItem --> callJob with goal of composing runRWST with virtualUser; hardcode if needed 1 VU and default max rps
     job     :: Job <- atomically $ readTQueue queue
 
     -- 2. Rate Limit (blocks if no tokens)
@@ -131,7 +131,7 @@ main = do
     -- Wait for any thread to crash/finish (they are infinite loops, so this waits forever until error)
     putStrLn "System running. Press Ctrl+C to stop."
     _ <- waitAnyCancel ((refillAsync : workerAsyncs) ++ userAsyncs :: [Async ()])
-    return ()
+    pure ()
 
 
 

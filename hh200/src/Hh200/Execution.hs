@@ -160,7 +160,10 @@ expectCodesOrDefault mrs =
 -- Return to user the CallItem which we suspect will fail again.
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
-    (mci, finalEnv, procLog) <- Tf.runRWST (runMaybeT $ courseFrom script) mgr env
+    let course :: ProcM CallItem = courseFrom script
+        list = runMaybeT course  -- ??: exhaustive list of where this can fail, with the goal of documenting it
+
+    (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
 
     where
