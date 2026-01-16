@@ -34,7 +34,7 @@ import           Data.Text (Text)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Types as Aeson (Value(..))
+-- import qualified Data.Aeson.Types as Aeson (Value(..))
 
 import qualified Network.HTTP.Client as HC
 import           Network.HTTP.Types.Status
@@ -161,7 +161,15 @@ expectCodesOrDefault mrs =
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
     let course :: ProcM CallItem = courseFrom script
-        list = runMaybeT course  -- ??: exhaustive list of where this can fail, with the goal of documenting it
+        list = runMaybeT course  -- ??: if this list is exhaustive and how can it move the needle
+  -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
+  -- │ Location  │ Cause                                │ Result                  │
+  -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
+  -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │
+  -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │
+  -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │
+  -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │
+  -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
 
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
@@ -196,7 +204,7 @@ courseFrom x = do
     buildFrom env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
-            struct <- parseUrl
+            struct <- parseUrlOrThrow
 
             renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
 
@@ -207,7 +215,7 @@ courseFrom x = do
 
         -- Requests with json body.
         | otherwise = do
-            struct <- parseUrl
+            struct <- parseUrlOrThrow
             -- Render payloads.
             rb <- stringRender (payload $ ciRequestSpec ci)
 
@@ -225,11 +233,11 @@ courseFrom x = do
                     av <- BEL.render env (Aeson.String "") v
                     pure (CaseInsensitive.mk (BS.pack k), asBS av)
 
-        parseUrl :: IO Http.Request
-        parseUrl = do
+        parseUrlOrThrow :: IO Http.Request
+        parseUrlOrThrow = do
             -- Render urls.
             rendered <- stringRender (url $ ciRequestSpec ci)
-            Http.parseRequest rendered
+            Http.parseRequest rendered  -- ??: if panicking is desirable
 
         -- Return swapped product (`dorp` is prod reversed).
         dorp :: a -> b -> IO (b, a)

@@ -1,6 +1,6 @@
 ## load profile is cli-dictated, Configs to override in CallItem level.
 
-POST http://localhost:9999/echo.php
+POST http://localhost:9999/api/echo
 Cookie: session_id=abc123; user_token=xyz789
 Content-Type: application
 
