@@ -145,9 +145,9 @@ assertsAreOk env got mrs = do
     -- Whether False can't be found in values.
     checkAssertions :: IO Bool
     checkAssertions = do
-        results <- mapM (BEL.eval env) assertionLines
-        let values = map (BEL.finalValue env) results
-            hasFailure = Aeson.Bool False `elem` values
+        results :: [BEL.Expr] <- mapM (BEL.eval env) assertionLines
+        let values = map BEL.finalValue (trace ("results:" ++ show results) $ results)
+            hasFailure = Aeson.Bool False `elem` (trace ("values:" ++ show values)$ values)
 
         if hasFailure then do
             putStrLn "# False assertion found"

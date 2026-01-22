@@ -117,7 +117,7 @@ binding : identifier ":" s crlf  { ($1, [BEL.R (Text.pack $3)]) }
 response_asserts :: { [String] }
 response_asserts : "[" "Asserts" "]" crlf expr_lines { $5 }
 
-expr_lines : line crlf       { [$1] }
+expr_lines : line crlf       { trace ("line:" ++ show $1) $ [$1] }
            | expr_lines line { ($1 ++ [$2]) }
 
 response_codes :: { [Int] }

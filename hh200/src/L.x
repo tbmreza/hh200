@@ -60,6 +60,7 @@ tokens :-
 tok :: (AlexPosn -> String -> Token) -> AlexInput -> Int -> Alex Token
 tok f (p, _, _, s) len = return (f p (take len s))
 
+-- (auto) tokBraceEnclosed, scanBalanced, advancePos  acquire by supporting nested json objects
 tokBraceEnclosed :: AlexInput -> Int -> Alex Token
 tokBraceEnclosed (p, _, _, s) _ = do
   case scanBalanced 1 False (drop 1 s) "{" of
