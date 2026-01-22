@@ -23,6 +23,7 @@ import qualified Paths_hh200 (version)
 import           Hh200.Types
 import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
+import           Hh200.LanguageServer (runTcp)
 
 data Args = Args
   { source :: Maybe String
@@ -31,6 +32,7 @@ data Args = Args
   , call :: Bool
   , rps :: Bool
   , shotgun :: Int
+  , lsp :: Maybe Int
   } deriving (Show, Eq)
 
 cli :: IO ()
@@ -68,6 +70,11 @@ optsInfo = info (args <**> helper) (fullDesc
                        <> value 1           -- Default to 1 if flag is omitted
                        <> showDefault )     -- Shows "[default: 1]" in help text
 
+        <*> optional ( option auto ( long "lsp"
+                                  <> short 'd'
+                                  <> help "Run hh200 language server"
+                                  <> metavar "PORT" ) )
+
 go :: Args -> IO ()
 
 -- Print executable version.
@@ -75,6 +82,10 @@ go :: Args -> IO ()
 go Args { version = True } = do
     putStrLn $ showVersion Paths_hh200.version
     System.IO.hFlush stdout
+
+-- Run Language Server.
+-- hh200 --lsp=3000
+go Args { lsp = Just port } = runTcp port
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config

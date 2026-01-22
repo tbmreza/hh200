@@ -31,6 +31,7 @@ library
       Hh200.Execution
       Hh200.Graph
       Hh200.Http
+      Hh200.LanguageServer
       Hh200.Scanner
       Hh200.TokenBucketWorkerPool
       Hh200.Types
@@ -62,6 +63,7 @@ library
     , http-conduit
     , http-types
     , keys
+    , lsp
     , mtl
     , network-uri >=2.6 && <3
     , optparse-applicative

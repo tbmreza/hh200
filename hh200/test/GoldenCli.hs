@@ -64,4 +64,5 @@ expectedArgs =
     , call = False
     , rps = False
     , shotgun = 1
+    , lsp = Nothing
     }

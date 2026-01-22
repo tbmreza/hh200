@@ -1,7 +1,7 @@
 Run hh200 scripts
 
 Usage: hh200 [SOURCE] [-V|--version] [-F|--debug-config] [-C|--call] [-R|--rps] 
-             [-S|--shotgun N]
+             [-S|--shotgun N] [-d|--lsp PORT]
 
 Available options:
   SOURCE                   Path of source program
@@ -12,4 +12,5 @@ Available options:
   -C,--call                Execute a script snippet directly
   -R,--rps                 Start "requests per second" mode
   -S,--shotgun N           Execute in N parallel workers at once (default: 1)
+  -d,--lsp PORT            Run hh200 language server
   -h,--help                Show this help text

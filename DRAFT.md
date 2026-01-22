@@ -1,3 +1,7 @@
+Highlight:
+Architecturally decisive tasks include  happy-flow interpreter (post_json example); hh200 exe binary bundles hh200d, mcp etc remain satellites; bel complete pratt parser
+...only then load-testing-tool required apis will emerge.
+
 # PRIMARY (OR INDUSTRY) SPEC SOURCES
 ## Syntax
 - https://hh200-docs.pages.dev/#structure  https://hurl.dev/docs/request.html#structure
@@ -24,37 +28,11 @@ http(s) secure
     in curl, tls connection is determined by specified url, not headers (unverified chatgpt)
 https + Secure cookie attr
 `ls ~/.local/bin/` checks if `stack install` succeed.
-auto multi line braced: gemini %x JSON hallucination,
+auto multi line braced: gemini %x JSON hallucination, scanBalanced
+incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
-
-        EPrint e@(VString s) -> do
-            let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
-            -- print (trace ("gotcha" ++ show e) tmp)
-            print (trace ("gotcha" ++ show e ++ "\nenv:\t" ++ show env) tmp)
-
-
-│ ✓  WriteFile Writing to hh200/src/L.x                                                                                                                                          │
-│                                                                                                                                                                                │
-│  1   {                                                                                                                                                                         │
-│  2   module L where                                                                                                                                                            │
-│  3   }                                                                                                                                                                         │
-│  4 - %wrapper "monadUserState"                                                                                                                                                 │
-│  4   %x JSON JSON_STRING                                                                                                                                                       │
-│  5 + %wrapper "monadUserState"                                                                                                                                                 │
-│  6                                                                                                                                                                             │
-│  7   $white = [ \ \t]                                                                                                                                                          │
-│  8   $newline = [\n\r]                                                                                                                                                         │
-│ ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ │
-│ 47         Asserts  { tok (\p _ -> KW_ASSERTS p) }                                                                                                                             │
-│ 48                                                                                                                                                                             │
-│ 49         $digit+  { tok (\p s -> DIGITS p s) }                                                                                                                               │
-│ 50 -       [\.\/=]  { tok (\p _ -> SEP p) }                                                                                                                                    │
-│ 50 +       [\.\/=\]  { tok (\p _ -> SEP p) }                                                                                                                                   │
-│ 51                                                                                                                                                                             │
-│ 52         http [$printable # [$newline $white \#]]+   { tok (\p s -> URL p s) }                                                                                               │
-│ 53
 
   3. Static Analysis for Load Configuration
    * Description: Implement validation rules in Scanner.hs to ensure load profiles make sense before execution starts.
@@ -101,27 +79,6 @@ from 0 to 100 over 10s, at t=5s the target is 50 RPS) and adjust the Rate Limite
   │ 6       │ [Stats] In-Memory Metrics Aggregator       │ load-testing-tool                  │ Task 4     │
   │ 7       │ [CLI] Real-time Load Dashboard             │ load-testing-tool                  │ Task 5, 6  │
   └─────────┴────────────────────────────────────────────┴────────────────────────────────────┴────────────┘
-
-
-script : crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
-       | crlf configs            { trace "rootZ" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
-
-crlf : {- optional newline -} { }
-     | crlf newline           { }
-
-configs : "[" "Configs" "]" crlf config_items { foldl (\cfg f -> f cfg) defaultScriptConfig $5 }
-configs : "[" "Configs" "]" crlf  { Nothing }
-
-config_items : config_item              { [$1] }
-             | config_items config_item { $1 ++ [$2] }
-
-config_item : identifier rhs crlf 
-    { \c -> case ($1, stripColon $2) of
-        ("use-tls", "false") -> c { useTls = Just False }
-        ("use-tls", "true")  -> c { useTls = Just True }
-        _ -> trace ("Unknown config: " ++ $1) c 
-    }
-
 
 
 oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
