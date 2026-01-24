@@ -18,6 +18,7 @@ module Hh200.Types
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
+    , CallItemg (..)
     , RequestSpec (..), RequestSpeg (..)
     , ResponseSpec (..)
     , HostInfo (..)
