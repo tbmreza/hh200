@@ -68,7 +68,7 @@ script : crlf call_items  { trace "root1" $ Script { kind = Regular, config = de
 
 -- baru :: { E (Maybe Int) }
 baru : crlf { do
-  -- got <- liftIO $ HC.parseRequest "ah"
+  got <- liftIO $ HC.parseRequest "ah"
   returnE Nothing
 }
 
@@ -189,23 +189,17 @@ showPos :: AlexPosn -> String
 showPos (AlexPn _ l c) = "(" ++ show l ++ ":" ++ show c ++ ")"
 
 
-data E a = ParseOk a | ParseFailed String [Token]
+type E a = ExceptT (String, [Token]) IO a
 
 thenE :: E a -> (a -> E b) -> E b
-m `thenE` k =
-   case m of
-       ParseOk a     -> k a
-       ParseFailed e ts -> ParseFailed e ts
+thenE = (>>=)
 
 returnE :: a -> E a
-returnE a = ParseOk a
+returnE = return
 
 failE :: String -> [Token] -> E a
-failE err tokens = ParseFailed err tokens
+failE err tokens = throwE (err, tokens)
 
 catchE :: E a -> (String -> [Token] -> E a) -> E a
-catchE m k =
-   case m of
-      ParseOk a     -> ParseOk a
-      ParseFailed e ts -> k e ts
+catchE m k = Control.Monad.Trans.Except.catchE m (\(e, ts) -> k e ts)
 }

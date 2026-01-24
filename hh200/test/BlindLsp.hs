@@ -173,7 +173,7 @@ testLSP_diagnostics :: TestTree
 testLSP_diagnostics = testGroup "LSP diagnostics"
   [ testCase "Diagnostic Parser Error" $ do
         let input = "GET" -- Missing URL, invalid grammar
-            diags = Hh.diagnostics input
+        diags <- Hh.diagnostics input
         assertBool "Has diagnostics" (not (null diags))
 
         -- Expect error. "Parse error..."

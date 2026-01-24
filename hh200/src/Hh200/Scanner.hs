@@ -17,6 +17,7 @@ import           System.Process (readProcess)
 import qualified System.Info as Info
 
 import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Except (runExceptT)
 import           Control.Monad.IO.Class
 import           Control.Exception (try, IOException)
 
@@ -28,26 +29,26 @@ import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultH
 import L
 import P
 
-scriptFrom :: Snippet -> Maybe Script
-scriptFrom (Snippet s) =
-    let tokensOrPanic = alexScanTokens (L8.unpack s) in
-    let parsed :: E Script = parse tokensOrPanic in
+scriptFrom :: Snippet -> IO (Maybe Script)
+scriptFrom (Snippet s) = do
+    let tokensOrPanic = alexScanTokens (L8.unpack s)
+    res <- runExceptT (parse tokensOrPanic)
 
-    case parsed of
-        ParseFailed d _ -> trace d Nothing
-        ParseOk sole -> Just sole
+    case res of
+        Left (d, _) -> trace d (pure Nothing)
+        Right sole -> pure (Just sole)
 
 readScript :: FilePath -> IO (Maybe Script)
 readScript path = do
     loaded <- readFile path
     let tokensOrPanic = alexScanTokens loaded
-        parsed :: E Script = parse tokensOrPanic
+    res <- runExceptT (parse tokensOrPanic)
 
-    case parsed of
-        ParseFailed m _ -> do
+    case res of
+        Left (m, _) -> do
             putStrLn m
             pure Nothing
-        ParseOk s -> do
+        Right s -> do
             pure $ Just s
 
 gatherHostInfo :: IO HostInfo
@@ -106,7 +107,7 @@ instance Analyze Snippet where
 
     analyzeWithHostInfo :: Snippet -> MaybeT IO (Script, HostInfo)
     analyzeWithHostInfo s@(Snippet _) = do
-        let opt :: Maybe Script = Hh200.Scanner.scriptFrom s
+        opt <- liftIO $ Hh200.Scanner.scriptFrom s
 
         MaybeT $ case opt of
             Nothing -> do
@@ -254,17 +255,18 @@ hover input pos =
         IDENTIFIER _ "use-tls" -> Just "Config: Toggle TLS"
         _ -> Nothing
 
-diagnostics :: String -> [((Int, Int), String)]
+diagnostics :: String -> IO [((Int, Int), String)]
 diagnostics input = 
     case scanSafe input of
         Left err -> 
             let pos = extractPos err
-            in [(pos, "Lexical error: " ++ err)]
-        Right tokens ->
-            case parse tokens of
-                ParseOk _ -> []
-                ParseFailed err errTokens ->
-                    case errTokens of
+            in pure [(pos, "Lexical error: " ++ err)]
+        Right tokens -> do
+            res <- runExceptT (parse tokens)
+            case res of
+                Right _ -> pure []
+                Left (err, errTokens) ->
+                    pure $ case errTokens of
                         (t:_) ->
                             let (AlexPn _ line col) = getPos t
                             in [((line, col), err)]
