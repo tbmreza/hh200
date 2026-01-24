@@ -63,7 +63,6 @@ import           L
 %%
 
 script : crlf call_items         { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
-       | crlf request_configs    { trace "rootZ" $ Script { kind = Regular, config = dbgScriptConfig, callItems = [] } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }

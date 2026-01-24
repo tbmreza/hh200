@@ -84,6 +84,7 @@ library:
   - bel-expr
   - optparse-applicative
   - lsp
+  - gitrev
 
 executables:
   hh200:

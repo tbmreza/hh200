@@ -26,7 +26,6 @@ module Hh200.Types
     , InternalError (..)
     , HhError (..)
     , defaultScriptConfig
-    , dbgScriptConfig
     , effectiveTls
     , defaultDepsClause
     , pCallItem
@@ -37,7 +36,6 @@ module Hh200.Types
     , trimQuotes
     , expectUpper
     , showVerb
-    -- , oftenBodyless
     , noNews
     , present
     , showHeaders
@@ -105,10 +103,11 @@ data Script = Script
   }
   deriving (Show, Eq)
 
+-- ??: ScriptConfig definition and its derivatives mean very little until some
+-- of them are used in one of Execution modes.
 data ScriptConfig = ScriptConfig
   { retries :: Int
   , maxDuration :: Maybe Duration
-  , subjects1 :: [Subject]
   , subjects :: Ls.NonEmpty Subject
   , useTls :: Maybe Bool
   } deriving (Show, Eq)
@@ -177,16 +176,6 @@ defaultScriptConfig :: ScriptConfig
 defaultScriptConfig = ScriptConfig
   { retries = 0
   , maxDuration = Nothing
-  , subjects1 = [Subject "default a"]
-  , subjects = (Subject "a") Ls.:| []
-  , useTls = Nothing
-  }
-
-dbgScriptConfig :: ScriptConfig
-dbgScriptConfig = ScriptConfig
-  { retries = 0
-  , maxDuration = Nothing
-  , subjects1 = [Subject "custommm"]
   , subjects = (Subject "a") Ls.:| []
   , useTls = Nothing
   }

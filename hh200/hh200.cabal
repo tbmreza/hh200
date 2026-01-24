@@ -57,6 +57,7 @@ library
     , fast-logger
     , filepath
     , ghc
+    , gitrev
     , hashtables
     , http-client
     , http-client-tls

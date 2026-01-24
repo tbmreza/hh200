@@ -168,13 +168,14 @@ runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
     let course :: ProcM CallItem = courseFrom script
         list = runMaybeT course  -- ??: if this list is exhaustive and how can it move the needle
+  -- see if runProcM api stabilizes more, then testOutsideWorld
   -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
   -- │ Location  │ Cause                                │ Result                  │
   -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
   -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │
   -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │
   -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │
-  -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │
+  -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ ok
   -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
 
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
@@ -243,7 +244,8 @@ courseFrom x = do
         parseUrlOrThrow = do
             -- Render urls.
             rendered <- stringRender (url $ ciRequestSpec ci)
-            Http.parseRequest rendered  -- ??: if panicking is desirable
+            Http.parseRequest rendered  -- PICKUP if panicking is desirable
+                                        -- its throwing determines where in runProcM we catch it
 
         -- Return swapped product (`dorp` is prod reversed).
         dorp :: a -> b -> IO (b, a)
@@ -271,6 +273,7 @@ courseFrom x = do
         where
 
         -- Reduce captures to Env extensions.
+        evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
         evalCaptures (env, mrs) = do
             let (RhsDict bindings) = case mrs of
                     Nothing -> RhsDict HM.empty
@@ -329,12 +332,15 @@ courseFrom x = do
 testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
-testOutsideWorld static@(Script {config = _, callItems = []}) = do
+-- testOutsideWorld static@(Script {config = _, callItems = []}) = do
+-- ??: awaiting runProcM api stability
+testOutsideWorld static@(Script {kind = Static, config = _, callItems = []}) = do
     hi <- gatherHostInfo
     pure $ nonLead static hi
 
 -- -> NonLead | DebugLead | Lead
-testOutsideWorld sole@(Script {config = ScriptConfig {subjects = _}, callItems = [_]}) = do
+-- testOutsideWorld sole@(Script {config = ScriptConfig {subjects = _}, callItems = [_]}) = do
+testOutsideWorld sole@(Script {callItems = [_]}) = do
     hi <- gatherHostInfo
     bracket (Http.newManager (effectiveTls sole)) Http.closeManager $ \with ->
         runProcM sole with HM.empty hi

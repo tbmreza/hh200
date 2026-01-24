@@ -53,7 +53,7 @@ optsInfo = info (args <**> helper) (fullDesc
 
         <*> switch ( long "debug-config"
                   <> short 'F'
-                  <> help "Read environment and script header to determine the config values without executing script's side-effects." )
+                  <> help "Read environment and script header to determine the config values without executing script's side-effects" )
 
         <*> switch ( long "call"
                   <> short 'C'

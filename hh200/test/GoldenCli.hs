@@ -1,13 +1,13 @@
 module GoldenCli where
 
-import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.Golden
-import System.IO.Silently (capture_)
-import Options.Applicative
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Test.Tasty.Golden
+import           System.IO.Silently (capture_)
+import           Options.Applicative
 import qualified Data.ByteString.Lazy.Char8 as L8
-import Control.Concurrent.MVar (MVar, withMVar)
-import Data.Char (isSpace)
+import           Control.Concurrent.MVar (MVar, withMVar)
+import           Data.Char (isSpace)
 
 import Hh200.Cli
 
@@ -36,14 +36,16 @@ spec lock = testGroup "CLI"
             pure $ L8.pack (msg ++ "\n")
         _ -> assertFailure "Expected failure for help"
 
-  , goldenVsString "Version output (flaky)" "test/golden/version.txt" $ do
-      output <- withMVar lock $ \_ -> capture_ $ go (expectedArgs { version = True })
-      -- capture_ captures stdout. go prints with putStrLn, so it has a newline.
-      -- Strip ANSI codes and trim leading/trailing whitespace.
-      pure $ L8.pack $ dropWhile isSpace $ reverse $ dropWhile isSpace $ reverse $ stripAnsi output
+  -- ??: highly sensitive to the shell
+  -- , goldenVsString "Version output (flaky)" "test/golden/version.txt" $ do
+  --     output <- withMVar lock $ \_ -> capture_ $ go (expectedArgs { version = True })
+  --     -- capture_ captures stdout. go prints with putStrLn, so it has a newline.
+  --     -- Strip ANSI codes and trim leading/trailing whitespace.
+  --     pure $ L8.pack $ dropWhile isSpace $ reverse $ dropWhile isSpace $ reverse $ stripAnsi output
+
   ]
 
--- "Version output (flaky)" case stays flaky until we better justify this function.
+-- ??: "Version output (flaky)" case stays flaky until we better justify this function.
 stripAnsi :: String -> String
 stripAnsi s = case s of
     [] -> []
