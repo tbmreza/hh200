@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Types
-    ( UppercaseString (..)
+    ( UpperString (..)
     , Snippet (..)
     , RhsDict (..)
     , mtHM
@@ -34,8 +34,8 @@ module Hh200.Types
     , defaultLead
     , show'
     , trimQuotes
-    , expectUpper
-    , showVerb
+    , expectUpper, expectUrl
+    , showVerb, showUrl
     , noNews
     , present
     , showHeaders
@@ -52,14 +52,29 @@ import qualified Data.List.NonEmpty as Ls (NonEmpty(..))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 
+import qualified Network.HTTP.Client as HC
 import           Network.HTTP.Types.Status
 import           Network.URI (parseURI, uriScheme)
 
 import qualified BEL
 
 
-newtype UppercaseString = UppercaseString String
+newtype UpperString = UpperString String
     deriving (Show, Eq)
+
+-- | __Partial__: Asserts uppercase input.
+expectUpper :: String -> UpperString
+expectUpper s | all (`elem` ['A'..'Z']) s = UpperString s
+expectUpper _ = undefined
+
+-- ??: new P.y rule exploring what if rhs can do parseRequest there
+-- newtype UrlString = UrlString requestStruct
+newtype UrlString = UrlString String
+    deriving (Show, Eq)
+
+expectUrl :: String -> UrlString
+expectUrl s = UrlString s
+-- expectUrl _ = undefined
 
 newtype Snippet = Snippet L8.ByteString
 
@@ -125,8 +140,8 @@ data CallItem = CallItem
   } deriving (Show, Eq)
 
 data RequestSpec = RequestSpec
-  { verb :: UppercaseString
-  , url :: String
+  { verb ::    UpperString
+  , url ::     UrlString
   , headers :: RhsDict
   , payload :: String
   , configs :: RhsDict
@@ -183,7 +198,8 @@ defaultScriptConfig = ScriptConfig
 effectiveTls :: Script -> Bool
 effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
 effectiveTls Script { callItems = (ci:_) } =
-    case parseURI (url (ciRequestSpec ci)) of
+    -- case parseURI (url (ciRequestSpec ci)) of
+    case parseURI (showUrl $ url (ciRequestSpec ci)) of
         Just uri | uriScheme uri == "http:" -> False
         _ -> True
 effectiveTls _ = True -- Default to TLS if not specified
@@ -222,13 +238,13 @@ defaultLead = Lead
     }
 
 
--- | __Partial__: Asserts uppercase input.
-expectUpper :: String -> UppercaseString
-expectUpper s | all (`elem` ['A'..'Z']) s = UppercaseString s
-expectUpper _ = undefined
+-- ??: dry
+showVerb :: UpperString -> String
+showVerb (UpperString s) = s
 
-showVerb :: UppercaseString -> String
-showVerb (UppercaseString s) = s
+showUrl :: UrlString -> String
+showUrl (UrlString s) = s
+
 
 noNews :: Lead -> Bool
 noNews (Lead { leadKind = Non }) = True
@@ -236,7 +252,8 @@ noNews _ = False
 
 -- Pretty-print.
 present :: CallItem -> String
-present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
+-- present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
+present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (showUrl $ url $ ciRequestSpec ci)
  ++ (showHeaders $ headers $ ciRequestSpec ci)
  ++ "\n" ++ (payload $ ciRequestSpec ci)
  -- ++ (payload $ ciRequestSpec ci)

@@ -61,7 +61,7 @@ defaultCallItem = CallItem
   , ciName = "default"
   , ciRequestSpec = RequestSpec
     { verb = expectUpper "GET"
-    , url = "http://localhost:80"
+    , url = expectUrl "http://localhost:80"
     , headers = RhsDict HM.empty
     , payload = "", configs = RhsDict HM.empty
     }
@@ -95,8 +95,8 @@ _debugLead = Lead
   , interpreterInfo = (HM.empty, [])
   }
 
-asMethod :: UppercaseString -> BS.ByteString
-asMethod (UppercaseString s) = BS.pack s
+asMethod :: UpperString -> BS.ByteString
+asMethod (UpperString s) = BS.pack s
 
 validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
 validJsonBody req resp = Aeson.Object $
@@ -250,7 +250,7 @@ courseFrom x = do
     buildRequest env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
-            struct <- parseUrlOrThrow
+            struct <- requestStructOrThrow
 
             renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
 
@@ -261,7 +261,7 @@ courseFrom x = do
 
         -- Requests with json body.
         | otherwise = do
-            struct <- parseUrlOrThrow
+            struct <- requestStructOrThrow
             -- Render payloads.
             rb <- stringRender (payload $ ciRequestSpec ci)
 
@@ -279,12 +279,11 @@ courseFrom x = do
                     av <- BEL.render env (Aeson.String "") v
                     pure (CaseInsensitive.mk (BS.pack k), asBS av)
 
-        parseUrlOrThrow :: IO Http.Request
-        parseUrlOrThrow = do
-            -- Render urls.
-            rendered <- stringRender (url $ ciRequestSpec ci)
-            Http.parseRequest rendered  -- PICKUP if panicking is desirable
-                                        -- its throwing determines where in runProcM we catch it
+        requestStructOrThrow :: IO Http.Request
+        requestStructOrThrow = do
+        -- ??
+            rendered <- stringRender (showUrl $ url $ ciRequestSpec ci)
+            Http.parseRequest rendered
 
         stringRender :: String -> IO String
         stringRender s = do
