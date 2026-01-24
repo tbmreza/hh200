@@ -18,7 +18,7 @@ module Hh200.Types
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
-    , RequestSpec (..)
+    , RequestSpec (..), RequestSpeg (..)
     , ResponseSpec (..)
     , HostInfo (..)
     , LeadKind (..)
@@ -28,7 +28,7 @@ module Hh200.Types
     , defaultScriptConfig
     , effectiveTls
     , defaultDepsClause
-    , pCallItem
+    , pCallItem, gCallItem
     , callItemIsDefault
     , defaultHostInfo
     , defaultLead
@@ -67,7 +67,6 @@ expectUpper :: String -> UpperString
 expectUpper s | all (`elem` ['A'..'Z']) s = UpperString s
 expectUpper _ = undefined
 
--- ??: new P.y rule exploring what if rhs can do parseRequest there
 -- newtype UrlString = UrlString requestStruct
 newtype UrlString = UrlString String
     deriving (Show, Eq)
@@ -103,7 +102,7 @@ data TraceEvent
   | Captured String
   | AssertsFailed
   | AssertsPassed
-  deriving (Show, Eq)
+    deriving (Show, Eq)
 
 type Log = [TraceEvent]
 
@@ -114,9 +113,9 @@ data ScriptKind = Regular | Static | Sole
 data Script = Script
   { kind :: ScriptKind
   , config :: ScriptConfig
+  -- , callItems :: [CallItemg]
   , callItems :: [CallItem]
-  }
-  deriving (Show, Eq)
+  } deriving (Show, Eq)
 
 -- ??: ScriptConfig definition and its derivatives mean very little until some
 -- of them are used in one of Execution modes.
@@ -132,6 +131,13 @@ data DepsClause = DepsClause
   , itemName :: String
   }
 
+data CallItemg = CallItemg
+  { cgDeps :: [String]
+  , cgName :: String
+  , cgRequestSpec :: RequestSpeg
+  , cgResponseSpec :: Maybe ResponseSpec
+  } deriving (Show)
+
 data CallItem = CallItem
   { ciDeps :: [String]
   , ciName :: String
@@ -145,8 +151,12 @@ data RequestSpec = RequestSpec
   , headers :: RhsDict
   , payload :: String
   , configs :: RhsDict
-  }
-  deriving (Show, Eq)
+  } deriving (Show, Eq)
+
+data RequestSpeg = RequestSpeg
+  { requestStruct :: Maybe HC.Request
+  -- } deriving (Show, Eq)
+  } deriving (Show)
 
 data ResponseSpec = ResponseSpec
   { statuses :: [Status]
@@ -214,6 +224,15 @@ pCallItem dc rs opt =
       , ciName = itemName dc
       , ciRequestSpec = rs
       , ciResponseSpec = opt
+      }
+
+gCallItem :: DepsClause -> RequestSpeg -> Maybe ResponseSpec -> CallItemg
+gCallItem dc rs opt =
+    CallItemg
+      { cgDeps = deps dc
+      , cgName = itemName dc
+      , cgRequestSpec = rs
+      , cgResponseSpec = opt
       }
 
 callItemIsDefault :: CallItem -> Bool
