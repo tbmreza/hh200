@@ -167,15 +167,15 @@ expectCodesOrDefault mrs =
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
     let course :: ProcM CallItem = courseFrom script
-        list = runMaybeT course  -- ??: if this list is exhaustive and how can it move the needle
+        list = runMaybeT course
   -- see if runProcM api stabilizes more, then testOutsideWorld
   -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
   -- │ Location  │ Cause                                │ Result                  │
   -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
-  -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │
+  -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checking: goal: handled by alex/happy or type checker
   -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │
   -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │
-  -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ ok
+  -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
   -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
 
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
