@@ -201,21 +201,60 @@ emptyHanded = pure defaultCallItem
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
-    env <- get
-    pairs <- liftIO (mapM (buildFrom env) (callItems x))
-    liftIOWithMgr pairs
+    mgr <- ask
+    go mgr (callItems x)
 
     where
-    -- Build Request and echo CallItem parts.
-    buildFrom :: Env -> CallItem -> IO (Http.Request, (CallItem, Maybe ResponseSpec))
-    buildFrom env ci
+    go :: Http.Manager -> [CallItem] -> ProcM CallItem
+    go _ [] = emptyHanded
+    go mgr (ci:rest) = do
+        lift $ Tf.tell [ItemStart (ciName ci)]
+        env <- get
+        req <- liftIO $ buildRequest env ci
+
+        -- Unhandled offline HttpExceptionRequest.
+        eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
+        case eitherResp of
+            Left e -> do
+                -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
+                -- ??
+                lift $ Tf.tell [HttpError (show e)]
+                pure ci
+            Right gotResp -> do
+                lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
+                -- Captures.
+                -- env is already fetched above.
+
+                let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
+
+                let mrs = ciResponseSpec ci
+                (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
+
+                lift $ Tf.tell captureLog
+
+                -- Unless null Captures:
+                modify upsertCaptures
+
+                res <- liftIO $ assertsAreOk initialEnv gotResp mrs
+                case res of
+                    False -> do
+                        lift $ Tf.tell [AssertsFailed]
+                        pure ci
+                    _ -> do
+                        lift $ Tf.tell [AssertsPassed]
+                        go mgr rest
+
+    -- Exceptions:
+    -- url parsing error
+    buildRequest :: Env -> CallItem -> IO Http.Request
+    buildRequest env ci
         -- Requests without body.
         | null (payload $ ciRequestSpec ci) = do
             struct <- parseUrlOrThrow
 
             renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
 
-            dorp (ci, (ciResponseSpec ci)) $
+            pure $
                 Http.setRequestHeaders renderedHeaders $
                 Http.setMethod (asMethod (verb $ ciRequestSpec ci))
                 struct
@@ -226,7 +265,7 @@ courseFrom x = do
             -- Render payloads.
             rb <- stringRender (payload $ ciRequestSpec ci)
 
-            dorp (ci, (ciResponseSpec ci)) $
+            pure $
                 Http.setRequestBody (trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)) $
                 Http.setRequestHeaders [headerJson] $
                 Http.setMethod (asMethod (verb $ ciRequestSpec ci))
@@ -247,10 +286,6 @@ courseFrom x = do
             Http.parseRequest rendered  -- PICKUP if panicking is desirable
                                         -- its throwing determines where in runProcM we catch it
 
-        -- Return swapped product (`dorp` is prod reversed).
-        dorp :: a -> b -> IO (b, a)
-        dorp a b = pure (b, a)
-
         stringRender :: String -> IO String
         stringRender s = do
 
@@ -264,66 +299,20 @@ courseFrom x = do
         rawPayload :: String -> Http.RequestBody
         rawPayload s = Http.lbsBody $ L8.pack s
 
-    -- Results arrive here!
-    liftIOWithMgr :: [(Http.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
-    liftIOWithMgr pairs = do
-        mgr :: Http.Manager <- ask
-        h mgr pairs
-
-        where
-
-        -- Reduce captures to Env extensions.
-        evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-        evalCaptures (env, mrs) = do
-            let (RhsDict bindings) = case mrs of
-                    Nothing -> RhsDict HM.empty
-                    Just rs -> captures rs
-                initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
-            (ext, finalLog) <- foldlWithKeyM'
-                (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-                    v <- BEL.render acc (Aeson.String "") bV
-                    pure (HM.insert bK v acc, logs ++ [Captured bK]))
-                (env, initialLog)
-                bindings
-            pure (const ext, finalLog)
-
-        -- response = {captures, asserts}. request = {configs ("options" in hurl), cookies}
-        h :: Http.Manager -> [(Http.Request, (CallItem, Maybe ResponseSpec))] -> ProcM CallItem
-        h mgr list = case list of
-            [] -> emptyHanded
-
-            (req, (ci, mrs)) : rest -> do
-                lift $ Tf.tell [ItemStart (ciName ci)]
-                -- Unhandled offline HttpExceptionRequest.
-                eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
-                case eitherResp of
-                    Left e -> do
-                        -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
-                        -- ??
-                        lift $ Tf.tell [HttpError (show e)]
-                        pure ci
-                    Right gotResp -> do
-                        lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
-                        -- Captures.
-                        env <- get
-
-                        let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
-
-                        (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
-
-                        lift $ Tf.tell captureLog
-
-                        -- Unless null Captures:
-                        modify upsertCaptures
-
-                        res <- liftIO $ assertsAreOk initialEnv gotResp mrs
-                        case res of
-                            False -> do
-                                lift $ Tf.tell [AssertsFailed]
-                                pure ci
-                            _ -> do
-                                lift $ Tf.tell [AssertsPassed]
-                                h mgr rest
+    -- Reduce captures to Env extensions.
+    evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
+    evalCaptures (env, mrs) = do
+        let (RhsDict bindings) = case mrs of
+                Nothing -> RhsDict HM.empty
+                Just rs -> captures rs
+            initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+        (ext, finalLog) <- foldlWithKeyM'
+            (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+                v <- BEL.render acc (Aeson.String "") bV
+                pure (HM.insert bK v acc, logs ++ [Captured bK]))
+            (env, initialLog)
+            bindings
+        pure (const ext, finalLog)
 
 --------------------------------------------------------------------------------
 -- hh200 modes
