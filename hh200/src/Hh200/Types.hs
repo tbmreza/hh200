@@ -116,7 +116,8 @@ data Script = Script
   , config :: ScriptConfig
   -- , callItems :: [CallItemg]
   , callItems :: [CallItem]
-  } deriving (Show, Eq)
+  -- } deriving (Show, Eq)
+  } deriving (Show)
 
 -- ??: ScriptConfig definition and its derivatives mean very little until some
 -- of them are used in one of Execution modes.
@@ -156,7 +157,6 @@ data RequestSpec = RequestSpec
 
 data RequestSpeg = RequestSpeg
   { requestStruct :: Maybe HC.Request
-  -- } deriving (Show, Eq)
   } deriving (Show)
 
 data ResponseSpec = ResponseSpec
@@ -209,7 +209,6 @@ defaultScriptConfig = ScriptConfig
 effectiveTls :: Script -> Bool
 effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
 effectiveTls Script { callItems = (ci:_) } =
-    -- case parseURI (url (ciRequestSpec ci)) of
     case parseURI (showUrl $ url (ciRequestSpec ci)) of
         Just uri | uriScheme uri == "http:" -> False
         _ -> True
@@ -258,10 +257,10 @@ defaultLead = Lead
     }
 
 
--- ??: dry
 showVerb :: UpperString -> String
 showVerb (UpperString s) = s
 
+-- ??:
 showUrl :: UrlString -> String
 showUrl (UrlString s) = s
 
@@ -286,7 +285,6 @@ showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList
 
 showPart :: BEL.Part -> String
 showPart (BEL.R t) = Text.unpack t
--- showPart (BEL.L _) = "???"
 showPart (BEL.L t) = Text.unpack t
 
 showResponse :: Maybe ResponseSpec -> String
