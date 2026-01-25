@@ -25,7 +25,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Char (toLower, isDigit)
 import           Data.List (isPrefixOf)
 
-import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
+import Hh200.Types (Script(..), Scriptg(..), ScriptKind(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo, defaultScriptConfig)
 import L
 import P
 
@@ -118,6 +118,18 @@ instance Analyze Snippet where
                                             Just sc -> baseScript { config = sc }
                                             Nothing -> baseScript
                 return (Just (scriptWithConfig, hi))
+
+analyzeg :: Snippet -> MaybeT IO Scriptg
+analyzeg (Snippet s) = do
+    let tokensOrPanic = alexScanTokens (L8.unpack s)
+    res <- liftIO $ runExceptT (parseg tokensOrPanic)
+    case res of
+        Left (d, _) -> trace d (MaybeT (pure Nothing))
+        Right itemsAction -> do
+            res2 <- liftIO $ runExceptT itemsAction
+            case res2 of
+                 Left (d, _) -> trace d (MaybeT (pure Nothing))
+                 Right items -> pure (Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = items })
 
 scanSafe :: String -> Either String [Token]
 scanSafe str = runAlex str gather

@@ -15,6 +15,7 @@ module Hh200.Types
     , Log
     , ScriptKind (..)
     , Script (..)
+    , Scriptg (..)
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)

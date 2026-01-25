@@ -99,6 +99,16 @@ requesg :: { E RequestSpeg }
 requesg : method url crlf bindings request_configs braced crlf
         { do
             req <- liftIO $ HC.parseRequest $2
+            returnE $ RequestSpeg { requestStruct = Just (req { HC.method = BS.pack $1 }) }
+        }
+        | method url crlf
+        { do
+            req <- liftIO $ HC.parseRequest $2
+            returnE $ RequestSpeg { requestStruct = Just (req { HC.method = BS.pack $1 }) }
+        }
+        | url crlf
+        { do
+            req <- liftIO $ HC.parseRequest $1
             returnE $ RequestSpeg { requestStruct = Just req }
         }
 
