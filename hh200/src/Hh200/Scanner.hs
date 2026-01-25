@@ -49,7 +49,7 @@ readScriptg path = do
             putStrLn m
             pure Nothing
         Right s -> do
-            -- pure $ Just s
+            -- pure $ Just s  -- ??
             undefined
 
 readScript :: FilePath -> IO (Maybe Script)
@@ -88,28 +88,28 @@ trim :: String -> String
 trim = f . f where
     f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
 
--- class Analyzeg a where
---     analyze :: a -> MaybeT IO Script
---     -- analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
---
---
--- instance Analyzeg FilePath where
---     -- -> Nothing | StaticScript | SoleScript? | Script
---     analyzeg :: FilePath -> MaybeT IO Scriptg
---     analyzeg path = do
---         exists <- liftIO $ doesFileExist path
---         MaybeT $ case exists of
---             False -> do
---                 -- Proceeding to testOutsideWorld is unnecessary.
---                 pure Nothing
---             _ -> do
---                 readScript path
---
---     -- analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
---     -- analyzeWithHostInfo path = do
---     --     script <- analyze path
---     --     hi <- liftIO gatherHostInfo
---     --     pure (script, hi)
+class Analyzeg a where
+    analyzeg :: a -> MaybeT IO Scriptg
+    -- analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
+
+
+instance Analyzeg FilePath where
+    -- -> Nothing | StaticScript | SoleScript? | Script
+    analyzeg :: FilePath -> MaybeT IO Scriptg
+    analyzeg path = do
+        exists <- liftIO $ doesFileExist path
+        MaybeT $ case exists of
+            False -> do
+                -- Proceeding to testOutsideWorld is unnecessary.
+                pure Nothing
+            _ -> do
+                readScriptg path
+
+    -- analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
+    -- analyzeWithHostInfo path = do
+    --     script <- analyze path
+    --     hi <- liftIO gatherHostInfo
+    --     pure (script, hi)
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
@@ -156,17 +156,19 @@ instance Analyze Snippet where
                                             Nothing -> baseScript
                 return (Just (scriptWithConfig, hi))
 
-analyzeg :: Snippet -> MaybeT IO Scriptg
-analyzeg (Snippet s) = do
-    let tokensOrPanic = alexScanTokens (L8.unpack s)
-    res <- liftIO $ runExceptT (parseg tokensOrPanic)
-    case res of
-        Left (d, _) -> trace d (MaybeT (pure Nothing))
-        Right itemsAction -> do
-            res2 <- liftIO $ runExceptT itemsAction
-            case res2 of
-                 Left (d, _) -> trace d (MaybeT (pure Nothing))
-                 Right items -> pure (Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = items })
+instance Analyzeg Snippet where
+    -- -> Nothing | SoleScript
+    analyzeg :: Snippet -> MaybeT IO Scriptg
+    analyzeg (Snippet s) = do
+        let tokensOrPanic = alexScanTokens (L8.unpack s)
+        res <- liftIO $ runExceptT (parseg tokensOrPanic)
+        case res of
+            Left (d, _) -> trace d (MaybeT (pure Nothing))
+            Right itemsAction -> do
+                res2 <- liftIO $ runExceptT itemsAction
+                case res2 of
+                     Left (d, _) -> trace d (MaybeT (pure Nothing))
+                     Right s -> pure s
 
 scanSafe :: String -> Either String [Token]
 scanSafe str = runAlex str gather

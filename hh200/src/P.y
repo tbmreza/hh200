@@ -69,8 +69,8 @@ import           L
 
 script : crlf call_items  { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
 
-scriptg :: { E [CallItemg] }
-scriptg : crlf call_itemsg { $2 }
+scriptg :: { E Scriptg }
+scriptg : crlf call_itemsg { $2 >>= \is -> returnE Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = is } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }

@@ -27,7 +27,7 @@ import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp)
 
 data Args = Args
-  { source :: Maybe String
+  { source :: Maybe String  -- used for both FilePath and Snippet sources
   , version :: Bool
   , debugConfig :: Bool
   , call :: Bool
@@ -90,18 +90,8 @@ go Args { lsp = Just port } = runTcp port
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
-go Args { source = Just src, debugConfig = True } = do
-    -- runAnalyzedScriptg (Scanner.analyzeg path)
-    exists <- trace "dfe" $ doesFileExist src
-    case exists of
-        False -> exitWith (ExitFailure 1)
-        _ -> do
-            analyzed :: Maybe Script <- runMaybeT $ do
-                script <- trace "closer......" $ Scanner.analyze src
-                liftIO (pure script)
-            case analyzed of
-                Nothing -> exitWith (ExitFailure 1)
-                Just s -> print (config s)
+go Args { source = Just path, debugConfig = True } = do
+    runAnalyzedScriptg (Scanner.analyzeg path)
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -110,8 +100,8 @@ go Args { shotgun = 1, call = False, rps = False, source = Just path } =
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
-go Args { call = True, source = Just src } =
-    runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack src))
+go Args { call = True, source = Just snip } =
+    runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack snip))
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
