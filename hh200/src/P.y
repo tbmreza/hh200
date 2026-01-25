@@ -98,19 +98,11 @@ request : method url crlf bindings request_configs braced crlf { trace "rq0" $ R
 requesg :: { E RequestSpeg }
 requesg : method url crlf bindings request_configs braced crlf
         { do
-            req <- liftIO $ HC.parseRequest $2
-            returnE $ RequestSpeg { requestStruct = Just (req { HC.method = BS.pack $1 }) }
+            mk <- liftIO $ HC.parseRequest $2
+            let struct = mk { HC.method = BS.pack $1 }
+            returnE $ RequestSpeg { requestStruct = Just struct, lexedUrl = $2 }
         }
-        | method url crlf
-        { do
-            req <- liftIO $ HC.parseRequest $2
-            returnE $ RequestSpeg { requestStruct = Just (req { HC.method = BS.pack $1 }) }
-        }
-        | url crlf
-        { do
-            req <- liftIO $ HC.parseRequest $1
-            returnE $ RequestSpeg { requestStruct = Just req }
-        }
+
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "RSa" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
          | "HTTP" response_codes crlf response_asserts  crlf response_captures crlf { trace "RSa_inv" $ ResponseSpec { asserts = $4, captures = $6, output = [], statuses = map statusFrom $2 } }
