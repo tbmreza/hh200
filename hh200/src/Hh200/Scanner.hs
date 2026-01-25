@@ -38,6 +38,20 @@ scriptFrom (Snippet s) = do
         Left (d, _) -> trace d (pure Nothing)
         Right sole -> pure (Just sole)
 
+readScriptg :: FilePath -> IO (Maybe Scriptg)
+readScriptg path = do
+    loaded <- readFile path
+    let tokensOrPanic = alexScanTokens loaded
+    res <- runExceptT (parseg tokensOrPanic)
+
+    case res of
+        Left (m, _) -> do
+            putStrLn m
+            pure Nothing
+        Right s -> do
+            -- pure $ Just s
+            undefined
+
 readScript :: FilePath -> IO (Maybe Script)
 readScript path = do
     loaded <- readFile path
@@ -73,6 +87,29 @@ tryReadProcess cmd args = do
 trim :: String -> String
 trim = f . f where
     f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
+
+-- class Analyzeg a where
+--     analyze :: a -> MaybeT IO Script
+--     -- analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
+--
+--
+-- instance Analyzeg FilePath where
+--     -- -> Nothing | StaticScript | SoleScript? | Script
+--     analyzeg :: FilePath -> MaybeT IO Scriptg
+--     analyzeg path = do
+--         exists <- liftIO $ doesFileExist path
+--         MaybeT $ case exists of
+--             False -> do
+--                 -- Proceeding to testOutsideWorld is unnecessary.
+--                 pure Nothing
+--             _ -> do
+--                 readScript path
+--
+--     -- analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
+--     -- analyzeWithHostInfo path = do
+--     --     script <- analyze path
+--     --     hi <- liftIO gatherHostInfo
+--     --     pure (script, hi)
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script

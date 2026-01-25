@@ -3,6 +3,7 @@
 
 module Hh200.Execution
   ( testOutsideWorld , testShotgun, testRps
+  , testOutsideWorldg
   , runProcM
   , assertsAreOk
   , validJsonBody
@@ -66,6 +67,20 @@ defaultCallItem = CallItem
     , payload = "", configs = RhsDict HM.empty
     }
   , ciResponseSpec = Nothing
+  }
+
+defaultCallItemg :: CallItemg
+defaultCallItemg = CallItemg
+  { cgDeps = []
+  , cgName = "default"
+  , cgRequestSpec = RequestSpeg
+    { requestStruct = Nothing
+    , lexedUrl = "http://localhost:80"
+    , headersg = RhsDict HM.empty
+    , configsg = RhsDict HM.empty
+    , payloadg = ""
+    }
+  , cgResponseSpec = Nothing
   }
 
 nonLead :: Script -> HostInfo -> Lead
@@ -164,23 +179,38 @@ expectCodesOrDefault mrs =
             expectCodes -> expectCodes
 
 -- Return to user the CallItem which we suspect will fail again.
+runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Lead
+runProcMg script mgr env hi = do
+    undefined
+
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
+  --   let course :: ProcM CallItem = courseFrom script
+  --       list = runMaybeT course
+  -- -- see if runProcM api stabilizes more, then testOutsideWorld
+  -- -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
+  -- -- │ Location  │ Cause                                │ Result                  │
+  -- -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
+  -- -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checking: goal: handled by alex/happy or type checker
+  -- -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │
+  -- -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │
+  -- -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
+  -- -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
+  --
+  --   (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
+  --   pure $ switch (mci, finalEnv, procLog)
+  --
+  --   where
+  --   switch :: (Maybe CallItem, Env, Log) -> Lead
+  --   switch (mci, e, l) =
+  --       trace ("final: " ++ show l) $ case mci of
+  --           Just ci | "default" == ciName ci -> nonLead script hi
+  --           _                                -> leadFrom mci (e, l) script hi
+
     let course :: ProcM CallItem = courseFrom script
         list = runMaybeT course
-  -- see if runProcM api stabilizes more, then testOutsideWorld
-  -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
-  -- │ Location  │ Cause                                │ Result                  │
-  -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
-  -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checking: goal: handled by alex/happy or type checker
-  -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │
-  -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │
-  -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
-  -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
-
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
-
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
     switch (mci, e, l) =
@@ -195,6 +225,80 @@ runProcM script mgr env hi = do
 --
 emptyHanded :: ProcM CallItem
 emptyHanded = pure defaultCallItem
+emptyHandedg :: ProcM CallItemg
+emptyHandedg = pure defaultCallItemg
+
+courseFromg :: Scriptg -> ProcM CallItemg
+courseFromg x = do
+    lift $ Tf.tell [ScriptStart (length $ callItemsg x)]
+    mgr <- ask
+    go mgr (callItemsg x)
+
+    where
+    go :: Http.Manager -> [CallItemg] -> ProcM CallItemg
+    go _ [] = emptyHandedg
+    go mgr (ci:rest) = do
+        lift $ Tf.tell [ItemStart (cgName ci)]
+        env <- get
+        req <- liftIO $ buildRequestg env ci
+
+        -- Unhandled offline HttpExceptionRequest.
+        eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
+        case eitherResp of
+            Left e -> do
+                -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
+                -- ??
+                lift $ Tf.tell [HttpError (show e)]
+                pure ci
+            Right gotResp -> do
+                lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
+                -- Captures.
+                -- env is already fetched above.
+
+                let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
+
+                let mrs = cgResponseSpec ci
+                (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
+
+                lift $ Tf.tell captureLog
+
+                -- Unless null Captures:
+                modify upsertCaptures
+
+                res <- liftIO $ assertsAreOk initialEnv gotResp mrs
+                case res of
+                    False -> do
+                        lift $ Tf.tell [AssertsFailed]
+                        pure ci
+                    _ -> do
+                        lift $ Tf.tell [AssertsPassed]
+                        go mgr rest
+
+    -- Exceptions:
+    -- request construction retry error
+    buildRequestg :: Env -> CallItemg -> IO Http.Request
+    -- ??: handle payload
+    buildRequestg env CallItemg { cgRequestSpec = RequestSpeg { requestStruct = opt } } = do
+        case opt of
+            Just r -> pure r
+            _ ->
+                -- ??: if something smarter exists, do it here to save the CallItem
+                undefined
+
+    -- Reduce captures to Env extensions.
+    evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
+    evalCaptures (env, mrs) = do
+        let (RhsDict bindings) = case mrs of
+                Nothing -> RhsDict HM.empty
+                Just rs -> captures rs
+            initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+        (ext, finalLog) <- foldlWithKeyM'
+            (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+                v <- BEL.render acc (Aeson.String "") bV
+                pure (HM.insert bK v acc, logs ++ [Captured bK]))
+            (env, initialLog)
+            bindings
+        pure (const ext, finalLog)
 
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
@@ -317,6 +421,13 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
+testOutsideWorldg :: Scriptg -> IO Lead
+testOutsideWorldg sole@(Scriptg {callItemsg = [_]}) = do
+    hi <- gatherHostInfo
+    bracket (Http.newManager True) Http.closeManager $ \with ->
+        runProcMg sole with HM.empty hi
+
+
 testOutsideWorld :: Script -> IO Lead
 
 -- -> NonLead
@@ -330,7 +441,7 @@ testOutsideWorld static@(Script {kind = Static, config = _, callItems = []}) = d
 -- testOutsideWorld sole@(Script {config = ScriptConfig {subjects = _}, callItems = [_]}) = do
 testOutsideWorld sole@(Script {callItems = [_]}) = do
     hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls sole)) Http.closeManager $ \with ->
+    bracket (Http.newManager (effectiveTls sole)) Http.closeManager $ \with ->  -- ??: effectiveTls
         runProcM sole with HM.empty hi
 
 

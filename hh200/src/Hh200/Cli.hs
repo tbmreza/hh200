@@ -7,6 +7,7 @@ module Hh200.Cli
   ) where
 
 
+import Debug.Trace
 
 import Control.Monad (unless)
 
@@ -83,19 +84,20 @@ go Args { version = True } = do
     putStrLn $ showVersion Paths_hh200.version
     System.IO.hFlush stdout
 
--- Run Language Server.
+-- Run language server.
 -- hh200 --lsp=3000
 go Args { lsp = Just port } = runTcp port
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
 go Args { source = Just src, debugConfig = True } = do
-    exists <- doesFileExist src
+    -- runAnalyzedScriptg (Scanner.analyzeg path)
+    exists <- trace "dfe" $ doesFileExist src
     case exists of
         False -> exitWith (ExitFailure 1)
         _ -> do
             analyzed :: Maybe Script <- runMaybeT $ do
-                script <- Scanner.analyze src
+                script <- trace "closer......" $ Scanner.analyze src
                 liftIO (pure script)
             case analyzed of
                 Nothing -> exitWith (ExitFailure 1)
@@ -143,6 +145,27 @@ go Args { shotgun = n, call = False, source = Just path } = do
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
 
+
+runAnalyzedScriptg :: MaybeT IO Scriptg -> IO ()
+runAnalyzedScriptg mis = do
+    mScript <- runMaybeT mis
+
+    script <- case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> pure s
+
+    lead <- testOutsideWorldg script
+
+    -- No news is good news, otherwise:
+    unless (noNews lead) $ do
+        putStrLn $ case firstFailing lead of
+            -- The third and final step of hh200 (presentation).
+            Just ci -> present ci
+            -- Expect no interesting news other than first failing CallItem.
+            Nothing -> undefined
+
+        hPutStrLn stderr "hh200 found an unmet expectation."
+        exitWith (ExitFailure 1)
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do

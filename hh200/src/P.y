@@ -98,14 +98,42 @@ request : method url crlf bindings request_configs braced crlf { trace "rq0" $ R
 
 
 requesg :: { E RequestSpeg }
-requesg : method url crlf bindings request_configs braced crlf
-        { do
-            let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = $5, payloadg = $6 }
-            res <- liftIO $ try (HC.parseRequest $2)
-            returnE $ case res of
-                Left (_ :: SomeException) -> r { requestStruct = Nothing }
-                Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) }
-        }
+requesg : method url crlf bindings request_configs braced crlf { do
+                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = $5, payloadg = $6 }
+                                                                    res <- liftIO $ try (HC.parseRequest $2)
+                                                                    returnE $ case res of
+                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
+        | method url crlf bindings                 braced crlf { do
+                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = RhsDict HM.empty, payloadg = $5 }
+                                                                    res <- liftIO $ try (HC.parseRequest $2)
+                                                                    returnE $ case res of
+                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
+        | method url crlf bindings                        crlf { do
+                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = RhsDict HM.empty, payloadg = "" }
+                                                                    res <- liftIO $ try (HC.parseRequest $2)
+                                                                    returnE $ case res of
+                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
+        | method url crlf                          braced crlf { do
+                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = $4 }
+                                                                    res <- liftIO $ try (HC.parseRequest $2)
+                                                                    returnE $ case res of
+                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
+        | method url crlf                                      { do
+                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = "" }
+                                                                    res <- liftIO $ try (HC.parseRequest $2)
+                                                                    returnE $ case res of
+                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
+        |        url crlf                                      { do
+                                                                    let r = RequestSpeg { lexedUrl = $1, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = "" }
+                                                                    res <- liftIO $ try (HC.parseRequest $1)
+                                                                    returnE $ case res of
+                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Right req ->                 r { requestStruct = Just (req { HC.method = "GET" }) } }
 
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "RSa" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2 } }
