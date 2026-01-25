@@ -100,10 +100,11 @@ request : method url crlf bindings request_configs braced crlf { trace "rq0" $ R
 requesg :: { E RequestSpeg }
 requesg : method url crlf bindings request_configs braced crlf
         { do
+            let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = $5, payloadg = $6 }
             res <- liftIO $ try (HC.parseRequest $2)
-            case res of
-                Left (_ :: SomeException) -> returnE $ RequestSpeg { requestStruct = Nothing, lexedUrl = $2 }
-                Right req -> returnE $ RequestSpeg { requestStruct = Just (req { HC.method = BS.pack $1 }), lexedUrl = $2 }
+            returnE $ case res of
+                Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) }
         }
 
 

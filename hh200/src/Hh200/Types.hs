@@ -164,8 +164,10 @@ data RequestSpec = RequestSpec
 
 data RequestSpeg = RequestSpeg
   { requestStruct :: Maybe HC.Request
-  -- , verbg ::         UpperString
   , lexedUrl ::      String
+  , headersg ::      RhsDict
+  , configsg ::      RhsDict
+  , payloadg ::      String
   } deriving (Show)
 
 data ResponseSpec = ResponseSpec
