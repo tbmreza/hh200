@@ -19,6 +19,7 @@ import           L
 
 }
 %name parse
+%name parseg scriptg
 %tokentype { Token }
 %error { parseError }
 %token
@@ -65,6 +66,9 @@ import           L
 %%
 
 script : crlf call_items  { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
+
+scriptg :: { E [CallItemg] }
+scriptg : crlf call_itemsg { $2 }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
