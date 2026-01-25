@@ -1,4 +1,5 @@
 {
+{-# LANGUAGE ScopedTypeVariables #-}
 module P where
 
 import Debug.Trace
@@ -7,6 +8,7 @@ import           Data.List (intercalate)
 import qualified Data.Text as Text
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict as HM
+import           Control.Exception (try, SomeException)
 import           Control.Monad.Trans.Except
 import           Control.Monad.IO.Class (liftIO)
 -- import           Network.HTTP.Types.Status (Status, mkStatus)
@@ -98,9 +100,10 @@ request : method url crlf bindings request_configs braced crlf { trace "rq0" $ R
 requesg :: { E RequestSpeg }
 requesg : method url crlf bindings request_configs braced crlf
         { do
-            mk <- liftIO $ HC.parseRequest $2
-            let struct = mk { HC.method = BS.pack $1 }
-            returnE $ RequestSpeg { requestStruct = Just struct, lexedUrl = $2 }
+            res <- liftIO $ try (HC.parseRequest $2)
+            case res of
+                Left (_ :: SomeException) -> returnE $ RequestSpeg { requestStruct = Nothing, lexedUrl = $2 }
+                Right req -> returnE $ RequestSpeg { requestStruct = Just (req { HC.method = BS.pack $1 }), lexedUrl = $2 }
         }
 
 
