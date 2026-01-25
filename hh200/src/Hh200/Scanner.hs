@@ -48,9 +48,13 @@ readScriptg path = do
         Left (m, _) -> do
             putStrLn m
             pure Nothing
-        Right s -> do
-            -- pure $ Just s  -- ??
-            undefined
+        Right itemsAction -> do
+            res2 <- runExceptT itemsAction
+            case res2 of
+                Left (m, _) -> do
+                    putStrLn m
+                    pure Nothing
+                Right s -> pure (Just s)
 
 readScript :: FilePath -> IO (Maybe Script)
 readScript path = do
