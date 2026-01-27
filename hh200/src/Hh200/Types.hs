@@ -24,7 +24,7 @@ module Hh200.Types
     , ResponseSpec (..)
     , HostInfo (..)
     , LeadKind (..)
-    , Lead (..)
+    , Lead (..), Leadg (..)
     , InternalError (..)
     , HhError (..)
     , defaultScriptConfig
@@ -197,6 +197,14 @@ data Lead = Lead
   , hostInfo ::        HostInfo
   , interpreterInfo :: (Env, Log)
   , echoScript ::      Maybe Script
+  } deriving (Show)
+
+data Leadg = Leadg
+  { gleadKind ::        LeadKind
+  , gfirstFailing ::    Maybe CallItemg
+  , ghostInfo ::        HostInfo
+  , ginterpreterInfo :: (Env, Log)
+  , gechoScript ::      Maybe Scriptg
   } deriving (Show)
 
 data InternalError = OutOfBounds

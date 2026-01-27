@@ -92,6 +92,15 @@ nonLead x hi = Lead
   , echoScript = Just x
   }
 
+leadFromg :: Maybe CallItemg -> (Env, Log) -> Scriptg -> HostInfo -> Leadg
+leadFromg failed el script hi = Leadg
+  { gleadKind = Normal
+  , gfirstFailing = failed
+  , ghostInfo = hi
+  , gechoScript = Just script
+  , ginterpreterInfo = el
+  }
+
 leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
 leadFrom failed el script hi = Lead
   { leadKind = Normal
@@ -101,14 +110,14 @@ leadFrom failed el script hi = Lead
   , interpreterInfo = el
   }
 
-_debugLead :: Lead
-_debugLead = Lead
-  { leadKind = Debug
-  , firstFailing = Nothing
-  , hostInfo = defaultHostInfo
-  , echoScript = Nothing
-  , interpreterInfo = (HM.empty, [])
-  }
+-- _debugLead :: Lead
+-- _debugLead = Lead
+--   { leadKind = Debug
+--   , firstFailing = Nothing
+--   , hostInfo = defaultHostInfo
+--   , echoScript = Nothing
+--   , interpreterInfo = (HM.empty, [])
+--   }
 
 asMethod :: UpperString -> BS.ByteString
 asMethod (UpperString s) = BS.pack s
@@ -179,9 +188,16 @@ expectCodesOrDefault mrs =
             expectCodes -> expectCodes
 
 -- Return to user the CallItem which we suspect will fail again.
-runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Lead
+runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
 runProcMg script mgr env hi = do
     undefined
+    where
+    switch :: (Maybe CallItemg, Env, Log) -> Leadg
+    switch (mci, e, l) =
+        trace ("final: " ++ show l) $ case mci of
+            -- Just ci | "default" == ciName ci -> nonLead script hi
+            _                                -> leadFromg mci (e, l) script hi
+
 
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
@@ -421,7 +437,7 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
-testOutsideWorldg :: Scriptg -> IO Lead
+testOutsideWorldg :: Scriptg -> IO Leadg
 testOutsideWorldg sole@(Scriptg {callItemsg = [_]}) = do
     hi <- gatherHostInfo
     bracket (Http.newManager True) Http.closeManager $ \with ->

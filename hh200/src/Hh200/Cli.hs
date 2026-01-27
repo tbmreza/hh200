@@ -147,10 +147,12 @@ runAnalyzedScriptg mis = do
     lead <- testOutsideWorldg script
 
     -- No news is good news, otherwise:
-    unless (noNews lead) $ do
-        putStrLn $ case firstFailing lead of
+    -- unless (noNews lead) $ do  -- ??
+    unless False $ do
+        putStrLn $ case gfirstFailing lead of
             -- The third and final step of hh200 (presentation).
-            Just ci -> present ci
+            -- Just ci -> present ci
+            Just ci -> undefined
             -- Expect no interesting news other than first failing CallItem.
             Nothing -> undefined
 
