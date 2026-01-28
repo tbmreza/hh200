@@ -151,8 +151,7 @@ runAnalyzedScriptg mis = do
     unless False $ do
         putStrLn $ case gfirstFailing lead of
             -- The third and final step of hh200 (presentation).
-            -- Just ci -> present ci
-            Just ci -> undefined
+            Just ci -> presentg ci
             -- Expect no interesting news other than first failing CallItem.
             Nothing -> undefined
 

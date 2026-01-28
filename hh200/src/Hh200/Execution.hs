@@ -190,7 +190,11 @@ expectCodesOrDefault mrs =
 -- Return to user the CallItem which we suspect will fail again.
 runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
 runProcMg script mgr env hi = do
-    undefined
+    let course = courseFromg script
+        list = runMaybeT course
+    (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
+    pure $ switch (mci, finalEnv, procLog)
+    -- undefined  -- PICKUP
     where
     switch :: (Maybe CallItemg, Env, Log) -> Leadg
     switch (mci, e, l) =

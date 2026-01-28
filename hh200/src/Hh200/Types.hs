@@ -39,7 +39,7 @@ module Hh200.Types
     , expectUpper, expectUrl
     , showVerb, showUrl
     , noNews
-    , present
+    , present, presentg
     , showHeaders
     , showPart
     , showResponse
@@ -296,6 +296,18 @@ present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (showUrl $ url $ ciR
  ++ "\n" ++ (payload $ ciRequestSpec ci)
  -- ++ (payload $ ciRequestSpec ci)
  ++ (showResponse $ ciResponseSpec ci) ++ "\n"
+
+-- Pretty-print.
+presentg :: CallItemg -> String
+presentg cg =
+    let rs = cgRequestSpec cg
+        v = case requestStruct rs of
+              Just req -> trimQuotes $ show (HC.method req)
+              Nothing  -> "???"
+    in v ++ " " ++ lexedUrl rs
+       ++ (showHeaders $ headersg rs)
+       ++ "\n" ++ (payloadg rs)
+       ++ (showResponse $ cgResponseSpec cg) ++ "\n"
 
 showHeaders :: RhsDict -> String
 showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm
