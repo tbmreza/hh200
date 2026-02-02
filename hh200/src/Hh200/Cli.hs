@@ -140,18 +140,20 @@ runAnalyzedScriptg :: MaybeT IO Scriptg -> IO ()
 runAnalyzedScriptg mis = do
     mScript <- runMaybeT mis
 
-    script <- case mScript of
+    script :: Scriptg <- case mScript of
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
-    lead <- testOutsideWorldg script
+    lead <- testOutsideWorld script
 
     -- No news is good news, otherwise:
-    -- unless (noNews lead) $ do  -- ??
-    unless False $ do
+    unless (noNews lead) $ do
         putStrLn $ case gfirstFailing lead of
             -- The third and final step of hh200 (presentation).
-            Just ci -> presentg ci
+            -- ?? goal: ast should be printable
+            -- Just ci -> presentg ci
+            Just ci -> present undefined
+            -- Just ci -> undefined
             -- Expect no interesting news other than first failing CallItem.
             Nothing -> undefined
 
@@ -160,21 +162,23 @@ runAnalyzedScriptg mis = do
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do
-    mScript <- runMaybeT mis
-
-    script <- case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s  -> pure s
-
-    lead <- testOutsideWorld script
-
-    -- No news is good news, otherwise:
-    unless (noNews lead) $ do
-        putStrLn $ case firstFailing lead of
-            -- The third and final step of hh200 (presentation).
-            Just ci -> present ci
-            -- Expect no interesting news other than first failing CallItem.
-            Nothing -> undefined
-
-        hPutStrLn stderr "hh200 found an unmet expectation."
-        exitWith (ExitFailure 1)
+    undefined
+    -- mScript <- runMaybeT mis
+    --
+    -- script <- case mScript of
+    --     Nothing -> exitWith (ExitFailure 1)
+    --     Just s  -> pure s
+    --
+    -- lead <- testOutsideWorld script
+    --
+    -- -- No news is good news, otherwise:
+    -- -- unless (noNews lead) $ do  -- ??
+    -- unless False $ do
+    --     putStrLn $ case firstFailing lead of
+    --         -- The third and final step of hh200 (presentation).
+    --         Just ci -> present ci
+    --         -- Expect no interesting news other than first failing CallItem.
+    --         Nothing -> undefined
+    --
+    --     hPutStrLn stderr "hh200 found an unmet expectation."
+    --     exitWith (ExitFailure 1)

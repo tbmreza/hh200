@@ -2,8 +2,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Execution
-  ( testOutsideWorld , testShotgun, testRps
-  , testOutsideWorldg
+  ( testShotgun
+  , testOutsideWorld
+  , testRps
+  -- , testOutsideWorldg
   , runProcM
   , assertsAreOk
   , validJsonBody
@@ -81,6 +83,17 @@ defaultCallItemg = CallItemg
     , payloadg = ""
     }
   , cgResponseSpec = Nothing
+  }
+
+-- data Scriptg = Scriptg
+--   { kindg :: ScriptKind
+--   , configg :: ScriptConfig
+--   , callItemsg :: [CallItemg]
+--   } deriving (Show)
+
+mkLead :: Leadg
+mkLead = Leadg
+  { gleadKind = Non
   }
 
 nonLead :: Script -> HostInfo -> Lead
@@ -188,22 +201,23 @@ expectCodesOrDefault mrs =
             expectCodes -> expectCodes
 
 -- Return to user the CallItem which we suspect will fail again.
-runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
-runProcMg script mgr env hi = do
-    let course = courseFromg script
-        list = runMaybeT course
-    (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
-    pure $ switch (mci, finalEnv, procLog)
-    -- undefined  -- PICKUP
-    where
-    switch :: (Maybe CallItemg, Env, Log) -> Leadg
-    switch (mci, e, l) =
-        trace ("final: " ++ show l) $ case mci of
-            -- Just ci | "default" == ciName ci -> nonLead script hi
-            _                                -> leadFromg mci (e, l) script hi
+
+-- runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
+-- runProcMg script mgr env hi = do
+--     undefined
+--     -- let course = courseFromg script
+--     --     list = runMaybeT course
+--     -- (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
+--     -- pure $ switch (mci, finalEnv, procLog)
+--     -- where
+--     -- switch :: (Maybe CallItemg, Env, Log) -> Leadg
+--     -- switch (mci, e, l) =
+--     --     trace ("final: " ++ show l) $ case mci of
+--     --         -- Just ci | "default" == ciName ci -> nonLead script hi
+--     --         _                                -> leadFromg mci (e, l) script hi
 
 
-runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
+runProcM :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
 runProcM script mgr env hi = do
   --   let course :: ProcM CallItem = courseFrom script
   --       list = runMaybeT course
@@ -219,24 +233,21 @@ runProcM script mgr env hi = do
   --
   --   (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
   --   pure $ switch (mci, finalEnv, procLog)
-  --
-  --   where
-  --   switch :: (Maybe CallItem, Env, Log) -> Lead
-  --   switch (mci, e, l) =
-  --       trace ("final: " ++ show l) $ case mci of
-  --           Just ci | "default" == ciName ci -> nonLead script hi
-  --           _                                -> leadFrom mci (e, l) script hi
 
-    let course :: ProcM CallItem = courseFrom script
+
+    let course :: ProcM CallItemg = courseFromg script
         list = runMaybeT course
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
     where
-    switch :: (Maybe CallItem, Env, Log) -> Lead
+    switch :: (Maybe CallItemg, Env, Log) -> Leadg
     switch (mci, e, l) =
         trace ("final: " ++ show l) $ case mci of
-            Just ci | "default" == ciName ci -> nonLead script hi
-            _                                -> leadFrom mci (e, l) script hi
+            -- Just ci | "default" == ciName ci -> nonLead script hi
+            -- _                                -> leadFromg mci (e, l) script hi
+            -- ??: gechoScript Nothing
+            Just ci | "default" == cgName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
+            _                                -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
 
 -- Env is modified, Log appended throughout the body of `courseFrom`.
 --
@@ -441,35 +452,30 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
-testOutsideWorldg :: Scriptg -> IO Leadg
-testOutsideWorldg sole@(Scriptg {callItemsg = [_]}) = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager True) Http.closeManager $ \with ->
-        runProcMg sole with HM.empty hi
-
-
-testOutsideWorld :: Script -> IO Lead
-
--- -> NonLead
--- testOutsideWorld static@(Script {config = _, callItems = []}) = do
--- ??: awaiting runProcM api stability
-testOutsideWorld static@(Script {kind = Static, config = _, callItems = []}) = do
-    hi <- gatherHostInfo
-    pure $ nonLead static hi
+-- testOutsideWorldg :: Scriptg -> IO Leadg
+-- testOutsideWorldg sole@(Scriptg {callItemsg = [_]}) = do
+--     hi <- gatherHostInfo
+--     bracket (Http.newManager True) Http.closeManager $ \with ->
+--         runProcMg sole with HM.empty hi
 
 -- -> NonLead | DebugLead | Lead
--- testOutsideWorld sole@(Script {config = ScriptConfig {subjects = _}, callItems = [_]}) = do
-testOutsideWorld sole@(Script {callItems = [_]}) = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls sole)) Http.closeManager $ \with ->  -- ??: effectiveTls
-        runProcM sole with HM.empty hi
+-- testOutsideWorld static@(Script {kind = Static, config = _, callItems = []}) = do
 
+testOutsideWorld :: Scriptg -> IO Leadg
 
--- -> NonLead | DebugLead | Lead
-testOutsideWorld flow@(Script {callItems = _}) = do
+-- ??: sole `Script`s in testOutsideWorld (i.e. not testRps/testShotgun) probably 
+-- don't need manager sharing. where does this bit fit in the stack?
+testOutsideWorld sole@(Scriptg {callItemsg = [_]}) = do
     hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls flow)) Http.closeManager $ \with ->
-        runProcM flow with HM.empty hi
+    -- pure $ nonLead static hi
+    pure $ mkLead { gleadKind = Non, gechoScript = Just sole, ghostInfo = hi }
+
+testOutsideWorld flow@(Scriptg {callItemsg = _}) = do
+    undefined
+    -- hi <- gatherHostInfo
+    -- -- bracket (Http.newManager (effectiveTls flow)) Http.closeManager $ \with ->
+    -- bracket (Http.newManager True) Http.closeManager $ \with ->
+    --     runProcMg flow with HM.empty hi
 
 
 
@@ -497,8 +503,8 @@ testShotgun n checked = do
     hi <- gatherHostInfo
     bracket (Http.newManager (effectiveTls checked)) Http.closeManager $ \with -> do
         let msg = "testShotgun: checked=" ++ show checked
-        _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
-            runProcM checked with HM.empty hi
+        -- _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
+        --     runProcM checked with HM.empty hi
         pure ()
 
 

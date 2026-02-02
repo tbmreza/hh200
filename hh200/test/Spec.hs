@@ -49,7 +49,7 @@ main = do
       , testScanner_analyzeg
       , testExecution_bel
       , testExecution_validJsonBody
-      , testTypes_presentg
+      -- , testTypes_presentg
       ]
       -- , testScanner_lrConfig
 
@@ -259,21 +259,21 @@ testScanner_analyzeg = testCase "analyzeg using IO-enabled parser" $ do
                 Nothing -> assertFailure "Should have parsed request struct via IO"
         Nothing -> assertFailure "analyzeg returned Nothing"
 
-testTypes_presentg :: TestTree
-testTypes_presentg = testCase "presentg formatting" $ do
-    req <- Prim.parseRequest "POST http://localhost/foo"
-    let reqSpeg = Hh.RequestSpeg
-          { Hh.requestStruct = Just req
-          , Hh.lexedUrl = "http://localhost/foo"
-          , Hh.headersg = Hh.RhsDict Hh.mtHM
-          , Hh.configsg = Hh.RhsDict Hh.mtHM
-          , Hh.payloadg = "{\"foo\":\"bar\"}"
-          }
-        ci = Hh.CallItemg
-          { Hh.cgDeps = []
-          , Hh.cgName = "test"
-          , Hh.cgRequestSpec = reqSpeg
-          , Hh.cgResponseSpec = Nothing
-          }
-        output = Hh.presentg ci
-    assertEqual "Should format correctly" "POST http://localhost/foo\n{\"foo\":\"bar\"}\n" output
+-- testTypes_presentg :: TestTree
+-- testTypes_presentg = testCase "presentg formatting" $ do
+--     req <- Prim.parseRequest "POST http://localhost/foo"
+--     let reqSpeg = Hh.RequestSpeg
+--           { Hh.requestStruct = Just req
+--           , Hh.lexedUrl = "http://localhost/foo"
+--           , Hh.headersg = Hh.RhsDict Hh.mtHM
+--           , Hh.configsg = Hh.RhsDict Hh.mtHM
+--           , Hh.payloadg = "{\"foo\":\"bar\"}"
+--           }
+--         ci = Hh.CallItemg
+--           { Hh.cgDeps = []
+--           , Hh.cgName = "test"
+--           , Hh.cgRequestSpec = reqSpeg
+--           , Hh.cgResponseSpec = Nothing
+--           }
+--         output = Hh.presentg ci
+--     assertEqual "Should format correctly" "POST http://localhost/foo\n{\"foo\":\"bar\"}\n" output

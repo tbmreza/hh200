@@ -39,7 +39,7 @@ module Hh200.Types
     , expectUpper, expectUrl
     , showVerb, showUrl
     , noNews
-    , present, presentg
+    , present
     , showHeaders
     , showPart
     , showResponse
@@ -284,26 +284,34 @@ showUrl :: UrlString -> String
 showUrl (UrlString s) = s
 
 
-noNews :: Lead -> Bool
-noNews (Lead { leadKind = Non }) = True
+noNews :: Leadg -> Bool
+noNews (Leadg { gleadKind = Non }) = True
 noNews _ = False
 
--- Pretty-print.
-present :: CallItem -> String
--- present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
-present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (showUrl $ url $ ciRequestSpec ci)
- ++ (showHeaders $ headers $ ciRequestSpec ci)
- ++ "\n" ++ (payload $ ciRequestSpec ci)
- -- ++ (payload $ ciRequestSpec ci)
- ++ (showResponse $ ciResponseSpec ci) ++ "\n"
+-- noNews :: Lead -> Bool
+-- noNews (Lead { leadKind = Non }) = True
+-- noNews _ = False
 
--- Pretty-print.
-presentg :: CallItemg -> String
-presentg cg =
+-- noNewsg :: Leadg -> Bool
+-- noNewsg (Leadg { gleadKind = Non }) = True
+-- noNewsg _ = False
+
+
+-- -- Pretty-print.
+-- present :: CallItem -> String
+-- -- present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
+-- present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (showUrl $ url $ ciRequestSpec ci)
+--  ++ (showHeaders $ headers $ ciRequestSpec ci)
+--  ++ "\n" ++ (payload $ ciRequestSpec ci)
+--  -- ++ (payload $ ciRequestSpec ci)
+--  ++ (showResponse $ ciResponseSpec ci) ++ "\n"
+
+present :: CallItemg -> String
+present cg =
     let rs = cgRequestSpec cg
         v = case requestStruct rs of
               Just req -> trimQuotes $ show (HC.method req)
-              Nothing  -> "???"
+              Nothing  -> "??: clear Request struct usage in ast printing code"
     in v ++ " " ++ lexedUrl rs
        ++ (showHeaders $ headersg rs)
        ++ "\n" ++ (payloadg rs)

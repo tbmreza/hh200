@@ -4,7 +4,7 @@ POST http://localhost:9999/api/echo
   "foo": "bar",
   "baz": 123
 }
-HTTP 200
+HTTP 203
 [Asserts]
 >debug "$.method"
 >true
