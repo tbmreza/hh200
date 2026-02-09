@@ -6,7 +6,7 @@
 
 module Hh200.LanguageServer (runTcp) where
 
--- PICKUP merge g; mv hh200d to trash
+-- ??: mv hh200d to trash
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import           Language.LSP.Server
 import           Language.LSP.VFS (virtualFileText, VirtualFile)

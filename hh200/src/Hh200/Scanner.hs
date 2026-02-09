@@ -25,7 +25,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Char (toLower, isDigit)
 import           Data.List (isPrefixOf)
 
-import Hh200.Types (Script(..), Scriptg(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
+import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
 import L
 import P
 
@@ -71,10 +71,10 @@ trim = f . f where
     -- -> Nothing | SoleScript
 
 class Analyze a where
-    analyze :: a -> MaybeT IO Scriptg
+    analyze :: a -> MaybeT IO Script
 
 instance Analyze Snippet where
-    analyze :: Snippet -> MaybeT IO Scriptg
+    analyze :: Snippet -> MaybeT IO Script
     analyze (Snippet s) = do
         let tokensOrPanic = alexScanTokens (L8.unpack s)
         res <- liftIO $ runExceptT (parse tokensOrPanic)
@@ -87,7 +87,7 @@ instance Analyze Snippet where
                      Right s -> pure s
 
 instance Analyze FilePath where
-    analyze :: FilePath -> MaybeT IO Scriptg
+    analyze :: FilePath -> MaybeT IO Script
     analyze path = do
         exists <- liftIO $ doesFileExist path
         MaybeT $ case exists of
@@ -97,7 +97,7 @@ instance Analyze FilePath where
             _ -> do
                 readScript path
 
-readScript :: FilePath -> IO (Maybe Scriptg)
+readScript :: FilePath -> IO (Maybe Script)
 readScript path = do
     loaded <- readFile path
     let tokensOrPanic = alexScanTokens loaded

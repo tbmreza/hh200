@@ -86,7 +86,8 @@ go Args { lsp = Just port } = runTcp port
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
 go Args { source = Just path, debugConfig = True } = do
-    runAnalyzedScriptg (Scanner.analyze path)
+    undefined
+    -- runAnalyzedScriptg (Scanner.analyze path)
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -135,27 +136,27 @@ go Args { shotgun = n, call = False, source = Just path } = do
 go _ = exitWith (ExitFailure 1)
 
 
-runAnalyzedScriptg :: MaybeT IO Scriptg -> IO ()
-runAnalyzedScriptg mis = do
-    mScript <- runMaybeT mis
-
-    script :: Scriptg <- case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s  -> pure s
-
-    lead <- testOutsideWorld script
-
-    -- No news is good news, otherwise:
-    unless (noNews lead) $ do
-        putStrLn $ case gfirstFailing lead of
-            -- The third and final step of hh200 (presentation).
-            -- ?? goal: ast should be printable
-            Just ci -> present ci
-            -- Expect no interesting news other than first failing CallItem.
-            Nothing -> "No failing item found."
-
-        hPutStrLn stderr "hh200 found an unmet expectation."
-        exitWith (ExitFailure 1)
+-- runAnalyzedScriptg :: MaybeT IO Scriptg -> IO ()
+-- runAnalyzedScriptg mis = do
+--     mScript <- runMaybeT mis
+--
+--     script <- case mScript of
+--         Nothing -> exitWith (ExitFailure 1)
+--         Just s  -> pure s
+--
+--     lead <- testOutsideWorld script
+--
+--     -- No news is good news, otherwise:
+--     unless (noNews lead) $ do
+--         putStrLn $ case gfirstFailing lead of
+--             -- The third and final step of hh200 (presentation).
+--             -- ?? goal: ast should be printable
+--             Just ci -> present ci
+--             -- Expect no interesting news other than first failing CallItem.
+--             Nothing -> "No failing item found."
+--
+--         hPutStrLn stderr "hh200 found an unmet expectation."
+--         exitWith (ExitFailure 1)
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do
@@ -165,22 +166,23 @@ runAnalyzedScript mis = do
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
-    let scriptg = Scriptg 
-          { kindg = kind script
-          , configg = config script
-          -- , callItemsg = map toCallItemg (callItems script)
-          , callItemsg = undefined
-          }
-
-    lead <- testOutsideWorld scriptg
+    -- let scriptg = Scriptg 
+    --       { kindg = kind script
+    --       , configg = config script
+    --       -- , callItemsg = map toCallItemg (callItems script)
+    --       , callItems = undefined
+    --       }
+    --
+    -- lead <- testOutsideWorld scriptg
 
     -- No news is good news, otherwise:
-    unless (noNews lead) $ do
-        putStrLn $ case gfirstFailing lead of
-            -- The third and final step of hh200 (presentation).
-            Just ci -> present ci
-            -- Expect no interesting news other than first failing CallItem.
-            Nothing -> "No failing item found."
+    -- unless (noNews lead) $ do
+    unless False $ do
+        -- putStrLn $ case gfirstFailing lead of
+        --     -- The third and final step of hh200 (presentation).
+        --     Just ci -> present ci
+        --     -- Expect no interesting news other than first failing CallItem.
+        --     Nothing -> "No failing item found."
 
         hPutStrLn stderr "hh200 found an unmet expectation."
         exitWith (ExitFailure 1)

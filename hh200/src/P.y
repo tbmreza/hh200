@@ -68,8 +68,8 @@ import           L
 %%
 
 
-script :: { E Scriptg }
-script : crlf call_itemsg { $2 >>= \is -> returnE Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = is } }
+script :: { E Script }
+script : crlf call_items { $2 >>= \is -> returnE Script { kind = Regular, config = defaultScriptConfig, callItems = is } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
@@ -88,8 +88,8 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-requesg :: { E RequestSpec }
-requesg : method url crlf bindings request_configs braced crlf { do
+request :: { E RequestSpec }
+request : method url crlf bindings request_configs braced crlf { do
                                                                     let r = RequestSpec { lexedUrl = $2, method = $1, headersg = $4, configsg = $5, payloadg = $6, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
@@ -162,27 +162,16 @@ response_codes : d                { [read $1] }
                | response_codes d { $1 ++ [read $2] }
 
 
-call_item : deps_clause requesg response { $2 >>= \r -> returnE undefined }
-          | deps_clause requesg          { $2 >>= \r -> returnE undefined }
-          | requesg response             { $1 >>= \r -> returnE undefined }
-          | requesg                      { $1 >>= \r -> returnE undefined }
-
-
-call_itemg :: { E CallItem }
-call_itemg : deps_clause requesg response { $2 >>= \r -> returnE (gCallItem $1 r (Just $3)) }
-          | deps_clause requesg          { $2 >>= \r -> returnE (gCallItem $1 r Nothing) }
-          | requesg response             { $1 >>= \r -> returnE (gCallItem defaultDepsClause r (Just $2)) }
-          | requesg                      { $1 >>= \r -> returnE (gCallItem defaultDepsClause r Nothing) }
-
+call_item :: { E CallItem }
+call_item : deps_clause request response { $2 >>= \r -> returnE (gCallItem $1 r (Just $3)) }
+          | deps_clause request          { $2 >>= \r -> returnE (gCallItem $1 r Nothing) }
+          | request response             { $1 >>= \r -> returnE (gCallItem defaultDepsClause r (Just $2)) }
+          | request                      { $1 >>= \r -> returnE (gCallItem defaultDepsClause r Nothing) }
 
 
 call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
            | call_items call_item crlf { $1 >>= \is -> $2 >>= \i -> returnE (is ++ [i]) }
 
-
-call_itemsg :: { E [CallItem] }
-call_itemsg : call_itemg crlf            { $1 >>= \i -> returnE [i] }
-           | call_itemsg call_itemg crlf { $1 >>= \is -> $2 >>= \i -> returnE (is ++ [i]) }
 
 {
 

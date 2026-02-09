@@ -15,7 +15,7 @@ module Hh200.Types
     , Log
     , ScriptKind (..)
     , Script (..)
-    , Scriptg (..)
+    -- , Scriptg (..)
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
@@ -24,7 +24,7 @@ module Hh200.Types
     , ResponseSpec (..)
     , HostInfo (..)
     , LeadKind (..)
-    , Lead (..), Leadg (..)
+    , Lead (..)
     , InternalError (..)
     , HhError (..)
     , defaultScriptConfig
@@ -113,11 +113,11 @@ type Log = [TraceEvent]
 data ScriptKind = Regular | Static | Sole
     deriving (Show, Eq)
 
-data Scriptg = Scriptg
-  { kindg :: ScriptKind
-  , configg :: ScriptConfig
-  , callItemsg :: [CallItem]
-  } deriving (Show)
+-- data Scriptg = Scriptg
+--   { kindg :: ScriptKind
+--   , configg :: ScriptConfig
+--   , callItemsg :: [CallItem]
+--   } deriving (Show)
 
 data Script = Script
   { kind :: ScriptKind
@@ -185,14 +185,6 @@ data Lead = Lead
   , echoScript ::      Maybe Script
   } deriving (Show)
 
-data Leadg = Leadg
-  { gleadKind ::        LeadKind
-  , gfirstFailing ::    Maybe CallItem
-  , ghostInfo ::        HostInfo
-  , ginterpreterInfo :: (Env, Log)
-  , gechoScript ::      Maybe Scriptg
-  } deriving (Show)
-
 data InternalError = OutOfBounds
                    | Todo
     deriving (Show, Eq)
@@ -214,8 +206,6 @@ defaultScriptConfig = ScriptConfig
 effectiveTls :: Script -> Bool
 effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
 effectiveTls Script { callItems = (ci:_) } =
--- effectiveTls Script { configg = ScriptConfig { useTls = Just b } } = b
--- effectiveTls Script { callItemsg = (ci:_) } =
     -- case parseURI (lexedUrl (ciRequestSpec ci)) of
     case Nothing of
         Just uri | uriScheme uri == "http:" -> False
@@ -224,15 +214,6 @@ effectiveTls _ = True -- Default to TLS if not specified
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
-
--- pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
--- pCallItem dc rs opt =
---     CallItem
---       { ciDeps = deps dc
---       , ciName = itemName dc
---       , ciRequestSpec = rs
---       , ciResponseSpec = opt
---       }
 
 gCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
 gCallItem dc rs opt =
@@ -273,18 +254,9 @@ showUrl :: UrlString -> String
 showUrl (UrlString s) = s
 
 
-noNews :: Leadg -> Bool
-noNews (Leadg { gleadKind = Non }) = True
+noNews :: Lead -> Bool
+noNews (Lead { leadKind = Non }) = True
 noNews _ = False
-
--- noNews :: Lead -> Bool
--- noNews (Lead { leadKind = Non }) = True
--- noNews _ = False
-
--- noNewsg :: Leadg -> Bool
--- noNewsg (Leadg { gleadKind = Non }) = True
--- noNewsg _ = False
-
 
 -- -- Pretty-print.
 present :: CallItem -> String

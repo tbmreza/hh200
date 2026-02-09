@@ -88,15 +88,9 @@ defaultCallItemg = CallItem
   , ciResponseSpec = Nothing
   }
 
--- data Scriptg = Scriptg
---   { kindg :: ScriptKind
---   , configg :: ScriptConfig
---   , callItemsg :: [CallItem]
---   } deriving (Show)
-
-mkLead :: Leadg
-mkLead = Leadg
-  { gleadKind = Non
+mkLead :: Lead
+mkLead = Lead
+  { leadKind = Non
   }
 
 nonLead :: Script -> HostInfo -> Lead
@@ -108,14 +102,14 @@ nonLead x hi = Lead
   , echoScript = Just x
   }
 
-leadFromg :: Maybe CallItem -> (Env, Log) -> Scriptg -> HostInfo -> Leadg
-leadFromg failed el script hi = Leadg
-  { gleadKind = Normal
-  , gfirstFailing = failed
-  , ghostInfo = hi
-  , gechoScript = Just script
-  , ginterpreterInfo = el
-  }
+-- leadFromg :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Leadg
+-- leadFromg failed el script hi = Leadg
+--   { gleadKind = Normal
+--   , gfirstFailing = failed
+--   , ghostInfo = hi
+--   , gechoScript = Just script
+--   , ginterpreterInfo = el
+--   }
 
 leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
 leadFrom failed el script hi = Lead
@@ -205,7 +199,7 @@ expectCodesOrDefault mrs =
 
 -- Return to user the CallItem which we suspect will fail again.
 
--- runProcMg :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
+-- runProcMg :: Script -> Http.Manager -> Env -> HostInfo -> IO Leadg
 -- runProcMg script mgr env hi = do
 --     undefined
 --     -- let course = courseFromg script
@@ -220,7 +214,7 @@ expectCodesOrDefault mrs =
 --     --         _                                -> leadFromg mci (e, l) script hi
 
 
-runProcM :: Scriptg -> Http.Manager -> Env -> HostInfo -> IO Leadg
+runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
   --   let course :: ProcM CallItem = courseFrom script
   --       list = runMaybeT course
@@ -243,14 +237,16 @@ runProcM script mgr env hi = do
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
     where
-    switch :: (Maybe CallItem, Env, Log) -> Leadg
+    switch :: (Maybe CallItem, Env, Log) -> Lead
     switch (mci, e, l) =
         trace ("final: " ++ show l) $ case mci of
             -- Just ci | "default" == ciName ci -> nonLead script hi
             -- _                                -> leadFromg mci (e, l) script hi
-            -- ??: gechoScript Nothing
-            Just ci | "default" == ciName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
-            _                                -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
+            -- ??: echoScript Nothing
+
+            _ -> undefined
+            -- Just ci | "default" == ciName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), echoScript = Nothing, ghostInfo = hi }
+            -- _                                -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), echoScript = Nothing, ghostInfo = hi }
 
 -- Env is modified, Log appended throughout the body of `courseFrom`.
 --
@@ -262,11 +258,11 @@ runProcM script mgr env hi = do
 emptyHandedg :: ProcM CallItem
 emptyHandedg = pure defaultCallItemg
 
-courseFromg :: Scriptg -> ProcM CallItem
+courseFromg :: Script -> ProcM CallItem
 courseFromg x = do
-    lift $ Tf.tell [ScriptStart (length $ callItemsg x)]
+    lift $ Tf.tell [ScriptStart (length $ callItems x)]
     mgr <- ask
-    go mgr (callItemsg x)
+    go mgr (callItems x)
 
     where
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
@@ -455,8 +451,8 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
--- testOutsideWorldg :: Scriptg -> IO Leadg
--- testOutsideWorldg sole@(Scriptg {callItemsg = [_]}) = do
+-- testOutsideWorldg :: Script -> IO Leadg
+-- testOutsideWorldg sole@(Script {callItems = [_]}) = do
 --     hi <- gatherHostInfo
 --     bracket (Http.newManager True) Http.closeManager $ \with ->
 --         runProcMg sole with HM.empty hi
@@ -464,16 +460,16 @@ courseFrom x = do
 -- -> NonLead | DebugLead | Lead
 -- testOutsideWorld static@(Script {kind = Static, config = _, callItems = []}) = do
 
-testOutsideWorld :: Scriptg -> IO Leadg
+testOutsideWorld :: Script -> IO Lead
 
 -- ??: sole `Script`s in testOutsideWorld (i.e. not testRps/testShotgun) probably 
 -- don't need manager sharing. where does this bit fit in the stack?
-testOutsideWorld sole@(Scriptg {callItemsg = [_]}) = do
+testOutsideWorld sole@(Script {callItems = [_]}) = do
     hi <- gatherHostInfo
     -- pure $ nonLead static hi
-    pure $ mkLead { gleadKind = Non, gechoScript = Just sole, ghostInfo = hi }
+    pure $ mkLead { leadKind = Non, echoScript = Just sole, hostInfo = hi }
 
-testOutsideWorld flow@(Scriptg {callItemsg = _}) = do
+testOutsideWorld flow@(Script {callItems = _}) = do
     undefined
     -- hi <- gatherHostInfo
     -- -- bracket (Http.newManager (effectiveTls flow)) Http.closeManager $ \with ->
