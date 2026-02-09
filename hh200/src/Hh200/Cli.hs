@@ -6,6 +6,7 @@ module Hh200.Cli
   , go, Args(..), optsInfo
   ) where
 
+import Debug.Trace
 
 import           Control.Monad (unless)
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -92,8 +93,8 @@ go Args { source = Just path, debugConfig = True } = do
 -- Script execution.
 -- hh200 flow.hhs
 go Args { shotgun = 1, call = False, rps = False, source = Just path } =
-    -- runAnalyzedScript (Scanner.analyze path)
-    undefined
+    runAnalyzedScript (Scanner.analyze path)
+    -- trace "goall" undefined
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
@@ -166,14 +167,7 @@ runAnalyzedScript mis = do
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
-    -- let scriptg = Scriptg 
-    --       { kindg = kind script
-    --       , configg = config script
-    --       -- , callItemsg = map toCallItemg (callItems script)
-    --       , callItems = undefined
-    --       }
-    --
-    -- lead <- testOutsideWorld scriptg
+    lead <- testOutsideWorld script
 
     -- No news is good news, otherwise:
     -- unless (noNews lead) $ do
@@ -186,12 +180,3 @@ runAnalyzedScript mis = do
 
         hPutStrLn stderr "hh200 found an unmet expectation."
         exitWith (ExitFailure 1)
-
-    -- where
-    -- toCallItemg :: CallItem -> CallItemg
-    -- toCallItemg ci = CallItemg
-    --       { ciDeps = ciDeps ci
-    --       , ciName = ciName ci
-    --       , ciRequestSpec = ciRequestSpec ci
-    --       , ciResponseSpec = ciResponseSpec ci
-    --       }

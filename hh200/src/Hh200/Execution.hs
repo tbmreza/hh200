@@ -5,7 +5,6 @@ module Hh200.Execution
   ( testShotgun
   , testOutsideWorld
   , testRps
-  -- , testOutsideWorldg
   , runProcM
   , assertsAreOk
   , validJsonBody
@@ -451,31 +450,20 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
--- testOutsideWorldg :: Script -> IO Leadg
--- testOutsideWorldg sole@(Script {callItems = [_]}) = do
---     hi <- gatherHostInfo
---     bracket (Http.newManager True) Http.closeManager $ \with ->
---         runProcMg sole with HM.empty hi
-
--- -> NonLead | DebugLead | Lead
--- testOutsideWorld static@(Script {kind = Static, config = _, callItems = []}) = do
-
 testOutsideWorld :: Script -> IO Lead
 
 -- ??: sole `Script`s in testOutsideWorld (i.e. not testRps/testShotgun) probably 
 -- don't need manager sharing. where does this bit fit in the stack?
 testOutsideWorld sole@(Script {callItems = [_]}) = do
-    hi <- gatherHostInfo
-    -- pure $ nonLead static hi
+    hi <- trace "toww 1" gatherHostInfo
+
+    bracket (Http.newManager True) Http.closeManager $ \with ->
+        runProcM sole with HM.empty hi
+
     pure $ mkLead { leadKind = Non, echoScript = Just sole, hostInfo = hi }
 
 testOutsideWorld flow@(Script {callItems = _}) = do
     undefined
-    -- hi <- gatherHostInfo
-    -- -- bracket (Http.newManager (effectiveTls flow)) Http.closeManager $ \with ->
-    -- bracket (Http.newManager True) Http.closeManager $ \with ->
-    --     runProcMg flow with HM.empty hi
-
 
 
 
