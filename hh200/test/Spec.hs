@@ -207,13 +207,17 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
             tokens = Hh.alexScanTokens input
         res <- runExceptT (Hh.parse tokens)
         case res of
-            Right s -> do
-                let ci = head (Hh.callItems s)
-                case Hh.ciResponseSpec ci of
-                    Just rs -> do
-                        assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
-                        assertBool "Has asserts" $ not (null (Hh.asserts rs))
-                    Nothing -> assertFailure "Should have response spec"
+            Right action -> do
+                res2 <- runExceptT action
+                case res2 of
+                    Right s -> do
+                        let ci = head (Hh.callItems s)
+                        case Hh.ciResponseSpec ci of
+                            Just rs -> do
+                                assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
+                                assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                            Nothing -> assertFailure "Should have response spec"
+                    Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
             Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
 
     , testCase "Asserts before Captures" $ do
@@ -221,13 +225,17 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
             tokens = Hh.alexScanTokens input
         res <- runExceptT (Hh.parse tokens)
         case res of
-            Right s -> do
-                let ci = head (Hh.callItems s)
-                case Hh.ciResponseSpec ci of
-                    Just rs -> do
-                        assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
-                        assertBool "Has asserts" $ not (null (Hh.asserts rs))
-                    Nothing -> assertFailure "Should have response spec"
+            Right action -> do
+                res2 <- runExceptT action
+                case res2 of
+                    Right s -> do
+                        let ci = head (Hh.callItems s)
+                        case Hh.ciResponseSpec ci of
+                            Just rs -> do
+                                assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
+                                assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                            Nothing -> assertFailure "Should have response spec"
+                    Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
             Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
     ]
 
@@ -237,11 +245,15 @@ testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $
         tokens = Hh.alexScanTokens input
     res <- runExceptT (Hh.parse tokens)
     case res of
-        Right s -> do
-            let ci = head (Hh.callItems s)
-                rs = Hh.ciRequestSpec ci
-            assertBool "Has configs" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.configs rs in hm))
-            assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.payload rs)
+        Right action -> do
+            res2 <- runExceptT action
+            case res2 of
+                Right s -> do
+                    let ci = head (Hh.callItems s)
+                        rs = Hh.ciRequestSpec ci
+                    assertBool "Has configs" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.configsg rs in hm))
+                    assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.payloadg rs)
+                Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
 
 testScanner_analyzeg :: TestTree

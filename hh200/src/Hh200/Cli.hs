@@ -7,15 +7,10 @@ module Hh200.Cli
   ) where
 
 
-import Debug.Trace
-
-import Control.Monad (unless)
-
+import           Control.Monad (unless)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.IO.Class
 import           System.Exit (exitWith, ExitCode(ExitFailure))
-import           System.Directory (doesFileExist)
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           Options.Applicative
@@ -151,34 +146,45 @@ runAnalyzedScriptg mis = do
         putStrLn $ case gfirstFailing lead of
             -- The third and final step of hh200 (presentation).
             -- ?? goal: ast should be printable
-            -- Just ci -> presentg ci
-            Just ci -> present undefined
-            -- Just ci -> undefined
+            Just ci -> present ci
             -- Expect no interesting news other than first failing CallItem.
-            Nothing -> undefined
+            Nothing -> "No failing item found."
 
         hPutStrLn stderr "hh200 found an unmet expectation."
         exitWith (ExitFailure 1)
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do
-    undefined
-    -- mScript <- runMaybeT mis
-    --
-    -- script <- case mScript of
-    --     Nothing -> exitWith (ExitFailure 1)
-    --     Just s  -> pure s
-    --
-    -- lead <- testOutsideWorld script
-    --
-    -- -- No news is good news, otherwise:
-    -- -- unless (noNews lead) $ do  -- ??
-    -- unless False $ do
-    --     putStrLn $ case firstFailing lead of
-    --         -- The third and final step of hh200 (presentation).
-    --         Just ci -> present ci
-    --         -- Expect no interesting news other than first failing CallItem.
-    --         Nothing -> undefined
-    --
-    --     hPutStrLn stderr "hh200 found an unmet expectation."
-    --     exitWith (ExitFailure 1)
+    mScript <- runMaybeT mis
+
+    script <- case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> pure s
+
+    let scriptg = Scriptg 
+          { kindg = kind script
+          , configg = config script
+          , callItemsg = map toCallItemg (callItems script)
+          }
+
+    lead <- testOutsideWorld scriptg
+
+    -- No news is good news, otherwise:
+    unless (noNews lead) $ do
+        putStrLn $ case gfirstFailing lead of
+            -- The third and final step of hh200 (presentation).
+            Just ci -> present ci
+            -- Expect no interesting news other than first failing CallItem.
+            Nothing -> "No failing item found."
+
+        hPutStrLn stderr "hh200 found an unmet expectation."
+        exitWith (ExitFailure 1)
+
+    where
+    toCallItemg :: CallItem -> CallItemg
+    toCallItemg ci = CallItemg
+          { cgDeps = ciDeps ci
+          , cgName = ciName ci
+          , cgRequestSpec = ciRequestSpec ci
+          , cgResponseSpec = ciResponseSpec ci
+          }

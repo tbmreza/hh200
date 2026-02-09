@@ -20,7 +20,7 @@ module Hh200.Types
     , DepsClause (..)
     , CallItem (..)
     , CallItemg (..)
-    , RequestSpec (..), RequestSpeg (..)
+    , RequestSpeg (..)
     , ResponseSpec (..)
     , HostInfo (..)
     , LeadKind (..)
@@ -150,20 +150,13 @@ data CallItemg = CallItemg
 data CallItem = CallItem
   { ciDeps :: [String]
   , ciName :: String
-  , ciRequestSpec :: RequestSpec
+  , ciRequestSpec :: RequestSpeg
   , ciResponseSpec :: Maybe ResponseSpec
-  } deriving (Show, Eq)
-
-data RequestSpec = RequestSpec
-  { verb ::    UpperString
-  , url ::     UrlString
-  , headers :: RhsDict
-  , payload :: String
-  , configs :: RhsDict
-  } deriving (Show, Eq)
+  } deriving (Show)
 
 data RequestSpeg = RequestSpeg
   { requestStruct :: Maybe HC.Request
+  , method ::        String
   , lexedUrl ::      String
   , headersg ::      RhsDict
   , configsg ::      RhsDict
@@ -228,7 +221,7 @@ defaultScriptConfig = ScriptConfig
 effectiveTls :: Script -> Bool
 effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
 effectiveTls Script { callItems = (ci:_) } =
-    case parseURI (showUrl $ url (ciRequestSpec ci)) of
+    case parseURI (lexedUrl (ciRequestSpec ci)) of
         Just uri | uriScheme uri == "http:" -> False
         _ -> True
 effectiveTls _ = True -- Default to TLS if not specified
@@ -236,7 +229,7 @@ effectiveTls _ = True -- Default to TLS if not specified
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
 
-pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
+pCallItem :: DepsClause -> RequestSpeg -> Maybe ResponseSpec -> CallItem
 pCallItem dc rs opt =
     CallItem
       { ciDeps = deps dc
@@ -298,21 +291,10 @@ noNews _ = False
 
 
 -- -- Pretty-print.
--- present :: CallItem -> String
--- -- present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (url $ ciRequestSpec ci)
--- present ci = (showVerb $ verb $ ciRequestSpec ci) ++ " " ++ (showUrl $ url $ ciRequestSpec ci)
---  ++ (showHeaders $ headers $ ciRequestSpec ci)
---  ++ "\n" ++ (payload $ ciRequestSpec ci)
---  -- ++ (payload $ ciRequestSpec ci)
---  ++ (showResponse $ ciResponseSpec ci) ++ "\n"
-
 present :: CallItemg -> String
 present cg =
     let rs = cgRequestSpec cg
-        v = case requestStruct rs of
-              Just req -> trimQuotes $ show (HC.method req)
-              Nothing  -> "??: clear Request struct usage in ast printing code"
-    in v ++ " " ++ lexedUrl rs
+    in method rs ++ " " ++ lexedUrl rs
        ++ (showHeaders $ headersg rs)
        ++ "\n" ++ (payloadg rs)
        ++ (showResponse $ cgResponseSpec cg) ++ "\n"

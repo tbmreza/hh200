@@ -67,7 +67,8 @@ import           L
 
 %%
 
-script : crlf call_items  { trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = $2 } }
+script :: { E Script }
+script : crlf call_items  { $2 >>= \is -> returnE $ trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = is } }
 
 scriptg :: { E Scriptg }
 scriptg : crlf call_itemsg { $2 >>= \is -> returnE Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = is } }
@@ -89,50 +90,42 @@ deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
 deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
-request : method url crlf bindings request_configs braced crlf { trace "rq0" $ RequestSpec { verb = expectUpper    $1, url = expectUrl $2, headers = $4, payload = $6, configs = $5 } }
-        | method url crlf bindings                 braced crlf { trace "rq1" $ RequestSpec { verb = expectUpper    $1, url = expectUrl $2, headers = $4, payload = $5, configs = RhsDict HM.empty } }
-        | method url crlf bindings                        crlf { trace "rq2" $ RequestSpec { verb = expectUpper    $1, url = expectUrl $2, headers = $4, payload = "", configs = RhsDict HM.empty } }
-        | method url crlf                          braced crlf { trace "rq3" $ RequestSpec { verb = expectUpper    $1, url = expectUrl $2, headers = RhsDict HM.empty, payload = $4, configs = RhsDict HM.empty } }
-        | method url crlf                                      { trace "rq4" $ RequestSpec { verb = expectUpper    $1, url = expectUrl $2, headers = RhsDict HM.empty, payload = "", configs = RhsDict HM.empty } }
-        |        url crlf                                      { trace "rq5" $ RequestSpec { verb = expectUpper "GET", url = expectUrl $1, headers = RhsDict HM.empty, payload = "", configs = RhsDict HM.empty } }
-
-
 requesg :: { E RequestSpeg }
 requesg : method url crlf bindings request_configs braced crlf { do
-                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = $5, payloadg = $6 }
+                                                                    let r = RequestSpeg { lexedUrl = $2, method = $1, headersg = $4, configsg = $5, payloadg = $6, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf bindings                 braced crlf { do
-                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = RhsDict HM.empty, payloadg = $5 }
+                                                                    let r = RequestSpeg { lexedUrl = $2, method = $1, headersg = $4, configsg = RhsDict HM.empty, payloadg = $5, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf bindings                        crlf { do
-                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = $4, configsg = RhsDict HM.empty, payloadg = "" }
+                                                                    let r = RequestSpeg { lexedUrl = $2, method = $1, headersg = $4, configsg = RhsDict HM.empty, payloadg = "", requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf                          braced crlf { do
-                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = $4 }
+                                                                    let r = RequestSpeg { lexedUrl = $2, method = $1, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = $4, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf                                      { do
-                                                                    let r = RequestSpeg { lexedUrl = $2, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = "" }
+                                                                    let r = RequestSpeg { lexedUrl = $2, method = $1, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = "", requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         |        url crlf                                      { do
-                                                                    let r = RequestSpeg { lexedUrl = $1, headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = "" }
+                                                                    let r = RequestSpeg { lexedUrl = $1, method = "GET", headersg = RhsDict HM.empty, configsg = RhsDict HM.empty, payloadg = "", requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $1)
                                                                     returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r { requestStruct = Nothing }
+                                                                        Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { requestStruct = Just (req { HC.method = "GET" }) } }
 
 
@@ -171,10 +164,11 @@ response_codes : d                { [read $1] }
                | response_codes d { $1 ++ [read $2] }
 
 
-call_item : deps_clause request response { pCallItem $1 $2 (Just $3) }
-          | deps_clause request          { pCallItem $1 $2 Nothing }
-          | request response             { pCallItem defaultDepsClause $1 (Just $2) }
-          | request                      { pCallItem defaultDepsClause $1 Nothing } 
+call_item :: { E CallItem }
+call_item : deps_clause requesg response { $2 >>= \r -> returnE (pCallItem $1 r (Just $3)) }
+          | deps_clause requesg          { $2 >>= \r -> returnE (pCallItem $1 r Nothing) }
+          | requesg response             { $1 >>= \r -> returnE (pCallItem defaultDepsClause r (Just $2)) }
+          | requesg                      { $1 >>= \r -> returnE (pCallItem defaultDepsClause r Nothing) }
 
 
 call_itemg :: { E CallItemg }
@@ -185,8 +179,10 @@ call_itemg : deps_clause requesg response { $2 >>= \r -> returnE (gCallItem $1 r
 
 
 
-call_items : call_item crlf            { [$1] }
-           | call_items call_item crlf { $1 ++ [$2] }
+call_items :: { E [CallItem] }
+call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
+           | call_items call_item crlf { $1 >>= \is -> $2 >>= \i -> returnE (is ++ [i]) }
+
 
 call_itemsg :: { E [CallItemg] }
 call_itemsg : call_itemg crlf            { $1 >>= \i -> returnE [i] }

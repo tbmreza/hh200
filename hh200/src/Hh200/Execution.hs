@@ -62,11 +62,13 @@ defaultCallItem :: CallItem
 defaultCallItem = CallItem
   { ciDeps = []
   , ciName = "default"
-  , ciRequestSpec = RequestSpec
-    { verb = expectUpper "GET"
-    , url = expectUrl "http://localhost:80"
-    , headers = RhsDict HM.empty
-    , payload = "", configs = RhsDict HM.empty
+  , ciRequestSpec = RequestSpeg
+    { requestStruct = Nothing
+    , method = "GET"
+    , lexedUrl = "http://localhost:80"
+    , headersg = RhsDict HM.empty
+    , configsg = RhsDict HM.empty
+    , payloadg = ""
     }
   , ciResponseSpec = Nothing
   }
@@ -77,6 +79,7 @@ defaultCallItemg = CallItemg
   , cgName = "default"
   , cgRequestSpec = RequestSpeg
     { requestStruct = Nothing
+    , method = "GET"
     , lexedUrl = "http://localhost:80"
     , headersg = RhsDict HM.empty
     , configsg = RhsDict HM.empty
@@ -132,8 +135,8 @@ leadFrom failed el script hi = Lead
 --   , interpreterInfo = (HM.empty, [])
 --   }
 
-asMethod :: UpperString -> BS.ByteString
-asMethod (UpperString s) = BS.pack s
+asMethod :: String -> BS.ByteString
+asMethod s = BS.pack s
 
 validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
 validJsonBody req resp = Aeson.Object $
@@ -384,26 +387,26 @@ courseFrom x = do
     buildRequest :: Env -> CallItem -> IO Http.Request
     buildRequest env ci
         -- Requests without body.
-        | null (payload $ ciRequestSpec ci) = do
+        | null (payloadg $ ciRequestSpec ci) = do
             struct <- requestStructOrThrow
 
-            renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
+            renderedHeaders <- renderHeaders (headersg $ ciRequestSpec ci)
 
             pure $
                 Http.setRequestHeaders renderedHeaders $
-                Http.setMethod (asMethod (verb $ ciRequestSpec ci))
+                Http.setMethod (asMethod (method $ ciRequestSpec ci))
                 struct
 
         -- Requests with json body.
         | otherwise = do
             struct <- requestStructOrThrow
             -- Render payloads.
-            rb <- stringRender (payload $ ciRequestSpec ci)
+            rb <- stringRender (payloadg $ ciRequestSpec ci)
 
             pure $
                 Http.setRequestBody (trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)) $
                 Http.setRequestHeaders [headerJson] $
-                Http.setMethod (asMethod (verb $ ciRequestSpec ci))
+                Http.setMethod (asMethod (method $ ciRequestSpec ci))
                 struct
 
         where
@@ -417,7 +420,7 @@ courseFrom x = do
         requestStructOrThrow :: IO Http.Request
         requestStructOrThrow = do
         -- ??
-            rendered <- stringRender (showUrl $ url $ ciRequestSpec ci)
+            rendered <- stringRender (lexedUrl $ ciRequestSpec ci)
             Http.parseRequest rendered
 
         stringRender :: String -> IO String

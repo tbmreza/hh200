@@ -25,7 +25,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Char (toLower, isDigit)
 import           Data.List (isPrefixOf)
 
-import Hh200.Types (Script(..), Scriptg(..), ScriptKind(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo, defaultScriptConfig)
+import Hh200.Types (Script(..), Scriptg(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
 import L
 import P
 
@@ -36,7 +36,11 @@ scriptFrom (Snippet s) = do
 
     case res of
         Left (d, _) -> trace d (pure Nothing)
-        Right sole -> pure (Just sole)
+        Right action -> do
+            res2 <- runExceptT action
+            case res2 of
+                Left (d, _) -> trace d (pure Nothing)
+                Right sole -> pure (Just sole)
 
 readScriptg :: FilePath -> IO (Maybe Scriptg)
 readScriptg path = do
@@ -66,8 +70,13 @@ readScript path = do
         Left (m, _) -> do
             putStrLn m
             pure Nothing
-        Right s -> do
-            pure $ Just s
+        Right action -> do
+            res2 <- runExceptT action
+            case res2 of
+                Left (m, _) -> do
+                    putStrLn m
+                    pure Nothing
+                Right s -> pure (Just s)
 
 gatherHostInfo :: IO HostInfo
 gatherHostInfo = do
