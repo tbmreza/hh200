@@ -91,42 +91,45 @@ go Args { source = Just path, debugConfig = True } = do
 -- Script execution.
 -- hh200 flow.hhs
 go Args { shotgun = 1, call = False, rps = False, source = Just path } =
-    runAnalyzedScript (Scanner.analyze path)
-    -- undefined
+    -- runAnalyzedScript (Scanner.analyze path)
+    undefined
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snip } =
-    runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack snip))
+    undefined
+    -- runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack snip))
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
 go Args { rps = True, source = Just path } = do
-    mScript <- runMaybeT (Scanner.analyze path)
-
-    script <- case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s  -> pure s
-
-    -- Unminuted mode.
-    testRps script
+    undefined
+    -- mScript <- runMaybeT (Scanner.analyze path)
+    --
+    -- script <- case mScript of
+    --     Nothing -> exitWith (ExitFailure 1)
+    --     Just s  -> pure s
+    --
+    -- -- Unminuted mode.
+    -- testRps script
 
 -- Shotgun.
 -- hh200 flow.hhs --shotgun=4
 go Args { shotgun = n, call = False, source = Just path } = do
-    mScript <- runMaybeT (Scanner.analyze path)
-
-    script <- case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s  -> pure s
-
-    _lead <- testShotgun n script
-
-    -- ?? : with DataPoint extraction and plotting flow in cli
-
-    exitWith (ExitFailure 1)
-
-    -- Rewrites output/o.dat at the end.
+    undefined
+    -- mScript <- runMaybeT (Scanner.analyze path)
+    --
+    -- script <- case mScript of
+    --     Nothing -> exitWith (ExitFailure 1)
+    --     Just s  -> pure s
+    --
+    -- _lead <- testShotgun n script
+    --
+    -- -- ?? : with DataPoint extraction and plotting flow in cli
+    --
+    -- exitWith (ExitFailure 1)
+    --
+    -- -- Rewrites output/o.dat at the end.
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)

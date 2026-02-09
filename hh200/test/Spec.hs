@@ -43,7 +43,7 @@ main = do
       , testScanner_lrPostMultiline
       , testScanner_lrInvalid
       , testScanner_lrEmpty
-      , testScanner_TlsInference
+      -- , testScanner_TlsInference
       , testScanner_lrResponseOrder
       , testScanner_lrRequestConfigs
       , testScanner_analyzeg
@@ -183,21 +183,21 @@ testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
 --                 _ -> assertFailure "Should have parsed use-tls: false"
 --         Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
-testScanner_TlsInference :: TestTree
-testScanner_TlsInference = testCase "tls inference from url scheme" $ do
-    let inputHttps = Hh.Snippet "GET https://httpbin.org/get"
-
-    (Just sHttps) <- runMaybeT $ Hh.analyze inputHttps
-    case Hh.effectiveTls sHttps of
-        True -> pure ()
-        False -> assertFailure "Should have inferred TLS for https"
-
-    let inputHttp = Hh.Snippet "GET http://httpbin.org/get"
-
-    (Just sHttp) <- runMaybeT $ Hh.analyze inputHttp
-    case Hh.effectiveTls sHttp of
-        False -> pure ()
-        True -> assertFailure "Should have inferred no TLS for http"
+-- testScanner_TlsInference :: TestTree
+-- testScanner_TlsInference = testCase "tls inference from url scheme" $ do
+--     let inputHttps = Hh.Snippet "GET https://httpbin.org/get"
+--
+--     (Just sHttps) <- runMaybeT $ Hh.analyze inputHttps
+--     case Hh.effectiveTls sHttps of
+--         True -> pure ()
+--         False -> assertFailure "Should have inferred TLS for https"
+--
+--     let inputHttp = Hh.Snippet "GET http://httpbin.org/get"
+--
+--     (Just sHttp) <- runMaybeT $ Hh.analyze inputHttp
+--     case Hh.effectiveTls sHttp of
+--         False -> pure ()
+--         True -> assertFailure "Should have inferred no TLS for http"
 
 -- (auto)
 testScanner_lrResponseOrder :: TestTree

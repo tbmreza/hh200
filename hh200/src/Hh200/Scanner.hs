@@ -124,50 +124,50 @@ instance Analyzeg FilePath where
     --     hi <- liftIO gatherHostInfo
     --     pure (script, hi)
 
-class Analyze a where
-    analyze :: a -> MaybeT IO Script
-    analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
-
-
-instance Analyze FilePath where
-    -- -> Nothing | StaticScript | SoleScript? | Script
-    analyze :: FilePath -> MaybeT IO Script
-    analyze path = do
-        exists <- liftIO $ doesFileExist path
-        MaybeT $ case exists of
-            False -> do
-                -- Proceeding to testOutsideWorld is unnecessary.
-                pure Nothing
-            _ -> do
-                readScript path
-
-    analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
-    analyzeWithHostInfo path = do
-        script <- analyze path
-        hi <- liftIO gatherHostInfo
-        pure (script, hi)
-
-
-instance Analyze Snippet where
-    -- -> Nothing | SoleScript
-    analyze :: Snippet -> MaybeT IO Script
-    analyze s@(Snippet _) = do
-        (script, _) <- analyzeWithHostInfo s
-        pure script
-
-    analyzeWithHostInfo :: Snippet -> MaybeT IO (Script, HostInfo)
-    analyzeWithHostInfo s@(Snippet _) = do
-        opt <- liftIO $ Hh200.Scanner.scriptFrom s
-
-        MaybeT $ case opt of
-            Nothing -> do
-                trace "analyzed Nothing" (return Nothing)
-            Just baseScript -> do
-                hi <- liftIO gatherHostInfo
-                let scriptWithConfig = case hiHh200Conf hi of
-                                            Just sc -> baseScript { config = sc }
-                                            Nothing -> baseScript
-                return (Just (scriptWithConfig, hi))
+-- class Analyze a where
+--     analyze :: a -> MaybeT IO Script
+--     analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
+--
+--
+-- instance Analyze FilePath where
+--     -- -> Nothing | StaticScript | SoleScript? | Script
+--     analyze :: FilePath -> MaybeT IO Script
+--     analyze path = do
+--         exists <- liftIO $ doesFileExist path
+--         MaybeT $ case exists of
+--             False -> do
+--                 -- Proceeding to testOutsideWorld is unnecessary.
+--                 pure Nothing
+--             _ -> do
+--                 readScript path
+--
+--     analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
+--     analyzeWithHostInfo path = do
+--         script <- analyze path
+--         hi <- liftIO gatherHostInfo
+--         pure (script, hi)
+--
+--
+-- instance Analyze Snippet where
+--     -- -> Nothing | SoleScript
+--     analyze :: Snippet -> MaybeT IO Script
+--     analyze s@(Snippet _) = do
+--         (script, _) <- analyzeWithHostInfo s
+--         pure script
+--
+--     analyzeWithHostInfo :: Snippet -> MaybeT IO (Script, HostInfo)
+--     analyzeWithHostInfo s@(Snippet _) = do
+--         opt <- liftIO $ Hh200.Scanner.scriptFrom s
+--
+--         MaybeT $ case opt of
+--             Nothing -> do
+--                 trace "analyzed Nothing" (return Nothing)
+--             Just baseScript -> do
+--                 hi <- liftIO gatherHostInfo
+--                 let scriptWithConfig = case hiHh200Conf hi of
+--                                             Just sc -> baseScript { config = sc }
+--                                             Nothing -> baseScript
+--                 return (Just (scriptWithConfig, hi))
 
 instance Analyzeg Snippet where
     -- -> Nothing | SoleScript
