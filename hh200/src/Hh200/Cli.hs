@@ -168,7 +168,8 @@ runAnalyzedScript mis = do
     let scriptg = Scriptg 
           { kindg = kind script
           , configg = config script
-          , callItemsg = map toCallItemg (callItems script)
+          -- , callItemsg = map toCallItemg (callItems script)
+          , callItemsg = undefined
           }
 
     lead <- testOutsideWorld scriptg
@@ -184,11 +185,11 @@ runAnalyzedScript mis = do
         hPutStrLn stderr "hh200 found an unmet expectation."
         exitWith (ExitFailure 1)
 
-    where
-    toCallItemg :: CallItem -> CallItemg
-    toCallItemg ci = CallItemg
-          { cgDeps = ciDeps ci
-          , cgName = ciName ci
-          , cgRequestSpec = ciRequestSpec ci
-          , cgResponseSpec = ciResponseSpec ci
-          }
+    -- where
+    -- toCallItemg :: CallItem -> CallItemg
+    -- toCallItemg ci = CallItemg
+    --       { ciDeps = ciDeps ci
+    --       , ciName = ciName ci
+    --       , ciRequestSpec = ciRequestSpec ci
+    --       , ciResponseSpec = ciResponseSpec ci
+    --       }

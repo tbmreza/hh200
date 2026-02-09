@@ -31,16 +31,17 @@ import P
 
 scriptFrom :: Snippet -> IO (Maybe Script)
 scriptFrom (Snippet s) = do
-    let tokensOrPanic = alexScanTokens (L8.unpack s)
-    res <- runExceptT (parse tokensOrPanic)
-
-    case res of
-        Left (d, _) -> trace d (pure Nothing)
-        Right action -> do
-            res2 <- runExceptT action
-            case res2 of
-                Left (d, _) -> trace d (pure Nothing)
-                Right sole -> pure (Just sole)
+    undefined
+    -- let tokensOrPanic = alexScanTokens (L8.unpack s)
+    -- res <- runExceptT (parse tokensOrPanic)
+    --
+    -- case res of
+    --     Left (d, _) -> trace d (pure Nothing)
+    --     Right action -> do
+    --         res2 <- runExceptT action
+    --         case res2 of
+    --             Left (d, _) -> trace d (pure Nothing)
+    --             Right sole -> pure (Just sole)
 
 gatherHostInfo :: IO HostInfo
 gatherHostInfo = do
@@ -76,7 +77,7 @@ instance Analyze Snippet where
     analyze :: Snippet -> MaybeT IO Scriptg
     analyze (Snippet s) = do
         let tokensOrPanic = alexScanTokens (L8.unpack s)
-        res <- liftIO $ runExceptT (parseg tokensOrPanic)
+        res <- liftIO $ runExceptT (parse tokensOrPanic)
         case res of
             Left (d, _) -> trace d (MaybeT (pure Nothing))
             Right itemsAction -> do
@@ -100,7 +101,7 @@ readScript :: FilePath -> IO (Maybe Scriptg)
 readScript path = do
     loaded <- readFile path
     let tokensOrPanic = alexScanTokens loaded
-    res <- runExceptT (parseg tokensOrPanic)
+    res <- runExceptT (parse tokensOrPanic)
     case res of
         Left (m, _) -> do
             putStrLn m
@@ -283,17 +284,18 @@ diagnostics input =
             let pos = extractPos err
             in pure [(pos, "Lexical error: " ++ err)]
         Right tokens -> do
-            res <- runExceptT (parse tokens)
-            case res of
-                Right _ -> pure []
-                Left (err, errTokens) ->
-                    pure $ case errTokens of
-                        (t:_) ->
-                            let (AlexPn _ line col) = getPos t
-                            in [((line, col), err)]
-                        [] ->
-                            -- Error at EOF or empty tokens list
-                            [((1, 1), err)]
+            undefined
+            -- res <- runExceptT (parse tokens)
+            -- case res of
+            --     Right _ -> pure []
+            --     Left (err, errTokens) ->
+            --         pure $ case errTokens of
+            --             (t:_) ->
+            --                 let (AlexPn _ line col) = getPos t
+            --                 in [((line, col), err)]
+            --             [] ->
+            --                 -- Error at EOF or empty tokens list
+            --                 [((1, 1), err)]
 
     where
     extractPos :: String -> (Int, Int)

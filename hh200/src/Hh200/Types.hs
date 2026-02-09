@@ -19,7 +19,7 @@ module Hh200.Types
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
-    , CallItemg (..)
+    -- , CallItemg (..)
     , RequestSpec (..)
     , ResponseSpec (..)
     , HostInfo (..)
@@ -30,8 +30,9 @@ module Hh200.Types
     , defaultScriptConfig
     , effectiveTls
     , defaultDepsClause
-    , pCallItem, gCallItem
-    , callItemIsDefault
+    -- , pCallItem
+    , gCallItem
+    -- , callItemIsDefault
     , defaultHostInfo
     , defaultLead
     , show'
@@ -115,13 +116,12 @@ data ScriptKind = Regular | Static | Sole
 data Scriptg = Scriptg
   { kindg :: ScriptKind
   , configg :: ScriptConfig
-  , callItemsg :: [CallItemg]
+  , callItemsg :: [CallItem]
   } deriving (Show)
 
 data Script = Script
   { kind :: ScriptKind
   , config :: ScriptConfig
-  -- , callItems :: [CallItemg]
   , callItems :: [CallItem]
   -- } deriving (Show, Eq)
   } deriving (Show)
@@ -139,13 +139,6 @@ data DepsClause = DepsClause
   { deps :: [String]
   , itemName :: String
   }
-
-data CallItemg = CallItemg
-  { cgDeps :: [String]
-  , cgName :: String
-  , cgRequestSpec :: RequestSpec
-  , cgResponseSpec :: Maybe ResponseSpec
-  } deriving (Show)
 
 data CallItem = CallItem
   { ciDeps :: [String]
@@ -194,7 +187,7 @@ data Lead = Lead
 
 data Leadg = Leadg
   { gleadKind ::        LeadKind
-  , gfirstFailing ::    Maybe CallItemg
+  , gfirstFailing ::    Maybe CallItem
   , ghostInfo ::        HostInfo
   , ginterpreterInfo :: (Env, Log)
   , gechoScript ::      Maybe Scriptg
@@ -221,7 +214,10 @@ defaultScriptConfig = ScriptConfig
 effectiveTls :: Script -> Bool
 effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
 effectiveTls Script { callItems = (ci:_) } =
-    case parseURI (lexedUrl (ciRequestSpec ci)) of
+-- effectiveTls Script { configg = ScriptConfig { useTls = Just b } } = b
+-- effectiveTls Script { callItemsg = (ci:_) } =
+    -- case parseURI (lexedUrl (ciRequestSpec ci)) of
+    case Nothing of
         Just uri | uriScheme uri == "http:" -> False
         _ -> True
 effectiveTls _ = True -- Default to TLS if not specified
@@ -229,8 +225,17 @@ effectiveTls _ = True -- Default to TLS if not specified
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
 
-pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
-pCallItem dc rs opt =
+-- pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
+-- pCallItem dc rs opt =
+--     CallItem
+--       { ciDeps = deps dc
+--       , ciName = itemName dc
+--       , ciRequestSpec = rs
+--       , ciResponseSpec = opt
+--       }
+
+gCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
+gCallItem dc rs opt =
     CallItem
       { ciDeps = deps dc
       , ciName = itemName dc
@@ -238,17 +243,8 @@ pCallItem dc rs opt =
       , ciResponseSpec = opt
       }
 
-gCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItemg
-gCallItem dc rs opt =
-    CallItemg
-      { cgDeps = deps dc
-      , cgName = itemName dc
-      , cgRequestSpec = rs
-      , cgResponseSpec = opt
-      }
-
-callItemIsDefault :: CallItem -> Bool
-callItemIsDefault CallItem { ciName } = ciName == "default"
+-- callItemIsDefault :: CallItem -> Bool
+-- callItemIsDefault CallItem { ciName } = ciName == "default"
 
 defaultHostInfo :: HostInfo
 defaultHostInfo = HostInfo
@@ -291,13 +287,13 @@ noNews _ = False
 
 
 -- -- Pretty-print.
-present :: CallItemg -> String
+present :: CallItem -> String
 present cg =
-    let rs = cgRequestSpec cg
+    let rs = ciRequestSpec cg
     in method rs ++ " " ++ lexedUrl rs
        ++ (showHeaders $ headersg rs)
        ++ "\n" ++ (payloadg rs)
-       ++ (showResponse $ cgResponseSpec cg) ++ "\n"
+       ++ (showResponse $ ciResponseSpec cg) ++ "\n"
 
 showHeaders :: RhsDict -> String
 showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm

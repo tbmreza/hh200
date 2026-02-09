@@ -58,8 +58,23 @@ type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 --
 -- "A default request value, a GET request of localhost/:80, with an empty
 -- request body." - http-client hoogle
-defaultCallItem :: CallItem
-defaultCallItem = CallItem
+-- defaultCallItem :: CallItem
+-- defaultCallItem = CallItem
+--   { ciDeps = []
+--   , ciName = "default"
+--   , ciRequestSpec = RequestSpec
+--     { requestStruct = Nothing
+--     , method = "GET"
+--     , lexedUrl = "http://localhost:80"
+--     , headersg = RhsDict HM.empty
+--     , configsg = RhsDict HM.empty
+--     , payloadg = ""
+--     }
+--   , ciResponseSpec = Nothing
+--   }
+
+defaultCallItemg :: CallItem
+defaultCallItemg = CallItem
   { ciDeps = []
   , ciName = "default"
   , ciRequestSpec = RequestSpec
@@ -73,25 +88,10 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
-defaultCallItemg :: CallItemg
-defaultCallItemg = CallItemg
-  { cgDeps = []
-  , cgName = "default"
-  , cgRequestSpec = RequestSpec
-    { requestStruct = Nothing
-    , method = "GET"
-    , lexedUrl = "http://localhost:80"
-    , headersg = RhsDict HM.empty
-    , configsg = RhsDict HM.empty
-    , payloadg = ""
-    }
-  , cgResponseSpec = Nothing
-  }
-
 -- data Scriptg = Scriptg
 --   { kindg :: ScriptKind
 --   , configg :: ScriptConfig
---   , callItemsg :: [CallItemg]
+--   , callItemsg :: [CallItem]
 --   } deriving (Show)
 
 mkLead :: Leadg
@@ -108,7 +108,7 @@ nonLead x hi = Lead
   , echoScript = Just x
   }
 
-leadFromg :: Maybe CallItemg -> (Env, Log) -> Scriptg -> HostInfo -> Leadg
+leadFromg :: Maybe CallItem -> (Env, Log) -> Scriptg -> HostInfo -> Leadg
 leadFromg failed el script hi = Leadg
   { gleadKind = Normal
   , gfirstFailing = failed
@@ -213,7 +213,7 @@ expectCodesOrDefault mrs =
 --     -- (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
 --     -- pure $ switch (mci, finalEnv, procLog)
 --     -- where
---     -- switch :: (Maybe CallItemg, Env, Log) -> Leadg
+--     -- switch :: (Maybe CallItem, Env, Log) -> Leadg
 --     -- switch (mci, e, l) =
 --     --     trace ("final: " ++ show l) $ case mci of
 --     --         -- Just ci | "default" == ciName ci -> nonLead script hi
@@ -238,18 +238,18 @@ runProcM script mgr env hi = do
   --   pure $ switch (mci, finalEnv, procLog)
 
 
-    let course :: ProcM CallItemg = courseFromg script
+    let course :: ProcM CallItem = courseFromg script
         list = runMaybeT course
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
     where
-    switch :: (Maybe CallItemg, Env, Log) -> Leadg
+    switch :: (Maybe CallItem, Env, Log) -> Leadg
     switch (mci, e, l) =
         trace ("final: " ++ show l) $ case mci of
             -- Just ci | "default" == ciName ci -> nonLead script hi
             -- _                                -> leadFromg mci (e, l) script hi
             -- ??: gechoScript Nothing
-            Just ci | "default" == cgName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
+            Just ci | "default" == ciName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
             _                                -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), gechoScript = Nothing, ghostInfo = hi }
 
 -- Env is modified, Log appended throughout the body of `courseFrom`.
@@ -257,22 +257,22 @@ runProcM script mgr env hi = do
 -- A failing CallItem is not always found, we encode None/Nothing
 -- value with defaultCallItem to simplify code.
 --
-emptyHanded :: ProcM CallItem
-emptyHanded = pure defaultCallItem
-emptyHandedg :: ProcM CallItemg
+-- emptyHanded :: ProcM CallItem
+-- emptyHanded = pure defaultCallItem
+emptyHandedg :: ProcM CallItem
 emptyHandedg = pure defaultCallItemg
 
-courseFromg :: Scriptg -> ProcM CallItemg
+courseFromg :: Scriptg -> ProcM CallItem
 courseFromg x = do
     lift $ Tf.tell [ScriptStart (length $ callItemsg x)]
     mgr <- ask
     go mgr (callItemsg x)
 
     where
-    go :: Http.Manager -> [CallItemg] -> ProcM CallItemg
+    go :: Http.Manager -> [CallItem] -> ProcM CallItem
     go _ [] = emptyHandedg
     go mgr (ci:rest) = do
-        lift $ Tf.tell [ItemStart (cgName ci)]
+        lift $ Tf.tell [ItemStart (ciName ci)]
         env <- get
         req <- liftIO $ buildRequestg env ci
 
@@ -291,7 +291,7 @@ courseFromg x = do
 
                 let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
 
-                let mrs = cgResponseSpec ci
+                let mrs = ciResponseSpec ci
                 (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
 
                 lift $ Tf.tell captureLog
@@ -310,9 +310,9 @@ courseFromg x = do
 
     -- Exceptions:
     -- request construction retry error
-    buildRequestg :: Env -> CallItemg -> IO Http.Request
+    buildRequestg :: Env -> CallItem -> IO Http.Request
     -- ??: handle payload
-    buildRequestg env CallItemg { cgRequestSpec = RequestSpec { requestStruct = opt } } = do
+    buildRequestg env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt } } = do
         case opt of
             Just r -> pure r
             _ ->
@@ -344,7 +344,7 @@ courseFrom x = do
 
     where
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
-    go _ [] = emptyHanded
+    go _ [] = emptyHandedg
     go mgr (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
         env <- get

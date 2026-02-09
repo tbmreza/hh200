@@ -20,8 +20,8 @@ import           Hh200.Types
 import           L
 
 }
-%name parse
-%name parseg scriptg
+
+%name parse script
 %tokentype { Token }
 %error { parseError }
 %token
@@ -67,11 +67,9 @@ import           L
 
 %%
 
-script :: { E Script }
-script : crlf call_items  { $2 >>= \is -> returnE $ trace "root1" $ Script { kind = Regular, config = defaultScriptConfig, callItems = is } }
 
-scriptg :: { E Scriptg }
-scriptg : crlf call_itemsg { $2 >>= \is -> returnE Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = is } }
+script :: { E Scriptg }
+script : crlf call_itemsg { $2 >>= \is -> returnE Scriptg { kindg = Regular, configg = defaultScriptConfig, callItemsg = is } }
 
 crlf : {- optional newline -} { }
      | crlf newline           { }
@@ -164,14 +162,13 @@ response_codes : d                { [read $1] }
                | response_codes d { $1 ++ [read $2] }
 
 
-call_item :: { E CallItem }
-call_item : deps_clause requesg response { $2 >>= \r -> returnE (pCallItem $1 r (Just $3)) }
-          | deps_clause requesg          { $2 >>= \r -> returnE (pCallItem $1 r Nothing) }
-          | requesg response             { $1 >>= \r -> returnE (pCallItem defaultDepsClause r (Just $2)) }
-          | requesg                      { $1 >>= \r -> returnE (pCallItem defaultDepsClause r Nothing) }
+call_item : deps_clause requesg response { $2 >>= \r -> returnE undefined }
+          | deps_clause requesg          { $2 >>= \r -> returnE undefined }
+          | requesg response             { $1 >>= \r -> returnE undefined }
+          | requesg                      { $1 >>= \r -> returnE undefined }
 
 
-call_itemg :: { E CallItemg }
+call_itemg :: { E CallItem }
 call_itemg : deps_clause requesg response { $2 >>= \r -> returnE (gCallItem $1 r (Just $3)) }
           | deps_clause requesg          { $2 >>= \r -> returnE (gCallItem $1 r Nothing) }
           | requesg response             { $1 >>= \r -> returnE (gCallItem defaultDepsClause r (Just $2)) }
@@ -179,12 +176,11 @@ call_itemg : deps_clause requesg response { $2 >>= \r -> returnE (gCallItem $1 r
 
 
 
-call_items :: { E [CallItem] }
 call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
            | call_items call_item crlf { $1 >>= \is -> $2 >>= \i -> returnE (is ++ [i]) }
 
 
-call_itemsg :: { E [CallItemg] }
+call_itemsg :: { E [CallItem] }
 call_itemsg : call_itemg crlf            { $1 >>= \i -> returnE [i] }
            | call_itemsg call_itemg crlf { $1 >>= \is -> $2 >>= \i -> returnE (is ++ [i]) }
 
