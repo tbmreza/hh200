@@ -62,7 +62,7 @@ defaultCallItem :: CallItem
 defaultCallItem = CallItem
   { ciDeps = []
   , ciName = "default"
-  , ciRequestSpec = RequestSpeg
+  , ciRequestSpec = RequestSpec
     { requestStruct = Nothing
     , method = "GET"
     , lexedUrl = "http://localhost:80"
@@ -77,7 +77,7 @@ defaultCallItemg :: CallItemg
 defaultCallItemg = CallItemg
   { cgDeps = []
   , cgName = "default"
-  , cgRequestSpec = RequestSpeg
+  , cgRequestSpec = RequestSpec
     { requestStruct = Nothing
     , method = "GET"
     , lexedUrl = "http://localhost:80"
@@ -312,7 +312,7 @@ courseFromg x = do
     -- request construction retry error
     buildRequestg :: Env -> CallItemg -> IO Http.Request
     -- ??: handle payload
-    buildRequestg env CallItemg { cgRequestSpec = RequestSpeg { requestStruct = opt } } = do
+    buildRequestg env CallItemg { cgRequestSpec = RequestSpec { requestStruct = opt } } = do
         case opt of
             Just r -> pure r
             _ ->

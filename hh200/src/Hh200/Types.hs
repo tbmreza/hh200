@@ -20,7 +20,7 @@ module Hh200.Types
     , DepsClause (..)
     , CallItem (..)
     , CallItemg (..)
-    , RequestSpeg (..)
+    , RequestSpec (..)
     , ResponseSpec (..)
     , HostInfo (..)
     , LeadKind (..)
@@ -143,18 +143,18 @@ data DepsClause = DepsClause
 data CallItemg = CallItemg
   { cgDeps :: [String]
   , cgName :: String
-  , cgRequestSpec :: RequestSpeg
+  , cgRequestSpec :: RequestSpec
   , cgResponseSpec :: Maybe ResponseSpec
   } deriving (Show)
 
 data CallItem = CallItem
   { ciDeps :: [String]
   , ciName :: String
-  , ciRequestSpec :: RequestSpeg
+  , ciRequestSpec :: RequestSpec
   , ciResponseSpec :: Maybe ResponseSpec
   } deriving (Show)
 
-data RequestSpeg = RequestSpeg
+data RequestSpec = RequestSpec
   { requestStruct :: Maybe HC.Request
   , method ::        String
   , lexedUrl ::      String
@@ -229,7 +229,7 @@ effectiveTls _ = True -- Default to TLS if not specified
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
 
-pCallItem :: DepsClause -> RequestSpeg -> Maybe ResponseSpec -> CallItem
+pCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
 pCallItem dc rs opt =
     CallItem
       { ciDeps = deps dc
@@ -238,7 +238,7 @@ pCallItem dc rs opt =
       , ciResponseSpec = opt
       }
 
-gCallItem :: DepsClause -> RequestSpeg -> Maybe ResponseSpec -> CallItemg
+gCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItemg
 gCallItem dc rs opt =
     CallItemg
       { cgDeps = deps dc

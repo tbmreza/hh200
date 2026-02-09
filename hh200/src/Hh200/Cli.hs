@@ -92,6 +92,7 @@ go Args { source = Just path, debugConfig = True } = do
 -- hh200 flow.hhs
 go Args { shotgun = 1, call = False, rps = False, source = Just path } =
     runAnalyzedScript (Scanner.analyze path)
+    -- undefined
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
