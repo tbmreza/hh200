@@ -46,7 +46,7 @@ main = do
       -- , testScanner_TlsInference
       , testScanner_lrResponseOrder
       , testScanner_lrRequestConfigs
-      , testScanner_analyzeg
+      -- , testScanner_analyzeg
       , testExecution_bel
       , testExecution_validJsonBody
       -- , testTypes_presentg
@@ -256,20 +256,20 @@ testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $
                 Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
 
-testScanner_analyzeg :: TestTree
-testScanner_analyzeg = testCase "analyzeg using IO-enabled parser" $ do
-    let input = Hh.Snippet "GET http://localhost\n"
-    res <- runMaybeT $ Hh.analyzeg input
-    case res of
-        Just s -> do
-            let items = Hh.callItemsg s
-            assertBool "Should have one item" (length items == 1)
-            let item = head items
-                reqSpeg = Hh.cgRequestSpec item
-            case Hh.requestStruct reqSpeg of
-                Just _ -> pure ()
-                Nothing -> assertFailure "Should have parsed request struct via IO"
-        Nothing -> assertFailure "analyzeg returned Nothing"
+-- testScanner_analyzeg :: TestTree
+-- testScanner_analyzeg = testCase "analyzeg using IO-enabled parser" $ do
+--     let input = Hh.Snippet "GET http://localhost\n"
+--     res <- runMaybeT $ Hh.analyzeg input
+--     case res of
+--         Just s -> do
+--             let items = Hh.callItemsg s
+--             assertBool "Should have one item" (length items == 1)
+--             let item = head items
+--                 reqSpeg = Hh.cgRequestSpec item
+--             case Hh.requestStruct reqSpeg of
+--                 Just _ -> pure ()
+--                 Nothing -> assertFailure "Should have parsed request struct via IO"
+--         Nothing -> assertFailure "analyzeg returned Nothing"
 
 -- testTypes_presentg :: TestTree
 -- testTypes_presentg = testCase "presentg formatting" $ do

@@ -42,42 +42,6 @@ scriptFrom (Snippet s) = do
                 Left (d, _) -> trace d (pure Nothing)
                 Right sole -> pure (Just sole)
 
-readScriptg :: FilePath -> IO (Maybe Scriptg)
-readScriptg path = do
-    loaded <- readFile path
-    let tokensOrPanic = alexScanTokens loaded
-    res <- runExceptT (parseg tokensOrPanic)
-
-    case res of
-        Left (m, _) -> do
-            putStrLn m
-            pure Nothing
-        Right itemsAction -> do
-            res2 <- runExceptT itemsAction
-            case res2 of
-                Left (m, _) -> do
-                    putStrLn m
-                    pure Nothing
-                Right s -> pure (Just s)
-
-readScript :: FilePath -> IO (Maybe Script)
-readScript path = do
-    loaded <- readFile path
-    let tokensOrPanic = alexScanTokens loaded
-    res <- runExceptT (parse tokensOrPanic)
-
-    case res of
-        Left (m, _) -> do
-            putStrLn m
-            pure Nothing
-        Right action -> do
-            res2 <- runExceptT action
-            case res2 of
-                Left (m, _) -> do
-                    putStrLn m
-                    pure Nothing
-                Right s -> pure (Just s)
-
 gatherHostInfo :: IO HostInfo
 gatherHostInfo = do
     hn <- tryReadProcess "hostname" []
@@ -101,22 +65,53 @@ trim :: String -> String
 trim = f . f where
     f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
 
-class Analyzeg a where
-    analyzeg :: a -> MaybeT IO Scriptg
     -- analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
-
-
-instance Analyzeg FilePath where
     -- -> Nothing | StaticScript | SoleScript? | Script
-    analyzeg :: FilePath -> MaybeT IO Scriptg
-    analyzeg path = do
+    -- -> Nothing | SoleScript
+
+class Analyze a where
+    analyze :: a -> MaybeT IO Scriptg
+
+instance Analyze Snippet where
+    analyze :: Snippet -> MaybeT IO Scriptg
+    analyze (Snippet s) = do
+        let tokensOrPanic = alexScanTokens (L8.unpack s)
+        res <- liftIO $ runExceptT (parseg tokensOrPanic)
+        case res of
+            Left (d, _) -> trace d (MaybeT (pure Nothing))
+            Right itemsAction -> do
+                res2 <- liftIO $ runExceptT itemsAction
+                case res2 of
+                     Left (d, _) -> trace d (MaybeT (pure Nothing))
+                     Right s -> pure s
+
+instance Analyze FilePath where
+    analyze :: FilePath -> MaybeT IO Scriptg
+    analyze path = do
         exists <- liftIO $ doesFileExist path
         MaybeT $ case exists of
             False -> do
                 -- Proceeding to testOutsideWorld is unnecessary.
                 pure Nothing
             _ -> do
-                readScriptg path
+                readScript path
+
+readScript :: FilePath -> IO (Maybe Scriptg)
+readScript path = do
+    loaded <- readFile path
+    let tokensOrPanic = alexScanTokens loaded
+    res <- runExceptT (parseg tokensOrPanic)
+    case res of
+        Left (m, _) -> do
+            putStrLn m
+            pure Nothing
+        Right itemsAction -> do
+            res2 <- runExceptT itemsAction
+            case res2 of
+                Left (m, _) -> do
+                    putStrLn m
+                    pure Nothing
+                Right s -> pure (Just s)
 
     -- analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
     -- analyzeWithHostInfo path = do
@@ -124,30 +119,6 @@ instance Analyzeg FilePath where
     --     hi <- liftIO gatherHostInfo
     --     pure (script, hi)
 
--- class Analyze a where
---     analyze :: a -> MaybeT IO Script
---     analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
---
---
--- instance Analyze FilePath where
---     -- -> Nothing | StaticScript | SoleScript? | Script
---     analyze :: FilePath -> MaybeT IO Script
---     analyze path = do
---         exists <- liftIO $ doesFileExist path
---         MaybeT $ case exists of
---             False -> do
---                 -- Proceeding to testOutsideWorld is unnecessary.
---                 pure Nothing
---             _ -> do
---                 readScript path
---
---     analyzeWithHostInfo :: FilePath -> MaybeT IO (Script, HostInfo)
---     analyzeWithHostInfo path = do
---         script <- analyze path
---         hi <- liftIO gatherHostInfo
---         pure (script, hi)
---
---
 -- instance Analyze Snippet where
 --     -- -> Nothing | SoleScript
 --     analyze :: Snippet -> MaybeT IO Script
@@ -168,20 +139,6 @@ instance Analyzeg FilePath where
 --                                             Just sc -> baseScript { config = sc }
 --                                             Nothing -> baseScript
 --                 return (Just (scriptWithConfig, hi))
-
-instance Analyzeg Snippet where
-    -- -> Nothing | SoleScript
-    analyzeg :: Snippet -> MaybeT IO Scriptg
-    analyzeg (Snippet s) = do
-        let tokensOrPanic = alexScanTokens (L8.unpack s)
-        res <- liftIO $ runExceptT (parseg tokensOrPanic)
-        case res of
-            Left (d, _) -> trace d (MaybeT (pure Nothing))
-            Right itemsAction -> do
-                res2 <- liftIO $ runExceptT itemsAction
-                case res2 of
-                     Left (d, _) -> trace d (MaybeT (pure Nothing))
-                     Right s -> pure s
 
 scanSafe :: String -> Either String [Token]
 scanSafe str = runAlex str gather

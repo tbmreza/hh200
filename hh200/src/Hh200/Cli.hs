@@ -86,7 +86,7 @@ go Args { lsp = Just port } = runTcp port
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
 go Args { source = Just path, debugConfig = True } = do
-    runAnalyzedScriptg (Scanner.analyzeg path)
+    runAnalyzedScriptg (Scanner.analyze path)
 
 -- Script execution.
 -- hh200 flow.hhs
