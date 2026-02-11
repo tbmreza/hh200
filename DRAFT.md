@@ -34,6 +34,15 @@ incremental parsing is non-goal if not free or very cheap
 
 # STASH
 
+┌───────────┬──────────────────────────────────────┬─────────────────────────┐
+│ Location  │ Cause                                │ Result                  │
+├───────────┼──────────────────────────────────────┼─────────────────────────┤
+│ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checked: handled by alex/happy
+│ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │ checked: some handled on the spot, some returned
+│ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │ checked: exceptions if any will be falsified
+│ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
+└───────────┴──────────────────────────────────────┴─────────────────────────┘
+
   3. Static Analysis for Load Configuration
    * Description: Implement validation rules in Scanner.hs to ensure load profiles make sense before execution starts.
        * Checks: Ensure ramp-down doesn't go below zero, total duration fits within global timeouts, and syntax for profile chains is valid.

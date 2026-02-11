@@ -180,8 +180,11 @@ runProcM script mgr env = do
 
 -- | High-level wrapper that orchestrates execution, catches exceptions, 
 -- performs side effects (like tracing), and returns a Lead report.
-conduct :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
-conduct script mgr env hi = do
+-- conduct :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
+-- conduct script mgr env hi = do
+conduct :: Script -> Http.Manager -> Env -> IO Lead
+conduct script mgr env = do
+    hi <- gatherHostInfo
     result <- try (runProcM script mgr env)
     case result of
         Left (e :: SomeException) -> do
@@ -275,132 +278,35 @@ courseFrom x = do
             bindings
         pure (const ext, finalLog)
 
--- Course is procedure in a stack form that will return the CallItem
--- that turned out to be failing.
--- courseFrom :: Script -> ProcM CallItem
--- courseFrom x = do
---     lift $ Tf.tell [ScriptStart (length $ callItems x)]
---     mgr <- ask
---     go mgr (callItems x)
---
---     where
---     go :: Http.Manager -> [CallItem] -> ProcM CallItem
---     go _ [] = emptyHanded
---     go mgr (ci:rest) = do
---         lift $ Tf.tell [ItemStart (ciName ci)]
---         env <- get
---         req <- liftIO $ buildRequestk env ci
---
---         -- Unhandled offline HttpExceptionRequest.
---         eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
---         case eitherResp of
---             Left e -> do
---                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
---                 -- ??
---                 lift $ Tf.tell [HttpError (show e)]
---                 pure ci
---             Right gotResp -> do
---                 lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
---                 -- Captures.
---                 -- env is already fetched above.
---
---                 let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
---
---                 let mrs = ciResponseSpec ci
---                 (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
---
---                 lift $ Tf.tell captureLog
---
---                 -- Unless null Captures:
---                 modify upsertCaptures
---
---                 res <- liftIO $ assertsAreOk initialEnv gotResp mrs
---                 case res of
---                     False -> do
---                         lift $ Tf.tell [AssertsFailed]
---                         pure ci
---                     _ -> do
---                         lift $ Tf.tell [AssertsPassed]
---                         go mgr rest
---
---     -- Exceptions:
---     -- url parsing error
---     buildRequestk :: Env -> CallItem -> IO Http.Request
---     buildRequestk env ci
---         -- Requests without body.
---         | null (payload $ ciRequestSpec ci) = do
---             struct <- requestStructOrThrow
---
---             renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
---
---             pure $
---                 Http.setRequestHeaders renderedHeaders $
---                 Http.setMethod (asMethod (method $ ciRequestSpec ci))
---                 struct
---
---         -- Requests with json body.
---         | otherwise = do
---             struct <- requestStructOrThrow
---             -- Render payloads.
---             rb <- stringRender (payload $ ciRequestSpec ci)
---
---             pure $
---                 Http.setRequestBody (trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)) $
---                 Http.setRequestHeaders [headerJson] $
---                 Http.setMethod (asMethod (method $ ciRequestSpec ci))
---                 struct
---
---         where
---         renderHeaders :: RhsDict -> IO [(HeaderName, BS.ByteString)]
---         renderHeaders (RhsDict bindings) = do
---             traverseKV bindings $
---                 \(k :: String) (v :: [BEL.Part]) -> do
---                     av <- BEL.render env (Aeson.String "") v
---                     pure (CaseInsensitive.mk (BS.pack k), asBS av)
---
---         requestStructOrThrow :: IO Http.Request
---         requestStructOrThrow = do
---         -- ??
---             rendered <- stringRender (lexedUrl $ ciRequestSpec ci)
---             Http.parseRequest rendered
---
---         stringRender :: String -> IO String
---         stringRender s = do
---
---             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
---
---             pure $ stringOrMt rendered
---
---         stringOrMt :: Aeson.Value -> String
---         stringOrMt v = Text.unpack $ textOrMt v
---
---         rawPayload :: String -> Http.RequestBody
---         rawPayload s = Http.lbsBody $ L8.pack s
---
---     -- Reduce captures to Env extensions.
---     evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
---     evalCaptures (env, mrs) = do
---         let (RhsDict bindings) = case mrs of
---                 Nothing -> RhsDict HM.empty
---                 Just rs -> captures rs
---             initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
---         (ext, finalLog) <- foldlWithKeyM'
---             (\(acc, logs) bK (bV :: [BEL.Part]) -> do
---                 v <- BEL.render acc (Aeson.String "") bV
---                 pure (HM.insert bK v acc, logs ++ [Captured bK]))
---             (env, initialLog)
---             bindings
---         pure (const ext, finalLog)
-
 --------------------------------------------------------------------------------
 -- hh200 modes
 --------------------------------------------------------------------------------
 
 testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls script)) Http.closeManager $ \mgr ->
-        conduct script mgr HM.empty hi
+    bracket (Http.newManager (effectiveTls script))
+            Http.closeManager $
+            \mgr -> conduct script mgr HM.empty
+
+testShotgun :: Int -> Script -> IO ()
+testShotgun n script = do
+    bracket (Http.newManager (effectiveTls script))
+            Http.closeManager $
+            \mgr -> do
+                putStrLn $ "# testShotgun: n=" ++ show n
+                _ <- mapConcurrentlyBounded n $ replicate n (runProcM script mgr HM.empty)
+                pure ()
+
+    where
+    -- Limit concurrency with QSemN
+    mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
+    mapConcurrentlyBounded n actions = do
+        sem <- newQSemN n
+        mapConcurrently
+            (\act -> bracket_ (waitQSemN sem 1)
+                              (signalQSemN sem 1)
+                              act)
+            actions
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 testRps :: Script -> IO ()
@@ -409,23 +315,6 @@ testRps _ = do
     -- Inserts every second (or to a second-windowed timeseries data).
     connect "timeseries.db"
     pure ()
-
-testShotgun :: Int -> Script -> IO ()
-testShotgun n script = do
-    bracket (Http.newManager (effectiveTls script)) Http.closeManager $ \mgr -> do
-        putStrLn $ "# testShotgun: n=" ++ show n
-        _ <- mapConcurrentlyBounded n $ replicate n (runProcM script mgr HM.empty)
-        pure ()
-
--- Limit concurrency with QSemN
-mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
-mapConcurrentlyBounded n actions = do
-    sem <- newQSemN n
-    mapConcurrently
-        (\act -> bracket_ (waitQSemN sem 1)
-                          (signalQSemN sem 1)
-                          act)
-        actions
 
 
 --------------------------------------------------------------------------------
