@@ -25,6 +25,7 @@ import qualified GoldenCli
 import qualified BlindLsp
 import qualified GoldenNetw
 import qualified ContentTypeSpec
+import qualified RateLimiterSpec
 
 -- Separate module for user-facing features: GoldenCli.spec, BlindLsp.spec, GoldenNetw.spec
 -- Naming scheme for the 3 steps: testScanner_ testExecution_ testGraph_
@@ -36,6 +37,7 @@ main = do
       , BlindLsp.spec
       , GoldenNetw.spec lock
       , ContentTypeSpec.spec
+      , RateLimiterSpec.spec
       
       -- , testScanner_lr
       -- , testScanner_lrMustache

@@ -42,6 +42,7 @@ library:
   - Hh200.Graph
   - Hh200.Http
   - Hh200.LanguageServer
+  - Hh200.RateLimiter
   - Hh200.Scanner
   - Hh200.TokenBucketWorkerPool
   - Hh200.Types
