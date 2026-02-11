@@ -94,70 +94,32 @@ go Args { source = Just path, debugConfig = True } = do
 -- hh200 flow.hhs
 go Args { shotgun = 1, call = False, rps = False, source = Just path } =
     runAnalyzedScript (Scanner.analyze path)
-    -- trace "goall" undefined
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snip } =
-    undefined
-    -- runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack snip))
+    runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack snip))
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
 go Args { rps = True, source = Just path } = do
-    undefined
-    -- mScript <- runMaybeT (Scanner.analyze path)
-    --
-    -- script <- case mScript of
-    --     Nothing -> exitWith (ExitFailure 1)
-    --     Just s  -> pure s
-    --
-    -- -- Unminuted mode.
-    -- testRps script
+    mScript <- runMaybeT (Scanner.analyze path)
+    case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> testRps s
 
 -- Shotgun.
 -- hh200 flow.hhs --shotgun=4
 go Args { shotgun = n, call = False, source = Just path } = do
-    undefined
-    -- mScript <- runMaybeT (Scanner.analyze path)
-    --
-    -- script <- case mScript of
-    --     Nothing -> exitWith (ExitFailure 1)
-    --     Just s  -> pure s
-    --
-    -- _lead <- testShotgun n script
-    --
-    -- -- ?? : with DataPoint extraction and plotting flow in cli
-    --
-    -- exitWith (ExitFailure 1)
-    --
-    -- -- Rewrites output/o.dat at the end.
+    mScript <- runMaybeT (Scanner.analyze path)
+    case mScript of
+        Nothing -> exitWith (ExitFailure 1)
+        Just s  -> do
+            testShotgun n s
+            putStrLn "Shotgun test complete."
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
-
-
--- runAnalyzedScriptg :: MaybeT IO Scriptg -> IO ()
--- runAnalyzedScriptg mis = do
---     mScript <- runMaybeT mis
---
---     script <- case mScript of
---         Nothing -> exitWith (ExitFailure 1)
---         Just s  -> pure s
---
---     lead <- testOutsideWorld script
---
---     -- No news is good news, otherwise:
---     unless (noNews lead) $ do
---         putStrLn $ case gfirstFailing lead of
---             -- The third and final step of hh200 (presentation).
---             -- ?? goal: ast should be printable
---             Just ci -> present ci
---             -- Expect no interesting news other than first failing CallItem.
---             Nothing -> "No failing item found."
---
---         hPutStrLn stderr "hh200 found an unmet expectation."
---         exitWith (ExitFailure 1)
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do
@@ -169,14 +131,13 @@ runAnalyzedScript mis = do
 
     lead <- testOutsideWorld script
 
-    -- No news is good news, otherwise:
-    -- unless (noNews lead) $ do
-    unless False $ do
-        -- putStrLn $ case gfirstFailing lead of
-        --     -- The third and final step of hh200 (presentation).
-        --     Just ci -> present ci
-        --     -- Expect no interesting news other than first failing CallItem.
-        --     Nothing -> "No failing item found."
-
-        hPutStrLn stderr "hh200 found an unmet expectation."
-        exitWith (ExitFailure 1)
+    case firstFailing lead of
+        Nothing -> do
+            putStrLn "Script executed successfully."
+        Just ci -> do
+            if ciName ci == "default"
+                then hPutStrLn stderr "hh200 encountered a system error."
+                else do
+                    putStrLn $ present ci
+                    hPutStrLn stderr "hh200 found an unmet expectation."
+            exitWith (ExitFailure 1)

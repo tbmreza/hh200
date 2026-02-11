@@ -6,6 +6,7 @@ module Hh200.Execution
   , testOutsideWorld
   , testRps
   , runProcM
+  , conduct
   , assertsAreOk
   , validJsonBody
   , ProcM
@@ -15,12 +16,12 @@ module Hh200.Execution
 import Debug.Trace
 
 import           Control.Concurrent.QSemN
-import           Control.Exception        (bracket, bracket_, try)
+import           Control.Exception        (bracket, bracket_, try, SomeException)
 import           Control.Concurrent.Async (mapConcurrently)
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
-import           Control.Monad (foldM, forM)
+import           Control.Monad (foldM, forM, mzero)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import           Data.Maybe (fromMaybe)
@@ -75,6 +76,10 @@ defaultCallItem = CallItem
 mkLead :: Lead
 mkLead = Lead
   { leadKind = Non
+  , firstFailing = Nothing
+  , hostInfo = defaultHostInfo
+  , interpreterInfo = (HM.empty, [])
+  , echoScript = Nothing
   }
 
 nonLead :: Script -> HostInfo -> Lead
@@ -165,43 +170,35 @@ expectCodesOrDefault mrs =
             expectCodes -> expectCodes
 
 
--- ??: help me define type sig for runProcM that is general across all callsites: testOutsideWorld testRps and testShotgun
--- Return to user the CallItem which we suspect will fail again.
-runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
-runProcM script mgr env hi = do
+-- | Low-level execution of a script. Returns the failing CallItem (if any), 
+-- the final environment, and the execution log.
+-- Nothing means the script finished successfully.
+runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
+runProcM script mgr env = do
     let course :: ProcM CallItem = courseFrom script
-        list = runMaybeT course
-    (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
-    pure $ switch (mci, finalEnv, procLog)
+    Tf.runRWST (runMaybeT course) mgr env
 
-  -- -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
-  -- -- │ Location  │ Cause                                │ Result                  │
-  -- -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
-  -- -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checked: handled by alex/happy
-  -- -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │ checked: some handled on the spot, some returned
-  -- -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │ checked: exceptions if any will be falsified
-  -- -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
-  -- -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
-
-    where
-    switch :: (Maybe CallItem, Env, Log) -> Lead
-    switch (mci, e, l) =
-        trace ("final: " ++ show l) $ case mci of
-            -- Just ci | "default" == ciName ci -> nonLead script hi
-            -- _                                -> leadFromg mci (e, l) script hi
-            -- ??: echoScript Nothing
-
-            _ -> undefined
-            -- Just ci | "default" == ciName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), echoScript = Nothing, ghostInfo = hi }
-            -- _                                -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), echoScript = Nothing, ghostInfo = hi }
+-- | High-level wrapper that orchestrates execution, catches exceptions, 
+-- performs side effects (like tracing), and returns a Lead report.
+conduct :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
+conduct script mgr env hi = do
+    result <- try (runProcM script mgr env)
+    case result of
+        Left (e :: SomeException) -> do
+            let errLog = [HttpError (show e)]
+            -- We use defaultCallItem to indicate a system/execution error
+            -- but we might want a more specific "Error" CallItem later.
+            pure $ leadFrom (Just defaultCallItem) (env, errLog) script hi
+        Right (mci, finalEnv, procLog) -> do
+            traceM $ "Execution finished. Log length: " ++ show (length procLog)
+            pure $ leadFrom mci (finalEnv, procLog) script hi
 
 -- Env is modified, Log appended throughout the body of course construction.
 --
--- A failing CallItem is not always found, we encode None/Nothing
--- value with defaultCallItem to simplify code.
+-- A failing CallItem is not always found.
 --
 emptyHanded :: ProcM CallItem
-emptyHanded = pure defaultCallItem
+emptyHanded = mzero
 
 -- Exceptions:  when running ProcM
 -- offline HttpExceptionRequest  -handling->  print
@@ -400,21 +397,10 @@ courseFrom x = do
 --------------------------------------------------------------------------------
 
 testOutsideWorld :: Script -> IO Lead
-
--- ??: sole `Script`s in testOutsideWorld (i.e. not testRps/testShotgun) probably 
--- don't need manager sharing. where does this bit fit in the stack?
-testOutsideWorld sole@(Script {callItems = [_]}) = do
-    hi <- trace "toww 1" gatherHostInfo
-
-    bracket (Http.newManager True) Http.closeManager $ \with ->
-        runProcM sole with HM.empty hi
-
-    pure $ mkLead { leadKind = Non, echoScript = Just sole, hostInfo = hi }
-
-testOutsideWorld flow@(Script {callItems = _}) = do
-    undefined
-
-
+testOutsideWorld script = do
+    hi <- gatherHostInfo
+    bracket (Http.newManager (effectiveTls script)) Http.closeManager $ \mgr ->
+        conduct script mgr HM.empty hi
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 testRps :: Script -> IO ()
@@ -425,12 +411,10 @@ testRps _ = do
     pure ()
 
 testShotgun :: Int -> Script -> IO ()
-testShotgun n checked = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls checked)) Http.closeManager $ \with -> do
-        let msg = "testShotgun: checked=" ++ show checked
-        -- _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
-        --     runProcM checked with HM.empty hi
+testShotgun n script = do
+    bracket (Http.newManager (effectiveTls script)) Http.closeManager $ \mgr -> do
+        putStrLn $ "# testShotgun: n=" ++ show n
+        _ <- mapConcurrentlyBounded n $ replicate n (runProcM script mgr HM.empty)
         pure ()
 
 -- Limit concurrency with QSemN
