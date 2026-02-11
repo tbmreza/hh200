@@ -141,9 +141,9 @@ data DepsClause = DepsClause
   }
 
 data CallItem = CallItem
-  { ciDeps :: [String]
-  , ciName :: String
-  , ciRequestSpec :: RequestSpec
+  { ciDeps ::         [String]
+  , ciName ::         String
+  , ciRequestSpec ::  RequestSpec
   , ciResponseSpec :: Maybe ResponseSpec
   } deriving (Show)
 
@@ -151,9 +151,9 @@ data RequestSpec = RequestSpec
   { requestStruct :: Maybe HC.Request
   , method ::        String
   , lexedUrl ::      String
-  , headersg ::      RhsDict
-  , configsg ::      RhsDict
-  , payloadg ::      String
+  , headers ::       RhsDict
+  , configs ::       RhsDict
+  , payload ::       String
   } deriving (Show)
 
 data ResponseSpec = ResponseSpec
@@ -263,8 +263,8 @@ present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg
     in method rs ++ " " ++ lexedUrl rs
-       ++ (showHeaders $ headersg rs)
-       ++ "\n" ++ (payloadg rs)
+       ++ (showHeaders $ headers rs)
+       ++ "\n" ++ (payload rs)
        ++ (showResponse $ ciResponseSpec cg) ++ "\n"
 
 showHeaders :: RhsDict -> String

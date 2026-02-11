@@ -57,32 +57,17 @@ type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 --
 -- "A default request value, a GET request of localhost/:80, with an empty
 -- request body." - http-client hoogle
--- defaultCallItem :: CallItem
--- defaultCallItem = CallItem
---   { ciDeps = []
---   , ciName = "default"
---   , ciRequestSpec = RequestSpec
---     { requestStruct = Nothing
---     , method = "GET"
---     , lexedUrl = "http://localhost:80"
---     , headersg = RhsDict HM.empty
---     , configsg = RhsDict HM.empty
---     , payloadg = ""
---     }
---   , ciResponseSpec = Nothing
---   }
-
-defaultCallItemg :: CallItem
-defaultCallItemg = CallItem
+defaultCallItem :: CallItem
+defaultCallItem = CallItem
   { ciDeps = []
   , ciName = "default"
   , ciRequestSpec = RequestSpec
     { requestStruct = Nothing
     , method = "GET"
     , lexedUrl = "http://localhost:80"
-    , headersg = RhsDict HM.empty
-    , configsg = RhsDict HM.empty
-    , payloadg = ""
+    , headers = RhsDict HM.empty
+    , configs = RhsDict HM.empty
+    , payload = ""
     }
   , ciResponseSpec = Nothing
   }
@@ -101,15 +86,6 @@ nonLead x hi = Lead
   , echoScript = Just x
   }
 
--- leadFromg :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Leadg
--- leadFromg failed el script hi = Leadg
---   { gleadKind = Normal
---   , gfirstFailing = failed
---   , ghostInfo = hi
---   , gechoScript = Just script
---   , ginterpreterInfo = el
---   }
-
 leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
 leadFrom failed el script hi = Lead
   { leadKind = Normal
@@ -118,15 +94,6 @@ leadFrom failed el script hi = Lead
   , echoScript = Just script
   , interpreterInfo = el
   }
-
--- _debugLead :: Lead
--- _debugLead = Lead
---   { leadKind = Debug
---   , firstFailing = Nothing
---   , hostInfo = defaultHostInfo
---   , echoScript = Nothing
---   , interpreterInfo = (HM.empty, [])
---   }
 
 asMethod :: String -> BS.ByteString
 asMethod s = BS.pack s
@@ -158,7 +125,8 @@ textOrMt (Aeson.String t) = t
 textOrMt _ = ""
 
 
--- False indicates for corresponding CallItem (perhaps on user assert) to be reported.
+-- False indicates for corresponding CallItem (perhaps on user assert) to be
+-- reported.
 assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
     let status =     Http.getStatus got
@@ -196,45 +164,25 @@ expectCodesOrDefault mrs =
             [] -> [status200]
             expectCodes -> expectCodes
 
+
+-- ??: help me define type sig for runProcM that is general across all callsites: testOutsideWorld testRps and testShotgun
 -- Return to user the CallItem which we suspect will fail again.
-
--- runProcMg :: Script -> Http.Manager -> Env -> HostInfo -> IO Leadg
--- runProcMg script mgr env hi = do
---     undefined
---     -- let course = courseFromg script
---     --     list = runMaybeT course
---     -- (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
---     -- pure $ switch (mci, finalEnv, procLog)
---     -- where
---     -- switch :: (Maybe CallItem, Env, Log) -> Leadg
---     -- switch (mci, e, l) =
---     --     trace ("final: " ++ show l) $ case mci of
---     --         -- Just ci | "default" == ciName ci -> nonLead script hi
---     --         _                                -> leadFromg mci (e, l) script hi
-
-
 runProcM :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 runProcM script mgr env hi = do
-  --   let course :: ProcM CallItem = courseFrom script
-  --       list = runMaybeT course
-  -- -- see if runProcM api stabilizes more, then testOutsideWorld
-  -- -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
-  -- -- │ Location  │ Cause                                │ Result                  │
-  -- -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
-  -- -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checking: goal: handled by alex/happy or type checker
-  -- -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │
-  -- -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │
-  -- -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
-  -- -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
-  --
-  --   (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
-  --   pure $ switch (mci, finalEnv, procLog)
-
-
-    let course :: ProcM CallItem = courseFromg script
+    let course :: ProcM CallItem = courseFrom script
         list = runMaybeT course
     (mci, finalEnv, procLog) <- Tf.runRWST list mgr env
     pure $ switch (mci, finalEnv, procLog)
+
+  -- -- ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
+  -- -- │ Location  │ Cause                                │ Result                  │
+  -- -- ├───────────┼──────────────────────────────────────┼─────────────────────────┤
+  -- -- │ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checked: handled by alex/happy
+  -- -- │ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │ checked: some handled on the spot, some returned
+  -- -- │ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │ checked: exceptions if any will be falsified
+  -- -- │ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
+  -- -- └───────────┴──────────────────────────────────────┴─────────────────────────┘
+
     where
     switch :: (Maybe CallItem, Env, Log) -> Lead
     switch (mci, e, l) =
@@ -247,32 +195,34 @@ runProcM script mgr env hi = do
             -- Just ci | "default" == ciName ci -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), echoScript = Nothing, ghostInfo = hi }
             -- _                                -> mkLead { gfirstFailing = mci, ginterpreterInfo = (e, l), echoScript = Nothing, ghostInfo = hi }
 
--- Env is modified, Log appended throughout the body of `courseFrom`.
+-- Env is modified, Log appended throughout the body of course construction.
 --
 -- A failing CallItem is not always found, we encode None/Nothing
 -- value with defaultCallItem to simplify code.
 --
--- emptyHanded :: ProcM CallItem
--- emptyHanded = pure defaultCallItem
-emptyHandedg :: ProcM CallItem
-emptyHandedg = pure defaultCallItemg
+emptyHanded :: ProcM CallItem
+emptyHanded = pure defaultCallItem
 
-courseFromg :: Script -> ProcM CallItem
-courseFromg x = do
+-- Exceptions:  when running ProcM
+-- offline HttpExceptionRequest  -handling->  print
+-- http client lib internal error  -handling->  halt (graceful if free)
+courseFrom :: Script -> ProcM CallItem
+courseFrom x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
     mgr <- ask
     go mgr (callItems x)
 
     where
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
-    go _ [] = emptyHandedg
+    go _ [] = emptyHanded
     go mgr (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
         env <- get
-        req <- liftIO $ buildRequestg env ci
+        reqOrThrow <- liftIO $ buildRequest env ci
 
         -- Unhandled offline HttpExceptionRequest.
-        eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
+        -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
+        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
@@ -284,7 +234,7 @@ courseFromg x = do
                 -- Captures.
                 -- env is already fetched above.
 
-                let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
+                let !initialEnv = HM.insert "RESP_BODY" (validJsonBody reqOrThrow gotResp) env
 
                 let mrs = ciResponseSpec ci
                 (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
@@ -305,13 +255,12 @@ courseFromg x = do
 
     -- Exceptions:
     -- request construction retry error
-    buildRequestg :: Env -> CallItem -> IO Http.Request
-    -- ??: handle payload
-    buildRequestg env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt } } = do
+    buildRequest :: Env -> CallItem -> IO Http.Request
+    buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt } } = do
         case opt of
-            Just r -> pure r
+            Just r -> pure (trace "buildRequest..." r)
             _ ->
-                -- ??: if something smarter exists, do it here to save the CallItem
+                -- ??: env didn't exist during alex phase so maybe requestStruct will succeed here with env, allow env to contain directives/defaults
                 undefined
 
     -- Reduce captures to Env extensions.
@@ -331,120 +280,120 @@ courseFromg x = do
 
 -- Course is procedure in a stack form that will return the CallItem
 -- that turned out to be failing.
-courseFrom :: Script -> ProcM CallItem
-courseFrom x = do
-    lift $ Tf.tell [ScriptStart (length $ callItems x)]
-    mgr <- ask
-    go mgr (callItems x)
-
-    where
-    go :: Http.Manager -> [CallItem] -> ProcM CallItem
-    go _ [] = emptyHandedg
-    go mgr (ci:rest) = do
-        lift $ Tf.tell [ItemStart (ciName ci)]
-        env <- get
-        req <- liftIO $ buildRequest env ci
-
-        -- Unhandled offline HttpExceptionRequest.
-        eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
-        case eitherResp of
-            Left e -> do
-                -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
-                -- ??
-                lift $ Tf.tell [HttpError (show e)]
-                pure ci
-            Right gotResp -> do
-                lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
-                -- Captures.
-                -- env is already fetched above.
-
-                let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
-
-                let mrs = ciResponseSpec ci
-                (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
-
-                lift $ Tf.tell captureLog
-
-                -- Unless null Captures:
-                modify upsertCaptures
-
-                res <- liftIO $ assertsAreOk initialEnv gotResp mrs
-                case res of
-                    False -> do
-                        lift $ Tf.tell [AssertsFailed]
-                        pure ci
-                    _ -> do
-                        lift $ Tf.tell [AssertsPassed]
-                        go mgr rest
-
-    -- Exceptions:
-    -- url parsing error
-    buildRequest :: Env -> CallItem -> IO Http.Request
-    buildRequest env ci
-        -- Requests without body.
-        | null (payloadg $ ciRequestSpec ci) = do
-            struct <- requestStructOrThrow
-
-            renderedHeaders <- renderHeaders (headersg $ ciRequestSpec ci)
-
-            pure $
-                Http.setRequestHeaders renderedHeaders $
-                Http.setMethod (asMethod (method $ ciRequestSpec ci))
-                struct
-
-        -- Requests with json body.
-        | otherwise = do
-            struct <- requestStructOrThrow
-            -- Render payloads.
-            rb <- stringRender (payloadg $ ciRequestSpec ci)
-
-            pure $
-                Http.setRequestBody (trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)) $
-                Http.setRequestHeaders [headerJson] $
-                Http.setMethod (asMethod (method $ ciRequestSpec ci))
-                struct
-
-        where
-        renderHeaders :: RhsDict -> IO [(HeaderName, BS.ByteString)]
-        renderHeaders (RhsDict bindings) = do
-            traverseKV bindings $
-                \(k :: String) (v :: [BEL.Part]) -> do
-                    av <- BEL.render env (Aeson.String "") v
-                    pure (CaseInsensitive.mk (BS.pack k), asBS av)
-
-        requestStructOrThrow :: IO Http.Request
-        requestStructOrThrow = do
-        -- ??
-            rendered <- stringRender (lexedUrl $ ciRequestSpec ci)
-            Http.parseRequest rendered
-
-        stringRender :: String -> IO String
-        stringRender s = do
-
-            rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
-
-            pure $ stringOrMt rendered
-
-        stringOrMt :: Aeson.Value -> String
-        stringOrMt v = Text.unpack $ textOrMt v
-
-        rawPayload :: String -> Http.RequestBody
-        rawPayload s = Http.lbsBody $ L8.pack s
-
-    -- Reduce captures to Env extensions.
-    evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-    evalCaptures (env, mrs) = do
-        let (RhsDict bindings) = case mrs of
-                Nothing -> RhsDict HM.empty
-                Just rs -> captures rs
-            initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
-        (ext, finalLog) <- foldlWithKeyM'
-            (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-                v <- BEL.render acc (Aeson.String "") bV
-                pure (HM.insert bK v acc, logs ++ [Captured bK]))
-            (env, initialLog)
-            bindings
-        pure (const ext, finalLog)
+-- courseFrom :: Script -> ProcM CallItem
+-- courseFrom x = do
+--     lift $ Tf.tell [ScriptStart (length $ callItems x)]
+--     mgr <- ask
+--     go mgr (callItems x)
+--
+--     where
+--     go :: Http.Manager -> [CallItem] -> ProcM CallItem
+--     go _ [] = emptyHanded
+--     go mgr (ci:rest) = do
+--         lift $ Tf.tell [ItemStart (ciName ci)]
+--         env <- get
+--         req <- liftIO $ buildRequestk env ci
+--
+--         -- Unhandled offline HttpExceptionRequest.
+--         eitherResp <- liftIO ((try (Http.httpLbs req mgr)) :: IO (Either Http.HttpException Http.Response))
+--         case eitherResp of
+--             Left e -> do
+--                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
+--                 -- ??
+--                 lift $ Tf.tell [HttpError (show e)]
+--                 pure ci
+--             Right gotResp -> do
+--                 lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
+--                 -- Captures.
+--                 -- env is already fetched above.
+--
+--                 let !initialEnv = HM.insert "RESP_BODY" (validJsonBody req gotResp) env
+--
+--                 let mrs = ciResponseSpec ci
+--                 (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
+--
+--                 lift $ Tf.tell captureLog
+--
+--                 -- Unless null Captures:
+--                 modify upsertCaptures
+--
+--                 res <- liftIO $ assertsAreOk initialEnv gotResp mrs
+--                 case res of
+--                     False -> do
+--                         lift $ Tf.tell [AssertsFailed]
+--                         pure ci
+--                     _ -> do
+--                         lift $ Tf.tell [AssertsPassed]
+--                         go mgr rest
+--
+--     -- Exceptions:
+--     -- url parsing error
+--     buildRequestk :: Env -> CallItem -> IO Http.Request
+--     buildRequestk env ci
+--         -- Requests without body.
+--         | null (payload $ ciRequestSpec ci) = do
+--             struct <- requestStructOrThrow
+--
+--             renderedHeaders <- renderHeaders (headers $ ciRequestSpec ci)
+--
+--             pure $
+--                 Http.setRequestHeaders renderedHeaders $
+--                 Http.setMethod (asMethod (method $ ciRequestSpec ci))
+--                 struct
+--
+--         -- Requests with json body.
+--         | otherwise = do
+--             struct <- requestStructOrThrow
+--             -- Render payloads.
+--             rb <- stringRender (payload $ ciRequestSpec ci)
+--
+--             pure $
+--                 Http.setRequestBody (trace ("rawPayload\t" ++ rb ++ ";") (rawPayload rb)) $
+--                 Http.setRequestHeaders [headerJson] $
+--                 Http.setMethod (asMethod (method $ ciRequestSpec ci))
+--                 struct
+--
+--         where
+--         renderHeaders :: RhsDict -> IO [(HeaderName, BS.ByteString)]
+--         renderHeaders (RhsDict bindings) = do
+--             traverseKV bindings $
+--                 \(k :: String) (v :: [BEL.Part]) -> do
+--                     av <- BEL.render env (Aeson.String "") v
+--                     pure (CaseInsensitive.mk (BS.pack k), asBS av)
+--
+--         requestStructOrThrow :: IO Http.Request
+--         requestStructOrThrow = do
+--         -- ??
+--             rendered <- stringRender (lexedUrl $ ciRequestSpec ci)
+--             Http.parseRequest rendered
+--
+--         stringRender :: String -> IO String
+--         stringRender s = do
+--
+--             rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
+--
+--             pure $ stringOrMt rendered
+--
+--         stringOrMt :: Aeson.Value -> String
+--         stringOrMt v = Text.unpack $ textOrMt v
+--
+--         rawPayload :: String -> Http.RequestBody
+--         rawPayload s = Http.lbsBody $ L8.pack s
+--
+--     -- Reduce captures to Env extensions.
+--     evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
+--     evalCaptures (env, mrs) = do
+--         let (RhsDict bindings) = case mrs of
+--                 Nothing -> RhsDict HM.empty
+--                 Just rs -> captures rs
+--             initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+--         (ext, finalLog) <- foldlWithKeyM'
+--             (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+--                 v <- BEL.render acc (Aeson.String "") bV
+--                 pure (HM.insert bK v acc, logs ++ [Captured bK]))
+--             (env, initialLog)
+--             bindings
+--         pure (const ext, finalLog)
 
 --------------------------------------------------------------------------------
 -- hh200 modes
@@ -475,6 +424,15 @@ testRps _ = do
     connect "timeseries.db"
     pure ()
 
+testShotgun :: Int -> Script -> IO ()
+testShotgun n checked = do
+    hi <- gatherHostInfo
+    bracket (Http.newManager (effectiveTls checked)) Http.closeManager $ \with -> do
+        let msg = "testShotgun: checked=" ++ show checked
+        -- _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
+        --     runProcM checked with HM.empty hi
+        pure ()
+
 -- Limit concurrency with QSemN
 mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
 mapConcurrentlyBounded n actions = do
@@ -484,15 +442,6 @@ mapConcurrentlyBounded n actions = do
                           (signalQSemN sem 1)
                           act)
         actions
-
-testShotgun :: Int -> Script -> IO ()
-testShotgun n checked = do
-    hi <- gatherHostInfo
-    bracket (Http.newManager (effectiveTls checked)) Http.closeManager $ \with -> do
-        let msg = "testShotgun: checked=" ++ show checked
-        -- _ <- trace msg $ mapConcurrentlyBounded n $ replicate n $
-        --     runProcM checked with HM.empty hi
-        pure ()
 
 
 --------------------------------------------------------------------------------
