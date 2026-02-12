@@ -1,12 +1,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- ??: exhaustive list of load-profile fields: ramp, max-rps, delay
+-- testOutsideWorld    degenerative
+-- testShotgun
+-- testRps             typical
+--
+-- let config = TokenBucketConfig { capacity = 1, refillRate = 0 }
+-- let config = TokenBucketConfig { capacity = 5, refillRate = 2 }
 
 module Hh200.TokenBucketWorkerPool (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async, waitAnyCancel, Async)
--- import Control.Concurrent.Async
 import Control.Concurrent.STM (TVar, STM, TQueue, atomically, newTQueueIO, writeTQueue, readTQueue, newTVar, readTVar, writeTVar, check)
 -- import Control.Monad (forever, mapM_)
 import Control.Monad (forever)
