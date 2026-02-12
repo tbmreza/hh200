@@ -1,4 +1,6 @@
-GET http://httpbin.org/headers
+# GET http://httpbin.org/headers
+# GET http://localhost:9999/api/echo
+GET http://127.0.0.1:9999/api/echo
 Accept: application/json
 X-Custom-Header: my-value
 HTTP 200

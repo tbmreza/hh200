@@ -284,18 +284,17 @@ diagnostics input =
             let pos = extractPos err
             in pure [(pos, "Lexical error: " ++ err)]
         Right tokens -> do
-            undefined
-            -- res <- runExceptT (parse tokens)
-            -- case res of
-            --     Right _ -> pure []
-            --     Left (err, errTokens) ->
-            --         pure $ case errTokens of
-            --             (t:_) ->
-            --                 let (AlexPn _ line col) = getPos t
-            --                 in [((line, col), err)]
-            --             [] ->
-            --                 -- Error at EOF or empty tokens list
-            --                 [((1, 1), err)]
+            res <- runExceptT (parse tokens)
+            case res of
+                Right _ -> pure []
+                Left (err, errTokens) ->
+                    pure $ case errTokens of
+                        (t:_) ->
+                            let (AlexPn _ line col) = getPos t
+                            in [((line, col), err)]
+                        [] ->
+                            -- Error at EOF or empty tokens list
+                            [((1, 1), err)]
 
     where
     extractPos :: String -> (Int, Int)

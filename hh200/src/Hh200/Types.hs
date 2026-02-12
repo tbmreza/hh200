@@ -113,17 +113,10 @@ type Log = [TraceEvent]
 data ScriptKind = Regular | Static | Sole
     deriving (Show, Eq)
 
--- data Scriptg = Scriptg
---   { kindg :: ScriptKind
---   , configg :: ScriptConfig
---   , callItemsg :: [CallItem]
---   } deriving (Show)
-
 data Script = Script
   { kind :: ScriptKind
   , config :: ScriptConfig
   , callItems :: [CallItem]
-  -- } deriving (Show, Eq)
   } deriving (Show)
 
 -- ??: ScriptConfig definition and its derivatives mean very little until some

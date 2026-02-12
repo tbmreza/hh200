@@ -288,6 +288,10 @@ testOutsideWorld script = do
             Http.closeManager $
             \mgr -> conduct script mgr HM.empty
 
+-- plan:
+-- PICKUP hhs tests --> solid conduct in singular testOutsideWorld
+-- tbwp --> general (i.e. testOutsideWorld and testShotgun) conduct sig
+-- ??? --> load-testing-tool
 testShotgun :: Int -> Script -> IO ()
 testShotgun n script = do
     bracket (Http.newManager (effectiveTls script))

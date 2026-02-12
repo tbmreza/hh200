@@ -1,4 +1,5 @@
-# ??: where do Script's CallItem and Asserts block part ways, with goal of deciding whether including Asserts in pretty print is possible or not
+# present full ast (Asserts block)
+# specify "found an unmet expectation" (catch offline exception)
 POST http://localhost:9999/api/echo
 {
   "foo": "bar",
