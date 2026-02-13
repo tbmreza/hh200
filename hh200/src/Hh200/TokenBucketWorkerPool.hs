@@ -7,11 +7,11 @@ module Hh200.TokenBucketWorkerPool
   , RateLimiterStats(..)
   , initRateLimiter
   , waitAndConsumeToken
-  , getStats
-
-    -- * Worker Pool
-  , Job(..)
-  , worker
+  -- , getStats
+  --
+  --   -- * Worker Pool
+  -- , Job(..)
+  -- , worker
   ) where
 
 import Control.Concurrent (threadDelay)
