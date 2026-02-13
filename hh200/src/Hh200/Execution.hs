@@ -54,7 +54,7 @@ import           Hh200.TokenBucketWorkerPool (RateLimiter, RateLimiterConfig(..)
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
   { ecManager     :: Http.Manager
-  , ecRateLimiter :: Maybe RateLimiter
+  -- , ecRateLimiter :: Maybe RateLimiter
   }
 
 -- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
@@ -78,15 +78,6 @@ defaultCallItem = CallItem
     , payload = ""
     }
   , ciResponseSpec = Nothing
-  }
-
-mkLead :: Lead
-mkLead = Lead
-  { leadKind = Non
-  , firstFailing = Nothing
-  , hostInfo = defaultHostInfo
-  , interpreterInfo = (HM.empty, [])
-  , echoScript = Nothing
   }
 
 nonLead :: Script -> HostInfo -> Lead
@@ -225,10 +216,10 @@ courseFrom x = do
     go ctx (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
         
-        -- Individual CallItem Rate Limiting
-        case ecRateLimiter ctx of
-            Nothing -> pure ()
-            Just rl -> liftIO $ waitAndConsumeToken rl
+        -- -- Individual CallItem Rate Limiting  ??: is too fine-grain and not what we want
+        -- case ecRateLimiter ctx of
+        --     Nothing -> pure ()
+        --     Just rl -> liftIO $ waitAndConsumeToken rl
 
         env <- get
         reqOrThrow <- liftIO $ buildRequest env ci
@@ -323,10 +314,11 @@ testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
     bracket (Http.newManager (effectiveTls script))
             Http.closeManager $
-            \mgr -> conduct script (ExecContext mgr Nothing) HM.empty
+            -- \mgr -> conduct script (ExecContext mgr Nothing) HM.empty
+            \mgr -> conduct script (ExecContext mgr) HM.empty
 
 -- plan:
--- PICKUP hhs tests --> solid conduct in singular testOutsideWorld
+-- hhs tests --> solid conduct in singular testOutsideWorld
 -- tbwp --> general (i.e. testOutsideWorld and testShotgun) conduct sig
 -- ??? --> load-testing-tool
 testShotgun :: Int -> Script -> IO ()
@@ -335,7 +327,8 @@ testShotgun n script = do
             Http.closeManager $
             \mgr -> do
                 putStrLn $ "# testShotgun: n=" ++ show n
-                _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr Nothing) HM.empty)
+                -- _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr Nothing) HM.empty)
+                _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr) HM.empty)
                 pure ()
 
     where
@@ -361,7 +354,8 @@ testRps rpsVal concurrency script = do
             Http.closeManager $
             \mgr -> do
                 rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
-                let ctx = ExecContext mgr (Just rl)
+                -- let ctx = ExecContext mgr (Just rl)
+                let ctx = ExecContext mgr
                 putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
                 replicateConcurrently_ concurrency $ forever $ do
                     void $ runProcM script ctx HM.empty

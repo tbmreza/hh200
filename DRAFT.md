@@ -33,6 +33,7 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
+hh200-docs: STM-based workers
 
 ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
 │ Location  │ Cause                                │ Result                  │

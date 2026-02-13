@@ -178,6 +178,15 @@ data Lead = Lead
   , echoScript ::      Maybe Script
   } deriving (Show)
 
+mkLead :: Lead
+mkLead = Lead
+  { leadKind = Non
+  , firstFailing = Nothing
+  , hostInfo = defaultHostInfo
+  , interpreterInfo = (HM.empty, [])
+  , echoScript = Nothing
+  }
+
 data InternalError = OutOfBounds
                    | Todo
     deriving (Show, Eq)

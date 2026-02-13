@@ -1,5 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- poison pill stops a worker gracefully
+-- token bucket specifies capacity and refill rate
+
 module Hh200.TokenBucketWorkerPool
   ( -- * Rate Limiter
     RateLimiter
@@ -10,16 +13,50 @@ module Hh200.TokenBucketWorkerPool
   , waitAndConsumeToken
 
     -- * Worker Pool
-  , Job(..)
-  , worker
+  -- , Job(..)
+  -- , worker
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async, cancel, Async)
-import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+-- import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+import           Control.Concurrent.STM
 import Control.Exception (bracket)
 import Control.Monad (forever)
 import Text.Printf (printf)
+import           Hh200.Types
+
+-- A Job consumes as many tokens as the number of CallItems a Script contains.
+type Job = Maybe Script
+
+worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> IO ()  -- ??: IO Lead
+worker vu jobChan (bucket, globalShutdown) = do
+    action <- atomically $ do
+        job <- readTChan jobChan
+        case job of
+            Nothing -> do
+                -- cleanup...
+                pure ()
+            Just script -> do
+                -- () <- processTask VUState script
+                pure ()
+        -- pure (processTask)
+
+    case action of
+        () -> putStrLn $ "Worker " ++ show (workerId vu) ++ " shutting down."
+        _ -> worker vu jobChan (bucket, globalShutdown)
+
+-- runRWST (runMaybeT course) ctx env
+-- runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)
+-- conduct ::  Script -> ExecContext -> Env -> IO Lead
+processTask :: VUState -> Script -> IO ()
+processTask vu script = putStrLn $ "Worker x finished a task"
+
+data VUState = VUState
+  { workerId :: Int
+  }
+
+
 
 -- | Configuration for the Rate Limiter
 data RateLimiterConfig = RateLimiterConfig
@@ -90,15 +127,15 @@ getStats rl = do
         }
 
 -- | A generic job representation
-data Job = Job
+data Jib = Jib
     { jobAction :: IO ()
     , jobId     :: Int
     }
 
 -- | Worker: pulls jobs from queue, consumes a rate-limiter token, runs the job.
 -- Exits cleanly on 'Nothing' (poison pill).
-worker :: Int -> TQueue (Maybe Job) -> RateLimiter -> IO ()
-worker wId queue rl = go
+workir :: Int -> TQueue (Maybe Jib) -> RateLimiter -> IO ()
+workir wId queue rl = go
   where
   go = do
     mjob <- atomically $ readTQueue queue
