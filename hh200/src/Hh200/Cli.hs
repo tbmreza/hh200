@@ -102,11 +102,11 @@ go Args { call = True, source = Just snip } =
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
-go Args { rps = True, source = Just path } = do
+go Args { rps = True, shotgun = n, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just s  -> testRps s
+        Just s  -> testRps 10 n s
 
 -- Shotgun.
 -- hh200 flow.hhs --shotgun=4

@@ -5,9 +5,8 @@ module Hh200.TokenBucketWorkerPool
     RateLimiter
   , RateLimiterConfig(..)
   , RateLimiterStats(..)
-  , newRateLimiter
+  , initRateLimiter
   , waitAndConsumeToken
-  , runRefill
   , getStats
 
     -- * Worker Pool
@@ -16,8 +15,8 @@ module Hh200.TokenBucketWorkerPool
   ) where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async (async, waitAnyCancel, Async)
-import Control.Concurrent.STM (TVar, STM, TQueue, atomically, newTQueueIO, writeTQueue, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+import Control.Concurrent.Async (async, Async)
+import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
 import Control.Monad (forever)
 import Data.Time.Clock (getCurrentTime)
 import System.Random (randomRIO)
@@ -31,9 +30,10 @@ data RateLimiterConfig = RateLimiterConfig
 
 -- | Token Bucket Rate Limiter
 data RateLimiter = RateLimiter
-  { rlTokens   :: TVar Int
-  , rlConfig   :: RateLimiterConfig
-  , rlConsumed :: TVar Integer -- ^ Total tokens consumed for monitoring
+  { rlTokens      :: TVar Int
+  , rlConfig      :: RateLimiterConfig
+  , rlConsumed    :: TVar Integer -- ^ Total tokens consumed for monitoring
+  , rlRefillAsync :: Async ()
   }
 
 -- | Statistics for monitoring
@@ -43,21 +43,18 @@ data RateLimiterStats = RateLimiterStats
   , capacity      :: Int
   } deriving (Show, Eq)
 
--- | Create a new rate limiter starting with full capacity
-newRateLimiter :: RateLimiterConfig -> STM RateLimiter
-newRateLimiter config = do
-    t <- newTVar (bucketCapacity config)
-    c <- newTVar 0
-    pure $ RateLimiter t config c
-
--- | Refill the bucket periodically according to config
-runRefill :: RateLimiter -> IO ()
-runRefill rl = forever $ do
-    threadDelay 1000000 -- 1 second
-    atomically $ do
-        current <- readTVar (rlTokens rl)
-        let newValue = min (bucketCapacity (rlConfig rl)) (current + refillRate (rlConfig rl))
-        writeTVar (rlTokens rl) newValue
+-- | Initialize a new rate limiter and start the refill thread
+initRateLimiter :: RateLimiterConfig -> IO RateLimiter
+initRateLimiter config = do
+    tokens <- atomically $ newTVar (bucketCapacity config)
+    consumed <- atomically $ newTVar 0
+    refillAsync <- async $ forever $ do
+        threadDelay 1000000 -- 1 second
+        atomically $ do
+            current <- readTVar tokens
+            let newValue = min (bucketCapacity config) (current + refillRate config)
+            writeTVar tokens newValue
+    pure $ RateLimiter tokens config consumed refillAsync
 
 -- | Consume a token, blocking if unavailable
 waitAndConsumeToken :: RateLimiter -> IO ()

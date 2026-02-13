@@ -17,11 +17,11 @@ import Debug.Trace
 
 import           Control.Concurrent.QSemN
 import           Control.Exception        (bracket, bracket_, try, SomeException)
-import           Control.Concurrent.Async (mapConcurrently)
+import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
-import           Control.Monad (foldM, forM, mzero)
+import           Control.Monad (foldM, forM, mzero, forever, void)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import           Data.Maybe (fromMaybe)
@@ -49,7 +49,7 @@ import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
-import           Hh200.TokenBucketWorkerPool (RateLimiter, waitAndConsumeToken)
+import           Hh200.TokenBucketWorkerPool (RateLimiter, RateLimiterConfig(..), initRateLimiter, waitAndConsumeToken)
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
@@ -327,12 +327,20 @@ testShotgun n script = do
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 -- RPS: rate of individual CallItems
-testRps :: Script -> IO ()
-testRps _ = do
+testRps :: Int -> Int -> Script -> IO ()
+testRps rpsVal concurrency script = do
     -- The web server is lazy: no start if no row is inserted to db.
     -- Inserts every second (or to a second-windowed timeseries data).
     connect "timeseries.db"
-    pure ()
+
+    bracket (Http.newManager (effectiveTls script))
+            Http.closeManager $
+            \mgr -> do
+                rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
+                let ctx = ExecContext mgr (Just rl)
+                putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
+                replicateConcurrently_ concurrency $ forever $ do
+                    void $ runProcM script ctx HM.empty
 
 
 --------------------------------------------------------------------------------
