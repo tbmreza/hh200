@@ -49,10 +49,17 @@ import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
+import           Hh200.TokenBucketWorkerPool (RateLimiter, waitAndConsumeToken)
 
--- Procedure "may" fail early, "reads" a shared http-client manager instance,
+-- | Execution context for a procedure.
+data ExecContext = ExecContext
+  { ecManager     :: Http.Manager
+  , ecRateLimiter :: Maybe RateLimiter
+  }
+
+-- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
 -- "writes" log as it runs, modifies environment "states" while doing IO.
-type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
+type ProcM = MaybeT (Tf.RWST ExecContext Log Env IO)
 
 -- Mechanically, this is a corollary to http-client's defaultRequest.
 --
@@ -173,19 +180,19 @@ expectCodesOrDefault mrs =
 -- | Low-level execution of a script. Returns the failing CallItem (if any), 
 -- the final environment, and the execution log.
 -- Nothing means the script finished successfully.
-runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
-runProcM script mgr env = do
+runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)
+runProcM script ctx env = do
     let course :: ProcM CallItem = courseFrom script
-    Tf.runRWST (runMaybeT course) mgr env
+    Tf.runRWST (runMaybeT course) ctx env
 
 -- | High-level wrapper that orchestrates execution, catches exceptions, 
 -- performs side effects (like tracing), and returns a Lead report.
 -- conduct :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
 -- conduct script mgr env hi = do
-conduct :: Script -> Http.Manager -> Env -> IO Lead
-conduct script mgr env = do
+conduct :: Script -> ExecContext -> Env -> IO Lead
+conduct script ctx env = do
     hi <- gatherHostInfo
-    result <- try (runProcM script mgr env)
+    result <- try (runProcM script ctx env)
     case result of
         Left (e :: SomeException) -> do
             let errLog = [HttpError (show e)]
@@ -209,20 +216,26 @@ emptyHanded = mzero
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
-    mgr <- ask
-    go mgr (callItems x)
+    ctx <- ask
+    go ctx (callItems x)
 
     where
-    go :: Http.Manager -> [CallItem] -> ProcM CallItem
+    go :: ExecContext -> [CallItem] -> ProcM CallItem
     go _ [] = emptyHanded
-    go mgr (ci:rest) = do
+    go ctx (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
+        
+        -- Individual CallItem Rate Limiting
+        case ecRateLimiter ctx of
+            Nothing -> pure ()
+            Just rl -> liftIO $ waitAndConsumeToken rl
+
         env <- get
         reqOrThrow <- liftIO $ buildRequest env ci
 
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
-        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
+        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow (ecManager ctx))) :: IO (Either Http.HttpException Http.Response))
         case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
@@ -251,7 +264,7 @@ courseFrom x = do
                         pure ci
                     _ -> do
                         lift $ Tf.tell [AssertsPassed]
-                        go mgr rest
+                        go ctx rest
 
     -- Exceptions:
     -- request construction retry error
@@ -286,7 +299,7 @@ testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
     bracket (Http.newManager (effectiveTls script))
             Http.closeManager $
-            \mgr -> conduct script mgr HM.empty
+            \mgr -> conduct script (ExecContext mgr Nothing) HM.empty
 
 -- plan:
 -- PICKUP hhs tests --> solid conduct in singular testOutsideWorld
@@ -298,7 +311,7 @@ testShotgun n script = do
             Http.closeManager $
             \mgr -> do
                 putStrLn $ "# testShotgun: n=" ++ show n
-                _ <- mapConcurrentlyBounded n $ replicate n (runProcM script mgr HM.empty)
+                _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr Nothing) HM.empty)
                 pure ()
 
     where
@@ -313,6 +326,7 @@ testShotgun n script = do
             actions
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
+-- RPS: rate of individual CallItems
 testRps :: Script -> IO ()
 testRps _ = do
     -- The web server is lazy: no start if no row is inserted to db.
