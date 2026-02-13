@@ -295,6 +295,30 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
+-- | Gentle rate limit for sequential, single-VU execution.
+-- Prevents accidental floods during development/debugging.
+outsideWorldConfig :: RateLimiterConfig
+outsideWorldConfig = RateLimiterConfig
+  { bucketCapacity = 10   -- small burst headroom
+  , refillRate     = 5    -- 5 rps sustained
+  }
+
+-- | Higher throughput for concurrent stress testing.
+-- Capacity matches concurrency so all VUs can fire immediately on startup.
+shotgunConfig :: Int -> RateLimiterConfig
+shotgunConfig n = RateLimiterConfig
+  { bucketCapacity = n     -- one token per VU
+  , refillRate     = n * 2 -- sustain at 2x concurrency
+  }
+
+-- | Precise rate control for load testing with monitoring.
+-- Already parameterized — this names the existing pattern from testRps.
+rpsConfig :: Int -> RateLimiterConfig
+rpsConfig rate = RateLimiterConfig
+  { bucketCapacity = rate  -- matches rate for 1s burst tolerance
+  , refillRate     = rate
+  }
+
 testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
     bracket (Http.newManager (effectiveTls script))

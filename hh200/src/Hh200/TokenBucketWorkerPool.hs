@@ -4,22 +4,21 @@ module Hh200.TokenBucketWorkerPool
   ( -- * Rate Limiter
     RateLimiter
   , RateLimiterConfig(..)
-  , RateLimiterStats(..)
   , initRateLimiter
+  , destroyRateLimiter
+  , withRateLimiter
   , waitAndConsumeToken
-  -- , getStats
-  --
-  --   -- * Worker Pool
-  -- , Job(..)
-  -- , worker
+
+    -- * Worker Pool
+  , Job(..)
+  , worker
   ) where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async (async, Async)
+import Control.Concurrent.Async (async, cancel, Async)
 import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+import Control.Exception (bracket)
 import Control.Monad (forever)
-import Data.Time.Clock (getCurrentTime)
-import System.Random (randomRIO)
 import Text.Printf (printf)
 
 -- | Configuration for the Rate Limiter
@@ -43,18 +42,33 @@ data RateLimiterStats = RateLimiterStats
   , capacity      :: Int
   } deriving (Show, Eq)
 
--- | Initialize a new rate limiter and start the refill thread
+-- | Initialize a new rate limiter and start the refill thread.
+-- Refills are spread across sub-second intervals for smoother rate limiting.
+-- Use 'destroyRateLimiter' or 'withRateLimiter' to ensure the refill thread
+-- is cancelled when done.
 initRateLimiter :: RateLimiterConfig -> IO RateLimiter
 initRateLimiter config = do
     tokens <- atomically $ newTVar (bucketCapacity config)
     consumed <- atomically $ newTVar 0
+    let (intervalUs, tokensPerTick)
+          | refillRate config >= 10 = (100000, refillRate config `div` 10)
+          | refillRate config > 0   = (1000000 `div` refillRate config, 1)
+          | otherwise               = (1000000, 0) -- rate=0: no refill
     refillAsync <- async $ forever $ do
-        threadDelay 1000000 -- 1 second
+        threadDelay intervalUs
         atomically $ do
             current <- readTVar tokens
-            let newValue = min (bucketCapacity config) (current + refillRate config)
+            let newValue = min (bucketCapacity config) (current + tokensPerTick)
             writeTVar tokens newValue
     pure $ RateLimiter tokens config consumed refillAsync
+
+-- | Cancel the refill thread. Safe to call multiple times.
+destroyRateLimiter :: RateLimiter -> IO ()
+destroyRateLimiter = cancel . rlRefillAsync
+
+-- | Bracket-style rate limiter lifecycle.
+withRateLimiter :: RateLimiterConfig -> (RateLimiter -> IO a) -> IO a
+withRateLimiter config = bracket (initRateLimiter config) destroyRateLimiter
 
 -- | Consume a token, blocking if unavailable
 waitAndConsumeToken :: RateLimiter -> IO ()
@@ -81,9 +95,17 @@ data Job = Job
     , jobId     :: Int
     }
 
--- | Worker function: Picks jobs from queue, waits for token, processes job
-worker :: Int -> TQueue Job -> RateLimiter -> IO ()
-worker wId queue rl = forever $ do
-    job <- atomically $ readTQueue queue
-    waitAndConsumeToken rl
-    jobAction job
+-- | Worker: pulls jobs from queue, consumes a rate-limiter token, runs the job.
+-- Exits cleanly on 'Nothing' (poison pill).
+worker :: Int -> TQueue (Maybe Job) -> RateLimiter -> IO ()
+worker wId queue rl = go
+  where
+  go = do
+    mjob <- atomically $ readTQueue queue
+    case mjob of
+      Nothing  -> printf "Worker %d: shutting down\n" wId
+      Just job -> do
+        waitAndConsumeToken rl
+        printf "Worker %d: job %d\n" wId (jobId job)
+        jobAction job
+        go
