@@ -1,20 +1,28 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
   ( testShotgun
   , testOutsideWorld
+  -- , testSimple  -- ??: no modes/producers should live in Hh200.Execution
   , testRps
+
+  , runScriptM
   , runProcM
   , conduct
   , assertsAreOk
   , validJsonBody
   , ProcM
   , status200
+  -- , mkExecContext
+  , ExecContext(..)
   ) where
 
 import Debug.Trace
 
+import           Control.Concurrent
+import           Control.Concurrent.STM
 import           Control.Concurrent.QSemN
 import           Control.Exception        (bracket, bracket_, try, SomeException)
 import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
@@ -22,6 +30,7 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 import           Control.Monad (foldM, forM, mzero, forever, void)
+import           Control.Monad (forM_, replicateM, replicateM_, when)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import           Data.Maybe (fromMaybe)
@@ -49,13 +58,17 @@ import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
-import           Hh200.TokenBucketWorkerPool (RateLimiter, RateLimiterConfig(..), initRateLimiter, waitAndConsumeToken)
+-- import           Hh200.TokenBucketWorkerPool (RateLimiter, RateLimiterConfig(..), initRateLimiter, waitAndConsumeToken)
+-- import           Hh200.TokenBucketWorkerPool
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
   { ecManager     :: Http.Manager
   -- , ecRateLimiter :: Maybe RateLimiter
   }
+
+-- mkExecContext :: ExecContext
+-- mkExecContext 
 
 -- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
 -- "writes" log as it runs, modifies environment "states" while doing IO.
@@ -167,6 +180,11 @@ expectCodesOrDefault mrs =
             [] -> [status200]
             expectCodes -> expectCodes
 
+runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
+runScriptM script env = do
+    let course :: ProcM CallItem = courseFrom script
+    let ctx = undefined
+    Tf.runRWST (runMaybeT course) ctx env
 
 -- | Low-level execution of a script. Returns the failing CallItem (if any), 
 -- the final environment, and the execution log.
@@ -286,29 +304,57 @@ courseFrom x = do
 -- hh200 modes
 --------------------------------------------------------------------------------
 
--- | Gentle rate limit for sequential, single-VU execution.
--- Prevents accidental floods during development/debugging.
-outsideWorldConfig :: RateLimiterConfig
-outsideWorldConfig = RateLimiterConfig
-  { bucketCapacity = 10   -- small burst headroom
-  , refillRate     = 5    -- 5 rps sustained
-  }
+-- -- | Gentle rate limit for sequential, single-VU execution.
+-- -- Prevents accidental floods during development/debugging.
+-- outsideWorldConfig :: RateLimiterConfig
+-- outsideWorldConfig = RateLimiterConfig
+--   { bucketCapacity = 10   -- small burst headroom
+--   , refillRate     = 5    -- 5 rps sustained
+--   }
 
--- | Higher throughput for concurrent stress testing.
--- Capacity matches concurrency so all VUs can fire immediately on startup.
-shotgunConfig :: Int -> RateLimiterConfig
-shotgunConfig n = RateLimiterConfig
-  { bucketCapacity = n     -- one token per VU
-  , refillRate     = n * 2 -- sustain at 2x concurrency
-  }
+-- -- | Higher throughput for concurrent stress testing.
+-- -- Capacity matches concurrency so all VUs can fire immediately on startup.
+-- shotgunConfig :: Int -> RateLimiterConfig
+-- shotgunConfig n = RateLimiterConfig
+--   { bucketCapacity = n     -- one token per VU
+--   , refillRate     = n * 2 -- sustain at 2x concurrency
+--   }
 
--- | Precise rate control for load testing with monitoring.
--- Already parameterized — this names the existing pattern from testRps.
-rpsConfig :: Int -> RateLimiterConfig
-rpsConfig rate = RateLimiterConfig
-  { bucketCapacity = rate  -- matches rate for 1s burst tolerance
-  , refillRate     = rate
-  }
+-- -- | Precise rate control for load testing with monitoring.
+-- -- Already parameterized — this names the existing pattern from testRps.
+-- rpsConfig :: Int -> RateLimiterConfig
+-- rpsConfig rate = RateLimiterConfig
+--   { bucketCapacity = rate  -- matches rate for 1s burst tolerance
+--   , refillRate     = rate
+--   }
+
+triggerEmergencyShutdown :: TVar Bool -> IO ()
+triggerEmergencyShutdown flag = do
+    putStrLn "🚨 EMERGENCY SHUTDOWN TRIGGERED"
+    atomically $ writeTVar flag True
+
+
+-- -- Globally interruptible worker(s) running Script.
+-- testSimple :: Script -> IO ()
+-- testSimple script = do
+--     -- ??: Script/CallItems can be analyzed to determine the number of workers testSimple can use.
+--     -- A sanity check can assert that if we lowball the Script just takes longer to run.
+--     let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }]
+--     let numWorkers = length orthogonal
+--
+--     bucket <-         newTVarIO 1000  -- ??
+--     globalShutdown <- newTVarIO False
+--     chan <-           newTChanIO  -- stream of Scripts (each containing one or more CallItem)
+--     doneSignals <-    replicateM numWorkers newEmptyMVar
+--
+--     -- Spawn the workers
+--     forM_ (zip orthogonal doneSignals) $ \(vu, sig) ->
+--         forkIO (worker vu chan (bucket, globalShutdown) sig)
+--
+--     -- Just before printing a Lead, other workers exit.
+--
+--     trace "was run" $ forM_ doneSignals takeMVar
+
 
 testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
@@ -353,7 +399,7 @@ testRps rpsVal concurrency script = do
     bracket (Http.newManager (effectiveTls script))
             Http.closeManager $
             \mgr -> do
-                rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
+                -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
                 -- let ctx = ExecContext mgr (Just rl)
                 let ctx = ExecContext mgr
                 putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency

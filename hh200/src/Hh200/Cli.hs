@@ -22,6 +22,11 @@ import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp)
 
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Monad (forM_, replicateM, replicateM_, when)
+import           Hh200.TokenBucketWorkerPool
+
 data Args = Args
   { source :: Maybe String  -- used for both FilePath and Snippet sources
   , version :: Bool
@@ -86,8 +91,14 @@ go Args { lsp = Just port } = runTcp port
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
+--
+-- ??: Producer main thread stub.
 go Args { source = Just path, debugConfig = True } = do
-    trace "nyang ini" undefined
+    let analyzed = Scanner.analyze path
+    m <- runMaybeT analyzed
+    case m of
+        Just script -> trace "here" $ testSimple script
+        _ -> undefined
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -119,6 +130,29 @@ go Args { shotgun = n, call = False, source = Just path } = do
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
+
+-- Globally interruptible worker(s) running Script.
+testSimple :: Script -> IO ()
+testSimple script = do
+    -- ??: Script/CallItems can be analyzed to determine the number of workers testSimple can use.
+    -- A sanity check can assert that if we lowball the Script just takes longer to run.
+    -- let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }, VUState { workerId = 3 }]
+    -- let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }]
+    let orthogonal = [VUState { workerId = 1 }]
+    let numWorkers = length orthogonal
+
+    bucket <-         newTVarIO 1000  -- ??
+    globalShutdown <- newTVarIO False
+    chan <-           newTChanIO  -- stream of Scripts (each containing one or more CallItem)
+    doneSignals <-    replicateM numWorkers newEmptyMVar
+
+    -- Spawn the workers
+    forM_ (zip orthogonal doneSignals) $ \(vu, sig) ->
+        forkIO (worker vu chan (bucket, globalShutdown) sig)
+
+    -- Just before printing a Lead, other workers exit.
+
+    trace "was run in cli" $ forM_ doneSignals takeMVar
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do

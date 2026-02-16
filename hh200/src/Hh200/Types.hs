@@ -226,9 +226,6 @@ gCallItem dc rs opt =
       , ciResponseSpec = opt
       }
 
--- callItemIsDefault :: CallItem -> Bool
--- callItemIsDefault CallItem { ciName } = ciName == "default"
-
 defaultHostInfo :: HostInfo
 defaultHostInfo = HostInfo
   { hiHh200Conf = Nothing

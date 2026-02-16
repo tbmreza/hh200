@@ -275,3 +275,74 @@ HTTP 200
 NNN: 9
 [Asserts]
 > true
+
+opus:
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Monad (forM_, replicateM, replicateM_, when)
+
+data Job = Process Int | Stop
+
+-- | The worker now also monitors a global shutdown TVar.
+-- It uses STM to race between:
+--   1. Reading a job from the channel
+--   2. The globalShutdown flag being set to True
+worker :: Int -> TChan Job -> TVar Bool -> MVar () -> IO ()
+worker id chan globalShutdown done = loop
+  where
+    loop = do
+        result <- atomically $
+            -- Path A: check if emergency shutdown has been triggered
+            (do shutdown <- readTVar globalShutdown
+                check shutdown          -- retries if False
+                return Nothing          -- Nothing = "abort immediately"
+            )
+            `orElse`
+            -- Path B: read a job from the channel as normal
+            (Just <$> readTChan chan)
+
+        case result of
+            Nothing -> do
+                -- Global emergency shutdown detected
+                putStrLn $ "Worker " ++ show id ++ " EMERGENCY shutdown!"
+                putMVar done ()
+
+            Just (Process n) -> do
+                putStrLn $ "Worker " ++ show id ++ " processing: " ++ show n
+                loop  -- keep working
+
+            Just Stop -> do
+                putStrLn $ "Worker " ++ show id ++ " shutting down (pill)."
+                putMVar done ()
+
+
+-- | Trigger emergency shutdown: flip the flag, all workers will see it.
+triggerEmergencyShutdown :: TVar Bool -> IO ()
+triggerEmergencyShutdown flag = do
+    putStrLn "🚨 EMERGENCY SHUTDOWN TRIGGERED"
+    atomically $ writeTVar flag True
+
+
+-- The Producer (Main Thread)
+main :: IO ()
+main = do
+    let numWorkers = 3
+
+    chan            <- newTChanIO
+    globalShutdown <- newTVarIO False
+    doneSignals    <- replicateM numWorkers newEmptyMVar
+
+    -- Spawn the workers
+    forM_ (zip [1..numWorkers] doneSignals) $ \(wid, sig) ->
+        forkIO (worker wid chan globalShutdown sig)
+
+    -- Send some work
+    forM_ [1..10] $ \n -> atomically $ writeTChan chan (Process n)
+
+    -- Simulate: after a brief pause, trigger emergency shutdown
+    threadDelay 100000  -- 100ms
+    triggerEmergencyShutdown globalShutdown
+
+    -- Wait for all workers to confirm they exited
+    forM_ doneSignals takeMVar
+    putStrLn "All workers stopped. Main thread exiting."

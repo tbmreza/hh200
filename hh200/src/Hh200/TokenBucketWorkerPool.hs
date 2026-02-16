@@ -4,20 +4,22 @@
 -- token bucket specifies capacity and refill rate
 
 module Hh200.TokenBucketWorkerPool
-  ( -- * Rate Limiter
-    RateLimiter
+  ( RateLimiter
   , RateLimiterConfig(..)
   , initRateLimiter
   , destroyRateLimiter
   , withRateLimiter
   , waitAndConsumeToken
-
-    -- * Worker Pool
-  -- , Job(..)
-  -- , worker
+  , VUState(..)
+  , worker
   ) where
 
-import Control.Concurrent (threadDelay)
+import Debug.Trace
+
+import qualified Data.HashMap.Strict as HM
+
+-- import Control.Concurrent (threadDelay)
+import Control.Concurrent
 import Control.Concurrent.Async (async, cancel, Async)
 -- import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
 import           Control.Concurrent.STM
@@ -25,26 +27,65 @@ import Control.Exception (bracket)
 import Control.Monad (forever)
 import Text.Printf (printf)
 import           Hh200.Types
+import qualified Hh200.Http as Http
+import           Hh200.Execution
 
 -- A Job consumes as many tokens as the number of CallItems a Script contains.
 type Job = Maybe Script
 
-worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> IO ()  -- ??: IO Lead
-worker vu jobChan (bucket, globalShutdown) = do
-    action <- atomically $ do
-        job <- readTChan jobChan
-        case job of
+-- Here be nested Maybe types: emergency globalShutdown and Job's poison pill.
+worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> MVar () -> IO ()
+worker    vu         jobChan      (bucket, globalShutdown) done =
+    loop where
+    loop = do
+        result <- atomically $
+            -- Path A: check if emergency shutdown has been triggered
+            (trace "sup" $ (do
+                shutdown <- readTVar globalShutdown
+                check shutdown          -- retries if False
+                pure Nothing))
+            `orElse`
+            -- Path B: read a job from the channel as normal
+            (trace "inf" $ (Just <$> readTChan jobChan))
+        case result of
+            -- goal: running runRWST from worker
             Nothing -> do
-                -- cleanup...
-                pure ()
-            Just script -> do
-                -- () <- processTask VUState script
-                pure ()
-        -- pure (processTask)
+                -- Global emergency shutdown detected
+                -- putStrLn $ "Worker " ++ show id ++ " EMERGENCY shutdown!"
+                putStrLn $ " EMERGENCY shutdown!"
+                putMVar done ()
 
-    case action of
-        () -> putStrLn $ "Worker " ++ show (workerId vu) ++ " shutting down."
-        _ -> worker vu jobChan (bucket, globalShutdown)
+            Just (Just script :: Job) -> do
+                let mgr = Http.newManager True
+                (mci, finalEnv, procLog) <- runScriptM script HM.empty
+                putStrLn $ " processing: "
+                loop
+            Just (Nothing :: Job) -> do
+                putStrLn $ " shutting down (pill)."
+                putMVar done ()
+            -- Just (Process n) -> do
+            --     putStrLn $ "Worker " ++ show id ++ " processing: " ++ show n
+            --     loop  -- keep working
+            -- Just Stop -> do
+            --     putStrLn $ "Worker " ++ show id ++ " shutting down (pill)."
+            --     putMVar done ()
+
+-- worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> IO ()  -- ??: IO Lead
+-- worker vu jobChan (bucket, globalShutdown) = do
+--     action <- atomically $ do
+--         job <- readTChan jobChan
+--         case job of
+--             Nothing -> do
+--                 -- cleanup...
+--                 pure ()
+--             Just script -> do
+--                 -- () <- processTask VUState script
+--                 pure ()
+--         -- pure (processTask)
+--
+--     case action of
+--         () -> putStrLn $ "Worker " ++ show (workerId vu) ++ " shutting down."
+--         _ -> worker vu jobChan (bucket, globalShutdown)
 
 -- runRWST (runMaybeT course) ctx env
 -- runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)
