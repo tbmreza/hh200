@@ -1,6 +1,5 @@
 Highlight:
-Architecturally decisive tasks include  happy-flow interpreter (post_json example); hh200 exe binary bundles hh200d, mcp etc remain satellites; bel complete pratt parser
-...only then load-testing-tool required apis will emerge.
+Architecturally decisive tasks include  happy-flow interpreter (post_json example); hh200 exe binary bundles hh200d (separate parsers), mcp etc remain satellites; bel complete pratt parser
 
 # PRIMARY (OR INDUSTRY) SPEC SOURCES
 ## Syntax
@@ -25,7 +24,7 @@ plan a self-maintaining fork of httpLbs: do sync using gh actions
 Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS."
 http(s) secure
     user story: distinct tls https (https://www.stackage.org/package/http-client-tls) and insecure http (https://hackage-content.haskell.org/package/http-client-0.7.19/docs/Network-HTTP-Client.html#g:4).
-    in curl, tls connection is determined by specified url, not headers (unverified chatgpt)
+    in curl, tls connection may be determined by specified url, not headers
 https + Secure cookie attr
 `ls ~/.local/bin/` checks if `stack install` succeed.
 auto multi line braced: gemini %x JSON hallucination, scanBalanced
@@ -33,7 +32,6 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
-hh200-docs: STM-based workers
 
 ┌───────────┬──────────────────────────────────────┬─────────────────────────┐
 │ Location  │ Cause                                │ Result                  │
@@ -66,13 +64,6 @@ from 0 to 100 over 10s, at t=5s the target is 50 RPS) and adjust the Rate Limite
   6. Centralized Metrics Aggregator
    * Description: With many threads running, writing to stdout or a single SQLite file naively will cause contention. Create a high-performance, in-memory aggregator (using
      atomic counters or a bounded queue) to collect stats (latency histograms, error counts) from workers.
-   * Labels: load-testing-tool
-
-  7. Real-time CLI Dashboard
-   * Description: Replace the simple text output with a TUI (Text User Interface) or updated CLI output that shows:
-       * Current RPS vs Target RPS.
-       * Active Virtual Users.
-       * Progress through the defined Load Profile (e.g., "Phase 2/3: Holding 100 RPS").
    * Labels: load-testing-tool
 
   Summary Table for GitHub

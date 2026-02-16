@@ -3,12 +3,12 @@
 
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
-  ( testShotgun
-  , testOutsideWorld
-  -- , testSimple  -- ??: no modes/producers should live in Hh200.Execution
-  , testRps
+  ( runScriptM
 
-  , runScriptM
+  -- , testOutsideWorld
+  -- , testRps
+  -- , testShotgun
+
   , runProcM
   , conduct
   , assertsAreOk
@@ -363,48 +363,44 @@ testOutsideWorld script = do
             -- \mgr -> conduct script (ExecContext mgr Nothing) HM.empty
             \mgr -> conduct script (ExecContext mgr) HM.empty
 
--- plan:
--- hhs tests --> solid conduct in singular testOutsideWorld
--- tbwp --> general (i.e. testOutsideWorld and testShotgun) conduct sig
--- ??? --> load-testing-tool
-testShotgun :: Int -> Script -> IO ()
-testShotgun n script = do
-    bracket (Http.newManager (effectiveTls script))
-            Http.closeManager $
-            \mgr -> do
-                putStrLn $ "# testShotgun: n=" ++ show n
-                -- _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr Nothing) HM.empty)
-                _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr) HM.empty)
-                pure ()
+-- testShotgun :: Int -> Script -> IO ()
+-- testShotgun n script = do
+--     bracket (Http.newManager (effectiveTls script))
+--             Http.closeManager $
+--             \mgr -> do
+--                 putStrLn $ "# testShotgun: n=" ++ show n
+--                 -- _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr Nothing) HM.empty)
+--                 _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr) HM.empty)
+--                 pure ()
+--
+--     where
+--     -- Limit concurrency with QSemN
+--     mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
+--     mapConcurrentlyBounded n actions = do
+--         sem <- newQSemN n
+--         mapConcurrently
+--             (\act -> bracket_ (waitQSemN sem 1)
+--                               (signalQSemN sem 1)
+--                               act)
+--             actions
 
-    where
-    -- Limit concurrency with QSemN
-    mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
-    mapConcurrentlyBounded n actions = do
-        sem <- newQSemN n
-        mapConcurrently
-            (\act -> bracket_ (waitQSemN sem 1)
-                              (signalQSemN sem 1)
-                              act)
-            actions
-
--- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
--- RPS: rate of individual CallItems
-testRps :: Int -> Int -> Script -> IO ()
-testRps rpsVal concurrency script = do
-    -- The web server is lazy: no start if no row is inserted to db.
-    -- Inserts every second (or to a second-windowed timeseries data).
-    connect "timeseries.db"
-
-    bracket (Http.newManager (effectiveTls script))
-            Http.closeManager $
-            \mgr -> do
-                -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
-                -- let ctx = ExecContext mgr (Just rl)
-                let ctx = ExecContext mgr
-                putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
-                replicateConcurrently_ concurrency $ forever $ do
-                    void $ runProcM script ctx HM.empty
+-- -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
+-- -- RPS: rate of individual CallItems
+-- testRps :: Int -> Int -> Script -> IO ()
+-- testRps rpsVal concurrency script = do
+--     -- The web server is lazy: no start if no row is inserted to db.
+--     -- Inserts every second (or to a second-windowed timeseries data).
+--     connect "timeseries.db"
+--
+--     bracket (Http.newManager (effectiveTls script))
+--             Http.closeManager $
+--             \mgr -> do
+--                 -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
+--                 -- let ctx = ExecContext mgr (Just rl)
+--                 let ctx = ExecContext mgr
+--                 putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
+--                 replicateConcurrently_ concurrency $ forever $ do
+--                     void $ runProcM script ctx HM.empty
 
 
 --------------------------------------------------------------------------------

@@ -8,7 +8,14 @@ module Hh200.Cli
 
 import Debug.Trace
 
+import qualified Data.HashMap.Strict as HM
+import qualified Hh200.Http as Http
+import           Hh200.Graph (connect)
+import           Control.Exception        (bracket, bracket_, try, SomeException)
+import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
+
 import           Control.Monad (unless)
+import           Control.Monad (foldM, forM, mzero, forever, void)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Monad.Trans.Maybe
 import           System.Exit (exitWith, ExitCode(ExitFailure))
@@ -91,8 +98,6 @@ go Args { lsp = Just port } = runTcp port
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
---
--- ??: Producer main thread stub.
 go Args { source = Just path, debugConfig = True } = do
     let analyzed = Scanner.analyze path
     m <- runMaybeT analyzed
@@ -116,7 +121,8 @@ go Args { rps = True, shotgun = n, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just s  -> testRps 10 n s
+        -- Just s  -> testRps 10 n s
+        Just s  -> undefined
 
 -- Shotgun.
 -- hh200 flow.hhs --shotgun=4
@@ -125,7 +131,8 @@ go Args { shotgun = n, call = False, source = Just path } = do
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> do
-            testShotgun n s
+            undefined
+            -- testShotgun n s
             putStrLn "Shotgun test complete."
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
@@ -154,6 +161,47 @@ testSimple script = do
 
     trace "was run in cli" $ forM_ doneSignals takeMVar
 
+-- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
+-- RPS: rate of individual CallItems
+testRps :: Int -> Int -> Script -> IO ()
+testRps rpsVal concurrency script = do
+    -- The web server is lazy: no start if no row is inserted to db.
+    -- Inserts every second (or to a second-windowed timeseries data).
+    connect "timeseries.db"
+
+    bracket (Http.newManager (effectiveTls script))
+            Http.closeManager $
+            \mgr -> do
+                -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
+                -- let ctx = ExecContext mgr (Just rl)
+                let ctx = ExecContext mgr
+                putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
+                replicateConcurrently_ concurrency $ forever $ do
+                    void $ runProcM script ctx HM.empty
+
+testShotgun :: Int -> Script -> IO ()
+testShotgun numWorkers script = do
+    -- bracket (Http.newManager (effectiveTls script))
+    --         Http.closeManager $
+    --         \mgr -> do
+    --             putStrLn $ "# testShotgun: numWorkers=" ++ show numWorkers
+    --             -- _ <- mapConcurrentlyBounded numWorkers $ replicate numWorkers (runProcM script (ExecContext mgr Nothing) HM.empty)
+    --             _ <- mapConcurrentlyBounded numWorkers $ replicate numWorkers (runProcM script (ExecContext mgr) HM.empty)
+    --             pure ()
+    --
+    -- where
+    -- -- Limit concurrency with QSemN
+    -- mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
+    -- mapConcurrentlyBounded numWorkers actions = do
+    --     sem <- newQSemN numWorkers
+    --     mapConcurrently
+    --         (\act -> bracket_ (waitQSemN sem 1)
+    --                           (signalQSemN sem 1)
+    --                           act)
+    --         actions
+    globalShutdown <- newTVarIO False
+    undefined
+
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do
     mScript <- runMaybeT mis
@@ -162,15 +210,16 @@ runAnalyzedScript mis = do
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
-    lead <- testOutsideWorld script
-
-    case firstFailing lead of
-        Nothing -> do
-            putStrLn "Script executed successfully."
-        Just ci -> do
-            if ciName ci == "default"
-                then hPutStrLn stderr "hh200 encountered a system error."
-                else do
-                    putStrLn $ present ci
-                    hPutStrLn stderr "hh200 found an unmet expectation."
-            exitWith (ExitFailure 1)
+    -- lead <- testOutsideWorld script
+    --
+    -- case firstFailing lead of
+    --     Nothing -> do
+    --         putStrLn "Script executed successfully."
+    --     Just ci -> do
+    --         if ciName ci == "default"
+    --             then hPutStrLn stderr "hh200 encountered a system error."
+    --             else do
+    --                 putStrLn $ present ci
+    --                 hPutStrLn stderr "hh200 found an unmet expectation."
+    --         exitWith (ExitFailure 1)
+    undefined
