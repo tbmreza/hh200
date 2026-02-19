@@ -45,6 +45,9 @@ module Hh200.Types
     , showPart
     , showResponse
     , Dat (..)
+
+    -- temp
+    , mkScript
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -118,6 +121,34 @@ data Script = Script
   , config :: ScriptConfig
   , callItems :: [CallItem]
   } deriving (Show)
+
+mkScript :: Script
+mkScript = Script
+  { kind = Regular
+  , config = ScriptConfig { }
+  , callItems = [ ciw ]
+  }
+
+ciw :: CallItem
+ciw = CallItem
+  { ciDeps = []
+  , ciName = "default"
+  , ciRequestSpec = RequestSpec
+    { requestStruct = Nothing
+    , method = "GET"
+    , lexedUrl = "http://localhost:80"
+    , headers = RhsDict HM.empty
+    , configs = RhsDict HM.empty
+    , payload = ""
+    }
+  , ciResponseSpec = Nothing
+  }
+
+-- mkScriptConfig :: ScriptConfig
+-- mkScriptConfig = ScriptConfig
+--   { retries = 0
+--   , maxDuration = Nothing
+--   }
 
 -- ??: ScriptConfig definition and its derivatives mean very little until some
 -- of them are used in one of Execution modes.

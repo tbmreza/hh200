@@ -1,13 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
   ( runScriptM
-
-  -- , testOutsideWorld
-  -- , testRps
-  -- , testShotgun
 
   , runProcM
   , conduct
@@ -15,7 +12,6 @@ module Hh200.Execution
   , validJsonBody
   , ProcM
   , status200
-  -- , mkExecContext
   , ExecContext(..)
   ) where
 
@@ -58,17 +54,12 @@ import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
--- import           Hh200.TokenBucketWorkerPool (RateLimiter, RateLimiterConfig(..), initRateLimiter, waitAndConsumeToken)
--- import           Hh200.TokenBucketWorkerPool
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
   { ecManager     :: Http.Manager
   -- , ecRateLimiter :: Maybe RateLimiter
   }
-
--- mkExecContext :: ExecContext
--- mkExecContext 
 
 -- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
 -- "writes" log as it runs, modifies environment "states" while doing IO.
@@ -183,7 +174,8 @@ expectCodesOrDefault mrs =
 runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
-    let ctx = undefined
+    mgr <- Http.newManager True
+    let ctx = ExecContext { ecManager = mgr }
     Tf.runRWST (runMaybeT course) ctx env
 
 -- | Low-level execution of a script. Returns the failing CallItem (if any), 
@@ -278,12 +270,18 @@ courseFrom x = do
     -- Exceptions:
     -- request construction retry error
     buildRequest :: Env -> CallItem -> IO Http.Request
-    buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt } } = do
+    -- ??: where Request struct construction *statistically* takes place
+    -- buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt } } = do
+    buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt, lexedUrl } } = do
+        -- req :: HC.Request <- HC.parseRequest lexedUrl
         case opt of
             Just r -> pure (trace "buildRequest..." r)
-            _ ->
+            _ -> do
+                req <- HC.parseRequest lexedUrl
                 -- ??: env didn't exist during alex phase so maybe requestStruct will succeed here with env, allow env to contain directives/defaults
-                undefined
+                -- so the typical Request construction is in this arm.
+                -- undefined
+                pure req
 
     -- Reduce captures to Env extensions.
     evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
@@ -360,7 +358,6 @@ testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
     bracket (Http.newManager (effectiveTls script))
             Http.closeManager $
-            -- \mgr -> conduct script (ExecContext mgr Nothing) HM.empty
             \mgr -> conduct script (ExecContext mgr) HM.empty
 
 -- testShotgun :: Int -> Script -> IO ()

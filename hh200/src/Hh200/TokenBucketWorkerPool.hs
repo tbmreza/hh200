@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- poison pill stops a worker gracefully
@@ -23,15 +24,19 @@ import Control.Concurrent
 import Control.Concurrent.Async (async, cancel, Async)
 -- import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
 import           Control.Concurrent.STM
-import Control.Exception (bracket)
+import Control.Exception (bracket, finally)
 import Control.Monad (forever)
 import Text.Printf (printf)
 import           Hh200.Types
 import qualified Hh200.Http as Http
 import           Hh200.Execution
+import qualified Hh200.Scanner as Scanner
 
 -- A Job consumes as many tokens as the number of CallItems a Script contains.
 type Job = Maybe Script
+
+-- ms :: Maybe Script
+-- ms = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
 
 -- Here be nested Maybe types: emergency globalShutdown and Job's poison pill.
 worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> MVar () -> IO ()
@@ -41,12 +46,18 @@ worker    vu         jobChan      (bucket, globalShutdown) done =
         result <- atomically $
             -- Path A: check if emergency shutdown has been triggered
             (trace "sup" $ (do
+                -- let ms :: Maybe Script = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
                 shutdown <- readTVar globalShutdown
-                check shutdown          -- retries if False
-                pure Nothing))
+                -- check shutdown          -- retries if False
+                -- pure Nothing))
+                -- pure (Just mkScript)))
+                pure (Just $ Just mkScript)))
+                -- pure mkScript))
+                -- pure ms))
             `orElse`
             -- Path B: read a job from the channel as normal
-            (trace "inf" $ (Just <$> readTChan jobChan))
+            -- (trace "inf" $ (Just <$> readTChan jobChan))
+            undefined
         case result of
             -- goal: running runRWST from worker
             Nothing -> do
@@ -63,6 +74,7 @@ worker    vu         jobChan      (bucket, globalShutdown) done =
             Just (Nothing :: Job) -> do
                 putStrLn $ " shutting down (pill)."
                 putMVar done ()
+
             -- Just (Process n) -> do
             --     putStrLn $ "Worker " ++ show id ++ " processing: " ++ show n
             --     loop  -- keep working
