@@ -138,28 +138,30 @@ go Args { shotgun = n, call = False, source = Just path } = do
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
 
--- Globally interruptible worker(s) running Script.
-testSimple :: Script -> IO ()
-testSimple script = do
     -- ??: Script/CallItems can be analyzed to determine the number of workers testSimple can use.
     -- A sanity check can assert that if we lowball the Script just takes longer to run.
     -- let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }, VUState { workerId = 3 }]
     -- let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }]
-    let orthogonal = [VUState { workerId = 1 }]
-    let numWorkers = length orthogonal
 
-    bucket <-         newTVarIO 1000  -- ??
-    globalShutdown <- newTVarIO False
-    chan <-           newTChanIO  -- stream of Scripts (each containing one or more CallItem)
-    doneSignals <-    replicateM numWorkers newEmptyMVar
+    -- let orthogonal = [VUState { workerId = 1 }]
+    -- let numWorkers = length orthogonal
+    --
+    -- bucket <-         newTVarIO 1000  -- ??
+    -- globalShutdown <- newTVarIO False
+-- chan <-           newTChanIO  -- stream of Scripts (each containing one or more CallItem)
+    -- doneSignals <-    replicateM numWorkers newEmptyMVar
 
-    -- Spawn the workers
-    forM_ (zip orthogonal doneSignals) $ \(vu, sig) ->
-        forkIO (worker vu chan (bucket, globalShutdown) sig)
+    -- -- Spawn the workers
+    -- forM_ (zip orthogonal doneSignals) $ \(vu, sig) ->
+--     forkIO (worker vu chan (bucket, globalShutdown) sig)
 
-    -- Just before printing a Lead, other workers exit.
+    -- trace "was run in cli" $ forM_ doneSignals takeMVar
+-- PICKUP in main thread, instantiate a worker and write to shutdownFlag after 2 sec
 
-    trace "was run in cli" $ forM_ doneSignals takeMVar
+-- Globally interruptible worker(s) running Script.
+testSimple :: Script -> IO ()
+testSimple script = do
+    pure ()
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 -- RPS: rate of individual CallItems

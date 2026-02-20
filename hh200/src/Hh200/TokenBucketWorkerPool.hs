@@ -12,7 +12,7 @@ module Hh200.TokenBucketWorkerPool
   , withRateLimiter
   , waitAndConsumeToken
   , VUState(..)
-  , worker
+  -- , worker
   ) where
 
 import Debug.Trace
@@ -26,6 +26,7 @@ import Control.Concurrent.Async (async, cancel, Async)
 import           Control.Concurrent.STM
 import Control.Exception (bracket, finally)
 import Control.Monad (forever)
+import           Control.Monad.Reader
 import Text.Printf (printf)
 import           Hh200.Types
 import qualified Hh200.Http as Http
@@ -39,65 +40,60 @@ type Job = Maybe Script
 -- ms = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
 
 -- Here be nested Maybe types: emergency globalShutdown and Job's poison pill.
-worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> MVar () -> IO ()
-worker    vu         jobChan      (bucket, globalShutdown) done =
+
+worker :: TVar Bool -> IO ()
+worker    shutdownFlag =
     loop where
     loop = do
-        result <- atomically $
-            -- Path A: check if emergency shutdown has been triggered
-            (trace "sup" $ (do
-                -- let ms :: Maybe Script = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
-                shutdown <- readTVar globalShutdown
-                -- check shutdown          -- retries if False
-                -- pure Nothing))
-                -- pure (Just mkScript)))
-                pure (Just $ Just mkScript)))
-                -- pure mkScript))
-                -- pure ms))
-            `orElse`
-            -- Path B: read a job from the channel as normal
-            -- (trace "inf" $ (Just <$> readTChan jobChan))
+        shouldStop <- atomically $ do
+            readTVar shutdownFlag
+
+        if shouldStop then
+            pure () 
+        else
+        --     else processJob >> worker shutdownFlag
             undefined
-        case result of
-            -- goal: running runRWST from worker
-            Nothing -> do
-                -- Global emergency shutdown detected
-                -- putStrLn $ "Worker " ++ show id ++ " EMERGENCY shutdown!"
-                putStrLn $ " EMERGENCY shutdown!"
-                putMVar done ()
 
-            Just (Just script :: Job) -> do
-                let mgr = Http.newManager True
-                (mci, finalEnv, procLog) <- runScriptM script HM.empty
-                putStrLn $ " processing: "
-                loop
-            Just (Nothing :: Job) -> do
-                putStrLn $ " shutting down (pill)."
-                putMVar done ()
+type Global = Int
+type Result = Int
 
-            -- Just (Process n) -> do
-            --     putStrLn $ "Worker " ++ show id ++ " processing: " ++ show n
-            --     loop  -- keep working
-            -- Just Stop -> do
-            --     putStrLn $ "Worker " ++ show id ++ " shutting down (pill)."
-            --     putMVar done ()
+processJob :: IO ()
+processJob = putStrLn "processJob..."
+-- processJob :: TQueue Result -> Job -> ReaderT Global IO ()
+-- processJob = undefined
 
--- worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> IO ()  -- ??: IO Lead
--- worker vu jobChan (bucket, globalShutdown) = do
---     action <- atomically $ do
---         job <- readTChan jobChan
---         case job of
+-- ??: runs forever
+-- worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> MVar () -> IO ()
+-- worker    vu         jobChan      (bucket, globalShutdown) done =
+--     loop where
+--     loop = do
+--         result <- atomically $
+--             -- Path A: check if emergency shutdown has been triggered
+--             (trace "sup" $ (do
+--                 -- let ms :: Maybe Script = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
+--                 shutdown <- readTVar globalShutdown
+--                 -- check shutdown          -- retries if False
+--                 pure (Just $ Just mkScript)))
+--             `orElse`
+--             -- Path B: read a job from the channel as normal
+--             -- (trace "inf" $ (Just <$> readTChan jobChan))
+--             undefined
+--         case result of
+--             -- goal: running runRWST from worker
 --             Nothing -> do
---                 -- cleanup...
---                 pure ()
---             Just script -> do
---                 -- () <- processTask VUState script
---                 pure ()
---         -- pure (processTask)
+--                 -- Global emergency shutdown detected
+--                 -- putStrLn $ "Worker " ++ show id ++ " EMERGENCY shutdown!"
+--                 putStrLn $ " EMERGENCY shutdown!"
+--                 putMVar done ()
 --
---     case action of
---         () -> putStrLn $ "Worker " ++ show (workerId vu) ++ " shutting down."
---         _ -> worker vu jobChan (bucket, globalShutdown)
+--             Just (Just script :: Job) -> do
+--                 let mgr = Http.newManager True
+--                 (mci, finalEnv, procLog) <- runScriptM script HM.empty
+--                 putStrLn $ " processing: "
+--                 loop
+--             Just (Nothing :: Job) -> do
+--                 putStrLn $ " shutting down (pill)."
+--                 putMVar done ()
 
 -- runRWST (runMaybeT course) ctx env
 -- runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)
