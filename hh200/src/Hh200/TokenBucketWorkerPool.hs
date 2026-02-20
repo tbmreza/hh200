@@ -12,7 +12,7 @@ module Hh200.TokenBucketWorkerPool
   , withRateLimiter
   , waitAndConsumeToken
   , VUState(..)
-  -- , worker
+  , worker
   ) where
 
 import Debug.Trace
@@ -48,11 +48,11 @@ worker    shutdownFlag =
         shouldStop <- atomically $ do
             readTVar shutdownFlag
 
+        threadDelay 20
         if shouldStop then
             pure () 
         else
-        --     else processJob >> worker shutdownFlag
-            undefined
+            processJob >> loop
 
 type Global = Int
 type Result = Int

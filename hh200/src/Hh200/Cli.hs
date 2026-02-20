@@ -161,7 +161,15 @@ go _ = exitWith (ExitFailure 1)
 -- Globally interruptible worker(s) running Script.
 testSimple :: Script -> IO ()
 testSimple script = do
-    pure ()
+    shutdownFlag <- newTVarIO False
+    void $ forkIO (worker shutdownFlag)
+
+
+    threadDelay 10000
+    atomically $ writeTVar shutdownFlag True
+
+    -- putStrLn "Shutdown signal sent."
+    -- pure ()
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 -- RPS: rate of individual CallItems
