@@ -46,11 +46,10 @@ main = do
       -- -- , testScanner_TlsInference
       -- , testScanner_lrResponseOrder
       -- , testScanner_lrRequestConfigs
-      -- -- , testScanner_analyzeg
 
+      -- , testExecution_runScriptM
       , testExecution_bel
       , testExecution_validJsonBody
-      -- , testTypes_presentg
       ]
       -- , testScanner_lrConfig
 
@@ -256,37 +255,3 @@ testExecution_validJsonBody = testCase "validJsonBody structure" $ do
 --                     assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.payloadg rs)
 --                 Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
 --         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
-
--- testScanner_analyzeg :: TestTree
--- testScanner_analyzeg = testCase "analyzeg using IO-enabled parser" $ do
---     let input = Hh.Snippet "GET http://localhost\n"
---     res <- runMaybeT $ Hh.analyzeg input
---     case res of
---         Just s -> do
---             let items = Hh.callItemsg s
---             assertBool "Should have one item" (length items == 1)
---             let item = head items
---                 reqSpeg = Hh.cgRequestSpec item
---             case Hh.requestStruct reqSpeg of
---                 Just _ -> pure ()
---                 Nothing -> assertFailure "Should have parsed request struct via IO"
---         Nothing -> assertFailure "analyzeg returned Nothing"
-
--- testTypes_presentg :: TestTree
--- testTypes_presentg = testCase "presentg formatting" $ do
---     req <- Prim.parseRequest "POST http://localhost/foo"
---     let reqSpeg = Hh.RequestSpeg
---           { Hh.requestStruct = Just req
---           , Hh.lexedUrl = "http://localhost/foo"
---           , Hh.headersg = Hh.RhsDict Hh.mtHM
---           , Hh.configsg = Hh.RhsDict Hh.mtHM
---           , Hh.payloadg = "{\"foo\":\"bar\"}"
---           }
---         ci = Hh.CallItemg
---           { Hh.cgDeps = []
---           , Hh.cgName = "test"
---           , Hh.cgRequestSpec = reqSpeg
---           , Hh.cgResponseSpec = Nothing
---           }
---         output = Hh.presentg ci
---     assertEqual "Should format correctly" "POST http://localhost/foo\n{\"foo\":\"bar\"}\n" output

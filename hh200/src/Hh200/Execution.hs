@@ -171,12 +171,15 @@ expectCodesOrDefault mrs =
             [] -> [status200]
             expectCodes -> expectCodes
 
-runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
+-- ??: best facilitate metrics aggregation
+-- runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
+runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
     mgr <- Http.newManager True
     let ctx = ExecContext { ecManager = mgr }
-    Tf.runRWST (runMaybeT course) ctx env
+    _ <- Tf.runRWST (runMaybeT course) ctx env
+    pure ()
 
 -- | Low-level execution of a script. Returns the failing CallItem (if any), 
 -- the final environment, and the execution log.

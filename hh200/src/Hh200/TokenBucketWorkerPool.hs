@@ -36,72 +36,40 @@ import qualified Hh200.Scanner as Scanner
 -- A Job consumes as many tokens as the number of CallItems a Script contains.
 type Job = Maybe Script
 
--- ms :: Maybe Script
--- ms = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
-
 -- Here be nested Maybe types: emergency globalShutdown and Job's poison pill.
 
-worker :: TVar Bool -> IO ()
-worker    shutdownFlag =
+-- testSimple:  Script can be optimized to [Script], fork that number of workers.     a worker stops at the end of Script or sigint.
+-- testRps:     rampup-able pool of workers. each worker sleeps at the end of Script. a worker stops on timer or sigint.
+-- testShotgun: 
+--   listening for sigint: y  timer: y  rate-limit: no  dynamic check: pool initializable?
+
+workOptimize :: Script -> [Script]
+workOptimize = undefined
+
+tokensCost :: Script -> Int
+tokensCost s = length $ callItems s
+
+worker :: Script -> TVar Bool -> IO ()
+worker    s         shutdownFlag =
     loop where
     loop = do
         stopSignal <- atomically $ do
             readTVar shutdownFlag
 
-        threadDelay 20
+        threadDelay 80
         if stopSignal then
             pure () 
         else
-            processJob >> loop
+            processJob s >> loop
 
-type Global = Int
-type Result = Int
 
--- runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
 -- checkpoint: localhost does echo
 
-processJob :: IO ()
-processJob = do
-    let s = mkScript
-    putStrLn "processJob..."
-    _ <- runScriptM s HM.empty
-    pure ()
+-- processJob :: IO ()
+processJob s = do
+    putStrLn "processJob1..."
+    runScriptM s HM.empty
 
--- processJob :: TQueue Result -> Job -> ReaderT Global IO ()
--- processJob = undefined
-
--- ??: runs forever
--- worker :: VUState -> TChan Job -> (TVar Int, TVar Bool) -> MVar () -> IO ()
--- worker    vu         jobChan      (bucket, globalShutdown) done =
---     loop where
---     loop = do
---         result <- atomically $
---             -- Path A: check if emergency shutdown has been triggered
---             (trace "sup" $ (do
---                 -- let ms :: Maybe Script = Scanner.analyze ("/home/tbmreza/gh/hh200/examples/post_json.hhs" :: FilePath)
---                 shutdown <- readTVar globalShutdown
---                 -- check shutdown          -- retries if False
---                 pure (Just $ Just mkScript)))
---             `orElse`
---             -- Path B: read a job from the channel as normal
---             -- (trace "inf" $ (Just <$> readTChan jobChan))
---             undefined
---         case result of
---             -- goal: running runRWST from worker
---             Nothing -> do
---                 -- Global emergency shutdown detected
---                 -- putStrLn $ "Worker " ++ show id ++ " EMERGENCY shutdown!"
---                 putStrLn $ " EMERGENCY shutdown!"
---                 putMVar done ()
---
---             Just (Just script :: Job) -> do
---                 let mgr = Http.newManager True
---                 (mci, finalEnv, procLog) <- runScriptM script HM.empty
---                 putStrLn $ " processing: "
---                 loop
---             Just (Nothing :: Job) -> do
---                 putStrLn $ " shutting down (pill)."
---                 putMVar done ()
 
 -- runRWST (runMaybeT course) ctx env
 -- runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)

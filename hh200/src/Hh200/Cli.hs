@@ -157,13 +157,15 @@ go _ = exitWith (ExitFailure 1)
 --     forkIO (worker vu chan (bucket, globalShutdown) sig)
 
     -- trace "was run in cli" $ forM_ doneSignals takeMVar
--- PICKUP in main thread, instantiate a worker and write to shutdownFlag after 2 sec
 
 -- Globally interruptible worker(s) running Script.
 testSimple :: Script -> IO ()
 testSimple script = do
     shutdownFlag <- newTVarIO False
-    void $ forkIO (worker shutdownFlag)
+
+    -- PICKUP let scripts = workOptimize script  goal being to design how to report results/metrics
+    let scripts = [mkScript]
+    void $ forkIO (worker mkScript shutdownFlag)
 
 
     -- Ctrl+c writes to shutdownFlag, which is handled safely by worker.
