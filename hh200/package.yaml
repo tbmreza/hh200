@@ -48,6 +48,7 @@ library:
   default-extensions:
   - OverloadedStrings
   dependencies:
+  - unix
   - stm
   - text
   - transformers

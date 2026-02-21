@@ -45,11 +45,11 @@ worker :: TVar Bool -> IO ()
 worker    shutdownFlag =
     loop where
     loop = do
-        shouldStop <- atomically $ do
+        stopSignal <- atomically $ do
             readTVar shutdownFlag
 
         threadDelay 20
-        if shouldStop then
+        if stopSignal then
             pure () 
         else
             processJob >> loop
@@ -57,8 +57,16 @@ worker    shutdownFlag =
 type Global = Int
 type Result = Int
 
+-- runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
+-- checkpoint: localhost does echo
+
 processJob :: IO ()
-processJob = putStrLn "processJob..."
+processJob = do
+    let s = mkScript
+    putStrLn "processJob..."
+    _ <- runScriptM s HM.empty
+    pure ()
+
 -- processJob :: TQueue Result -> Job -> ReaderT Global IO ()
 -- processJob = undefined
 

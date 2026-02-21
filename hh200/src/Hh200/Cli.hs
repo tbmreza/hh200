@@ -12,6 +12,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Hh200.Http as Http
 import           Hh200.Graph (connect)
 import           Control.Exception        (bracket, bracket_, try, SomeException)
+import           System.Posix.Signals     (installHandler, sigINT, Handler(CatchOnce))
 import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
 
 import           Control.Monad (unless)
@@ -165,11 +166,12 @@ testSimple script = do
     void $ forkIO (worker shutdownFlag)
 
 
-    threadDelay 10000
-    atomically $ writeTVar shutdownFlag True
+    -- Ctrl+c writes to shutdownFlag, which is handled safely by worker.
+    _ <- installHandler sigINT
+                        (CatchOnce (atomically $ writeTVar shutdownFlag True))
+                        Nothing  -- Other signals to block.
+    atomically $ readTVar shutdownFlag >>= check
 
-    -- putStrLn "Shutdown signal sent."
-    -- pure ()
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 -- RPS: rate of individual CallItems
