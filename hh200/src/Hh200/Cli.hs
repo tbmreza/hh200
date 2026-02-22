@@ -168,13 +168,17 @@ testSimple script = do
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM (length scripts) newEmptyMVar
 
-    -- ??: timer based termination
     -- ??: building on worker doneSignals, design how to report results/metrics
 
     forM_ scripts $ \s -> forkIO (worker s shutdownFlag)
 
 
-    -- Ctrl+c writes to shutdownFlag, which is handled safely by worker.
+    -- Timer-based termination.
+    _ <- forkIO $ do
+        threadDelay (10 * 1000000)
+        atomically $ writeTVar shutdownFlag True
+
+    -- Ctrl+c writes to shutdownFlag, which is handled foremostly by worker.
     _ <- installHandler sigINT
                         (CatchOnce (atomically $ writeTVar shutdownFlag True))
                         Nothing  -- Other signals to block.
