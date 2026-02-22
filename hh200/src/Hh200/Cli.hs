@@ -168,26 +168,31 @@ testSimple script = do
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM (length scripts) newEmptyMVar
 
-    -- ??: building on worker doneSignals, design how to report results/metrics
+    -- PICKUP
+    -- ??: review design on how to report results/metrics
+    -- ??: ask questions to refactor ExecContext
 
     forM_ (zip scripts doneSignals) $ \(s, done) ->
-        forkIO (worker s shutdownFlag `finally` putMVar done ())
+        forkIO (worker s shutdownFlag done)
 
 
-    -- Timer-based termination.
-    _ <- forkIO $ do
-        threadDelay (10 * 1000000)
-        atomically $ writeTVar shutdownFlag True
-
-    -- Ctrl+c writes to shutdownFlag, which is handled foremostly by worker.
+    -- Termination with ctrl+c, which is handled foremostly by worker.
     _ <- installHandler sigINT
                         (CatchOnce (atomically $ writeTVar shutdownFlag True))
                         Nothing  -- Other signals to block.
+
+    -- Termination when all workers are done.
+    _ <- forkIO $ do
+        forM_ doneSignals readMVar
+        atomically $ writeTVar shutdownFlag True
+
+    -- Termination based on timer.
+    _ <- forkIO $ do
+        threadDelay (10 * 1000000)
+        -- threadDelay (2 * 1000000)
+        atomically $ writeTVar shutdownFlag True
+
     atomically $ readTVar shutdownFlag >>= check
-
-    -- Wait for all workers to actually finish.
-    forM_ doneSignals takeMVar
-
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
 -- RPS: rate of individual CallItems

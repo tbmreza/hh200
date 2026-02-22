@@ -51,9 +51,10 @@ workOptimize s = [s, mkScript]
 tokensCost :: Script -> Int
 tokensCost s = length $ callItems s
 
-worker :: Script -> TVar Bool -> IO ()
-worker    s         shutdownFlag =
-    loop where
+worker :: Script -> TVar Bool -> MVar () -> IO ()
+worker    s         shutdownFlag    done =
+    loop `finally` putMVar done ()
+    where
     loop = do
         stopSignal <- atomically $ do
             readTVar shutdownFlag
