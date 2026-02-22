@@ -103,7 +103,7 @@ go Args { source = Just path, debugConfig = True } = do
     let analyzed = Scanner.analyze path
     m <- runMaybeT analyzed
     case m of
-        Just script -> trace "here" $ testSimple script
+        Just script -> testSimple script
         _ -> undefined
 
 -- Script execution.
@@ -159,13 +159,19 @@ go _ = exitWith (ExitFailure 1)
     -- trace "was run in cli" $ forM_ doneSignals takeMVar
 
 -- Globally interruptible worker(s) running Script.
+-- Worker(s) are dropped after the last CallItem.
+
 testSimple :: Script -> IO ()
 testSimple script = do
-    shutdownFlag <- newTVarIO False
+    let scripts = workOptimize script
 
-    -- PICKUP let scripts = workOptimize script  goal being to design how to report results/metrics
-    let scripts = [mkScript]
-    void $ forkIO (worker mkScript shutdownFlag)
+    shutdownFlag <- newTVarIO False
+    doneSignals <- replicateM (length scripts) newEmptyMVar
+
+    -- ??: timer based termination
+    -- ??: building on worker doneSignals, design how to report results/metrics
+
+    forM_ scripts $ \s -> forkIO (worker s shutdownFlag)
 
 
     -- Ctrl+c writes to shutdownFlag, which is handled safely by worker.

@@ -13,6 +13,7 @@ module Hh200.TokenBucketWorkerPool
   , waitAndConsumeToken
   , VUState(..)
   , worker
+  , workOptimize
   ) where
 
 import Debug.Trace
@@ -44,7 +45,8 @@ type Job = Maybe Script
 --   listening for sigint: y  timer: y  rate-limit: no  dynamic check: pool initializable?
 
 workOptimize :: Script -> [Script]
-workOptimize = undefined
+-- ??
+workOptimize s = [s, mkScript]
 
 tokensCost :: Script -> Int
 tokensCost s = length $ callItems s
@@ -59,8 +61,9 @@ worker    s         shutdownFlag =
         threadDelay 80
         if stopSignal then
             pure () 
-        else
-            processJob s >> loop
+        else do
+            -- processJob s >> loop
+            processJob s
 
 
 -- checkpoint: localhost does echo

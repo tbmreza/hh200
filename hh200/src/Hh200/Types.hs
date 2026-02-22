@@ -15,11 +15,9 @@ module Hh200.Types
     , Log
     , ScriptKind (..)
     , Script (..)
-    -- , Scriptg (..)
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
-    -- , CallItemg (..)
     , RequestSpec (..)
     , ResponseSpec (..)
     , HostInfo (..)
@@ -30,9 +28,7 @@ module Hh200.Types
     , defaultScriptConfig
     , effectiveTls
     , defaultDepsClause
-    -- , pCallItem
     , gCallItem
-    -- , callItemIsDefault
     , defaultHostInfo
     , defaultLead
     , show'
