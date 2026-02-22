@@ -266,3 +266,66 @@ HTTP 200
 NNN: 9
 [Asserts]
 > true
+
+
+
+
+opus:
+2. Metrics gathering — forward-looking plan
+Here's where runScriptM vs runProcM matters. Currently worker calls runScriptM which returns IO () and discards everything. For metrics, the workers need to produce data. Here's a layered plan:
+
+Layer 1: Per-worker result channel (immediate next step)
+Introduce a TChan WorkerResult (or TQueue) that workers write to after each script execution:
+
+haskell
+data WorkerResult = WorkerResult
+  { wrWorkerId    :: Int
+  , wrSuccess     :: Bool           -- Nothing from runProcM means success
+  , wrLog         :: Log            -- TraceEvent list
+  , wrElapsedUs   :: Int            -- microseconds for this execution
+  }
+The worker would call runProcM (instead of runScriptM), time it with getCurrentTime / diffUTCTime, then writeTChan results (WorkerResult ...).
+
+Layer 2: Aggregator thread
+A dedicated thread drains the TChan WorkerResult and maintains running aggregates in a TVar:
+
+haskell
+data Metrics = Metrics
+  { mTotalRequests :: !Int
+  , mSuccesses     :: !Int
+  , mFailures      :: !Int
+  , mTotalDuration :: !Double       -- seconds
+  , mMinLatency    :: !Double
+  , mMaxLatency    :: !Double
+  -- , mLatencies  :: [Double]      -- for percentile calculation
+  }
+Layer 3: Reporting
+When the main thread exits (after forM_ doneSignals takeMVar), it reads the final TVar Metrics and prints a summary:
+
+── testSimple report ──────────────────────
+  Workers:       2
+  Duration:      10.0s
+  Total reqs:    47
+  Successes:     45  (95.7%)
+  Failures:      2   (4.3%)
+  Avg latency:   212ms
+  Min latency:   98ms
+  Max latency:   1204ms
+───────────────────────────────────────────
+This is the same pattern load testing tools like k6/vegeta use.
+
+
+Metrics Plan (next iteration)
+The -- ??: building on worker doneSignals, design how to report results/metrics comment is addressed by this design:
+
+Layer	What	Where
+Data type	WorkerResult { wrSuccess :: Bool, wrLog :: Log, wrElapsedUs :: Int }	New in TokenBucketWorkerPool or Types
+Producer	Worker calls runProcM (not runScriptM), times it, writes WorkerResult to a shared TChan	worker in 
+TokenBucketWorkerPool.hs
+Aggregator	A forked thread drains the TChan, maintains running Metrics (total, success/fail counts, min/max/avg latency) in a TVar	testSimple in 
+Cli.hs
+Reporter	After forM_ doneSignals takeMVar, read the final TVar Metrics and print a summary	testSimple in 
+Cli.hs
+The key prerequisite is switching worker from runScriptM (returns ()) to runProcM (returns (Maybe CallItem, Env, Log)) so that per-execution results are available.
+
+

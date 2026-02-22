@@ -11,7 +11,7 @@ import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 import qualified Hh200.Http as Http
 import           Hh200.Graph (connect)
-import           Control.Exception        (bracket, bracket_, try, SomeException)
+import           Control.Exception        (bracket, bracket_, finally, try, SomeException)
 import           System.Posix.Signals     (installHandler, sigINT, Handler(CatchOnce))
 import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
 
@@ -170,7 +170,8 @@ testSimple script = do
 
     -- ??: building on worker doneSignals, design how to report results/metrics
 
-    forM_ scripts $ \s -> forkIO (worker s shutdownFlag)
+    forM_ (zip scripts doneSignals) $ \(s, done) ->
+        forkIO (worker s shutdownFlag `finally` putMVar done ())
 
 
     -- Timer-based termination.
@@ -183,6 +184,9 @@ testSimple script = do
                         (CatchOnce (atomically $ writeTVar shutdownFlag True))
                         Nothing  -- Other signals to block.
     atomically $ readTVar shutdownFlag >>= check
+
+    -- Wait for all workers to actually finish.
+    forM_ doneSignals takeMVar
 
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
