@@ -171,8 +171,6 @@ expectCodesOrDefault mrs =
             [] -> [status200]
             expectCodes -> expectCodes
 
--- ??: best facilitate metrics aggregation
--- runScriptM :: Script -> Env -> IO (Maybe CallItem, Env, Log)
 runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
@@ -359,7 +357,8 @@ triggerEmergencyShutdown flag = do
 
 testOutsideWorld :: Script -> IO Lead
 testOutsideWorld script = do
-    bracket (Http.newManager (effectiveTls script))
+    -- bracket (Http.newManager (effectiveTls script))
+    bracket (Http.newManager True)
             Http.closeManager $
             \mgr -> conduct script (ExecContext mgr) HM.empty
 

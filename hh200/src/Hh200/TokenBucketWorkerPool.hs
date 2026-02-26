@@ -37,12 +37,11 @@ import qualified Hh200.Scanner as Scanner
 -- A Job consumes as many tokens as the number of CallItems a Script contains.
 type Job = Maybe Script
 
--- Here be nested Maybe types: emergency globalShutdown and Job's poison pill.
 
--- testSimple:  Script can be optimized to [Script], fork that number of workers.     a worker stops at the end of Script or sigint.
--- testRps:     rampup-able pool of workers. each worker sleeps at the end of Script. a worker stops on timer or sigint.
--- testShotgun: 
---   listening for sigint: y  timer: y  rate-limit: no  dynamic check: pool initializable?
+-- In all modes, a worker stops on timer or sigint.
+-- testSimple:  timer: y  rate-limit: no  feature: Script can be optimized to [Script], fork that number of workers.
+-- testRps:     timer: y  rate-limit: y   feature: rampup-able pool of virtual users. each vu takes nap at the end of Script.
+-- testShotgun: timer: y  rate-limit: no  feature: of N hits in the same instant, report how many failed
 
 workOptimize :: Script -> [Script]
 -- ??
@@ -64,15 +63,18 @@ worker    s         shutdownFlag    done =
             pure () 
         else do
             -- processJob s >> loop
-            processJob s
+            -- processJob s
+            putStrLn "processJob1..."
+            runScriptM s HM.empty
 
 
 -- checkpoint: localhost does echo
 
 -- processJob :: IO ()
-processJob s = do
-    putStrLn "processJob1..."
-    runScriptM s HM.empty
+
+-- processJob s = do
+--     putStrLn "processJob1..."
+--     runScriptM s HM.empty
 
 
 -- runRWST (runMaybeT course) ctx env

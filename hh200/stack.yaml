@@ -42,6 +42,7 @@ extra-deps:
   #   commit: 985f6e8d0
   - ../../bel-expr
   - ../../http-client/http-client-tls
+  - ../../http-client/http-client
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git

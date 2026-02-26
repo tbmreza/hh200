@@ -318,14 +318,10 @@ This is the same pattern load testing tools like k6/vegeta use.
 Metrics Plan (next iteration)
 The -- ??: building on worker doneSignals, design how to report results/metrics comment is addressed by this design:
 
-Layer	What	Where
-Data type	WorkerResult { wrSuccess :: Bool, wrLog :: Log, wrElapsedUs :: Int }	New in TokenBucketWorkerPool or Types
-Producer	Worker calls runProcM (not runScriptM), times it, writes WorkerResult to a shared TChan	worker in 
-TokenBucketWorkerPool.hs
-Aggregator	A forked thread drains the TChan, maintains running Metrics (total, success/fail counts, min/max/avg latency) in a TVar	testSimple in 
-Cli.hs
-Reporter	After forM_ doneSignals takeMVar, read the final TVar Metrics and print a summary	testSimple in 
-Cli.hs
+Layer	    What                                                                	                                                Where
+Data type	WorkerResult { wrSuccess :: Bool, wrLog :: Log, wrElapsedUs :: Int }	                                                New in TokenBucketWorkerPool or Types
+Producer	Worker calls runProcM (not runScriptM), times it, writes WorkerResult to a shared TChan                             	worker in TokenBucketWorkerPool.hs
+Aggregator	A forked thread drains the TChan, maintains running Metrics (total, success/fail counts, min/max/avg latency) in a TVar	testSimple in Cli.hs
+Reporter	After forM_ doneSignals takeMVar, read the final TVar Metrics and print a summary	                                    testSimple in Cli.hs
+
 The key prerequisite is switching worker from runScriptM (returns ()) to runProcM (returns (Maybe CallItem, Env, Log)) so that per-execution results are available.
-
-

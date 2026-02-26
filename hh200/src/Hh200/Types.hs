@@ -26,7 +26,7 @@ module Hh200.Types
     , InternalError (..)
     , HhError (..)
     , defaultScriptConfig
-    , effectiveTls
+    -- , effectiveTls
     , defaultDepsClause
     , gCallItem
     , defaultHostInfo
@@ -141,18 +141,13 @@ ciw = CallItem
   , ciResponseSpec = Nothing
   }
 
--- mkScriptConfig :: ScriptConfig
--- mkScriptConfig = ScriptConfig
---   { retries = 0
---   , maxDuration = Nothing
---   }
-
 -- ??: ScriptConfig definition and its derivatives mean very little until some
 -- of them are used in one of Execution modes.
 data ScriptConfig = ScriptConfig
   { retries :: Int
   , maxDuration :: Maybe Duration
   , subjects :: Ls.NonEmpty Subject
+  -- , respectUrlInsecureHttp :: Maybe Bool  -- ??
   , useTls :: Maybe Bool
   } deriving (Show, Eq)
 
@@ -233,14 +228,14 @@ defaultScriptConfig = ScriptConfig
   , useTls = Nothing
   }
 
-effectiveTls :: Script -> Bool
-effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
-effectiveTls Script { callItems = (ci:_) } =
-    -- case parseURI (lexedUrl (ciRequestSpec ci)) of
-    case Nothing of
-        Just uri | uriScheme uri == "http:" -> False
-        _ -> True
-effectiveTls _ = True -- Default to TLS if not specified
+-- effectiveTls :: Script -> Bool
+-- effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
+-- effectiveTls Script { callItems = (ci:_) } =
+--     -- case parseURI (lexedUrl (ciRequestSpec ci)) of
+--     case Nothing of
+--         Just uri | uriScheme uri == "http:" -> False
+--         _ -> True
+-- effectiveTls _ = True -- Default to TLS if not specified
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }

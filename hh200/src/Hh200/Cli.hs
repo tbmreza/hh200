@@ -161,16 +161,14 @@ go _ = exitWith (ExitFailure 1)
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
 
+-- ??: All termination conditions have at one point been tested.
+-- Stabilize Http module and ExecContext and come back here.
 testSimple :: Script -> IO ()
 testSimple script = do
     let scripts = workOptimize script
 
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM (length scripts) newEmptyMVar
-
-    -- PICKUP
-    -- ??: review design on how to report results/metrics
-    -- ??: ask questions to refactor ExecContext
 
     forM_ (zip scripts doneSignals) $ \(s, done) ->
         forkIO (worker s shutdownFlag done)
@@ -192,6 +190,7 @@ testSimple script = do
         -- threadDelay (2 * 1000000)
         atomically $ writeTVar shutdownFlag True
 
+    -- atomically (readTVar shutdownFlag >>= check)
     atomically $ readTVar shutdownFlag >>= check
 
 -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
@@ -202,7 +201,8 @@ testRps rpsVal concurrency script = do
     -- Inserts every second (or to a second-windowed timeseries data).
     connect "timeseries.db"
 
-    bracket (Http.newManager (effectiveTls script))
+    -- bracket (Http.newManager (effectiveTls script))
+    bracket (Http.newManager True)
             Http.closeManager $
             \mgr -> do
                 -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)

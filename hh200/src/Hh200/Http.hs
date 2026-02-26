@@ -1,21 +1,22 @@
 module Hh200.Http
-  ( Manager
-  , Request
-  , Response
-  , RequestBody
-  , HttpException
-  , newManager
-  , closeManager
-  , parseRequest
-  , httpLbs
-  , setMethod
-  , setRequestHeaders
-  , setRequestBody
-  , lbsBody
-  , getStatus
-  , getBody
-  , getHeaders
-  ) where
+  -- ( Manager
+  -- , Request
+  -- , Response
+  -- , RequestBody
+  -- , HttpException
+  -- , newManager
+  -- , closeManager
+  -- , parseRequest
+  -- , httpLbs
+  -- , setMethod
+  -- , setRequestHeaders
+  -- , setRequestBody
+  -- , lbsBody
+  -- , getStatus
+  -- , getBody
+  -- , getHeaders
+  -- ) where
+    where
 
 import qualified Network.HTTP.Client as HC
 import qualified Network.HTTP.Client.TLS as HCT
@@ -29,6 +30,9 @@ import qualified Data.ByteString.Char8 as BS
 -- 1. Unchanging hosts: fully analyzed hhs script can tell when to instantiate
 --                      new Manager.
 -- 2. Load test mode
+--
+-- ??: stack build config to switch between http client libs, goal: fork development exit mechanism + guide general (presumably more correct) api
+-- ??: config respect-url-insecure-http, leaving it false means always use TLS
 type Manager = HC.Manager
 type Request = HC.Request
 type Response = HC.Response LBS.ByteString
@@ -44,10 +48,6 @@ newManager useTls = if useTls
     then HC.newManager HCT.tlsManagerFork
     else HC.newManager HC.defaultManagerSettings
 
--- newManager :: Bool -> IO Manager
--- newManager useTls =
---     HC.newManager HC.defaultManagerSettings
-
 closeManager :: Manager -> IO ()
 closeManager = HC.closeManager
 
@@ -56,18 +56,6 @@ parseRequest = HC.parseRequest
 
 httpLbs :: Request -> Manager -> IO Response
 httpLbs = HC.httpLbs
-
-setMethod :: BS.ByteString -> Request -> Request
-setMethod m r = r { HC.method = m }
-
-setRequestHeaders :: [(HeaderName, BS.ByteString)] -> Request -> Request
-setRequestHeaders h r = r { HC.requestHeaders = h }
-
-setRequestBody :: RequestBody -> Request -> Request
-setRequestBody b r = r { HC.requestBody = b }
-
-lbsBody :: LBS.ByteString -> RequestBody
-lbsBody = HC.RequestBodyLBS
 
 getStatus :: Response -> Status
 getStatus = HC.responseStatus
