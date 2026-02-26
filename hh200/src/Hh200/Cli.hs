@@ -122,8 +122,8 @@ go Args { rps = True, shotgun = n, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        -- Just s  -> testRps 10 n s
-        Just s  -> undefined
+        -- Just s  -> testRps rpsVal concurrency rampUpUs thinkTimeUs script
+        Just s  -> testRps 10 n 1000000 500000 s
 
 -- Shotgun.
 -- hh200 flow.hhs --shotgun=4
@@ -131,32 +131,10 @@ go Args { shotgun = n, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just s  -> do
-            undefined
-            -- testShotgun n s
-            putStrLn "Shotgun test complete."
+        Just s  -> testShotgun n s
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
-
-    -- ??: Script/CallItems can be analyzed to determine the number of workers testSimple can use.
-    -- A sanity check can assert that if we lowball the Script just takes longer to run.
-    -- let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }, VUState { workerId = 3 }]
-    -- let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }]
-
-    -- let orthogonal = [VUState { workerId = 1 }]
-    -- let numWorkers = length orthogonal
-    --
-    -- bucket <-         newTVarIO 1000  -- ??
-    -- globalShutdown <- newTVarIO False
--- chan <-           newTChanIO  -- stream of Scripts (each containing one or more CallItem)
-    -- doneSignals <-    replicateM numWorkers newEmptyMVar
-
-    -- -- Spawn the workers
-    -- forM_ (zip orthogonal doneSignals) $ \(vu, sig) ->
---     forkIO (worker vu chan (bucket, globalShutdown) sig)
-
-    -- trace "was run in cli" $ forM_ doneSignals takeMVar
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
@@ -170,14 +148,14 @@ testSimple script = do
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM (length scripts) newEmptyMVar
 
-    forM_ (zip scripts doneSignals) $ \(s, done) ->
-        forkIO (worker s shutdownFlag done)
-
+    forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
+        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
+        forkIO (worker cfg s shutdownFlag done)
 
     -- Termination with ctrl+c, which is handled foremostly by worker.
     _ <- installHandler sigINT
                         (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                        Nothing  -- Other signals to block.
+                        Nothing
 
     -- Termination when all workers are done.
     _ <- forkIO $ do
@@ -187,53 +165,67 @@ testSimple script = do
     -- Termination based on timer.
     _ <- forkIO $ do
         threadDelay (10 * 1000000)
-        -- threadDelay (2 * 1000000)
         atomically $ writeTVar shutdownFlag True
 
-    -- atomically (readTVar shutdownFlag >>= check)
     atomically $ readTVar shutdownFlag >>= check
 
--- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
--- RPS: rate of individual CallItems
-testRps :: Int -> Int -> Script -> IO ()
-testRps rpsVal concurrency script = do
-    -- The web server is lazy: no start if no row is inserted to db.
-    -- Inserts every second (or to a second-windowed timeseries data).
+-- Rampup-able pool of virtual users with rate limiting.
+-- RPS: rate of individual CallItems.
+testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
+testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
     connect "timeseries.db"
 
-    -- bracket (Http.newManager (effectiveTls script))
-    bracket (Http.newManager True)
-            Http.closeManager $
-            \mgr -> do
-                -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
-                -- let ctx = ExecContext mgr (Just rl)
-                let ctx = ExecContext mgr
-                putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
-                replicateConcurrently_ concurrency $ forever $ do
-                    void $ runProcM script ctx HM.empty
+    shutdownFlag <- newTVarIO False
+    doneSignals <- replicateM concurrency newEmptyMVar
 
+    withRateLimiter (RateLimiterConfig rpsVal rpsVal) $ \rl -> do
+        -- Ramp-up: fork one VU at a time with delay between each.
+        forM_ (zip [1..concurrency] doneSignals) $ \(i, done) -> do
+            let cfg = WorkerConfig
+                    { wcMode = LoopWithNap thinkTimeUs
+                    , wcRateLimiter = Just rl
+                    , wcWorkerId = i
+                    }
+            forkIO (worker cfg script shutdownFlag done)
+            when (i < concurrency) $ threadDelay rampUpUs
+
+        putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
+
+        -- Termination with ctrl+c.
+        _ <- installHandler sigINT
+                            (CatchOnce (atomically $ writeTVar shutdownFlag True))
+                            Nothing
+
+        -- Termination based on timer.
+        _ <- forkIO $ do
+            threadDelay (10 * 1000000)
+            atomically $ writeTVar shutdownFlag True
+
+        atomically $ readTVar shutdownFlag >>= check
+
+-- Concurrent one-shot: fire N workers, report how many failed.
 testShotgun :: Int -> Script -> IO ()
 testShotgun numWorkers script = do
-    -- bracket (Http.newManager (effectiveTls script))
-    --         Http.closeManager $
-    --         \mgr -> do
-    --             putStrLn $ "# testShotgun: numWorkers=" ++ show numWorkers
-    --             -- _ <- mapConcurrentlyBounded numWorkers $ replicate numWorkers (runProcM script (ExecContext mgr Nothing) HM.empty)
-    --             _ <- mapConcurrentlyBounded numWorkers $ replicate numWorkers (runProcM script (ExecContext mgr) HM.empty)
-    --             pure ()
-    --
-    -- where
-    -- -- Limit concurrency with QSemN
-    -- mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
-    -- mapConcurrentlyBounded numWorkers actions = do
-    --     sem <- newQSemN numWorkers
-    --     mapConcurrently
-    --         (\act -> bracket_ (waitQSemN sem 1)
-    --                           (signalQSemN sem 1)
-    --                           act)
-    --         actions
-    globalShutdown <- newTVarIO False
-    undefined
+    shutdownFlag <- newTVarIO False
+    doneSignals <- replicateM numWorkers newEmptyMVar
+
+    forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
+        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
+        forkIO (worker cfg script shutdownFlag done)
+
+    -- Termination with ctrl+c.
+    _ <- installHandler sigINT
+                        (CatchOnce (atomically $ writeTVar shutdownFlag True))
+                        Nothing
+
+    -- Termination based on timer.
+    _ <- forkIO $ do
+        threadDelay (10 * 1000000)
+        atomically $ writeTVar shutdownFlag True
+
+    -- Wait for all workers to finish.
+    forM_ doneSignals takeMVar
+    putStrLn $ "# testShotgun: " ++ show numWorkers ++ " workers completed."
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do

@@ -11,7 +11,8 @@ module Hh200.TokenBucketWorkerPool
   , destroyRateLimiter
   , withRateLimiter
   , waitAndConsumeToken
-  , VUState(..)
+  , WorkerMode(..)
+  , WorkerConfig(..)
   , worker
   , workOptimize
   ) where
@@ -34,58 +35,47 @@ import qualified Hh200.Http as Http
 import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
 
--- A Job consumes as many tokens as the number of CallItems a Script contains.
-type Job = Maybe Script
-
-
 -- In all modes, a worker stops on timer or sigint.
 -- testSimple:  timer: y  rate-limit: no  feature: Script can be optimized to [Script], fork that number of workers.
 -- testRps:     timer: y  rate-limit: y   feature: rampup-able pool of virtual users. each vu takes nap at the end of Script.
 -- testShotgun: timer: y  rate-limit: no  feature: of N hits in the same instant, report how many failed
 
+data WorkerMode
+  = OneShot            -- ^ testSimple / testShotgun: run Script once, exit
+  | LoopWithNap Int    -- ^ testRps: loop Script forever, threadDelay n μs between iterations
+  deriving (Show, Eq)
+
+data WorkerConfig = WorkerConfig
+  { wcMode        :: WorkerMode
+  , wcRateLimiter :: Maybe RateLimiter
+  , wcWorkerId    :: Int
+  }
+  -- deriving (Show)
+
 workOptimize :: Script -> [Script]
 -- ??
 workOptimize s = [s, mkScript]
 
-tokensCost :: Script -> Int
-tokensCost s = length $ callItems s
-
-worker :: Script -> TVar Bool -> MVar () -> IO ()
-worker    s         shutdownFlag    done =
+worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
+worker    cfg            script     shutdownFlag    done =
     loop `finally` putMVar done ()
     where
     loop = do
-        stopSignal <- atomically $ do
-            readTVar shutdownFlag
-
-        threadDelay 80
-        if stopSignal then
-            pure () 
+        stop <- atomically $ readTVar shutdownFlag
+        if stop then pure ()
         else do
-            -- processJob s >> loop
-            -- processJob s
-            putStrLn "processJob1..."
-            runScriptM s HM.empty
+            -- Rate-limit if configured.
+            case wcRateLimiter cfg of
+                Just rl -> waitAndConsumeToken rl
+                Nothing -> pure ()
 
+            printf "Worker %d: running script...\n" (wcWorkerId cfg)
+            runScriptM script HM.empty
 
--- checkpoint: localhost does echo
-
--- processJob :: IO ()
-
--- processJob s = do
---     putStrLn "processJob1..."
---     runScriptM s HM.empty
-
-
--- runRWST (runMaybeT course) ctx env
--- runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)
--- conduct ::  Script -> ExecContext -> Env -> IO Lead
-processTask :: VUState -> Script -> IO ()
-processTask vu script = putStrLn $ "Worker x finished a task"
-
-data VUState = VUState
-  { workerId :: Int
-  }
+            -- OneShot: exit after one run. LoopWithNap: nap then loop.
+            case wcMode cfg of
+                OneShot       -> pure ()
+                LoopWithNap n -> threadDelay n >> loop
 
 
 
@@ -157,23 +147,4 @@ getStats rl = do
         , capacity      = bucketCapacity (rlConfig rl)
         }
 
--- | A generic job representation
-data Jib = Jib
-    { jobAction :: IO ()
-    , jobId     :: Int
-    }
 
--- | Worker: pulls jobs from queue, consumes a rate-limiter token, runs the job.
--- Exits cleanly on 'Nothing' (poison pill).
-workir :: Int -> TQueue (Maybe Jib) -> RateLimiter -> IO ()
-workir wId queue rl = go
-  where
-  go = do
-    mjob <- atomically $ readTQueue queue
-    case mjob of
-      Nothing  -> printf "Worker %d: shutting down\n" wId
-      Just job -> do
-        waitAndConsumeToken rl
-        printf "Worker %d: job %d\n" wId (jobId job)
-        jobAction job
-        go
