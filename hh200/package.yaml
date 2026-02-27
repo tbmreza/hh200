@@ -86,6 +86,7 @@ library:
   - optparse-applicative
   - lsp
   - gitrev
+  - lens
 
 executables:
   hh200:

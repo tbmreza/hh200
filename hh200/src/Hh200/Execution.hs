@@ -44,6 +44,9 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 -- import qualified Data.Aeson.Types as Aeson (Value(..))
 
+import           Control.Lens ((&), (?~))
+import           Control.Lens.At (at)
+
 import qualified Network.HTTP.Client as HC
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName)
@@ -108,7 +111,7 @@ asMethod s = BS.pack s
 validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
 validJsonBody req resp = Aeson.Object $
     KeyMap.fromList [ (Key.fromText "body", bodyValue)
-                    , (Key.fromText "headers", headersValue)
+                    , (Key.fromText "headers", headersToAeson (Http.getHeaders resp))
                     , (Key.fromText "status", Aeson.Number (fromIntegral $ statusCode $ Http.getStatus resp))
                     , (Key.fromText "request", requestValue)
                     ]
@@ -116,12 +119,14 @@ validJsonBody req resp = Aeson.Object $
     where
     bodyBytes = Http.getBody resp
     bodyValue = fromMaybe (Aeson.String (TE.decodeUtf8With TEE.lenientDecode (BL.toStrict bodyBytes))) (Aeson.decode bodyBytes)
-    headersValue = Aeson.Object $ KeyMap.fromList $ map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) (Http.getHeaders resp)
     requestValue = Aeson.Object $ KeyMap.fromList
         [ (Key.fromText "method", Aeson.String (TE.decodeUtf8With TEE.lenientDecode (HC.method req)))
-        , (Key.fromText "headers", requestHeadersValue)
+        , (Key.fromText "headers", headersToAeson (HC.requestHeaders req))
         ]
-    requestHeadersValue = Aeson.Object $ KeyMap.fromList $ map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) (HC.requestHeaders req)
+
+headersToAeson :: [(HeaderName, BS.ByteString)] -> Aeson.Value
+headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $ 
+    map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) hdrs
 
 asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
@@ -250,7 +255,11 @@ courseFrom x = do
                 -- env is already fetched above.
 
                 -- PICKUP review theoretical buffed env
-                let !initialEnv = HM.insert "RESP_BODY" (validJsonBody reqOrThrow gotResp) env
+                let !initialEnv = env
+                        & at "RESP_BODY"  ?~ validJsonBody reqOrThrow gotResp
+                        & at "statusCode" ?~ Aeson.Number (fromIntegral $ statusCode $ Http.getStatus gotResp)
+                        & at "headers"    ?~ headersToAeson (Http.getHeaders gotResp)
+                        & at "cookieJar"  ?~ Aeson.String (Text.pack $ show $ Http.getCookieJar gotResp)
 
                 let mrs = ciResponseSpec ci
                 (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))

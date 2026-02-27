@@ -65,3 +65,6 @@ getBody = HC.responseBody
 
 getHeaders :: Response -> ResponseHeaders
 getHeaders = HC.responseHeaders
+
+getCookieJar :: Response -> HC.CookieJar
+getCookieJar = HC.responseCookieJar
