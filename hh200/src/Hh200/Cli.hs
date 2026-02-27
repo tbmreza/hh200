@@ -103,13 +103,17 @@ go Args { source = Just path, debugConfig = True } = do
     let analyzed = Scanner.analyze path
     m <- runMaybeT analyzed
     case m of
-        Just script -> testSimple script
         _ -> undefined
+        -- ?? define debug-config
 
 -- Script execution.
 -- hh200 flow.hhs
-go Args { shotgun = 1, call = False, rps = False, source = Just path } =
-    runAnalyzedScript (Scanner.analyze path)
+go Args { shotgun = 1, call = False, rps = False, source = Just path } = do
+    let analyzed = Scanner.analyze path
+    m <- runMaybeT analyzed
+    case m of
+        Just script -> testSimple script
+        _ -> undefined
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
@@ -167,7 +171,31 @@ testSimple script = do
         threadDelay (10 * 1000000)
         atomically $ writeTVar shutdownFlag True
 
-    atomically $ readTVar shutdownFlag >>= check
+    atomically (readTVar shutdownFlag >>= check)
+
+-- Concurrent one-shot: fire N workers, report how many failed.
+testShotgun :: Int -> Script -> IO ()
+testShotgun numWorkers script = do
+    shutdownFlag <- newTVarIO False
+    doneSignals <- replicateM numWorkers newEmptyMVar
+
+    forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
+        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
+        forkIO (worker cfg script shutdownFlag done)
+
+    -- Termination with ctrl+c.
+    _ <- installHandler sigINT
+                        (CatchOnce (atomically $ writeTVar shutdownFlag True))
+                        Nothing  -- Other signals to block.
+
+    -- Termination based on timer.
+    _ <- forkIO $ do
+        threadDelay (10 * 1000000)
+        atomically $ writeTVar shutdownFlag True
+
+    -- Wait for all workers to finish.
+    forM_ doneSignals takeMVar
+    putStrLn $ "# testShotgun: " ++ show numWorkers ++ " workers completed."
 
 -- Rampup-able pool of virtual users with rate limiting.
 -- RPS: rate of individual CallItems.
@@ -194,38 +222,14 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
         -- Termination with ctrl+c.
         _ <- installHandler sigINT
                             (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                            Nothing
+                            Nothing  -- Other signals to block.
 
         -- Termination based on timer.
         _ <- forkIO $ do
             threadDelay (10 * 1000000)
             atomically $ writeTVar shutdownFlag True
 
-        atomically $ readTVar shutdownFlag >>= check
-
--- Concurrent one-shot: fire N workers, report how many failed.
-testShotgun :: Int -> Script -> IO ()
-testShotgun numWorkers script = do
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM numWorkers newEmptyMVar
-
-    forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
-        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
-        forkIO (worker cfg script shutdownFlag done)
-
-    -- Termination with ctrl+c.
-    _ <- installHandler sigINT
-                        (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                        Nothing
-
-    -- Termination based on timer.
-    _ <- forkIO $ do
-        threadDelay (10 * 1000000)
-        atomically $ writeTVar shutdownFlag True
-
-    -- Wait for all workers to finish.
-    forM_ doneSignals takeMVar
-    putStrLn $ "# testShotgun: " ++ show numWorkers ++ " workers completed."
+        atomically (readTVar shutdownFlag >>= check)
 
 runAnalyzedScript :: MaybeT IO Script -> IO ()
 runAnalyzedScript mis = do

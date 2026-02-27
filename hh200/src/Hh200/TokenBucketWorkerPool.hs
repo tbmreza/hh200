@@ -57,12 +57,13 @@ workOptimize :: Script -> [Script]
 workOptimize s = [s, mkScript]
 
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
-worker    cfg            script     shutdownFlag    done =
+worker    cfg             script    shutdown     done =
     loop `finally` putMVar done ()
     where
     loop = do
-        stop <- atomically $ readTVar shutdownFlag
-        if stop then pure ()
+        stop <- atomically $ readTVar shutdown
+        if stop then
+            pure ()
         else do
             -- Rate-limit if configured.
             case wcRateLimiter cfg of
