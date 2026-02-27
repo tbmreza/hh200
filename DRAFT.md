@@ -252,8 +252,15 @@ ID = $.data.id
 START =   today()
 [Asserts]
 > 12 == 12  # early return
+> jsonpath "$.data.method" == request method
 # jsonpath "$.data.name" == "alice"
 # implicit status == 200 assertion at the end
+
+# goal on $ @ %
+use  jsonpath "$." for response body as it's the norm
+then jsonpath "%." can be used for all other response fields
+requests are statically checked, so it make sense in this block that request is treated "natively"
+
 
 POST http://localhost:9999/{{START}}&q={{Q_STR}}
 { "data": "a" }

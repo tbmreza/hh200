@@ -109,8 +109,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - hh200
-    - http-client      # imported as Prim
-    - http-client-tls  # see extra-deps
     - transformers
     - tasty
     - tasty-hunit

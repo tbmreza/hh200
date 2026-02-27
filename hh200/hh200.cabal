@@ -116,8 +116,6 @@ test-suite hh200-test
     , directory
     , filepath
     , hh200
-    , http-client
-    , http-client-tls
     , http-types
     , optparse-applicative
     , silently

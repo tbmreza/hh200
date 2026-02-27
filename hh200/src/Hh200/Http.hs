@@ -31,8 +31,8 @@ import qualified Data.ByteString.Char8 as BS
 --                      new Manager.
 -- 2. Load test mode
 --
--- ??: stack build config to switch between http client libs, goal: fork development exit mechanism + guide general (presumably more correct) api
 -- ??: config respect-url-insecure-http, leaving it false means always use TLS
+-- ??: stack build config to switch between http client libs, goal: fork development exit mechanism + guide general (presumably more correct) api
 type Manager = HC.Manager
 type Request = HC.Request
 type Response = HC.Response LBS.ByteString

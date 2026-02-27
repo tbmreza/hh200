@@ -249,6 +249,7 @@ courseFrom x = do
                 -- Captures.
                 -- env is already fetched above.
 
+                -- PICKUP review theoretical buffed env
                 let !initialEnv = HM.insert "RESP_BODY" (validJsonBody reqOrThrow gotResp) env
 
                 let mrs = ciResponseSpec ci
