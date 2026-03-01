@@ -26,11 +26,10 @@ module Hh200.Types
     , InternalError (..)
     , HhError (..)
     , defaultScriptConfig
-    -- , effectiveTls
     , defaultDepsClause
     , gCallItem
     , defaultHostInfo
-    , defaultLead
+    -- , defaultLead
     , show'
     , trimQuotes
     , expectUpper, expectUrl
@@ -41,6 +40,7 @@ module Hh200.Types
     , showPart
     , showResponse
     , Dat (..)
+    , newEnv
 
     -- temp
     , mkScript
@@ -94,6 +94,9 @@ newtype Subject = Subject String
 type Binding = (String, [BEL.Part])
 
 type Env = BEL.Env -- = HM.HashMap String Aeson.Value
+newEnv :: Env
+newEnv = BEL.Env { BEL.bindings = HM.empty }
+-- type En = BEL.En
 
 data TraceEvent
   = ScriptStart Int
@@ -199,14 +202,15 @@ data Lead = Lead
   , hostInfo ::        HostInfo
   , interpreterInfo :: (Env, Log)
   , echoScript ::      Maybe Script
-  } deriving (Show)
+  -- } deriving (Show)
+  }
 
 mkLead :: Lead
 mkLead = Lead
   { leadKind = Non
   , firstFailing = Nothing
   , hostInfo = defaultHostInfo
-  , interpreterInfo = (HM.empty, [])
+  -- , interpreterInfo = (HM.empty, [])
   , echoScript = Nothing
   }
 
@@ -258,14 +262,14 @@ defaultHostInfo = HostInfo
   , hiUptime = Nothing
   }
 
-defaultLead :: Lead
-defaultLead = Lead
-    { leadKind = Normal
-    , firstFailing = Nothing
-    , hostInfo = defaultHostInfo
-    , interpreterInfo = (HM.empty, [])
-    , echoScript = Nothing
-    }
+-- defaultLead :: Lead
+-- defaultLead = Lead
+--     { leadKind = Normal
+--     , firstFailing = Nothing
+--     , hostInfo = defaultHostInfo
+--     , interpreterInfo = (HM.empty, [])
+--     , echoScript = Nothing
+--     }
 
 
 showVerb :: UpperString -> String

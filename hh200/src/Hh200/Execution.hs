@@ -87,14 +87,14 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
-nonLead :: Script -> HostInfo -> Lead
-nonLead x hi = Lead
-  { leadKind = Non
-  , firstFailing = Nothing
-  , hostInfo = hi
-  , interpreterInfo = (HM.empty, [])
-  , echoScript = Just x
-  }
+-- nonLead :: Script -> HostInfo -> Lead
+-- nonLead x hi = Lead
+--   { leadKind = Non
+--   , firstFailing = Nothing
+--   , hostInfo = hi
+--   , interpreterInfo = (HM.empty, [])
+--   , echoScript = Just x
+--   }
 
 leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
 leadFrom failed el script hi = Lead
@@ -139,6 +139,7 @@ textOrMt _ = ""
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be
 -- reported.
+-- ??: En
 assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
     let status =     Http.getStatus got
@@ -158,7 +159,8 @@ assertsAreOk env got mrs = do
     -- Whether False can't be found in values.
     checkAssertions :: IO Bool
     checkAssertions = do
-        results :: [BEL.Expr] <- mapM (BEL.eval env) assertionLines
+        results :: [BEL.Expr] <- BEL.mapEval env assertionLines
+        -- results :: [BEL.Expr] <- mapM (BEL.eval env) assertionLines
         let values = map BEL.finalValue (trace ("results:" ++ show results) $ results)
             hasFailure = Aeson.Bool False `elem` (trace ("values:" ++ show values)$ values)
 
@@ -250,27 +252,27 @@ courseFrom x = do
                 lift $ Tf.tell [HttpError (show e)]
                 pure ci
             Right gotResp -> do
-                lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
-                -- Captures.
-                -- env is already fetched above.
-
-                -- PICKUP review theoretical buffed env
-                let !initialEnv = env
-                        & at "RESP_BODY"  ?~ validJsonBody reqOrThrow gotResp
-                        & at "statusCode" ?~ Aeson.Number (fromIntegral $ statusCode $ Http.getStatus gotResp)
-                        & at "headers"    ?~ headersToAeson (Http.getHeaders gotResp)
-                        & at "cookieJar"  ?~ Aeson.String (Text.pack $ show $ Http.getCookieJar gotResp)
-
-                let mrs = ciResponseSpec ci
-                (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
-
-                lift $ Tf.tell captureLog
-
-                -- Unless null Captures:
-                modify upsertCaptures
-
-                res <- liftIO $ assertsAreOk initialEnv gotResp mrs
-                case res of
+                -- lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
+                -- -- Captures.
+                -- -- env is already fetched above.
+                --
+                -- let !initialEnv = env
+                --         & at "RESP_BODY"  ?~ validJsonBody reqOrThrow gotResp
+                --         & at "statusCode" ?~ Aeson.Number (fromIntegral $ statusCode $ Http.getStatus gotResp)
+                --         & at "headers"    ?~ headersToAeson (Http.getHeaders gotResp)
+                --         & at "cookieJar"  ?~ Aeson.String (Text.pack $ show $ Http.getCookieJar gotResp)
+                --
+                -- let mrs = ciResponseSpec ci
+                -- -- (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
+                -- --
+                -- -- lift $ Tf.tell captureLog
+                --
+                -- -- Unless null Captures:
+                -- -- modify upsertCaptures
+                --
+                -- res <- liftIO $ assertsAreOk initialEnv gotResp mrs
+                -- case res of
+                case True of
                     False -> do
                         lift $ Tf.tell [AssertsFailed]
                         pure ci
@@ -290,52 +292,29 @@ courseFrom x = do
             _ -> do
                 req <- HC.parseRequest lexedUrl
                 -- ??: env didn't exist during alex phase so maybe requestStruct will succeed here with env, allow env to contain directives/defaults
-                -- so the typical Request construction is in this arm.
-                -- undefined
+                -- so the typical Request construction is in this arm. while at it, review Request recall in BEL.
                 pure req
 
+    -- ??: review render & mapEval
+
     -- Reduce captures to Env extensions.
-    evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-    evalCaptures (env, mrs) = do
-        let (RhsDict bindings) = case mrs of
-                Nothing -> RhsDict HM.empty
-                Just rs -> captures rs
-            initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
-        (ext, finalLog) <- foldlWithKeyM'
-            (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-                v <- BEL.render acc (Aeson.String "") bV
-                pure (HM.insert bK v acc, logs ++ [Captured bK]))
-            (env, initialLog)
-            bindings
-        pure (const ext, finalLog)
+    -- evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
+    -- evalCaptures (env, mrs) = do
+    --     let (RhsDict bindings) = case mrs of
+    --             Nothing -> RhsDict HM.empty
+    --             Just rs -> captures rs
+    --         initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+    --     (ext, finalLog) <- foldlWithKeyM'
+    --         (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+    --             v <- BEL.render acc (Aeson.String "") bV
+    --             pure (HM.insert bK v acc, logs ++ [Captured bK]))
+    --         (env, initialLog)
+    --         bindings
+    --     pure (const ext, finalLog)
 
 --------------------------------------------------------------------------------
 -- hh200 modes
 --------------------------------------------------------------------------------
-
--- -- | Gentle rate limit for sequential, single-VU execution.
--- -- Prevents accidental floods during development/debugging.
--- outsideWorldConfig :: RateLimiterConfig
--- outsideWorldConfig = RateLimiterConfig
---   { bucketCapacity = 10   -- small burst headroom
---   , refillRate     = 5    -- 5 rps sustained
---   }
-
--- -- | Higher throughput for concurrent stress testing.
--- -- Capacity matches concurrency so all VUs can fire immediately on startup.
--- shotgunConfig :: Int -> RateLimiterConfig
--- shotgunConfig n = RateLimiterConfig
---   { bucketCapacity = n     -- one token per VU
---   , refillRate     = n * 2 -- sustain at 2x concurrency
---   }
-
--- -- | Precise rate control for load testing with monitoring.
--- -- Already parameterized — this names the existing pattern from testRps.
--- rpsConfig :: Int -> RateLimiterConfig
--- rpsConfig rate = RateLimiterConfig
---   { bucketCapacity = rate  -- matches rate for 1s burst tolerance
---   , refillRate     = rate
---   }
 
 triggerEmergencyShutdown :: TVar Bool -> IO ()
 triggerEmergencyShutdown flag = do
@@ -343,74 +322,12 @@ triggerEmergencyShutdown flag = do
     atomically $ writeTVar flag True
 
 
--- -- Globally interruptible worker(s) running Script.
--- testSimple :: Script -> IO ()
--- testSimple script = do
---     -- ??: Script/CallItems can be analyzed to determine the number of workers testSimple can use.
---     -- A sanity check can assert that if we lowball the Script just takes longer to run.
---     let orthogonal = [VUState { workerId = 1 }, VUState { workerId = 2 }]
---     let numWorkers = length orthogonal
---
---     bucket <-         newTVarIO 1000  -- ??
---     globalShutdown <- newTVarIO False
---     chan <-           newTChanIO  -- stream of Scripts (each containing one or more CallItem)
---     doneSignals <-    replicateM numWorkers newEmptyMVar
---
---     -- Spawn the workers
---     forM_ (zip orthogonal doneSignals) $ \(vu, sig) ->
---         forkIO (worker vu chan (bucket, globalShutdown) sig)
---
---     -- Just before printing a Lead, other workers exit.
---
---     trace "was run" $ forM_ doneSignals takeMVar
-
-
-testOutsideWorld :: Script -> IO Lead
-testOutsideWorld script = do
-    -- bracket (Http.newManager (effectiveTls script))
-    bracket (Http.newManager True)
-            Http.closeManager $
-            \mgr -> conduct script (ExecContext mgr) HM.empty
-
--- testShotgun :: Int -> Script -> IO ()
--- testShotgun n script = do
---     bracket (Http.newManager (effectiveTls script))
+-- testOutsideWorld :: Script -> IO Lead
+-- testOutsideWorld script = do
+--     -- bracket (Http.newManager (effectiveTls script))
+--     bracket (Http.newManager True)
 --             Http.closeManager $
---             \mgr -> do
---                 putStrLn $ "# testShotgun: n=" ++ show n
---                 -- _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr Nothing) HM.empty)
---                 _ <- mapConcurrentlyBounded n $ replicate n (runProcM script (ExecContext mgr) HM.empty)
---                 pure ()
---
---     where
---     -- Limit concurrency with QSemN
---     mapConcurrentlyBounded :: Int -> [IO a] -> IO [a]
---     mapConcurrentlyBounded n actions = do
---         sem <- newQSemN n
---         mapConcurrently
---             (\act -> bracket_ (waitQSemN sem 1)
---                               (signalQSemN sem 1)
---                               act)
---             actions
-
--- -- Unminuted mode: a web service that listens to sigs for stopping hh200 from making calls.
--- -- RPS: rate of individual CallItems
--- testRps :: Int -> Int -> Script -> IO ()
--- testRps rpsVal concurrency script = do
---     -- The web server is lazy: no start if no row is inserted to db.
---     -- Inserts every second (or to a second-windowed timeseries data).
---     connect "timeseries.db"
---
---     bracket (Http.newManager (effectiveTls script))
---             Http.closeManager $
---             \mgr -> do
---                 -- rl <- initRateLimiter (RateLimiterConfig rpsVal rpsVal)
---                 -- let ctx = ExecContext mgr (Just rl)
---                 let ctx = ExecContext mgr
---                 putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
---                 replicateConcurrently_ concurrency $ forever $ do
---                     void $ runProcM script ctx HM.empty
-
+--             \mgr -> conduct script (ExecContext mgr) HM.empty
 
 --------------------------------------------------------------------------------
 -- More lib than app code

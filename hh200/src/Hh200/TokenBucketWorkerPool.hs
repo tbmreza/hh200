@@ -71,7 +71,7 @@ worker    cfg             script    shutdown     done =
                 Nothing -> pure ()
 
             printf "Worker %d: running script...\n" (wcWorkerId cfg)
-            runScriptM script HM.empty
+            runScriptM script newEnv
 
             -- OneShot: exit after one run. LoopWithNap: nap then loop.
             case wcMode cfg of
