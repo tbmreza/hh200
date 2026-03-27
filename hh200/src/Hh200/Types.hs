@@ -29,7 +29,6 @@ module Hh200.Types
     , defaultDepsClause
     , gCallItem
     , defaultHostInfo
-    -- , defaultLead
     , show'
     , trimQuotes
     , expectUpper, expectUrl
@@ -75,7 +74,6 @@ newtype UrlString = UrlString String
 
 expectUrl :: String -> UrlString
 expectUrl s = UrlString s
--- expectUrl _ = undefined
 
 newtype Snippet = Snippet L8.ByteString
 
@@ -96,7 +94,6 @@ type Binding = (String, [BEL.Part])
 type Env = BEL.Env -- = HM.HashMap String Aeson.Value
 newEnv :: Env
 newEnv = BEL.Env { BEL.bindings = HM.empty }
--- type En = BEL.En
 
 data TraceEvent
   = ScriptStart Int
@@ -144,13 +141,11 @@ ciw = CallItem
   , ciResponseSpec = Nothing
   }
 
--- ??: ScriptConfig definition and its derivatives mean very little until some
--- of them are used in one of Execution modes.
 data ScriptConfig = ScriptConfig
   { retries :: Int
   , maxDuration :: Maybe Duration
   , subjects :: Ls.NonEmpty Subject
-  -- , respectUrlInsecureHttp :: Maybe Bool  -- ??
+  -- , respectUrlInsecureHttp :: Maybe Bool  -- ??: ScriptConfig definition and its derivatives mean very little until some of them are used in one of Execution modes.
   , useTls :: Maybe Bool
   } deriving (Show, Eq)
 

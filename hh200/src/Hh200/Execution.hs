@@ -139,7 +139,6 @@ textOrMt _ = ""
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be
 -- reported.
--- ??: En
 assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
 assertsAreOk env got mrs = do
     let status =     Http.getStatus got
@@ -248,30 +247,16 @@ courseFrom x = do
         case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
-                -- ??
+
                 lift $ Tf.tell [HttpError (show e)]
                 pure ci
             Right gotResp -> do
-                -- lift $ Tf.tell [HttpStatus (statusCode $ Http.getStatus gotResp)]
-                -- -- Captures.
-                -- -- env is already fetched above.
-                --
-                -- let !initialEnv = env
-                --         & at "RESP_BODY"  ?~ validJsonBody reqOrThrow gotResp
-                --         & at "statusCode" ?~ Aeson.Number (fromIntegral $ statusCode $ Http.getStatus gotResp)
-                --         & at "headers"    ?~ headersToAeson (Http.getHeaders gotResp)
-                --         & at "cookieJar"  ?~ Aeson.String (Text.pack $ show $ Http.getCookieJar gotResp)
-                --
-                -- let mrs = ciResponseSpec ci
-                -- -- (upsertCaptures, captureLog) <- liftIO (evalCaptures (initialEnv, mrs))
-                -- --
-                -- -- lift $ Tf.tell captureLog
-                --
-                -- -- Unless null Captures:
-                -- -- modify upsertCaptures
-                --
-                -- res <- liftIO $ assertsAreOk initialEnv gotResp mrs
-                -- case res of
+                let mrs = ciResponseSpec ci
+                (f, _ :: [TraceEvent]) <- liftIO (upsertCaptures (newEnv, mrs))
+                modify f
+
+                res <- liftIO $ assertsAreOk newEnv gotResp (ciResponseSpec ci)
+
                 case True of
                     False -> do
                         lift $ Tf.tell [AssertsFailed]
@@ -295,22 +280,37 @@ courseFrom x = do
                 -- so the typical Request construction is in this arm. while at it, review Request recall in BEL.
                 pure req
 
-    -- ??: review render & mapEval
+    -- ??: review BEL apis. old: render mapEval
+    -- new api:
+    -- run :: Env -> Text -> IO Expr
+
 
     -- Reduce captures to Env extensions.
-    -- evalCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-    -- evalCaptures (env, mrs) = do
-    --     let (RhsDict bindings) = case mrs of
-    --             Nothing -> RhsDict HM.empty
-    --             Just rs -> captures rs
-    --         initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
-    --     (ext, finalLog) <- foldlWithKeyM'
-    --         (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-    --             v <- BEL.render acc (Aeson.String "") bV
-    --             pure (HM.insert bK v acc, logs ++ [Captured bK]))
-    --         (env, initialLog)
-    --         bindings
-    --     pure (const ext, finalLog)
+    upsertCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
+    upsertCaptures (env, mrs) = do
+        let (RhsDict bindings) = case mrs of
+                Nothing -> RhsDict HM.empty
+                Just rs -> captures rs
+            initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+
+        (ext, finalLog) <- foldlWithKeyM'
+            (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+                -- v <- BEL.render acc (Aeson.String "") bV
+                -- pure (HM.insert bK vPlus1 acc, logs ++ [Captured bK]))
+                pure (acc, logs))
+                -- pure (HM.insert bK v acc, logs ++ [Captured bK]))
+                -- pure undefined)
+            (env, initialLog)
+            bindings
+
+        -- (ext, finalLog) <- foldlWithKeyM'
+        --     (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+        --         v <- BEL.render acc (Aeson.String "") bV
+        --         pure (HM.insert bK v acc, logs ++ [Captured bK]))
+        --     (env, initialLog)
+        --     bindings
+        -- PICKUP stabilized bel apis
+        pure (const ext, finalLog)
 
 --------------------------------------------------------------------------------
 -- hh200 modes

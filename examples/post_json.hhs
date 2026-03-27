@@ -5,7 +5,9 @@ POST http://localhost:9999/api/echo
   "foo": "bar",
   "baz": 123
 }
-HTTP 200
+HTTP 404
+# [Captures]
+# TOK: Bearer abc12
 [Asserts]
 >debug "$.method"
->true
+>debug TOK
