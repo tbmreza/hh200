@@ -103,9 +103,13 @@ test-suite hh200-test
   main-is: Spec.hs
   other-modules:
       BlindLsp
+      CliSpec
       ContentTypeSpec
       GoldenCli
       GoldenNetw
+      LspSpec
+      NetworkSpec
+      ScannerSpec
       Paths_hh200
   hs-source-dirs:
       test
