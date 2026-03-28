@@ -147,7 +147,8 @@ go _ = exitWith (ExitFailure 1)
 -- Stabilize Http module and ExecContext and come back here.
 testSimple :: Script -> IO ()
 testSimple script = do
-    let scripts = workOptimize script
+    -- let scripts = workOptimize script
+    let scripts = dummyDuo script
 
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM (length scripts) newEmptyMVar

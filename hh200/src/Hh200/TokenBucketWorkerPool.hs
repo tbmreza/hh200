@@ -14,7 +14,7 @@ module Hh200.TokenBucketWorkerPool
   , WorkerMode(..)
   , WorkerConfig(..)
   , worker
-  , workOptimize
+  , workOptimize, dummyDuo
   ) where
 
 import Debug.Trace
@@ -55,6 +55,9 @@ data WorkerConfig = WorkerConfig
 workOptimize :: Script -> [Script]
 -- ??
 workOptimize s = [s, mkScript]
+
+dummyDuo :: Script -> [Script]
+dummyDuo s = [s, s]
 
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
 worker    cfg             script    shutdown     done =

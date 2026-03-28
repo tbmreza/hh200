@@ -159,7 +159,6 @@ assertsAreOk env got mrs = do
     checkAssertions :: IO Bool
     checkAssertions = do
         results :: [BEL.Expr] <- BEL.mapEval env assertionLines
-        -- results :: [BEL.Expr] <- mapM (BEL.eval env) assertionLines
         let values = map BEL.finalValue (trace ("results:" ++ show results) $ results)
             hasFailure = Aeson.Bool False `elem` (trace ("values:" ++ show values)$ values)
 
@@ -257,7 +256,9 @@ courseFrom x = do
 
                 res <- liftIO $ assertsAreOk newEnv gotResp (ciResponseSpec ci)
 
-                case True of
+                -- PICKUP [Asserts] reads from extended Env from Captures
+                case res of
+                -- case True of
                     False -> do
                         lift $ Tf.tell [AssertsFailed]
                         pure ci
@@ -273,7 +274,8 @@ courseFrom x = do
     buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt, lexedUrl } } = do
         -- req :: HC.Request <- HC.parseRequest lexedUrl
         case opt of
-            Just r -> pure (trace "buildRequest..." r)
+            -- Just r -> pure (trace "buildRequest..." r)
+            Just r -> pure r
             _ -> do
                 req <- HC.parseRequest lexedUrl
                 -- ??: env didn't exist during alex phase so maybe requestStruct will succeed here with env, allow env to contain directives/defaults
@@ -309,7 +311,7 @@ courseFrom x = do
         --         pure (HM.insert bK v acc, logs ++ [Captured bK]))
         --     (env, initialLog)
         --     bindings
-        -- PICKUP stabilized bel apis
+        -- ??: stabilized bel apis
         pure (const ext, finalLog)
 
 --------------------------------------------------------------------------------

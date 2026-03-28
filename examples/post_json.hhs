@@ -9,5 +9,6 @@ HTTP 404
 # [Captures]
 # TOK: Bearer abc12
 [Asserts]
+>debug 345
 >debug "$.method"
 >debug TOK

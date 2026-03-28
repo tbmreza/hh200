@@ -69,19 +69,6 @@ from 0 to 100 over 10s, at t=5s the target is 50 RPS) and adjust the Rate Limite
   Summary Table for GitHub
 
 
-  ┌─────────┬────────────────────────────────────────────┬────────────────────────────────────┬────────────┐
-  │ Task ID │ Title                                      │ Labels                             │ Dependency │
-  ├─────────┼────────────────────────────────────────────┼────────────────────────────────────┼────────────┤
-  │ 1       │ [DSL] Add Load Profile Grammar             │ static-analyzer, load-testing-tool │ -          │
-  │ 2       │ [Core] Implement Token Bucket Rate Limiter │ load-testing-tool                  │ -          │
-  │ 3       │ [Linter] Validate Load Profile Logic       │ static-analyzer                    │ Task 1     │
-  │ 4       │ [Engine] Switch to Paced Worker Pool       │ load-testing-tool                  │ Task 2     │
-  │ 5       │ [Engine] Dynamic Scheduler Implementation  │ load-testing-tool                  │ Task 1, 4  │
-  │ 6       │ [Stats] In-Memory Metrics Aggregator       │ load-testing-tool                  │ Task 4     │
-  │ 7       │ [CLI] Real-time Load Dashboard             │ load-testing-tool                  │ Task 5, 6  │
-  └─────────┴────────────────────────────────────────────┴────────────────────────────────────┴────────────┘
-
-
 oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
