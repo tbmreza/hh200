@@ -37,53 +37,14 @@ main = do
       
       , testScanner_lr
       , testScanner_lrMustache
-
       , testScanner_lrPost
       , testScanner_lr3lineAsserts
-
-      -- , testScanner_lrPostMultiline
-      -- , testScanner_lrInvalid
-      -- , testScanner_lrEmpty
-      -- -- , testScanner_TlsInference
-      -- , testScanner_lrResponseOrder
-      -- , testScanner_lrRequestConfigs
+      , testScanner_lrPostMultiline
+      , testScanner_lrInvalid
+      , testScanner_lrEmpty
+      , testScanner_lrResponseOrder
+      , testScanner_lrRequestConfigs
       ]
-
-
--- -- ??: already dead, especially after $ @ %  >debug "$.method" at BEL
--- testExecution_validJsonBody :: TestTree
--- testExecution_validJsonBody = testCase "validJsonBody structure" $ do
---     req <- Prim.parseRequest "GET http://localhost/foo"
---     let req' = req { Prim.requestHeaders = [("Accept", "application/json")] }
---         respBody = "{\"foo\":\"bar\"}"
---         -- Constructing a minimal http-client Response.
---         resp = PrimInternal.Response
---             { PrimInternal.responseStatus = HttpTypes.status200
---             , PrimInternal.responseVersion = HttpTypes.http11
---             , PrimInternal.responseHeaders = [("Content-Type", "application/json")]
---             , PrimInternal.responseBody = L8.pack respBody
---             , PrimInternal.responseCookieJar = Prim.createCookieJar []
---             , PrimInternal.responseClose' = PrimInternal.ResponseClose (pure ())
---             , PrimInternal.responseOriginalRequest = req'
---             , PrimInternal.responseEarlyHints = []
---             }
---
---     let val = Hh.validJsonBody req' resp
---
---     case val of
---         Aeson.Object obj -> do
---             assertBool "Has body" $ KeyMap.member "body" obj
---             assertBool "Has headers" $ KeyMap.member "headers" obj
---             assertBool "Has status" $ KeyMap.member "status" obj
---             assertBool "Has request" $ KeyMap.member "request" obj
---             
---             case KeyMap.lookup "request" obj of
---                 Just (Aeson.Object reqObj) -> do
---                     assertBool "Request has method" $ KeyMap.member "method" reqObj
---                     assertBool "Request has headers" $ KeyMap.member "headers" reqObj
---                 _ -> assertFailure "Request field is not an object"
---
---         _ -> assertFailure "validJsonBody did not return an Object"
 
 testScanner_lr :: TestTree
 testScanner_lr = testCase "lexer and parser" $ do
@@ -126,105 +87,88 @@ testScanner_lr3lineAsserts = testCase "lexer and parser for POST" $ do
         Right _ -> pure ()
         Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
--- testScanner_lrPostMultiline :: TestTree
--- testScanner_lrPostMultiline = testCase "lexer and parser for POST with multiline JSON" $ do
---     let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{\n  \"foo\": \"bar\",\n  \"baz\": 123\n}"
---         tokens = Hh.alexScanTokens input
---
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right _ -> pure ()
---         Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
---
--- testScanner_lrInvalid :: TestTree
--- testScanner_lrInvalid = testCase "lexer and parser for invalid input" $ do
---     let input = "INVALID http://httpbin.org/post"
---         tokens = Hh.alexScanTokens input
---
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right _ -> assertFailure "Should have failed to parse"
---         Left _ -> pure ()
---
--- testScanner_lrEmpty :: TestTree
--- testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
---     let input = ""
---         tokens = Hh.alexScanTokens input
---
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right _ -> assertFailure "Should have failed to parse"
---         Left _ -> pure ()
---
--- -- testScanner_TlsInference :: TestTree
--- -- testScanner_TlsInference = testCase "tls inference from url scheme" $ do
--- --     let inputHttps = Hh.Snippet "GET https://httpbin.org/get"
--- --
--- --     (Just sHttps) <- runMaybeT $ Hh.analyze inputHttps
--- --     case Hh.effectiveTls sHttps of
--- --         True -> pure ()
--- --         False -> assertFailure "Should have inferred TLS for https"
--- --
--- --     let inputHttp = Hh.Snippet "GET http://httpbin.org/get"
--- --
--- --     (Just sHttp) <- runMaybeT $ Hh.analyze inputHttp
--- --     case Hh.effectiveTls sHttp of
--- --         False -> pure ()
--- --         True -> assertFailure "Should have inferred no TLS for http"
---
--- -- (auto)
--- testScanner_lrResponseOrder :: TestTree
--- testScanner_lrResponseOrder = testGroup "lexer and parser for response block order"
---     [ testCase "Captures before Asserts" $ do
---         let input = "GET http://localhost\n\nHTTP 200\n[Captures]\nfoo: bar\n\n[Asserts]\n> true\n"
---             tokens = Hh.alexScanTokens input
---         res <- runExceptT (Hh.parsek tokens)
---         case res of
---             Right action -> do
---                 res2 <- runExceptT action
---                 case res2 of
---                     Right s -> do
---                         let ci = head (Hh.callItems s)
---                         case Hh.ciResponseSpec ci of
---                             Just rs -> do
---                                 assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
---                                 assertBool "Has asserts" $ not (null (Hh.asserts rs))
---                             Nothing -> assertFailure "Should have response spec"
---                     Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
---             Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
---
---     , testCase "Asserts before Captures" $ do
---         let input = "GET http://localhost\n\nHTTP 200\n[Asserts]\n> true\n\n[Captures]\nfoo: bar\n"
---             tokens = Hh.alexScanTokens input
---         res <- runExceptT (Hh.parsek tokens)
---         case res of
---             Right action -> do
---                 res2 <- runExceptT action
---                 case res2 of
---                     Right s -> do
---                         let ci = head (Hh.callItems s)
---                         case Hh.ciResponseSpec ci of
---                             Just rs -> do
---                                 assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
---                                 assertBool "Has asserts" $ not (null (Hh.asserts rs))
---                             Nothing -> assertFailure "Should have response spec"
---                     Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
---             Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
---     ]
---
--- testScanner_lrRequestConfigs :: TestTree
--- testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $ do
---     let input = "GET http://localhost\nAuthorization: Bearer token\n[Configs]\nretry: 3\n\n{ \"body\": \"here\" }\n"
---         tokens = Hh.alexScanTokens input
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right action -> do
---             res2 <- runExceptT action
---             case res2 of
---                 Right s -> do
---                     let ci = head (Hh.callItems s)
---                         rs = Hh.ciRequestSpec ci
---                     assertBool "Has configs" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.configsg rs in hm))
---                     assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.payloadg rs)
---                 Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
---         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+testScanner_lrPostMultiline :: TestTree
+testScanner_lrPostMultiline = testCase "lexer and parser for POST with multiline JSON" $ do
+    let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{\n  \"foo\": \"bar\",\n  \"baz\": 123\n}"
+        tokens = Hh.alexScanTokens input
+
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> pure ()
+        Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+testScanner_lrInvalid :: TestTree
+testScanner_lrInvalid = testCase "lexer and parser for invalid input" $ do
+    let input = "INVALID http://httpbin.org/post"
+        tokens = Hh.alexScanTokens input
+
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> assertFailure "Should have failed to parse"
+        Left _ -> pure ()
+
+testScanner_lrEmpty :: TestTree
+testScanner_lrEmpty = testCase "lexer and parser for empty input" $ do
+    let input = ""
+        tokens = Hh.alexScanTokens input
+
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> assertFailure "Should have failed to parse"
+        Left _ -> pure ()
+
+testScanner_lrResponseOrder :: TestTree
+testScanner_lrResponseOrder = testGroup "lexer and parser for response block order"
+    [ testCase "Captures before Asserts" $ do
+        let input = "GET http://localhost\n\nHTTP 200\n[Captures]\nfoo: bar\n\n[Asserts]\n> true\n"
+            tokens = Hh.alexScanTokens input
+        res <- runExceptT (Hh.parse tokens)
+        case res of
+            Right action -> do
+                res2 <- runExceptT action
+                case res2 of
+                    Right s -> do
+                        let ci = head (Hh.callItems s)
+                        case Hh.ciResponseSpec ci of
+                            Just rs -> do
+                                assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
+                                assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                            Nothing -> assertFailure "Should have response spec"
+                    Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+            Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+
+    , testCase "Asserts before Captures" $ do
+        let input = "GET http://localhost\n\nHTTP 200\n[Asserts]\n> true\n\n[Captures]\nfoo: bar\n"
+            tokens = Hh.alexScanTokens input
+        res <- runExceptT (Hh.parse tokens)
+        case res of
+            Right action -> do
+                res2 <- runExceptT action
+                case res2 of
+                    Right s -> do
+                        let ci = head (Hh.callItems s)
+                        case Hh.ciResponseSpec ci of
+                            Just rs -> do
+                                assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
+                                assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                            Nothing -> assertFailure "Should have response spec"
+                    Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+            Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+    ]
+
+testScanner_lrRequestConfigs :: TestTree
+testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $ do
+    let input = "GET http://localhost\nAuthorization: Bearer token\n[Configs]\nretry: 3\n\n{ \"body\": \"here\" }\n"
+        tokens = Hh.alexScanTokens input
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right action -> do
+            res2 <- runExceptT action
+            case res2 of
+                Right s -> do
+                    let ci = head (Hh.callItems s)
+                        rs = Hh.ciRequestSpec ci
+                    assertBool "Has configs" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.configs rs in hm))
+                    assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.payload rs)
+                Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+        Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
