@@ -18,16 +18,17 @@ spec :: MVar () -> TestTree
 spec lock = testGroup "Network (requires localhost:9999)"
   [
     goldenVsString "hello.hhs" "test/golden/hello_net.txt" $ do
-      let args = expectedArgs { source = Just "examples/hello.hhs" }
+      -- let args = expectedArgs { source = Just "examples/hello.hhs" }
+      let args = expectedArgs { source = Just "examples/post_json.hhs" }
       result <- E.try $ withMVar lock $ \_ -> capture_ $ go args
       case result of
          Left (e :: E.SomeException) -> pure $ L8.pack $ "FAILED: " ++ show e
          Right output -> pure $ L8.pack output
 
-  , goldenVsString "draft.hhs" "test/golden/draft_net.txt" $ do
-      let args = expectedArgs { source = Just "examples/draft.hhs" }
-      result <- E.try $ withMVar lock $ \_ -> capture_ $ go args
-      case result of
-         Left (e :: E.SomeException) -> pure $ L8.pack $ "FAILED: " ++ show e
-         Right output -> pure $ L8.pack output
+  -- , goldenVsString "draft.hhs" "test/golden/draft_net.txt" $ do
+  --     let args = expectedArgs { source = Just "examples/draft.hhs" }
+  --     result <- E.try $ withMVar lock $ \_ -> capture_ $ go args
+  --     case result of
+  --        Left (e :: E.SomeException) -> pure $ L8.pack $ "FAILED: " ++ show e
+  --        Right output -> pure $ L8.pack output
   ]

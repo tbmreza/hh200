@@ -245,7 +245,8 @@ courseFrom x = do
                 (f, _ :: [TraceEvent]) <- liftIO (upsertCaptures (newEnv, mrs))
                 modify f
 
-                res <- liftIO $ assertsAreOk newEnv gotResp (ciResponseSpec ci)
+                -- res <- liftIO $ assertsAreOk newEnv gotResp (ciResponseSpec ci)
+                res <- liftIO $ assertsAreOk env gotResp (ciResponseSpec ci)
 
                 -- PICKUP [Asserts] reads from extended Env from Captures
                 case res of
