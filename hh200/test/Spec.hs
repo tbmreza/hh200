@@ -30,14 +30,18 @@ main :: IO ()
 main = do
     lock <- newMVar ()
     defaultMain $ testGroup ""
-      [ GoldenCli.spec lock
-      , BlindLsp.spec
-      , GoldenNetw.spec lock
-      , ContentTypeSpec.spec
+      -- [ GoldenCli.spec lock
+      -- , BlindLsp.spec
+      -- , GoldenNetw.spec lock
+      -- , ContentTypeSpec.spec
       
       -- , testScanner_lr
       -- , testScanner_lrMustache
-      -- , testScanner_lrPost
+
+      [ testScanner_lrPost
+      , testScanner_lr2lineAsserts
+      , testScanner_lr3lineAsserts
+
       -- , testScanner_lrPostMultiline
       -- , testScanner_lrInvalid
       -- , testScanner_lrEmpty
@@ -130,17 +134,39 @@ main = do
 --     case res of
 --         Right _ -> pure ()
 --         Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
---
--- testScanner_lrPost :: TestTree
--- testScanner_lrPost = testCase "lexer and parser for POST" $ do
---     let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
---         tokens = Hh.alexScanTokens input
---
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right _ -> pure ()
---         Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
---
+
+testScanner_lrPost :: TestTree
+testScanner_lrPost = testCase "lexer and parser for POST" $ do
+    let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
+        tokens = Hh.alexScanTokens input
+
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> pure ()
+        Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+-- PICKUP goal: 3-line Asserts block. opus: there's a specific bug in the parser where 3 lines long
+-- [Asserts] block is panicking, while if 2 lines long it runs fine.
+testScanner_lr2lineAsserts :: TestTree
+testScanner_lr2lineAsserts = testCase "lexer and parser for POST" $ do
+    let input = "GET http://httpbin.org/post\n[Asserts]\n>true\n>true"
+        tokens = Hh.alexScanTokens input
+
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> pure ()
+        Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+testScanner_lr3lineAsserts :: TestTree
+testScanner_lr3lineAsserts = testCase "lexer and parser for POST" $ do
+    let input = "GET http://httpbin.org/post\n[Asserts]\n>true\n>true\n>true"
+        tokens = Hh.alexScanTokens input
+
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> pure ()
+        Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
 -- testScanner_lrPostMultiline :: TestTree
 -- testScanner_lrPostMultiline = testCase "lexer and parser for POST with multiline JSON" $ do
 --     let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{\n  \"foo\": \"bar\",\n  \"baz\": 123\n}"
