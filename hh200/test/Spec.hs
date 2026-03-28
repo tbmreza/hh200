@@ -30,16 +30,15 @@ main :: IO ()
 main = do
     lock <- newMVar ()
     defaultMain $ testGroup ""
-      -- [ GoldenCli.spec lock
-      -- , BlindLsp.spec
+      [ GoldenCli.spec lock
+      , BlindLsp.spec
       -- , GoldenNetw.spec lock
-      -- , ContentTypeSpec.spec
+      , ContentTypeSpec.spec
       
-      -- , testScanner_lr
-      -- , testScanner_lrMustache
+      , testScanner_lr
+      , testScanner_lrMustache
 
-      [ testScanner_lrPost
-      , testScanner_lr2lineAsserts
+      , testScanner_lrPost
       , testScanner_lr3lineAsserts
 
       -- , testScanner_lrPostMultiline
@@ -48,36 +47,8 @@ main = do
       -- -- , testScanner_TlsInference
       -- , testScanner_lrResponseOrder
       -- , testScanner_lrRequestConfigs
-
-      -- , testExecution_runScriptM
-      -- , testExecution_bel
       ]
-      -- , testScanner_lrConfig
 
-
--- testExecution_bel :: TestTree
--- testExecution_bel = testCase "assertsAreOk as BEL callsite" $ do
---     mgr <-        Hh.newManager True
---     instant <-    Hh.parseRequest "http://localhost"
---     mtRespBody <- Hh.httpLbs instant mgr -- :: Response L8.ByteString
---
---     -- ok <-  Hh.assertsAreOk mtHM mtRespBody (rsFrom ["true", "true", "true"])
---     -- neg <- Hh.assertsAreOk mtHM mtRespBody (rsFrom ["true", "false"])
---     ok <-  Hh.assertsAreOk Hh.mtHM mtRespBody (rsFrom ["true", "true", "true"])
---     neg <- Hh.assertsAreOk Hh.mtHM mtRespBody (rsFrom ["true", "false"])
---
---     case (ok, neg) of
---         (True, False) -> pure ()
---         otherCases -> assertFailure (show otherCases)
---
---     where
---     rsFrom :: [String] -> Maybe Hh.ResponseSpec
---     rsFrom rsLines = Just $ Hh.ResponseSpec
---       { Hh.statuses = []
---       , Hh.output = []
---       , Hh.captures = Hh.RhsDict mtHM
---       , Hh.asserts = rsLines
---       }
 
 -- -- ??: already dead, especially after $ @ %  >debug "$.method" at BEL
 -- testExecution_validJsonBody :: TestTree
@@ -114,30 +85,20 @@ main = do
 --
 --         _ -> assertFailure "validJsonBody did not return an Object"
 
--- testScanner_lr :: TestTree
--- testScanner_lr = testCase "lexer and parser" $ do
---     let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
---
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right _ -> do
---             pure ()
---         Left _ -> do
---             assertFailure $ show tokens
---
--- testScanner_lrMustache :: TestTree
--- testScanner_lrMustache = testCase "lexer and parser for valid mustached" $ do
---     let input = "POST http://httpbin.org/post&unused={{100}}"
---         tokens = Hh.alexScanTokens input
---
---     res <- runExceptT (Hh.parsek tokens)
---     case res of
---         Right _ -> pure ()
---         Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+testScanner_lr :: TestTree
+testScanner_lr = testCase "lexer and parser" $ do
+    let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
 
-testScanner_lrPost :: TestTree
-testScanner_lrPost = testCase "lexer and parser for POST" $ do
-    let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> do
+            pure ()
+        Left _ -> do
+            assertFailure $ show tokens
+
+testScanner_lrMustache :: TestTree
+testScanner_lrMustache = testCase "lexer and parser for valid mustached" $ do
+    let input = "POST http://httpbin.org/post&unused={{100}}"
         tokens = Hh.alexScanTokens input
 
     res <- runExceptT (Hh.parse tokens)
@@ -145,11 +106,9 @@ testScanner_lrPost = testCase "lexer and parser for POST" $ do
         Right _ -> pure ()
         Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
 
--- PICKUP goal: 3-line Asserts block. opus: there's a specific bug in the parser where 3 lines long
--- [Asserts] block is panicking, while if 2 lines long it runs fine.
-testScanner_lr2lineAsserts :: TestTree
-testScanner_lr2lineAsserts = testCase "lexer and parser for POST" $ do
-    let input = "GET http://httpbin.org/post\n[Asserts]\n>true\n>true"
+testScanner_lrPost :: TestTree
+testScanner_lrPost = testCase "lexer and parser for POST" $ do
+    let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
         tokens = Hh.alexScanTokens input
 
     res <- runExceptT (Hh.parse tokens)
@@ -196,18 +155,6 @@ testScanner_lr3lineAsserts = testCase "lexer and parser for POST" $ do
 --     case res of
 --         Right _ -> assertFailure "Should have failed to parse"
 --         Left _ -> pure ()
---
--- -- testScanner_lrConfig :: TestTree
--- -- testScanner_lrConfig = testCase "lexer and parser for config" $ do
--- --     let input = "[Configs]\nuse-tls: false\n\nGET http://httpbin.org/get"
--- --         tokens = Hh.alexScanTokens input
--- --
--- --     case Hh.parsek tokens of
--- --         Hh.ParseOk s -> do
--- --             case Hh.useTls (Hh.config s) of
--- --                 Just False -> pure ()
--- --                 _ -> assertFailure "Should have parsed use-tls: false"
--- --         Hh.ParseFailed _ _ -> assertFailure $ "Failed to parse: " ++ show tokens
 --
 -- -- testScanner_TlsInference :: TestTree
 -- -- testScanner_TlsInference = testCase "tls inference from url scheme" $ do

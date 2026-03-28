@@ -87,15 +87,6 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
--- nonLead :: Script -> HostInfo -> Lead
--- nonLead x hi = Lead
---   { leadKind = Non
---   , firstFailing = Nothing
---   , hostInfo = hi
---   , interpreterInfo = (HM.empty, [])
---   , echoScript = Just x
---   }
-
 leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
 leadFrom failed el script hi = Lead
   { leadKind = Normal
