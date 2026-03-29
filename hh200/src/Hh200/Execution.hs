@@ -128,37 +128,6 @@ textOrMt (Aeson.String t) = t
 textOrMt _ = ""
 
 
--- False indicates for corresponding CallItem (perhaps on user assert) to be
--- reported.
-assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
-assertsAreOk env got mrs = do
-    let status =     Http.getStatus got
-        expectList = expectCodesOrDefault mrs
-
-    if status `notElem` expectList then do
-        putStrLn $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
-        pure False
-    else
-        checkAssertions
-
-    where
-    -- Extract lines safely; if Nothing, default to empty list
-    assertionLines :: [Text]
-    assertionLines = maybe [] (map Text.pack . asserts) mrs
-
-    -- Whether False can't be found in values.
-    checkAssertions :: IO Bool
-    checkAssertions = do
-        results :: [BEL.Expr] <- BEL.mapEval env assertionLines
-        let values = map BEL.finalValue (trace ("results:" ++ show results) $ results)
-            hasFailure = Aeson.Bool False `elem` (trace ("values:" ++ show values)$ values)
-
-        if hasFailure then do
-            putStrLn "# False assertion found"
-            pure False
-        else
-            pure True
-
 expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
 expectCodesOrDefault mrs =
     case mrs of
@@ -248,9 +217,7 @@ courseFrom x = do
                 -- res <- liftIO $ assertsAreOk newEnv gotResp (ciResponseSpec ci)
                 res <- liftIO $ assertsAreOk env gotResp (ciResponseSpec ci)
 
-                -- PICKUP [Asserts] reads from extended Env from Captures
                 case res of
-                -- case True of
                     False -> do
                         lift $ Tf.tell [AssertsFailed]
                         pure ci
@@ -290,21 +257,46 @@ courseFrom x = do
         (ext, finalLog) <- foldlWithKeyM'
             (\(acc, logs) bK (bV :: [BEL.Part]) -> do
                 -- v <- BEL.render acc (Aeson.String "") bV
-                -- pure (HM.insert bK vPlus1 acc, logs ++ [Captured bK]))
                 pure (acc, logs))
                 -- pure (HM.insert bK v acc, logs ++ [Captured bK]))
-                -- pure undefined)
             (env, initialLog)
             bindings
 
-        -- (ext, finalLog) <- foldlWithKeyM'
-        --     (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-        --         v <- BEL.render acc (Aeson.String "") bV
-        --         pure (HM.insert bK v acc, logs ++ [Captured bK]))
-        --     (env, initialLog)
-        --     bindings
-        -- ??: stabilized bel apis
         pure (const ext, finalLog)
+
+-- False indicates for corresponding CallItem (perhaps on user assert) to be
+-- reported.
+assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
+assertsAreOk env got mrs = do
+    let status = Http.getStatus got
+        expectList = expectCodesOrDefault mrs
+
+    if status `notElem` expectList
+        then failWith $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
+        else checkAssertions
+
+    where
+    failWith :: String -> IO Bool
+    failWith msg = putStrLn msg >> pure False
+
+    -- Extract lines safely; if Nothing, default to empty list
+    assertionLines :: [Text]
+    assertionLines = maybe [] (map Text.pack . asserts) mrs
+
+    checkAssertions :: IO Bool
+    checkAssertions = do
+        results :: [BEL.Expr] <- BEL.mapEval env assertionLines
+        let values = map BEL.finalValue results
+
+        forM_ (zip assertionLines values) $ \(line, val) ->
+            putStrLn $ "Assert: " ++ Text.unpack line ++ " -> " ++ show val
+
+        let hasFailure = Aeson.Bool False `elem` values
+
+        if hasFailure
+            then failWith "# False assertion found"
+            else pure True
+
 
 --------------------------------------------------------------------------------
 -- hh200 modes
