@@ -174,7 +174,10 @@ data ResponseSpec = ResponseSpec
   { statuses :: [Status]
   , output :: [String]
   , captures :: RhsDict
-  , asserts :: [String]  -- List of untyped expr line, input for evaluator.
+  -- List of untyped expr line, input for evaluator.
+  , asserts :: [String]
+  -- Response and representation headers.
+  -- , responseHeaders :: RhsDict
   }
   deriving (Show, Eq)
 

@@ -211,11 +211,16 @@ courseFrom x = do
                 pure ci
             Right gotResp -> do
                 let mrs = ciResponseSpec ci
-                (f, _ :: [TraceEvent]) <- liftIO (upsertCaptures (newEnv, mrs))
+                let envWithResp = env
+                        { BEL.responseCopy = gotResp
+                        , BEL.requestCopy = reqOrThrow
+                        }
+                (f, tLogs :: [TraceEvent]) <- liftIO (upsertCaptures (envWithResp, mrs))
+                lift $ Tf.tell tLogs
                 modify f
+                env' <- get
 
-                -- res <- liftIO $ assertsAreOk newEnv gotResp (ciResponseSpec ci)
-                res <- liftIO $ assertsAreOk env gotResp (ciResponseSpec ci)
+                res <- liftIO $ assertsAreOk env' gotResp (ciResponseSpec ci)
 
                 case res of
                     False -> do
@@ -248,7 +253,7 @@ courseFrom x = do
 
     -- Reduce captures to Env extensions.
     upsertCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-    upsertCaptures (env, mrs) = do
+    upsertCaptures (envW, mrs) = do
         let (RhsDict bindings) = case mrs of
                 Nothing -> RhsDict HM.empty
                 Just rs -> captures rs
@@ -256,10 +261,9 @@ courseFrom x = do
 
         (ext, finalLog) <- foldlWithKeyM'
             (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-                -- v <- BEL.render acc (Aeson.String "") bV
-                pure (acc, logs))
-                -- pure (HM.insert bK v acc, logs ++ [Captured bK]))
-            (env, initialLog)
+                v <- BEL.render acc (Aeson.String "") bV
+                pure (acc { BEL.bindings = HM.insert bK v (BEL.bindings acc) }, logs ++ [Captured bK]))
+            (envW, initialLog)
             bindings
 
         pure (const ext, finalLog)
