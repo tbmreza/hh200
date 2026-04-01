@@ -177,7 +177,7 @@ data ResponseSpec = ResponseSpec
   -- List of untyped expr line, input for evaluator.
   , asserts :: [String]
   -- Response and representation headers.
-  -- , responseHeaders :: RhsDict
+  , responseHeaders :: RhsDict
   }
   deriving (Show, Eq)
 
@@ -303,6 +303,7 @@ showPart (BEL.L t) = Text.unpack t
 showResponse :: Maybe ResponseSpec -> String
 showResponse Nothing = ""
 showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (statuses rs))
+    ++ (showHeaders $ responseHeaders rs)
 
 data Dat = Dat [(Text, Text, Text)]
     deriving (Show)

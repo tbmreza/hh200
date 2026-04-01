@@ -277,7 +277,11 @@ assertsAreOk env got mrs = do
 
     if status `notElem` expectList
         then failWith $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
-        else checkAssertions
+        else do
+            okHeaders <- checkHeaders
+            if okHeaders
+                then checkAssertions
+                else pure False
 
     where
     failWith :: String -> IO Bool
@@ -300,6 +304,35 @@ assertsAreOk env got mrs = do
         if hasFailure
             then failWith "# False assertion found"
             else pure True
+
+    checkHeaders :: IO Bool
+    checkHeaders = case mrs of
+        Nothing -> pure True
+        Just rs -> do
+            let (RhsDict expected) = responseHeaders rs
+            if HM.null expected
+                then pure True
+                else do
+                    let actual = Http.getHeaders got
+                    foldlWithKeyM' 
+                        (\acc k vParts -> if not acc then pure False else do
+                            rendered <- BEL.render env (Aeson.String "") vParts
+                            let expectedVal = textOrMt rendered
+                                actualVal = findHeader k actual
+                            case actualVal of
+                                Nothing -> failWith $ "# Missing header: " ++ k
+                                Just av | av == expectedVal -> pure True
+                                Just av -> failWith $ "# Header Mismatch [" ++ k ++ "]: Got " ++ Text.unpack (fromMaybe "" actualVal) ++ ", Expected " ++ Text.unpack expectedVal
+                        )
+                        True
+                        expected
+
+    findHeader :: String -> [(HeaderName, BS.ByteString)] -> Maybe Text
+    findHeader name hdrs = 
+        let target = CaseInsensitive.mk (BS.pack name)
+        in case lookup target hdrs of
+            Nothing -> Nothing
+            Just bs -> Just (TE.decodeUtf8With TEE.lenientDecode bs)
 
 
 --------------------------------------------------------------------------------
