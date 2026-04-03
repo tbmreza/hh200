@@ -177,6 +177,21 @@ conduct script ctx env = do
 emptyHanded :: ProcM CallItem
 emptyHanded = mzero
 
+ciCapturesOrMt ci =
+    case ciResponseSpec ci of
+        Nothing -> mtRhsDict
+        Just rs -> captures rs
+
+expectCodesOr200 :: CallItem -> [Status]
+expectCodesOr200 ci =
+    -- case mrs of
+    --     Nothing -> [status200]
+    --     Just rs -> case statuses rs of
+    --         [] -> [status200]
+    --         expectCodes -> expectCodes
+    undefined
+
+
 -- Exceptions:  when running ProcM
 -- offline HttpExceptionRequest  -handling->  print
 -- http client lib internal error  -handling->  halt (graceful if free)
@@ -187,49 +202,6 @@ courseFrom x = do
     go ctx (callItems x)
 
     where
-    go :: ExecContext -> [CallItem] -> ProcM CallItem
-    go _ [] = emptyHanded
-    go ctx (ci:rest) = do
-        lift $ Tf.tell [ItemStart (ciName ci)]
-        
-        -- -- Individual CallItem Rate Limiting  ??: is too fine-grain and not what we want
-        -- case ecRateLimiter ctx of
-        --     Nothing -> pure ()
-        --     Just rl -> liftIO $ waitAndConsumeToken rl
-
-        env <- get
-        reqOrThrow <- liftIO $ buildRequest env ci
-
-        -- Unhandled offline HttpExceptionRequest.
-        -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
-        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow (ecManager ctx))) :: IO (Either Http.HttpException Http.Response))
-        case eitherResp of
-            Left e -> do
-                -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
-
-                lift $ Tf.tell [HttpError (show e)]
-                pure ci
-            Right gotResp -> do
-                let mrs = ciResponseSpec ci
-                let envWithResp = env
-                        { BEL.responseCopy = gotResp
-                        , BEL.requestCopy = reqOrThrow
-                        }
-                (f, tLogs :: [TraceEvent]) <- liftIO (upsertCaptures (envWithResp, mrs))
-                lift $ Tf.tell tLogs
-                modify f
-                env' <- get
-
-                res <- liftIO $ userAssertions env' gotResp (ciResponseSpec ci)
-
-                case res of
-                    False -> do
-                        lift $ Tf.tell [AssertsFailed]
-                        pure ci
-                    _ -> do
-                        lift $ Tf.tell [AssertsPassed]
-                        go ctx rest
-
     -- Exceptions:
     -- request construction retry error
     buildRequest :: Env -> CallItem -> IO Http.Request
@@ -246,33 +218,78 @@ courseFrom x = do
                 -- so the typical Request construction is in this arm. while at it, review Request recall in BEL.
                 pure req
 
-    -- ??: review BEL apis. old: render mapEval
-    -- new api:
-    -- run :: Env -> Text -> IO Expr
+    go :: ExecContext -> [CallItem] -> ProcM CallItem
+    go _ [] = emptyHanded
+    go ctx (ci:rest) = do
+        lift $ Tf.tell [ItemStart (ciName ci)]
 
+        env <- get
+        reqOrThrow <- liftIO $ buildRequest env ci
+
+        -- Unhandled offline HttpExceptionRequest.
+        -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
+        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow (ecManager ctx))) :: IO (Either Http.HttpException Http.Response))
+        case eitherResp of
+            Left e -> do
+                -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
+
+                lift $ Tf.tell [HttpError (show e)]
+                pure ci
+            Right gotResp -> do
+                let envWithResp = env { BEL.responseCopy = gotResp
+                                      , BEL.requestCopy = reqOrThrow
+                                      }
+                f <- liftIO (upsertCaptures envWithResp ci)
+                modify f
+
+                env' <- get
+
+                ok <- liftIO (userAssertions env' ci)
+                if not ok then
+                    pure ci
+                else
+                    go ctx rest
+
+    -- False indicates for corresponding CallItem to be reported.
+    userAssertions :: BEL.Env -> CallItem -> IO Bool
+    userAssertions env ci = do
+        undefined
+        -- PICKUP expectCodesOrDefault ci
 
     -- Reduce captures to Env extensions.
-    upsertCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-    upsertCaptures (envW, mrs) = do
-        let (RhsDict bindings) = case mrs of
-                Nothing -> RhsDict HM.empty
-                Just rs -> captures rs
-            initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+    upsertCaptures :: BEL.Env -> CallItem -> IO (b0 -> BEL.Env)
+    upsertCaptures env' ci = do
+        let RhsDict c = ciCapturesOrMt ci
 
-        (ext, finalLog) <- foldlWithKeyM'
-            (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+        ext <- foldlWithKeyM'
+            (\ acc bK (bV :: [BEL.Part]) -> do
                 v <- BEL.render acc (Aeson.String "") bV
-                pure (acc { BEL.bindings = HM.insert bK v (BEL.bindings acc) }, logs ++ [Captured bK]))
-            (envW, initialLog)
-            bindings
+                pure (acc { BEL.bindings = HM.insert bK v (BEL.bindings acc) }))
+            env'
+            c
 
-        pure (const ext, finalLog)
+        pure (const ext)
 
--- False indicates for corresponding CallItem (perhaps on user assert) to be
--- reported.
-userAssertions :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
-userAssertions env got mrs = do
-    pure False
+    -- upsertCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
+    -- upsertCaptures (envW, mrs) = do
+    --     let (RhsDict bindings) = case mrs of
+    --             Nothing -> RhsDict HM.empty
+    --             Just rs -> captures rs
+    --
+    --     let initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
+    --
+    --     (ext, finalLog) <- foldlWithKeyM'
+    --         (\(acc, logs) bK (bV :: [BEL.Part]) -> do
+    --             v <- BEL.render acc (Aeson.String "") bV
+    --             pure (acc { BEL.bindings = HM.insert bK v (BEL.bindings acc) }, logs ++ [Captured bK]))
+    --         (envW, initialLog)
+    --         bindings
+    --
+    --     pure (const ext, finalLog)
+
+-- userAssertions :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
+-- userAssertions env got mrs = do
+--     pure False
     -- -- Assertion: status code is as expected.
     -- -- Assertion: none of the lines in [Asserts] evaluates to false.
     -- let status = Http.getStatus got

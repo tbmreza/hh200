@@ -5,7 +5,7 @@
 module Hh200.Types
     ( UpperString (..)
     , Snippet (..)
-    , RhsDict (..)
+    , RhsDict (..), mtRhsDict
     , mtHM
     , Duration
     , Subject (..)
@@ -80,6 +80,8 @@ newtype Snippet = Snippet L8.ByteString
 -- Cookie is a native concept in BEL.
 newtype RhsDict = RhsDict (HM.HashMap String [BEL.Part])
     deriving (Show, Eq)
+
+mtRhsDict = RhsDict HM.empty
 
 mtHM :: HM.HashMap k v
 mtHM = HM.empty
