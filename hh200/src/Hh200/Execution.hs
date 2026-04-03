@@ -8,7 +8,7 @@ module Hh200.Execution
 
   , runProcM
   , conduct
-  , assertsAreOk
+  -- , userAssertions
   , validJsonBody
   , ProcM
   , status200
@@ -220,7 +220,7 @@ courseFrom x = do
                 modify f
                 env' <- get
 
-                res <- liftIO $ assertsAreOk env' gotResp (ciResponseSpec ci)
+                res <- liftIO $ userAssertions env' gotResp (ciResponseSpec ci)
 
                 case res of
                     False -> do
@@ -270,69 +270,73 @@ courseFrom x = do
 
 -- False indicates for corresponding CallItem (perhaps on user assert) to be
 -- reported.
-assertsAreOk :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
-assertsAreOk env got mrs = do
-    let status = Http.getStatus got
-        expectList = expectCodesOrDefault mrs
-
-    if status `notElem` expectList
-        then failWith $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
-        else do
-            okHeaders <- checkHeaders
-            if okHeaders
-                then checkAssertions
-                else pure False
-
-    where
-    failWith :: String -> IO Bool
-    failWith msg = putStrLn msg >> pure False
-
-    -- Extract lines safely; if Nothing, default to empty list
-    assertionLines :: [Text]
-    assertionLines = maybe [] (map Text.pack . asserts) mrs
-
-    checkAssertions :: IO Bool
-    checkAssertions = do
-        results :: [BEL.Expr] <- BEL.mapEval env assertionLines
-        let values = map BEL.finalValue results
-
-        forM_ (zip assertionLines values) $ \(line, val) ->
-            putStrLn $ "Assert: " ++ Text.unpack line ++ " -> " ++ show val
-
-        let hasFailure = Aeson.Bool False `elem` values
-
-        if hasFailure
-            then failWith "# False assertion found"
-            else pure True
-
-    checkHeaders :: IO Bool
-    checkHeaders = case mrs of
-        Nothing -> pure True
-        Just rs -> do
-            let (RhsDict expected) = responseHeaders rs
-            if HM.null expected
-                then pure True
-                else do
-                    let actual = Http.getHeaders got
-                    foldlWithKeyM' 
-                        (\acc k vParts -> if not acc then pure False else do
-                            rendered <- BEL.render env (Aeson.String "") vParts
-                            let expectedVal = textOrMt rendered
-                                actualVal = findHeader k actual
-                            case actualVal of
-                                Nothing -> failWith $ "# Missing header: " ++ k
-                                Just av | av == expectedVal -> pure True
-                                Just av -> failWith $ "# Header Mismatch [" ++ k ++ "]: Got " ++ Text.unpack (fromMaybe "" actualVal) ++ ", Expected " ++ Text.unpack expectedVal
-                        )
-                        True
-                        expected
-
-    findHeader :: String -> [(HeaderName, BS.ByteString)] -> Maybe Text
-    findHeader name hdrs = 
-        let target = CaseInsensitive.mk (BS.pack name)
-        in case lookup target hdrs of
-            Nothing -> Nothing
-            Just bs -> Just (TE.decodeUtf8With TEE.lenientDecode bs)
+userAssertions :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
+userAssertions env got mrs = do
+    pure False
+    -- -- Assertion: status code is as expected.
+    -- -- Assertion: none of the lines in [Asserts] evaluates to false.
+    -- let status = Http.getStatus got
+    --     expectList = expectCodesOrDefault mrs
+    --
+    -- if status `notElem` expectList
+    --     then failWith $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
+    --     else do
+    --         okHeaders <- checkHeaders
+    --         if okHeaders
+    --             then checkAssertions
+    --             else pure False
+    --
+    -- where
+    -- failWith :: String -> IO Bool
+    -- failWith msg = putStrLn msg >> pure False
+    --
+    -- -- Extract lines safely; if Nothing, default to empty list
+    -- assertionLines :: [Text]
+    -- assertionLines = maybe [] (map Text.pack . asserts) mrs
+    --
+    -- checkAssertions :: IO Bool
+    -- checkAssertions = do
+    --     results :: [BEL.Expr] <- BEL.mapEval env assertionLines
+    --     let values = map BEL.finalValue results
+    --
+    --     forM_ (zip assertionLines values) $ \(line, val) ->
+    --         putStrLn $ "Assert: " ++ Text.unpack line ++ " -> " ++ show val
+    --
+    --     let hasFailure = Aeson.Bool False `elem` values
+    --
+    --     if hasFailure
+    --         then failWith "# False assertion found"
+    --         else pure True
+    --
+    -- -- ??: confuses request headers with response headers spec
+    -- checkHeaders :: IO Bool
+    -- checkHeaders = case mrs of
+    --     Nothing -> pure True
+    --     Just rs -> do
+    --         let (RhsDict expected) = responseHeaders rs
+    --         if HM.null expected
+    --             then pure True
+    --             else do
+    --                 let actual = Http.getHeaders got
+    --                 foldlWithKeyM' 
+    --                     (\acc k vParts -> if not acc then pure False else do
+    --                         rendered <- BEL.render env (Aeson.String "") vParts
+    --                         let expectedVal = textOrMt rendered
+    --                             actualVal = findHeader k actual
+    --                         case actualVal of
+    --                             Nothing -> failWith $ "# Missing header: " ++ k
+    --                             Just av | av == expectedVal -> pure True
+    --                             Just av -> failWith $ "# Header Mismatch [" ++ k ++ "]: Got " ++ Text.unpack (fromMaybe "" actualVal) ++ ", Expected " ++ Text.unpack expectedVal
+    --                     )
+    --                     True
+    --                     expected
+    --
+    -- findHeader :: String -> [(HeaderName, BS.ByteString)] -> Maybe Text
+    -- findHeader name hdrs = 
+    --     let target = CaseInsensitive.mk (BS.pack name)
+    --     in case lookup target hdrs of
+    --         Nothing -> Nothing
+    --         Just bs -> Just (TE.decodeUtf8With TEE.lenientDecode bs)
 
 
 --------------------------------------------------------------------------------

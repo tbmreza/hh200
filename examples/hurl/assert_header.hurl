@@ -1,14 +1,15 @@
 GET http://localhost:9999/assert-header
-HTTP 200
+HTTP 404
 Content-Type: text/html; charset=utf-8
 Set-Cookie: cookie1=value1; Path=/
 Set-Cookie: cookie2=value2; Path=/
 [Asserts]
->true
+# >true
 
-# >header "Custom" not exists
-# header "Content-Type" exists
-# header "Header1" == "value1"
+>header "Custom" not exists
+# >false
+>header "Content-Type" exists
+# >header "Header1" == "value1"
 # header "ETag" == "\"33a64df551425fcc55e4d42a148795d9f25f89d4\""
 # header "Expires" == "Wed, 21 Oct 2015 07:28:00 GMT"
 # header "Expires" toDate "%a, %d %b %Y %H:%M:%S GMT" dateFormat "%Y" == "2015"
