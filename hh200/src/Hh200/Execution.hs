@@ -52,6 +52,7 @@ import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName)
 
 import qualified BEL
+import           BEL (responseCopy)
 import qualified Hh200.Http as Http
 import           Hh200.Types
 import           Hh200.Graph (connect)
@@ -252,9 +253,11 @@ courseFrom x = do
 
     -- False indicates for corresponding CallItem to be reported.
     userAssertions :: BEL.Env -> CallItem -> IO Bool
-    userAssertions env ci = do
+    userAssertions env' ci = do
+        let expectList = expectCodesOr200 ci
+            status = Http.getStatus (responseCopy env')
+
         undefined
-        -- PICKUP expectCodesOrDefault ci
 
     -- Reduce captures to Env extensions.
     upsertCaptures :: BEL.Env -> CallItem -> IO (b0 -> BEL.Env)
