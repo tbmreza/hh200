@@ -12,6 +12,7 @@ module Hh200.Execution
   , ProcM
   , status200
   , ExecContext(..)
+  , rhsDictToResponseHeaders
   ) where
 
 import Debug.Trace
@@ -50,7 +51,7 @@ import           Control.Lens.At (at)
 
 import qualified Network.HTTP.Client as HC
 import           Network.HTTP.Types.Status
-import           Network.HTTP.Types.Header (HeaderName)
+import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
 import qualified BEL
 import           BEL (responseCopy)
@@ -61,8 +62,12 @@ import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
 
 -- isSubmapOfBy
-isSubsetOf :: RhsDict -> Int -> Bool
-a `isSubsetOf` b = True
+-- Checks that every key-value pair in the expected RhsDict appears in the
+-- actual ResponseHeaders (subset relationship).
+isSubsetOf :: RhsDict -> ResponseHeaders -> Bool
+a `isSubsetOf` b =
+    let expected = rhsDictToResponseHeaders a
+    in all (`elem` b) expected
 
 expectHeadersOrMt :: CallItem -> RhsDict
 expectHeadersOrMt ci =
@@ -70,10 +75,26 @@ expectHeadersOrMt ci =
         Nothing -> RhsDict HM.empty
         Just rs -> responseHeaders rs
 
+-- | Extract response headers from an HTTP response.
 -- ResponseHeaders = [(HeaderName, ByteString)]
+gotResponseHeaders :: HC.Response L8.ByteString -> ResponseHeaders
+gotResponseHeaders got = HC.responseHeaders got
 
-gotResponseHeaders :: HC.Response L8.ByteString -> a
-gotResponseHeaders got = undefined
+-- | Convert a RhsDict (spec-side expected headers) to the canonical
+-- ResponseHeaders type. Only literal (R/L) parts are joined; BEL variable
+-- references that haven't been rendered yet are included verbatim so
+-- callers can choose to skip or evaluate them separately.
+rhsDictToResponseHeaders :: RhsDict -> ResponseHeaders
+rhsDictToResponseHeaders (RhsDict hm) =
+    [ ( CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
+      , TE.encodeUtf8 (Text.concat (map partToText parts))
+      )
+    | (k, parts) <- HM.toList hm
+    ]
+  where
+    partToText :: BEL.Part -> Text
+    partToText (BEL.R t) = t
+    partToText (BEL.L t) = t
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext

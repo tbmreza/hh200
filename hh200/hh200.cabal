@@ -105,6 +105,7 @@ test-suite hh200-test
       BlindLsp
       CliSpec
       ContentTypeSpec
+      ExecutionSpec
       GoldenCli
       GoldenNetw
       LspSpec
@@ -117,7 +118,9 @@ test-suite hh200-test
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bel-expr
     , bytestring
+    , case-insensitive
     , directory
     , filepath
     , hh200

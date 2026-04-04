@@ -123,3 +123,5 @@ tests:
     - http-types
     - directory
     - filepath
+    - case-insensitive
+    - bel-expr
