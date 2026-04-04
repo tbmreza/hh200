@@ -61,13 +61,7 @@ import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
 
--- isSubmapOfBy
--- Checks that every key-value pair in the expected RhsDict appears in the
--- actual ResponseHeaders (subset relationship).
-isSubsetOf :: RhsDict -> ResponseHeaders -> Bool
-a `isSubsetOf` b =
-    let expected = rhsDictToResponseHeaders a
-    in all (`elem` b) expected
+-- (isSubsetOf was replaced in favor of HM.isSubmapOfBy with pure extensional eq)
 
 expectHeadersOrMt :: CallItem -> RhsDict
 expectHeadersOrMt ci =
@@ -295,28 +289,45 @@ courseFrom x = do
         if gotStatus `notElem` expectList then
             failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show expectList)
         else do
+            -------------------------------------------------------------------
             -- Check response headers. Can contain BEL parts.
-            --
             -- Default: assert subset of actual response headers.
-            let completeCheckedHeaders = (expectHeadersOrMt ci)
-                                         `isSubsetOf`
-                                         gotResponseHeaders gotResp
+            -------------------------------------------------------------------
 
+            let RhsDict expectHdrHM = expectHeadersOrMt ci
+            expectedHeadersMap <- foldM (\acc (k, parts) -> do
+                    let ciKey = CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
+                    rendered <- BEL.render env' (Aeson.String "") parts
+                    pure $ HM.insert ciKey rendered acc
+                ) HM.empty (HM.toList expectHdrHM)
+
+            -- Convert actual headers
+            let actualHeadersMap = HM.fromList (gotResponseHeaders gotResp)
+
+            let relHeaders = \expectedVal actualBs -> asBS expectedVal == actualBs
+            let completeCheckedHeaders = HM.isSubmapOfBy relHeaders expectedHeadersMap actualHeadersMap
+
+            -------------------------------------------------------------------
             -- Check [Asserts] expressions.
             --
             -- BEL evaluates all lines at once (for desired effect of visible
             -- BEL prints), but single False indicates for the whole [Asserts]
             -- block to be failing.
+            -------------------------------------------------------------------
             expressions <- BEL.mapEval env' (assertionLinesOrMt ci)
 
             let aesonValues =        map BEL.finalValue expressions
                 allCheckedNonFalse = Aeson.Bool False `notElem` aesonValues
 
+            -------------------------------------------------------------------
             -- Check response body. Can contain BEL parts.
             --
             -- Default: assert subset of actual response body if it's json.
-            -- let completeCheckedJsonBody :: Bool = HM.isSubmapOfBy undefined undefined undefined
-            let completeCheckedJsonBody = True
+            -------------------------------------------------------------------
+            let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp
+            let actualBodyHM = HM.fromList $ map (\(k, v) -> (Text.unpack (Key.toText k), v)) (KeyMap.toList actualJsonBodyMap)
+            -- We don't have an expected JSON body mapped to RhsDict yet, so we use an empty map.
+            let completeCheckedJsonBody :: Bool = HM.isSubmapOfBy (==) HM.empty actualBodyHM
 
             pure $ and [allCheckedNonFalse, completeCheckedHeaders, completeCheckedJsonBody]
 

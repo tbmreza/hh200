@@ -35,6 +35,7 @@ spec = testGroup "Execution"
     , testRhsDictToResponseHeadersCaseInsensitive
     , testRhsDictToResponseHeadersEmpty
     , testRhsDictToResponseHeadersMultiPartValue
+    , testIsSubmapOfBy
     ]
 
 testRhsDictToResponseHeaders :: TestTree
@@ -68,6 +69,12 @@ testRhsDictToResponseHeadersMultiPartValue = testCase "rhsDictToResponseHeaders:
     case lookup (CI.mk "x-token") result of
         Nothing  -> assertFailure "x-token header missing"
         -- Just val -> assertEqual "parts concatenated" "Bearer someVar" val
-        Just val -> assertEqual "parts concatenated" "Bearer " val
+        Just val -> assertEqual "parts concatenated" "Bearer " val  -- ??:
 
--- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
+testIsSubmapOfBy :: TestTree
+testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
+    let t1 = HM.fromList [("k1" :: String, "v1" :: String)]
+        t2 = HM.fromList [("k1", "v1"), ("k2", "v2")]
+
+    assertBool "all keys in t1 are in t2 with rel" (HM.isSubmapOfBy (==) t1 t2)
+    assertBool "fail when not submap" (not $ HM.isSubmapOfBy (const (const False)) t1 t1)
