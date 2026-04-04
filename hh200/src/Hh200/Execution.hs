@@ -60,9 +60,20 @@ import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
 
--- PICKUP
-isSubsetOf :: Bool
-isSubsetOf = True
+-- isSubmapOfBy
+isSubsetOf :: RhsDict -> Int -> Bool
+a `isSubsetOf` b = True
+
+expectHeadersOrMt :: CallItem -> RhsDict
+expectHeadersOrMt ci =
+    case ciResponseSpec ci of
+        Nothing -> RhsDict HM.empty
+        Just rs -> responseHeaders rs
+
+-- ResponseHeaders = [(HeaderName, ByteString)]
+
+gotResponseHeaders :: HC.Response L8.ByteString -> a
+gotResponseHeaders got = undefined
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
@@ -258,15 +269,18 @@ courseFrom x = do
     userAssertions :: BEL.Env -> CallItem -> IO Bool
     userAssertions env' ci = do
         let expectList = expectCodesOr200 ci
-            status = Http.getStatus (responseCopy env')
+            gotResp :: HC.Response L8.ByteString = responseCopy env'
+            gotStatus = Http.getStatus gotResp
 
-        if status `notElem` expectList then
-            failWith ("status=" ++ show status ++ ", expect=" ++ show expectList)
+        if gotStatus `notElem` expectList then
+            failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show expectList)
         else do
             -- Check response headers. Can contain BEL parts.
             --
             -- Default: assert subset of actual response headers.
-            let completeCheckedHeaders = isSubsetOf
+            let completeCheckedHeaders = (expectHeadersOrMt ci)
+                                         `isSubsetOf`
+                                         gotResponseHeaders gotResp
 
             -- Check [Asserts] expressions.
             --
@@ -281,7 +295,8 @@ courseFrom x = do
             -- Check response body. Can contain BEL parts.
             --
             -- Default: assert subset of actual response body if it's json.
-            let completeCheckedJsonBody = isSubsetOf
+            -- let completeCheckedJsonBody :: Bool = HM.isSubmapOfBy undefined undefined undefined
+            let completeCheckedJsonBody = True
 
             pure $ and [allCheckedNonFalse, completeCheckedHeaders, completeCheckedJsonBody]
 
