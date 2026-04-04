@@ -184,6 +184,13 @@ expectCodesOr200 ci =
             [] -> [status200]
             expectCodes -> expectCodes
 
+assertionLinesOrMt :: CallItem -> [Text]
+assertionLinesOrMt ci =
+    -- maybe [] (map Text.pack . asserts) mrs
+    case ciResponseSpec ci of
+        Nothing -> []
+        _ -> undefined
+
 
 -- Exceptions:  when running ProcM
 -- offline HttpExceptionRequest  -handling->  print
@@ -252,18 +259,18 @@ courseFrom x = do
 
         if status `notElem` expectList then
             failWith ("status=" ++ show status ++ ", expect=" ++ show expectList)
-        else
+        else do
             -- Check response headers.
             --
             -- Default: assert subset of actual response headers.
 
             -- Check [Asserts] expressions.
             --
-            -- BEL evaluates all lines at once (for desire effect of visible
+            -- BEL evaluates all lines at once (for desired effect of visible
             -- BEL prints), but single False indicates for the whole CallItem
             -- to be reported.
             --
-            -- results :: [BEL.Expr] <- BEL.mapEval env assertionLines
+            results :: [BEL.Expr] <- BEL.mapEval env' (assertionLinesOrMt ci)
 
             -- Check response body.
             --
@@ -304,10 +311,6 @@ failWith msg = hPutStrLn stderr msg >> pure False
     --             else pure False
     --
     -- where
-    --
-    -- -- Extract lines safely; if Nothing, default to empty list
-    -- assertionLines :: [Text]
-    -- assertionLines = maybe [] (map Text.pack . asserts) mrs
     --
     -- checkAssertions :: IO Bool
     -- checkAssertions = do
