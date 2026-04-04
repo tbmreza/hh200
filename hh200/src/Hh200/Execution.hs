@@ -8,7 +8,6 @@ module Hh200.Execution
 
   , runProcM
   , conduct
-  -- , userAssertions
   , validJsonBody
   , ProcM
   , status200
@@ -16,6 +15,8 @@ module Hh200.Execution
   ) where
 
 import Debug.Trace
+
+import           System.IO (hPutStrLn, stderr, stdout)
 
 import           Control.Concurrent
 import           Control.Concurrent.STM
@@ -177,12 +178,11 @@ ciCapturesOrMt ci =
 
 expectCodesOr200 :: CallItem -> [Status]
 expectCodesOr200 ci =
-    -- case mrs of
-    --     Nothing -> [status200]
-    --     Just rs -> case statuses rs of
-    --         [] -> [status200]
-    --         expectCodes -> expectCodes
-    undefined
+    case ciResponseSpec ci of
+        Nothing -> [status200]
+        Just rs -> case statuses rs of
+            [] -> [status200]
+            expectCodes -> expectCodes
 
 
 -- Exceptions:  when running ProcM
@@ -243,13 +243,32 @@ courseFrom x = do
                 else
                     go ctx rest
 
-    -- False indicates for corresponding CallItem to be reported.
+    -- Status code assertion first, then all other checks (headers, body, and
+    -- expressions about the response).
     userAssertions :: BEL.Env -> CallItem -> IO Bool
     userAssertions env' ci = do
         let expectList = expectCodesOr200 ci
             status = Http.getStatus (responseCopy env')
 
-        undefined
+        if status `notElem` expectList then
+            failWith ("status=" ++ show status ++ ", expect=" ++ show expectList)
+        else
+            -- Check response headers.
+            --
+            -- Default: assert subset of actual response headers.
+
+            -- Check [Asserts] expressions.
+            --
+            -- BEL evaluates all lines at once (for desire effect of visible
+            -- BEL prints), but single False indicates for the whole CallItem
+            -- to be reported.
+            --
+            -- results :: [BEL.Expr] <- BEL.mapEval env assertionLines
+
+            -- Check response body.
+            --
+            -- Default: assert subset of actual response body if it's json.
+            pure True
 
     -- Reduce captures to Env extensions.
     upsertCaptures :: BEL.Env -> CallItem -> IO (b0 -> BEL.Env)
@@ -265,22 +284,8 @@ courseFrom x = do
 
         pure (const ext)
 
-    -- upsertCaptures :: (BEL.Env, Maybe ResponseSpec) -> IO (b0 -> BEL.Env, [TraceEvent])
-    -- upsertCaptures (envW, mrs) = do
-    --     let (RhsDict bindings) = case mrs of
-    --             Nothing -> RhsDict HM.empty
-    --             Just rs -> captures rs
-    --
-    --     let initialLog = if HM.null bindings then [] else [CapturesStart (HM.size bindings)]
-    --
-    --     (ext, finalLog) <- foldlWithKeyM'
-    --         (\(acc, logs) bK (bV :: [BEL.Part]) -> do
-    --             v <- BEL.render acc (Aeson.String "") bV
-    --             pure (acc { BEL.bindings = HM.insert bK v (BEL.bindings acc) }, logs ++ [Captured bK]))
-    --         (envW, initialLog)
-    --         bindings
-    --
-    --     pure (const ext, finalLog)
+failWith :: String -> IO Bool
+failWith msg = hPutStrLn stderr msg >> pure False
 
 -- userAssertions :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
 -- userAssertions env got mrs = do
@@ -299,8 +304,6 @@ courseFrom x = do
     --             else pure False
     --
     -- where
-    -- failWith :: String -> IO Bool
-    -- failWith msg = putStrLn msg >> pure False
     --
     -- -- Extract lines safely; if Nothing, default to empty list
     -- assertionLines :: [Text]
