@@ -33,41 +33,6 @@ incremental parsing is non-goal if not free or very cheap
 
 # STASH
 
-┌───────────┬──────────────────────────────────────┬─────────────────────────┐
-│ Location  │ Cause                                │ Result                  │
-├───────────┼──────────────────────────────────────┼─────────────────────────┤
-│ buildFrom │ Http.parseRequest (Malformed URL)    │ Exception (IO)          │ checked: handled by alex/happy
-│ h         │ Http.httpLbs (Connection/Timeout)    │ Just ci (Captured Left) │ checked: some handled on the spot, some returned
-│ h         │ assertsAreOk (Logic/Status mismatch) │ Just ci (Logic Branch)  │ checked: exceptions if any will be falsified
-│ h         │ BEL.render / evalCaptures            │ Exception (IO)          │ checked: never throws
-└───────────┴──────────────────────────────────────┴─────────────────────────┘
-
-  3. Static Analysis for Load Configuration
-   * Description: Implement validation rules in Scanner.hs to ensure load profiles make sense before execution starts.
-       * Checks: Ensure ramp-down doesn't go below zero, total duration fits within global timeouts, and syntax for profile chains is valid.
-   * Labels: static-analyzer
-
-  Phase 2: Execution Engine Refactor
-
-Refactor `Execution.hs` to Worker Pool Model
-Description: Deprecate the current mapConcurrentlyBounded approach. Implement a "Worker Pool" architecture where N virtual users (VUs) are spawned, but their execution loops
-are controlled by a central "Pacer" or "Scheduler" that utilizes the Rate Limiter from Task 2.
-   * Labels: load-testing-tool
-
-Implement Dynamic Load Scheduler
-Description: Connect the DSL profile (Task 1) to the Rate Limiter (Task 2). The scheduler needs to calculate the target RPS for the current millisecond (e.g., if ramping
-from 0 to 100 over 10s, at t=5s the target is 50 RPS) and adjust the Rate Limiter's bucket refill rate dynamically.
-   * Labels: load-testing-tool
-
-  Phase 3: Monitoring & reporting
-
-  6. Centralized Metrics Aggregator
-   * Description: With many threads running, writing to stdout or a single SQLite file naively will cause contention. Create a high-performance, in-memory aggregator (using
-     atomic counters or a bounded queue) to collect stats (latency histograms, error counts) from workers.
-   * Labels: load-testing-tool
-
-  Summary Table for GitHub
-
 
 oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
@@ -263,13 +228,6 @@ NNN: 9
 
 
 
-
-opus:
-2. Metrics gathering — forward-looking plan
-Here's where runScriptM vs runProcM matters. Currently worker calls runScriptM which returns IO () and discards everything. For metrics, the workers need to produce data. Here's a layered plan:
-
-Layer 1: Per-worker result channel (immediate next step)
-Introduce a TChan WorkerResult (or TQueue) that workers write to after each script execution:
 
 haskell
 data WorkerResult = WorkerResult

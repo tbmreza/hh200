@@ -129,14 +129,6 @@ textOrMt (Aeson.String t) = t
 textOrMt _ = ""
 
 
-expectCodesOrDefault :: Maybe ResponseSpec -> [Status]
-expectCodesOrDefault mrs =
-    case mrs of
-        Nothing -> [status200]
-        Just rs -> case statuses rs of
-            [] -> [status200]
-            expectCodes -> expectCodes
-
 runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
@@ -296,7 +288,7 @@ courseFrom x = do
     -- -- Assertion: status code is as expected.
     -- -- Assertion: none of the lines in [Asserts] evaluates to false.
     -- let status = Http.getStatus got
-    --     expectList = expectCodesOrDefault mrs
+    --     expectList = 
     --
     -- if status `notElem` expectList
     --     then failWith $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
