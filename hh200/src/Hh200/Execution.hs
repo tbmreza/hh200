@@ -81,9 +81,8 @@ gotResponseHeaders :: HC.Response L8.ByteString -> ResponseHeaders
 gotResponseHeaders got = HC.responseHeaders got
 
 -- | Convert a RhsDict (spec-side expected headers) to the canonical
--- ResponseHeaders type. Only literal (R/L) parts are joined; BEL variable
--- references that haven't been rendered yet are included verbatim so
--- callers can choose to skip or evaluate them separately.
+-- ResponseHeaders type.
+-- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
 rhsDictToResponseHeaders :: RhsDict -> ResponseHeaders
 rhsDictToResponseHeaders (RhsDict hm) =
     [ ( CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
@@ -94,7 +93,7 @@ rhsDictToResponseHeaders (RhsDict hm) =
   where
     partToText :: BEL.Part -> Text
     partToText (BEL.R t) = t
-    partToText (BEL.L t) = t
+    partToText (BEL.L t) = t  -- PICKUP
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
