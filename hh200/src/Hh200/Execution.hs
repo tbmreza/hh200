@@ -60,6 +60,10 @@ import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
 
+-- PICKUP
+isSubsetOf :: Bool
+isSubsetOf = True
+
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
   { ecManager     :: Http.Manager
@@ -171,6 +175,7 @@ conduct script ctx env = do
 emptyHanded :: ProcM CallItem
 emptyHanded = mzero
 
+ciCapturesOrMt :: CallItem -> RhsDict
 ciCapturesOrMt ci =
     case ciResponseSpec ci of
         Nothing -> mtRhsDict
@@ -186,10 +191,9 @@ expectCodesOr200 ci =
 
 assertionLinesOrMt :: CallItem -> [Text]
 assertionLinesOrMt ci =
-    -- maybe [] (map Text.pack . asserts) mrs
     case ciResponseSpec ci of
         Nothing -> []
-        _ -> undefined
+        Just rs -> map Text.pack (asserts rs)
 
 
 -- Exceptions:  when running ProcM
@@ -210,7 +214,6 @@ courseFrom x = do
     buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt, lexedUrl } } = do
         -- req :: HC.Request <- HC.parseRequest lexedUrl
         case opt of
-            -- Just r -> pure (trace "buildRequest..." r)
             Just r -> pure r
             _ -> do
                 req <- HC.parseRequest lexedUrl
@@ -260,22 +263,27 @@ courseFrom x = do
         if status `notElem` expectList then
             failWith ("status=" ++ show status ++ ", expect=" ++ show expectList)
         else do
-            -- Check response headers.
+            -- Check response headers. Can contain BEL parts.
             --
             -- Default: assert subset of actual response headers.
+            let completeCheckedHeaders = isSubsetOf
 
             -- Check [Asserts] expressions.
             --
             -- BEL evaluates all lines at once (for desired effect of visible
-            -- BEL prints), but single False indicates for the whole CallItem
-            -- to be reported.
-            --
-            results :: [BEL.Expr] <- BEL.mapEval env' (assertionLinesOrMt ci)
+            -- BEL prints), but single False indicates for the whole [Asserts]
+            -- block to be failing.
+            expressions <- BEL.mapEval env' (assertionLinesOrMt ci)
 
-            -- Check response body.
+            let aesonValues =        map BEL.finalValue expressions
+                allCheckedNonFalse = Aeson.Bool False `notElem` aesonValues
+
+            -- Check response body. Can contain BEL parts.
             --
             -- Default: assert subset of actual response body if it's json.
-            pure True
+            let completeCheckedJsonBody = isSubsetOf
+
+            pure $ and [allCheckedNonFalse, completeCheckedHeaders, completeCheckedJsonBody]
 
     -- Reduce captures to Env extensions.
     upsertCaptures :: BEL.Env -> CallItem -> IO (b0 -> BEL.Env)
@@ -293,69 +301,6 @@ courseFrom x = do
 
 failWith :: String -> IO Bool
 failWith msg = hPutStrLn stderr msg >> pure False
-
--- userAssertions :: Env -> Http.Response -> Maybe ResponseSpec -> IO Bool
--- userAssertions env got mrs = do
---     pure False
-    -- -- Assertion: status code is as expected.
-    -- -- Assertion: none of the lines in [Asserts] evaluates to false.
-    -- let status = Http.getStatus got
-    --     expectList = 
-    --
-    -- if status `notElem` expectList
-    --     then failWith $ "# Status Mismatch: Got " ++ show status ++ ", Expected " ++ show expectList
-    --     else do
-    --         okHeaders <- checkHeaders
-    --         if okHeaders
-    --             then checkAssertions
-    --             else pure False
-    --
-    -- where
-    --
-    -- checkAssertions :: IO Bool
-    -- checkAssertions = do
-    --     results :: [BEL.Expr] <- BEL.mapEval env assertionLines
-    --     let values = map BEL.finalValue results
-    --
-    --     forM_ (zip assertionLines values) $ \(line, val) ->
-    --         putStrLn $ "Assert: " ++ Text.unpack line ++ " -> " ++ show val
-    --
-    --     let hasFailure = Aeson.Bool False `elem` values
-    --
-    --     if hasFailure
-    --         then failWith "# False assertion found"
-    --         else pure True
-    --
-    -- -- ??: confuses request headers with response headers spec
-    -- checkHeaders :: IO Bool
-    -- checkHeaders = case mrs of
-    --     Nothing -> pure True
-    --     Just rs -> do
-    --         let (RhsDict expected) = responseHeaders rs
-    --         if HM.null expected
-    --             then pure True
-    --             else do
-    --                 let actual = Http.getHeaders got
-    --                 foldlWithKeyM' 
-    --                     (\acc k vParts -> if not acc then pure False else do
-    --                         rendered <- BEL.render env (Aeson.String "") vParts
-    --                         let expectedVal = textOrMt rendered
-    --                             actualVal = findHeader k actual
-    --                         case actualVal of
-    --                             Nothing -> failWith $ "# Missing header: " ++ k
-    --                             Just av | av == expectedVal -> pure True
-    --                             Just av -> failWith $ "# Header Mismatch [" ++ k ++ "]: Got " ++ Text.unpack (fromMaybe "" actualVal) ++ ", Expected " ++ Text.unpack expectedVal
-    --                     )
-    --                     True
-    --                     expected
-    --
-    -- findHeader :: String -> [(HeaderName, BS.ByteString)] -> Maybe Text
-    -- findHeader name hdrs = 
-    --     let target = CaseInsensitive.mk (BS.pack name)
-    --     in case lookup target hdrs of
-    --         Nothing -> Nothing
-    --         Just bs -> Just (TE.decodeUtf8With TEE.lenientDecode bs)
-
 
 --------------------------------------------------------------------------------
 -- hh200 modes
