@@ -6,13 +6,14 @@ module ExecutionSpec (spec) where
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.CaseInsensitive     as CI
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.Text                as Text
 
 import qualified BEL
-import           Hh200.Execution          (rhsDictToResponseHeaders)
+import           Hh200.Execution          (rhsDictToResponseHeaders, renderHeadersMap)
 import           Hh200.Types              (RhsDict (..))
 import           Network.HTTP.Types.Header (ResponseHeaders)
 
@@ -25,6 +26,15 @@ fromLiterals :: [(String, String)] -> RhsDict
 fromLiterals pairs =
     RhsDict $ HM.fromList [ (k, [BEL.R (Text.pack v)]) | (k, v) <- pairs ]
 
+-- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
+-- The dummy request/response are never accessed when rendering R parts.
+testEnv :: BEL.Env
+testEnv = BEL.Env
+    { BEL.responseCopy = undefined
+    , BEL.requestCopy = undefined
+    , BEL.bindings = HM.empty
+    }
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -36,6 +46,9 @@ spec = testGroup "Execution"
     , testRhsDictToResponseHeadersEmpty
     , testRhsDictToResponseHeadersMultiPartValue
     , testIsSubmapOfBy
+    , testRenderHeadersMap
+    , testRenderHeadersMapEmpty
+    , testRenderHeadersMapMultiPart
     ]
 
 testRhsDictToResponseHeaders :: TestTree
@@ -78,3 +91,35 @@ testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
 
     assertBool "all keys in t1 are in t2 with rel" (HM.isSubmapOfBy (==) t1 t2)
     assertBool "fail when not submap" (not $ HM.isSubmapOfBy (const (const False)) t1 t1)
+
+testRenderHeadersMap :: TestTree
+testRenderHeadersMap = testCase "renderHeadersMap: single literal header" $ do
+    let input = HM.fromList [("Content-Type", [BEL.R "application/json"])]
+    result <- renderHeadersMap testEnv (RhsDict input)
+    assertEqual "one entry" 1 (HM.size result)
+    case HM.lookup (CI.mk "content-type") result of
+        Nothing -> assertFailure "Content-Type key missing"
+        Just (Aeson.String v) -> assertEqual "correct value" "application/json" v
+        Just _ -> assertFailure "expected String value"
+
+testRenderHeadersMapEmpty :: TestTree
+testRenderHeadersMapEmpty = testCase "renderHeadersMap: empty input" $ do
+    result <- renderHeadersMap testEnv (RhsDict HM.empty)
+    assertEqual "empty result" 0 (HM.size result)
+
+testRenderHeadersMapMultiPart :: TestTree
+testRenderHeadersMapMultiPart = testCase "renderHeadersMap: multiple headers" $ do
+    let input = HM.fromList
+            [ ("Accept", [BEL.R "text/html"])
+            , ("X-Custom", [BEL.R "value123"])
+            ]
+    result <- renderHeadersMap testEnv (RhsDict input)
+    assertEqual "two entries" 2 (HM.size result)
+    case HM.lookup (CI.mk "accept") result of
+        Nothing -> assertFailure "Accept key missing"
+        Just (Aeson.String v) -> assertEqual "Accept value" "text/html" v
+        Just _ -> assertFailure "expected String value"
+    case HM.lookup (CI.mk "x-custom") result of
+        Nothing -> assertFailure "X-Custom key missing"
+        Just (Aeson.String v) -> assertEqual "X-Custom value" "value123" v
+        Just _ -> assertFailure "expected String value"

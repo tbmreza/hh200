@@ -13,6 +13,7 @@ module Hh200.Execution
   , status200
   , ExecContext(..)
   , rhsDictToResponseHeaders
+  , renderHeadersMap
   ) where
 
 import Debug.Trace
@@ -61,18 +62,11 @@ import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
 
--- (isSubsetOf was replaced in favor of HM.isSubmapOfBy with pure extensional eq)
-
 expectHeadersOrMt :: CallItem -> RhsDict
 expectHeadersOrMt ci =
     case ciResponseSpec ci of
         Nothing -> RhsDict HM.empty
         Just rs -> responseHeaders rs
-
--- | Extract response headers from an HTTP response.
--- ResponseHeaders = [(HeaderName, ByteString)]
-gotResponseHeaders :: HC.Response L8.ByteString -> ResponseHeaders
-gotResponseHeaders got = HC.responseHeaders got
 
 -- | Convert a RhsDict (spec-side expected headers) to the canonical
 -- ResponseHeaders type.
@@ -87,7 +81,7 @@ rhsDictToResponseHeaders (RhsDict hm) =
   where
     partToText :: BEL.Part -> Text
     partToText (BEL.R t) = t
-    partToText (BEL.L t) = t  -- PICKUP
+    partToText (BEL.L t) = t  -- ??:
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
@@ -287,49 +281,51 @@ courseFrom x = do
             gotStatus = Http.getStatus gotResp
 
         if gotStatus `notElem` expectList then
-            failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show expectList)
+            failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show
+                      expectList)
         else do
             -------------------------------------------------------------------
-            -- Check response headers. Can contain BEL parts.
-            -- Default: assert subset of actual response headers.
+            -- Collect response headers checks. Can contain BEL parts.
             -------------------------------------------------------------------
+            renderedHeaders <- renderHeadersMap env' (expectHeadersOrMt ci)
 
-            let RhsDict expectHdrHM = expectHeadersOrMt ci
-            expectedHeadersMap <- foldM (\acc (k, parts) -> do
-                    let ciKey = CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
-                    rendered <- BEL.render env' (Aeson.String "") parts
-                    pure $ HM.insert ciKey rendered acc
-                ) HM.empty (HM.toList expectHdrHM)
+            let completeCheckedHeaders =
+                    case length renderedHeaders of
+                        -- Nothing to collect.
+                        0 -> True
+                        -- Default: assert subset of actual response headers.
+                        _ ->
+                            let gotRespHeaders =
+                                    HM.fromList (HC.responseHeaders gotResp) in
 
-            -- Convert actual headers
-            let actualHeadersMap = HM.fromList (gotResponseHeaders gotResp)
-
-            let relHeaders = \expectedVal actualBs -> asBS expectedVal == actualBs
-            let completeCheckedHeaders = HM.isSubmapOfBy relHeaders expectedHeadersMap actualHeadersMap
+                            HM.isSubmapOfBy (\ a b -> (asBS a) == b)
+                                            renderedHeaders
+                                            gotRespHeaders
 
             -------------------------------------------------------------------
-            -- Check [Asserts] expressions.
+            -- Check response body. Can contain BEL parts.
+            --
+            -- Default ??: assert subset of actual response body if it's json.
+            -------------------------------------------------------------------
+            let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp
+            let actualBodyHM = HM.fromList $ map (\(k, v) -> (Text.unpack (Key.toText k), v)) (KeyMap.toList actualJsonBodyMap)
+            -- We don't have an expected JSON body mapped to RhsDict yet, so we use an empty map.
+            let completeCheckedJsonBody = HM.isSubmapOfBy (==) HM.empty actualBodyHM
+
+            -------------------------------------------------------------------
+            -- Collect [Asserts] expressions checks.
             --
             -- BEL evaluates all lines at once (for desired effect of visible
             -- BEL prints), but single False indicates for the whole [Asserts]
             -- block to be failing.
             -------------------------------------------------------------------
             expressions <- BEL.mapEval env' (assertionLinesOrMt ci)
+            let aesonValues = map BEL.finalValue expressions
 
-            let aesonValues =        map BEL.finalValue expressions
-                allCheckedNonFalse = Aeson.Bool False `notElem` aesonValues
-
-            -------------------------------------------------------------------
-            -- Check response body. Can contain BEL parts.
-            --
-            -- Default: assert subset of actual response body if it's json.
-            -------------------------------------------------------------------
-            let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp
-            let actualBodyHM = HM.fromList $ map (\(k, v) -> (Text.unpack (Key.toText k), v)) (KeyMap.toList actualJsonBodyMap)
-            -- We don't have an expected JSON body mapped to RhsDict yet, so we use an empty map.
-            let completeCheckedJsonBody :: Bool = HM.isSubmapOfBy (==) HM.empty actualBodyHM
-
-            pure $ and [allCheckedNonFalse, completeCheckedHeaders, completeCheckedJsonBody]
+            pure $ and [ Aeson.Bool False `notElem` aesonValues
+                       , completeCheckedHeaders
+                       , completeCheckedJsonBody
+                       ]
 
     -- Reduce captures to Env extensions.
     upsertCaptures :: BEL.Env -> CallItem -> IO (b0 -> BEL.Env)
@@ -364,6 +360,16 @@ triggerEmergencyShutdown flag = do
 --     bracket (Http.newManager True)
 --             Http.closeManager $
 --             \mgr -> conduct script (ExecContext mgr) HM.empty
+
+-- | Render expected headers.
+renderHeadersMap :: BEL.Env -> RhsDict
+                 -> IO (HM.HashMap (CaseInsensitive.CI BS.ByteString) Aeson.Value)
+renderHeadersMap env' (RhsDict expectHeaders) =
+    foldM (\ acc (k, parts) -> do
+            let ciKey = CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
+            rendered <- BEL.render env' (Aeson.String "") parts
+            pure $ HM.insert ciKey rendered acc
+        ) HM.empty (HM.toList expectHeaders)
 
 --------------------------------------------------------------------------------
 -- More lib than app code
