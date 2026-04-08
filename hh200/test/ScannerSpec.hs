@@ -19,6 +19,7 @@ spec = testGroup "Scanner and Parser"
   , testScanner_lrMustache
   , testScanner_lrPost
   , testScanner_lr3lineAsserts
+  , testScanner_lr3lineAssertsNoGT
   , testScanner_lrPostMultiline
   , testScanner_lrInvalid
   , testScanner_lrEmpty
@@ -55,6 +56,15 @@ testScanner_lrPost = testCase "lexer and parser for POST" $ do
 testScanner_lr3lineAsserts :: TestTree
 testScanner_lr3lineAsserts = testCase "lexer and parser for POST" $ do
     let input = "GET http://httpbin.org/post\n[Asserts]\n>true\n>true\n>true"
+        tokens = Hh.alexScanTokens input
+    res <- runExceptT (Hh.parse tokens)
+    case res of
+        Right _ -> pure ()
+        Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+testScanner_lr3lineAssertsNoGT :: TestTree
+testScanner_lr3lineAssertsNoGT = testCase "lexer and parser for Asserts without >" $ do
+    let input = "GET http://httpbin.org/post\n[Asserts]\ntrue\ntrue\ntrue"
         tokens = Hh.alexScanTokens input
     res <- runExceptT (Hh.parse tokens)
     case res of
