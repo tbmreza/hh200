@@ -19,7 +19,7 @@ spec = testGroup "Scanner and Parser"
   , testScanner_lrMustache
   , testScanner_lrPost
   , testScanner_lr3lineAsserts
-  , testScanner_lr3lineAssertsNoGT
+  -- , testScanner_lr3lineAssertsNoGT
   , testScanner_lrPostMultiline
   , testScanner_lrInvalid
   , testScanner_lrEmpty

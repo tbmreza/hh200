@@ -53,6 +53,7 @@ library:
   - text
   - transformers
   - process
+  - network
   - http-client
   - http-client-tls  # see extra-deps
   - bytestring
@@ -85,6 +86,7 @@ library:
   - bel-expr
   - optparse-applicative
   - lsp
+  - co-log-core
   - gitrev
   - lens
 

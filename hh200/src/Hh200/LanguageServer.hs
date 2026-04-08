@@ -6,7 +6,8 @@
 
 module Hh200.LanguageServer (runTcp) where
 
--- ??: scavenge here and mv hh200d to trash
+import qualified Hh200.Scanner
+
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import           Language.LSP.Server
 import           Language.LSP.VFS (virtualFileText, VirtualFile)
@@ -40,8 +41,146 @@ import qualified Data.Text as Text
 import           Data.Aeson hiding (defaultOptions)
 import           Development.GitRev (gitHash)
 
+-- TCP
+import           Network.Socket
+import           System.Environment (getArgs)
+import           System.IO
+import           Control.Monad (void, forever)
+import           Control.Exception (bracket)
+import           Colog.Core (LogAction (..), WithSeverity (..))
+
+
+data Config = Config { verbose :: Bool }
+    deriving (Show)
+
+instance FromJSON Config where
+    parseJSON = withObject "Config" $ \v -> Config <$> v .:? "verbose" .!= False
+
+validate :: Uri -> LspM Config [Diagnostic]
+validate uri = do
+    mdoc <- getVirtualFile (toNormalizedUri uri)
+    case mdoc of
+        Nothing -> return []
+        Just vf -> do
+            let content = Text.unpack (virtualFileText vf)
+            let errs = Hh200.Scanner.diagnostics content
+            -- return $ map toDiagnostic errs  -- ??:
+            return $ map toDiagnostic undefined
+
+toDiagnostic :: ((Int, Int), String) -> Diagnostic
+toDiagnostic ((l, c), msg) =
+    let pos = Position (fromIntegral (l - 1)) (fromIntegral (c - 1))
+        range = Range pos pos
+    in Diagnostic range (Just DiagnosticSeverity_Error) Nothing Nothing (Just "hh200") (Text.pack msg) Nothing Nothing Nothing
+
+validateAndPublish :: Uri -> LspM Config ()
+validateAndPublish uri = do
+    diags <- validate uri
+    sendNotification SMethod_TextDocumentPublishDiagnostics $
+        PublishDiagnosticsParams uri Nothing diags
+
+handlers :: Handlers (LspM Config)
+handlers = mconcat
+  [ notificationHandler SMethod_Initialized $ \_not -> do
+        liftIO $ T.putStrLn "Server initialized"
+
+  , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
+        let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
+        validateAndPublish uri
+
+  , notificationHandler SMethod_TextDocumentDidOpen $ \msg -> do
+        let TNotificationMessage _ _ (DidOpenTextDocumentParams (TextDocumentItem uri _ _ _)) = msg
+        validateAndPublish uri
+
+  , notificationHandler SMethod_TextDocumentDidChange $ \msg -> do
+        let TNotificationMessage _ _ (DidChangeTextDocumentParams (VersionedTextDocumentIdentifier uri _) _) = msg
+        validateAndPublish uri
+
+  , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg -> do
+        -- (auto) This handler satisfies the LSP client that the notification is recognized.
+        -- The actual configuration update is managed by the library via `onConfigChange`.
+        liftIO $ T.putStrLn "Received workspace/didChangeConfiguration"
+        return ()
+
+  , requestHandler SMethod_TextDocumentRangeFormatting $ \req responder -> do
+        let TRequestMessage _ _ _ (DocumentRangeFormattingParams _ (TextDocumentIdentifier uri) range _opts) = req
+        mdoc <- getVirtualFile (toNormalizedUri uri)
+        case mdoc of
+            Nothing -> responder (Right (InL []))
+            Just vf -> do
+                let content = Text.unpack (virtualFileText vf)
+                let Range (Position sl sc) (Position el ec) = range
+                let startPos = (fromIntegral sl + 1, fromIntegral sc + 1)
+                let endPos = (fromIntegral el + 1, fromIntegral ec + 1)
+                let updates = Hh200.Scanner.formatRange content (startPos, endPos)
+                let edits = [ TextEdit (Range (Position (fromIntegral r1 - 1) (fromIntegral c1 - 1)) (Position (fromIntegral r2 - 1) (fromIntegral c2 - 1))) (Text.pack txt) | ((r1, c1), (r2, c2), txt) <- updates ]
+                responder (Right (InL edits))
+  ]
+
+-- (auto) This callback is invoked by the library (via `onConfigChange`) when the 
+-- configuration is updated, typically following a `workspace/didChangeConfiguration` 
+-- notification and successful parsing.
+handleConfig :: Config -> LspM Config ()
+handleConfig cfg = do
+    liftIO $ T.putStrLn $ "Config changed: " <> Text.pack (show cfg)
+    pure ()
+
+sh :: a -> Handlers (LspM Config)
+sh caps = handlers
+
+configResult :: Config -> Value -> Either Text.Text Config
+configResult old v =
+    case fromJSON v of
+        Success newConfig -> Right newConfig
+        Error e -> Left (Text.pack e)
+
+beforeResponse :: LanguageContextEnv Config -> TMessage Method_Initialize -> IO (Either (TResponseError Method_Initialize) (LanguageContextEnv Config))
+beforeResponse env _req = pure $ Right env
+
+ih :: LanguageContextEnv Config -> LspM Config <~> IO
+ih env = Iso (runLspT env) liftIO
+
+ioLogger :: LogAction IO (WithSeverity LspServerLog)
+ioLogger = LogAction $ \_ -> return ()
+
+lspLogger :: LogAction (LspM Config) (WithSeverity LspServerLog)
+lspLogger = LogAction $ \_ -> return ()
+
+main :: IO ()
+main = do
+    args <- getArgs
+    case args of
+        ["--port", p] -> runTcp (read p)
+        _             -> runStdio
+
+lspServerDef :: ServerDefinition Config
+lspServerDef =
+    ServerDefinition
+      { defaultConfig =    Config False
+      , configSection =    "hh200d"
+      , parseConfig =      configResult
+      , onConfigChange =   handleConfig
+      , doInitialize =     beforeResponse
+      , staticHandlers =   sh
+      , interpretHandler = ih
+      , options =          defaultOptions {optServerInfo = Just (ServerInfo "hh200d" (Just $(gitHash)))}
+      }
+
+runStdio :: IO ()
+runStdio = void $ runServer lspServerDef
 
 runTcp :: Int -> IO ()
 runTcp port = do
-    putStrLn $ "Run hh200 language server on port " ++ show port
-    putStrLn "Not implemented yet"
+    sock <- socket AF_INET Stream 0
+    setSocketOption sock ReuseAddr 1
+    bind sock (SockAddrInet (fromIntegral port) (tupleToHostAddress (127, 0, 0, 1)))
+    -- Expect one client (a text editor) to connect at a time.
+    listen sock 2
+    putStrLn $ "Listening on port " ++ show port
+    forever $ do
+        (conn, _addr) <- accept sock
+        putStrLn "Connection accepted"
+        hdl <- socketToHandle conn ReadWriteMode
+        hSetBuffering hdl NoBuffering
+        _ <- runServerWithHandles ioLogger lspLogger hdl hdl lspServerDef
+        hClose hdl
