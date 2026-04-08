@@ -8,7 +8,7 @@ Content-Type: application
 output: output.pdf
 mode: load
 load: skip if possible
-# smart-skip-load: true  # ??: assess how expensive this is: cache variables on first run, then exclude from load test profile
+# smart-skip-load: true
 
 { "title": "bisa", "content": "isi pdfnya." }
 HTTP 200

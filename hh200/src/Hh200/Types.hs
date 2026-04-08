@@ -68,7 +68,6 @@ expectUpper :: String -> UpperString
 expectUpper s | all (`elem` ['A'..'Z']) s = UpperString s
 expectUpper _ = undefined
 
--- newtype UrlString = UrlString requestStruct
 newtype UrlString = UrlString String
     deriving (Show, Eq)
 
@@ -261,16 +260,6 @@ defaultHostInfo = HostInfo
   , hiArch = Nothing
   , hiUptime = Nothing
   }
-
--- defaultLead :: Lead
--- defaultLead = Lead
---     { leadKind = Normal
---     , firstFailing = Nothing
---     , hostInfo = defaultHostInfo
---     , interpreterInfo = (HM.empty, [])
---     , echoScript = Nothing
---     }
-
 
 showVerb :: UpperString -> String
 showVerb (UpperString s) = s
