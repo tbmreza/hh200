@@ -71,6 +71,12 @@ URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters
 - alex == 3.5.2.0
 - happy == 2.1.4
 
+### Build Dependencies
+Notable aspects:
+- Uses `bel-expr` expression language
+- Integrates with Language Server Protocol (`lsp`) for IDE support
+- Includes both parsing (`parsec`) and lexer/generator tools (`alex`/`happy`)
+
 ### Development
 Developing a rule in the grammar is an activity of conservatively editing `src/L.x` and `src/P.y` at the following sites.
 

@@ -5,10 +5,15 @@ license:             MIT
 author:              "Reza Handzalah"
 maintainer:          "rezahandzalah@gmail.com"
 copyright:           "2024 Reza"
+bug-reports:         "https://github.com/tbmreza/hh200/issues"
 
 extra-source-files:
 - README.md
 - CHANGELOG.md
+
+source-repository:
+  type: git
+  location: "https://github.com/tbmreza/hh200"
 
 # Metadata used when publishing your package
 synopsis:            Statically-checked DSL for testing HTTP servers
@@ -55,7 +60,7 @@ library:
   - process
   - network
   - http-client
-  - http-client-tls  # see extra-deps
+  - http-client-tls
   - bytestring
   - mtl
   - filepath
