@@ -1,0 +1,14 @@
+Source: hhs-fmt
+Section: utils
+Priority: optional
+Maintainer: Reza Handzalah <rezahandzalah@gmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, g++, catch2-v3-utils | catch2
+Standards-Version: 4.6.2
+Homepage: https://github.com/tbmreza/hh200
+
+Package: hhs-fmt
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Ropes data structure implementation
+ hhs-fmt provides a modern C++26 implementation of the Rope data structure,
+ which is efficient for heavy string manipulations.

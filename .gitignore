@@ -26,3 +26,4 @@ draft.hhs
 trash.*
 errors.err
 output/
+build/
