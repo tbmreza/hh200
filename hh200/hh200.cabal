@@ -107,6 +107,7 @@ test-suite hh200-test
       BlindLsp
       CliSpec
       ContentTypeSpec
+      E2eLspSpec
       ExecutionSpec
       GoldenCli
       GoldenNetw
@@ -127,6 +128,7 @@ test-suite hh200-test
     , filepath
     , hh200
     , http-types
+    , lsp-test
     , optparse-applicative
     , silently
     , tasty

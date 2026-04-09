@@ -132,3 +132,4 @@ tests:
     - filepath
     - case-insensitive
     - bel-expr
+    - lsp-test

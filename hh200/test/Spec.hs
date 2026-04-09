@@ -10,6 +10,7 @@ import qualified NetworkSpec
 import qualified ContentTypeSpec
 import qualified ScannerSpec
 import qualified ExecutionSpec
+import qualified E2eLspSpec
 
 main :: IO ()
 main = do
@@ -19,6 +20,7 @@ main = do
 
       [ CliSpec.spec lock
       , LspSpec.spec
+      , E2eLspSpec.spec
       -- , NetworkSpec.spec lock
       , ContentTypeSpec.spec
       , ScannerSpec.spec

@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Hh200.LanguageServer (runTcp) where
+module Hh200.LanguageServer (runTcp, runStdio) where
 
 import qualified Hh200.Scanner
 

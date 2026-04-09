@@ -28,7 +28,7 @@ import qualified Paths_hh200 (version)
 import           Hh200.Types
 import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
-import           Hh200.LanguageServer (runTcp)
+import           Hh200.LanguageServer (runTcp, runStdio)
 
 import           Control.Concurrent
 import           Control.Concurrent.STM
@@ -43,6 +43,7 @@ data Args = Args
   , rps :: Bool
   , shotgun :: Int
   , lsp :: Maybe Int
+  , lspStdio :: Bool
   } deriving (Show, Eq)
 
 cli :: IO ()
@@ -85,6 +86,9 @@ optsInfo = info (args <**> helper) (fullDesc
                                   <> help "Run hh200 language server"
                                   <> metavar "PORT" ) )
 
+        <*> switch ( long "lsp-stdio"
+                  <> help "Run hh200 language server over stdio" )
+
 go :: Args -> IO ()
 
 -- Print executable version.
@@ -96,6 +100,10 @@ go Args { version = True } = do
 -- Run language server.
 -- hh200 --lsp=3000
 go Args { lsp = Just port } = runTcp port
+
+-- Run language server over stdio.
+-- hh200 --lsp-stdio
+go Args { lspStdio = True } = runStdio
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
