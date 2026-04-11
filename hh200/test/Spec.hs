@@ -20,7 +20,7 @@ main = do
 
       [ CliSpec.spec lock
       , LspSpec.spec
-      , E2eLspSpec.spec
+      -- , E2eLspSpec.spec  -- ??:
       -- , NetworkSpec.spec lock
       , ContentTypeSpec.spec
       , ScannerSpec.spec

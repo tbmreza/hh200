@@ -33,6 +33,30 @@ incremental parsing is non-goal if not free or very cheap
 
 # STASH
 
+old aplha.hhs:
+```
+## post request with cookies and a JSON body,
+## save the application/pdf response to a file.
+
+POST http://localhost:9999/api/echo
+Cookie: session_id=abc123; user_token=xyz789
+# Cookie: more=def45
+Content-Type: application/json
+
+[Configs]
+output: output.pdf
+
+{ "title": "bisa", "content": "isi pdfnya." }
+# { "content": "isi pdfnya." }  
+# {
+#   "title": "My Document",
+#   "content": "Document content here",
+#   "format": "A4"
+# }
+HTTP 200
+[Asserts]
+>header "Content-Type" == "application/pdf"
+```
 
 oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]

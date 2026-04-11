@@ -9,7 +9,7 @@ Set-Cookie: cookie2=value2; Path=/
 >header "Custom" not exists
 >header "Content-Type" exists
 >header "Header1" == "value1"
-# >false  # PICKUP lsp
+# >false
 >header "ETag" == "\"33a64df551425fcc55e4d42a148795d9f25f89d4\""
 >header "Expires" == "Wed, 21 Oct 2015 07:28:00 GMT"
 >header "Expires" toDate "%a, %d %b %Y %H:%M:%S GMT" dateFormat "%Y" == "2015"

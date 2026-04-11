@@ -11,10 +11,6 @@ extra-source-files:
 - README.md
 - CHANGELOG.md
 
-source-repository:
-  type: git
-  location: "https://github.com/tbmreza/hh200"
-
 # Metadata used when publishing your package
 synopsis:            Statically-checked DSL for testing HTTP servers
 category:            Language
@@ -75,7 +71,6 @@ library:
   - sqlite-simple
   - time
   - network-uri >= 2.6 && < 3
-  # from library
   - array
   - hashtables
   - split

@@ -1,22 +1,10 @@
-## post request with cookies and a JSON body,
-## save the application/pdf response to a file.
+## copy string at jsonpath
 
-POST http://localhost:9999/api/echo
-Cookie: session_id=abc123; user_token=xyz789
-# Cookie: more=def45
+POST http://localhost:9999/api/login
 Content-Type: application/json
 
-[Configs]
-output: output.pdf
+{ "email": "bisa@gmail.com", "password": "isi pdfnya." }
 
-{ "title": "bisa", "content": "isi pdfnya." }
-# { "content": "isi pdfnya." }  
-# {
-#   "title": "My Document",
-#   "content": "Document content here",
-#   "format": "A4"
-# }
 HTTP 200
 [Asserts]
->header "Content-Type" == "application/pdf"
-
+>jsonpath "$.data.token" copy
