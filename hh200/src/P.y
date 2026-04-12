@@ -165,10 +165,10 @@ response_codes : d                { [read $1] }
 
 
 call_item :: { E CallItem }
-call_item : deps_clause request response { $2 >>= \r -> returnE (gCallItem $1 r (Just $3)) }
-          | deps_clause request          { $2 >>= \r -> returnE (gCallItem $1 r Nothing) }
-          | request response             { $1 >>= \r -> returnE (gCallItem defaultDepsClause r (Just $2)) }
-          | request                      { $1 >>= \r -> returnE (gCallItem defaultDepsClause r Nothing) }
+call_item : deps_clause request response { $2 >>= \r -> returnE CallItem { ciDeps = deps $1, ciName = itemName $1, ciRequestSpec = r, ciResponseSpec = Just $3 } }
+          | deps_clause request          { $2 >>= \r -> returnE CallItem { ciDeps = deps $1, ciName = itemName $1, ciRequestSpec = r, ciResponseSpec = Nothing } }
+          | request response             { $1 >>= \r -> returnE CallItem { ciDeps = [], ciName = "", ciRequestSpec = r, ciResponseSpec = Just $2 } }
+          | request                      { $1 >>= \r -> returnE CallItem { ciDeps = [], ciName = "", ciRequestSpec = r, ciResponseSpec = Nothing } }
 
 
 call_items : call_item crlf            { $1 >>= \i -> returnE [i] }

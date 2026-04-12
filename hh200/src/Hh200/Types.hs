@@ -27,7 +27,6 @@ module Hh200.Types
     , HhError (..)
     , defaultScriptConfig
     , defaultDepsClause
-    , gCallItem
     , defaultHostInfo
     , show'
     , trimQuotes
@@ -241,15 +240,6 @@ defaultScriptConfig = ScriptConfig
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
-
-gCallItem :: DepsClause -> RequestSpec -> Maybe ResponseSpec -> CallItem
-gCallItem dc rs opt =
-    CallItem
-      { ciDeps = deps dc
-      , ciName = itemName dc
-      , ciRequestSpec = rs
-      , ciResponseSpec = opt
-      }
 
 defaultHostInfo :: HostInfo
 defaultHostInfo = HostInfo
