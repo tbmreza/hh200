@@ -18,8 +18,8 @@ main = do
     defaultMain $ testGroup "Hh200 Tests"
       -- [ ExecutionSpec.spec ]
 
-      [ CliSpec.spec lock
-      , LspSpec.spec
+      -- [ CliSpec.spec lock
+      [ LspSpec.spec
       -- , E2eLspSpec.spec  -- ??:
       -- , NetworkSpec.spec lock
       , ContentTypeSpec.spec

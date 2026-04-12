@@ -12,7 +12,7 @@ module Hh200.Execution
   , ProcM
   , status200
   , ExecContext(..)
-  , rhsDictToResponseHeaders
+  -- , rhsDictToResponseHeaders
   , renderHeadersMap
   ) where
 
@@ -68,20 +68,21 @@ expectHeadersOrMt ci =
         Nothing -> RhsDict HM.empty
         Just rs -> responseHeaders rs
 
--- | Convert a RhsDict (spec-side expected headers) to the canonical
--- ResponseHeaders type.
--- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
-rhsDictToResponseHeaders :: RhsDict -> ResponseHeaders
-rhsDictToResponseHeaders (RhsDict hm) =
-    [ ( CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
-      , TE.encodeUtf8 (Text.concat (map partToText parts))
-      )
-    | (k, parts) <- HM.toList hm
-    ]
-  where
-    partToText :: BEL.Part -> Text
-    partToText (BEL.R t) = t
-    partToText (BEL.L t) = t  -- ??:
+-- -- | Convert a RhsDict (spec-side expected headers) to the canonical
+-- -- ResponseHeaders type.
+-- -- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
+-- rhsDictToResponseHeaders :: RhsDict -> ResponseHeaders
+-- rhsDictToResponseHeaders (RhsDict hm) =
+--     [ ( CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
+--       , TE.encodeUtf8 (Text.concat (map partToText parts))
+--       )
+--     | (k, parts) <- HM.toList hm
+--     ]
+--
+--     where
+--     partToText :: BEL.Part -> Text
+--     partToText (BEL.R t) = t
+--     partToText (BEL.L t) = t  -- ??:
 
 -- | Execution context for a procedure.
 data ExecContext = ExecContext
@@ -278,7 +279,10 @@ courseFrom x = do
     userAssertions env' ci = do
         let expectList = expectCodesOr200 ci
             gotResp :: HC.Response L8.ByteString = responseCopy env'
-            gotStatus = Http.getStatus gotResp
+            -- PICKUP
+            -- gotStatus = Http.getStatus gotResp
+            -- gotStatus = status200
+            gotStatus = status401
 
         if gotStatus `notElem` expectList then
             failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show

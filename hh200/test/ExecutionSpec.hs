@@ -13,7 +13,8 @@ import qualified Data.HashMap.Strict      as HM
 import qualified Data.Text                as Text
 
 import qualified BEL
-import           Hh200.Execution          (rhsDictToResponseHeaders, renderHeadersMap)
+-- import           Hh200.Execution          (rhsDictToResponseHeaders, renderHeadersMap)
+import           Hh200.Execution
 import           Hh200.Types              (RhsDict (..))
 import           Network.HTTP.Types.Header (ResponseHeaders)
 
@@ -41,48 +42,48 @@ testEnv = BEL.Env
 
 spec :: TestTree
 spec = testGroup "Execution"
-    [ testRhsDictToResponseHeaders
-    , testRhsDictToResponseHeadersCaseInsensitive
-    , testRhsDictToResponseHeadersEmpty
+    -- [ testRhsDictToResponseHeaders
+    -- , testRhsDictToResponseHeadersCaseInsensitive
+    -- , testRhsDictToResponseHeadersEmpty
     -- , testRhsDictToResponseHeadersMultiPartValue
-    , testIsSubmapOfBy
+    [ testIsSubmapOfBy
     , testRenderHeadersMap
     , testRenderHeadersMapEmpty
     , testRenderHeadersMapMultiPart
     ]
 
-testRhsDictToResponseHeaders :: TestTree
-testRhsDictToResponseHeaders = testCase "rhsDictToResponseHeaders: single literal header" $ do
-    let dict = fromLiterals [("Content-Type", "application/json")]
-        result :: ResponseHeaders = rhsDictToResponseHeaders dict
-    assertEqual "one entry" 1 (length result)
-    assertBool "header key present" (CI.mk "content-type" `elem` map fst result)
-    assertBool "header value present" ("application/json" `elem` map snd result)
-
-testRhsDictToResponseHeadersCaseInsensitive :: TestTree
-testRhsDictToResponseHeadersCaseInsensitive = testCase "rhsDictToResponseHeaders: key is case-insensitive" $ do
-    let dict   = fromLiterals [("Content-Type", "text/plain")]
-        result = rhsDictToResponseHeaders dict
-    assertBool "CI key matches lowercase"
-        (CI.mk "content-type" `elem` map fst result)
-    assertBool "CI key matches uppercase"
-        (CI.mk "CONTENT-TYPE" `elem` map fst result)
-
-testRhsDictToResponseHeadersEmpty :: TestTree
-testRhsDictToResponseHeadersEmpty = testCase "rhsDictToResponseHeaders: empty dict" $ do
-    let result = rhsDictToResponseHeaders (RhsDict HM.empty)
-    assertEqual "empty result" [] result
-
--- | Multiple Part tokens in one value are concatenated.
-testRhsDictToResponseHeadersMultiPartValue :: TestTree
-testRhsDictToResponseHeadersMultiPartValue = testCase "rhsDictToResponseHeaders: multi-part value concatenated" $ do
-    let dict = RhsDict $ HM.fromList
-                  [ ("x-token", [BEL.R "Bearer ", BEL.L "someVar"]) ]
-        result = rhsDictToResponseHeaders dict
-    case lookup (CI.mk "x-token") result of
-        Nothing  -> assertFailure "x-token header missing"
-        -- Just val -> assertEqual "parts concatenated" "Bearer someVar" val
-        Just val -> assertEqual "parts concatenated" "Bearer " val  -- ??:
+-- testRhsDictToResponseHeaders :: TestTree
+-- testRhsDictToResponseHeaders = testCase "rhsDictToResponseHeaders: single literal header" $ do
+--     let dict = fromLiterals [("Content-Type", "application/json")]
+--         result :: ResponseHeaders = rhsDictToResponseHeaders dict
+--     assertEqual "one entry" 1 (length result)
+--     assertBool "header key present" (CI.mk "content-type" `elem` map fst result)
+--     assertBool "header value present" ("application/json" `elem` map snd result)
+--
+-- testRhsDictToResponseHeadersCaseInsensitive :: TestTree
+-- testRhsDictToResponseHeadersCaseInsensitive = testCase "rhsDictToResponseHeaders: key is case-insensitive" $ do
+--     let dict   = fromLiterals [("Content-Type", "text/plain")]
+--         result = rhsDictToResponseHeaders dict
+--     assertBool "CI key matches lowercase"
+--         (CI.mk "content-type" `elem` map fst result)
+--     assertBool "CI key matches uppercase"
+--         (CI.mk "CONTENT-TYPE" `elem` map fst result)
+--
+-- testRhsDictToResponseHeadersEmpty :: TestTree
+-- testRhsDictToResponseHeadersEmpty = testCase "rhsDictToResponseHeaders: empty dict" $ do
+--     let result = rhsDictToResponseHeaders (RhsDict HM.empty)
+--     assertEqual "empty result" [] result
+--
+-- -- | Multiple Part tokens in one value are concatenated.
+-- testRhsDictToResponseHeadersMultiPartValue :: TestTree
+-- testRhsDictToResponseHeadersMultiPartValue = testCase "rhsDictToResponseHeaders: multi-part value concatenated" $ do
+--     let dict = RhsDict $ HM.fromList
+--                   [ ("x-token", [BEL.R "Bearer ", BEL.L "someVar"]) ]
+--         result = rhsDictToResponseHeaders dict
+--     case lookup (CI.mk "x-token") result of
+--         Nothing  -> assertFailure "x-token header missing"
+--         -- Just val -> assertEqual "parts concatenated" "Bearer someVar" val
+--         Just val -> assertEqual "parts concatenated" "Bearer " val  -- ??:
 
 testIsSubmapOfBy :: TestTree
 testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
