@@ -113,14 +113,14 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
-leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
-leadFrom failed el script hi = Lead
-  { leadKind = Normal
-  , firstFailing = failed
-  , hostInfo = hi
-  , echoScript = Just script
-  , interpreterInfo = el
-  }
+-- leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
+-- leadFrom failed el script hi = Lead
+--   { leadKind = Normal
+--   , firstFailing = failed
+--   , hostInfo = hi
+--   , echoScript = Just script
+--   , interpreterInfo = el
+--   }
 
 asMethod :: String -> BS.ByteString
 asMethod s = BS.pack s
@@ -188,12 +188,23 @@ conduct script ctx env = do
             traceM $ "Execution finished. Log length: " ++ show (length procLog)
             pure $ leadFrom mci (finalEnv, procLog) script hi
 
--- Env is modified, Log appended throughout the body of course construction.
---
--- A failing CallItem is not always found.
---
-emptyHanded :: ProcM CallItem
-emptyHanded = mzero
+    where
+    leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
+    leadFrom failed el script hi = Lead
+      { leadKind = Normal
+      , firstFailing = failed
+      , hostInfo = hi
+      , echoScript = Just script
+      , interpreterInfo = el
+      }
+
+
+-- -- Env is modified, Log appended throughout the body of course construction.
+-- --
+-- -- A failing CallItem is not always found.
+-- --
+-- emptyHanded :: ProcM CallItem
+-- emptyHanded = mzero
 
 ciCapturesOrMt :: CallItem -> RhsDict
 ciCapturesOrMt ci =
@@ -242,7 +253,7 @@ courseFrom x = do
                 pure req
 
     go :: ExecContext -> [CallItem] -> ProcM CallItem
-    go _ [] = emptyHanded
+    go _ [] = mzero
     go ctx (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
 

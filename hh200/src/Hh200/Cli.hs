@@ -248,16 +248,4 @@ runAnalyzedScript mis = do
         Nothing -> exitWith (ExitFailure 1)
         Just s  -> pure s
 
-    -- lead <- testOutsideWorld script
-    --
-    -- case firstFailing lead of
-    --     Nothing -> do
-    --         putStrLn "Script executed successfully."
-    --     Just ci -> do
-    --         if ciName ci == "default"
-    --             then hPutStrLn stderr "hh200 encountered a system error."
-    --             else do
-    --                 putStrLn $ present ci
-    --                 hPutStrLn stderr "hh200 found an unmet expectation."
-    --         exitWith (ExitFailure 1)
     undefined

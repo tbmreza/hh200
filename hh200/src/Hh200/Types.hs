@@ -123,7 +123,7 @@ mkScript :: Script
 mkScript = Script
   { kind = Regular
   , config = ScriptConfig { }
-  , callItems = [ ciw ]
+  -- , callItems = [ ciw ]
   }
 
 ciw :: CallItem
@@ -201,7 +201,6 @@ data Lead = Lead
   , hostInfo ::        HostInfo
   , interpreterInfo :: (Env, Log)
   , echoScript ::      Maybe Script
-  -- } deriving (Show)
   }
 
 mkLead :: Lead
