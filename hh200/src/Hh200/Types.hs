@@ -39,6 +39,7 @@ module Hh200.Types
     , showResponse
     , Dat (..)
     , newEnv
+    , LexedUrl (..)
 
     -- temp
     , mkScript
@@ -131,7 +132,7 @@ ciw = CallItem
   , ciName = "default"
   , ciRequestSpec = RequestSpec
     { requestStruct = Nothing
-    , method = "GET"
+    , rqMethod = "GET"
     -- , lexedUrl = "http://localhost:80"
     , lexedUrl = "http://localhost:9999/echo"
     , headers = RhsDict HM.empty
@@ -161,10 +162,25 @@ data CallItem = CallItem
   , ciResponseSpec :: Maybe ResponseSpec
   } deriving (Show)
 
+-- uri needs eval only if it contains matching {{}}
+--
+-- designing a 
+-- when building Request will definitely fail:
+-- uneven {{}}; (unallowed/escaped??) chars.
+--
+-- same trip: Special-Use Domain Names like localhost
+
+data LexedUrl =
+    LexedUrlFull String
+  | LexedUrlSegments [String]
+    deriving (Show)
+
 data RequestSpec = RequestSpec
   { requestStruct :: Maybe HC.Request
-  , method ::        String
   , lexedUrl ::      String
+
+  , rqMethod ::        String
+  , rqUrl :: LexedUrl
   , headers ::       RhsDict
   , configs ::       RhsDict
   , payload ::       String
@@ -266,7 +282,7 @@ noNews _ = False
 present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg
-    in method rs ++ " " ++ lexedUrl rs
+    in rqMethod rs ++ " " ++ lexedUrl rs
        ++ (showHeaders $ headers rs)
        ++ "\n" ++ (payload rs)
        ++ (showResponse $ ciResponseSpec cg) ++ "\n"

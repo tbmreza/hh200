@@ -104,7 +104,7 @@ defaultCallItem = CallItem
   , ciName = "default"
   , ciRequestSpec = RequestSpec
     { requestStruct = Nothing
-    , method = "GET"
+    , rqMethod = "GET"
     , lexedUrl = "http://localhost:80"
     , headers = RhsDict HM.empty
     , configs = RhsDict HM.empty
@@ -237,20 +237,17 @@ courseFrom x = do
     go ctx (callItems x)
 
     where
-    -- Exceptions:
-    -- request construction retry error
     buildRequest :: Env -> CallItem -> IO Http.Request
-    -- ??: where Request struct construction *statistically* takes place
-    -- buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt } } = do
-    buildRequest env CallItem { ciRequestSpec = RequestSpec { requestStruct = opt, lexedUrl } } = do
-        -- req :: HC.Request <- HC.parseRequest lexedUrl
-        case opt of
-            Just r -> pure r
-            _ -> do
-                req <- HC.parseRequest lexedUrl
-                -- ??: env didn't exist during alex phase so maybe requestStruct will succeed here with env, allow env to contain directives/defaults
-                -- so the typical Request construction is in this arm. while at it, review Request recall in BEL.
-                pure req
+    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl } } = do
+        case rqUrl of
+            LexedUrlFull s -> do
+                req <- HC.parseRequest s
+                pure $ req { HC.method = BS.pack rqMethod }
+            LexedUrlSegments parts -> do
+                -- PICKUP come back after BEL.render is better reviewed
+                -- v <-        BEL.render acc (Aeson.String "") bV
+                -- rendered <- BEL.render env' (Aeson.String "") parts
+                undefined
 
     go :: ExecContext -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
@@ -290,7 +287,7 @@ courseFrom x = do
     userAssertions env' ci = do
         let expectList = expectCodesOr200 ci
             gotResp :: HC.Response L8.ByteString = responseCopy env'
-            -- PICKUP
+            -- ??: alpha.hhs head on
             -- gotStatus = Http.getStatus gotResp
             -- gotStatus = status200
             gotStatus = status401
