@@ -51,6 +51,8 @@ import           L
     "Captures"  { KW_CAPTURES _ }
     "Asserts"   { KW_ASSERTS _ }
 
+    "MultipartFormData" { KW_MULTIPART _ }
+
     method      { METHOD _ $$ }
 
     url         { URL _ $$ }
@@ -79,8 +81,6 @@ request_configs : "[" "Configs" "]" crlf bindings { $5 }
 
 request_cookies :: { RhsDict }
 request_cookies : "[" "Cookies" "]" crlf bindings { $5 }
-
-
 
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }

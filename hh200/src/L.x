@@ -39,8 +39,9 @@ tokens :-
     Form     { tok (\p _ -> KW_FORM p) }
     Cookies  { tok (\p _ -> KW_COOKIES p) }
 
-    Captures { tok (\p _ -> KW_CAPTURES p) }
-    Asserts  { tok (\p _ -> KW_ASSERTS p) }
+    Captures          { tok (\p _ -> KW_CAPTURES p) }
+    Asserts           { tok (\p _ -> KW_ASSERTS p) }
+    MultipartFormData { tok (\p _ -> KW_MULTIPART p) }
 
     $digit+  { tok (\p s -> DIGITS p s) }
     [\.\/=]  { tok (\p _ -> SEP p) }
@@ -138,8 +139,9 @@ data Token =
   | KW_FORM      AlexPosn
   | KW_COOKIES   AlexPosn
 
-  | KW_CAPTURES  AlexPosn
-  | KW_ASSERTS   AlexPosn
+  | KW_CAPTURES   AlexPosn
+  | KW_ASSERTS    AlexPosn
+  | KW_MULTIPART  AlexPosn
 
   | URL     AlexPosn String  -- $printable excluding #, space, newline, tab and return chars
   | QUOTED  AlexPosn String
