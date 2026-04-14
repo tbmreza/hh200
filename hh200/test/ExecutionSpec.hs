@@ -25,7 +25,7 @@ hdr k v = (CI.mk (BS.pack k), BS.pack v)
 -- plain string values.
 fromLiterals :: [(String, String)] -> RhsDict
 fromLiterals pairs =
-    RhsDict $ HM.fromList [ (k, [BEL.R (Text.pack v)]) | (k, v) <- pairs ]
+    RhsDict $ HM.fromList [ (Text.pack k, [BEL.R (Text.pack v)]) | (k, v) <- pairs ]
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
 -- The dummy request/response are never accessed when rendering R parts.

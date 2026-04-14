@@ -370,7 +370,7 @@ renderHeadersMap :: BEL.Env -> RhsDict
                  -> IO (HM.HashMap (CaseInsensitive.CI BS.ByteString) Aeson.Value)
 renderHeadersMap env' (RhsDict expectHeaders) =
     foldM (\ acc (k, parts) -> do
-            let ciKey = CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
+            let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
             rendered <- BEL.render env' (Aeson.String "") parts
             pure $ HM.insert ciKey rendered acc
         ) HM.empty (HM.toList expectHeaders)

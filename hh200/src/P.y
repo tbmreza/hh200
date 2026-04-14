@@ -149,8 +149,9 @@ bindings : binding          { RhsDict (HM.fromList [$1]) }
                               RhsDict (HM.insertWith (++) (fst $2) (snd $2) acc) }
 
 binding :: { Binding }
-binding : identifier ":" s crlf  { ($1, [BEL.R (Text.pack $3)]) }
-        | identifier rhs crlf    { ($1, [BEL.L (Text.pack (drop 1 $2))]) }
+binding : identifier crlf     { (Text.pack $1, []) }
+        | identifier s crlf   { (Text.pack $1, [BEL.R (Text.pack $2)]) }
+        | identifier rhs crlf { (Text.pack $1, [BEL.L (Text.pack (drop 1 $2))]) }
 
 
 response_asserts :: { [String] }
