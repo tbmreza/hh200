@@ -199,13 +199,6 @@ conduct script ctx env = do
       }
 
 
--- -- Env is modified, Log appended throughout the body of course construction.
--- --
--- -- A failing CallItem is not always found.
--- --
--- emptyHanded :: ProcM CallItem
--- emptyHanded = mzero
-
 ciCapturesOrMt :: CallItem -> RhsDict
 ciCapturesOrMt ci =
     case ciResponseSpec ci of
@@ -244,7 +237,6 @@ courseFrom x = do
                 req <- HC.parseRequest s
                 pure $ req { HC.method = BS.pack rqMethod }
             LexedUrlSegments parts -> do
-                -- PICKUP come back after BEL.render is better reviewed
                 -- v <-        BEL.render acc (Aeson.String "") bV
                 -- rendered <- BEL.render env' (Aeson.String "") parts
                 undefined
