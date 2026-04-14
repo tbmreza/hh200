@@ -8,7 +8,7 @@ module Hh200.Execution
 
   , runProcM
   , conduct
-  , validJsonBody
+  -- , validJsonBody
   , ProcM
   , status200
   , ExecContext(..)
@@ -66,7 +66,7 @@ expectHeadersOrMt :: CallItem -> RhsDict
 expectHeadersOrMt ci =
     case ciResponseSpec ci of
         Nothing -> RhsDict HM.empty
-        Just rs -> responseHeaders rs
+        Just rs -> rpResponseHeaders rs
 
 -- -- | Convert a RhsDict (spec-side expected headers) to the canonical
 -- -- ResponseHeaders type.
@@ -124,22 +124,6 @@ defaultCallItem = CallItem
 
 asMethod :: String -> BS.ByteString
 asMethod s = BS.pack s
-
-validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
-validJsonBody req resp = Aeson.Object $
-    KeyMap.fromList [ (Key.fromText "body", bodyValue)
-                    , (Key.fromText "headers", headersToAeson (Http.getHeaders resp))
-                    , (Key.fromText "status", Aeson.Number (fromIntegral $ statusCode $ Http.getStatus resp))
-                    , (Key.fromText "request", requestValue)
-                    ]
-
-    where
-    bodyBytes = Http.getBody resp
-    bodyValue = fromMaybe (Aeson.String (TE.decodeUtf8With TEE.lenientDecode (BL.toStrict bodyBytes))) (Aeson.decode bodyBytes)
-    requestValue = Aeson.Object $ KeyMap.fromList
-        [ (Key.fromText "method", Aeson.String (TE.decodeUtf8With TEE.lenientDecode (HC.method req)))
-        , (Key.fromText "headers", headersToAeson (HC.requestHeaders req))
-        ]
 
 headersToAeson :: [(HeaderName, BS.ByteString)] -> Aeson.Value
 headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $ 
@@ -217,7 +201,7 @@ assertionLinesOrMt :: CallItem -> [Text]
 assertionLinesOrMt ci =
     case ciResponseSpec ci of
         Nothing -> []
-        Just rs -> map Text.pack (asserts rs)
+        Just rs -> rpAsserts rs
 
 
 -- Exceptions:  when running ProcM
@@ -237,6 +221,7 @@ courseFrom x = do
                 req <- HC.parseRequest s
                 pure $ req { HC.method = BS.pack rqMethod }
             LexedUrlSegments parts -> do
+                -- ??: if stronger commitment to returnE in parser is needed
                 -- v <-        BEL.render acc (Aeson.String "") bV
                 -- rendered <- BEL.render env' (Aeson.String "") parts
                 undefined
@@ -344,6 +329,22 @@ courseFrom x = do
             c
 
         pure (const ext)
+
+validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
+validJsonBody req resp = Aeson.Object $
+    KeyMap.fromList [ (Key.fromText "body", bodyValue)
+                    , (Key.fromText "headers", headersToAeson (Http.getHeaders resp))
+                    , (Key.fromText "status", Aeson.Number (fromIntegral $ statusCode $ Http.getStatus resp))
+                    , (Key.fromText "request", requestValue)
+                    ]
+
+    where
+    bodyBytes = Http.getBody resp
+    bodyValue = fromMaybe (Aeson.String (TE.decodeUtf8With TEE.lenientDecode (BL.toStrict bodyBytes))) (Aeson.decode bodyBytes)
+    requestValue = Aeson.Object $ KeyMap.fromList
+        [ (Key.fromText "method", Aeson.String (TE.decodeUtf8With TEE.lenientDecode (HC.method req)))
+        , (Key.fromText "headers", headersToAeson (HC.requestHeaders req))
+        ]
 
 failWith :: String -> IO Bool
 failWith msg = hPutStrLn stderr msg >> pure False

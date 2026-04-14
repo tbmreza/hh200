@@ -121,7 +121,7 @@ go Args { shotgun = 1, call = False, rps = False, source = Just path } = do
     m <- runMaybeT analyzed
     case m of
         Just script -> testSimple script
-        _ -> undefined
+        _ -> error "undefined: bug in hh200 grammar!"
 
 -- Inline program execution.
 -- hh200 --call "GET ..."

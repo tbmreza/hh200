@@ -1,21 +1,4 @@
 module Hh200.Http
-  -- ( Manager
-  -- , Request
-  -- , Response
-  -- , RequestBody
-  -- , HttpException
-  -- , newManager
-  -- , closeManager
-  -- , parseRequest
-  -- , httpLbs
-  -- , setMethod
-  -- , setRequestHeaders
-  -- , setRequestBody
-  -- , lbsBody
-  -- , getStatus
-  -- , getBody
-  -- , getHeaders
-  -- ) where
     where
 
 import qualified Network.HTTP.Client as HC

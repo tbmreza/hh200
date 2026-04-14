@@ -127,17 +127,17 @@ request : method url crlf bindings request_configs braced crlf { do
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $1, requestStruct = Just (req { HC.method = "GET" }) } }
 
 
-response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { asserts = $6, captures = $4, output = [], statuses = map statusFrom $2, responseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { asserts = $6, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, responseHeaders = $4 } }
-         | "HTTP" response_codes crlf bindings                                      { trace "" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, responseHeaders = $4 } }
-         | "HTTP" response_codes crlf response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { asserts = $4, captures = $6, output = [], statuses = map statusFrom $2, responseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf                        response_captures crlf { trace "" $ ResponseSpec { asserts = [], captures = $4, output = [], statuses = map statusFrom $2, responseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf response_asserts  crlf                        { trace "" $ ResponseSpec { asserts = $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, responseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf                                               { trace "" $ ResponseSpec { asserts = [], captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, responseHeaders = RhsDict HM.empty } }
-         |                            response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { asserts = $3, captures = $1, output = [], statuses = [], responseHeaders = RhsDict HM.empty } }
-         |                            response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { asserts = $1, captures = $3, output = [], statuses = [], responseHeaders = RhsDict HM.empty } }
-         |                            response_captures crlf                        { trace "" $ ResponseSpec { asserts = [], captures = $1, output = [], statuses = [], responseHeaders = RhsDict HM.empty } }
-         |                            response_asserts  crlf                        { trace "" $ ResponseSpec { asserts = $1, captures = RhsDict HM.empty, output = [], statuses = [], responseHeaders = RhsDict HM.empty } }
+response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, captures = $4, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = $4 } }
+         | "HTTP" response_codes crlf bindings                                      { trace "" $ ResponseSpec { rpAsserts = [],               captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = $4 } }
+         | "HTTP" response_codes crlf response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $4, captures = $6, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf                        response_captures crlf { trace "" $ ResponseSpec { rpAsserts = [],               captures = $4, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf response_asserts  crlf                        { trace "" $ ResponseSpec { rpAsserts = map Text.pack $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf                                               { trace "" $ ResponseSpec { rpAsserts = [],               captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $3, captures = $1, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $1, captures = $3, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_captures crlf                        { trace "" $ ResponseSpec { rpAsserts = [],               captures = $1, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_asserts  crlf                        { trace "" $ ResponseSpec { rpAsserts = map Text.pack $1, captures = RhsDict HM.empty, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
 
 response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
@@ -156,6 +156,7 @@ binding : identifier crlf     { (Text.pack $1, []) }
 
 response_asserts :: { [String] }
 response_asserts : "[" "Asserts" "]" crlf expr_lines { $5 }
+                 | "[" "Asserts" "]" crlf            { [] }
 
 expr_lines : line crlf            { [$1] }
            | expr_lines line crlf { ($1 ++ [$2]) }
