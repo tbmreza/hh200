@@ -1,5 +1,5 @@
 # use the dedicated [MultipartFormData] section
-# PICKUP come back after leanifying laravel-dev-server
+# PICKUP
 POST http://localhost:9999/multipart-form-data
 [MultipartFormData]
 key1: value1

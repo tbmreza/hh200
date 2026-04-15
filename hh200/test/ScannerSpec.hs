@@ -113,7 +113,7 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
                         case Hh.ciResponseSpec ci of
                             Just rs -> do
                                 assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
-                                assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                                assertBool "Has asserts" $ not (null (Hh.rpAsserts rs))
                             Nothing -> assertFailure "Should have response spec"
                     Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
             Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
@@ -130,7 +130,7 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
                         case Hh.ciResponseSpec ci of
                             Just rs -> do
                                 assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.captures rs in hm))
-                                assertBool "Has asserts" $ not (null (Hh.asserts rs))
+                                assertBool "Has asserts" $ not (null (Hh.rpAsserts rs))
                             Nothing -> assertFailure "Should have response spec"
                     Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
             Left (err, _) -> assertFailure $ "Failed to parse: " ++ err

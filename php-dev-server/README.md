@@ -8,6 +8,25 @@
 </p>
 
 ## About Laravel
+data RequestSpec = RequestSpec
+  { rqMethod :: String
+  , rqUrl :: LexedUrl
+  , rqHeaders :: RhsDict
+  , rqConfigs :: RhsDict
+  , rqBody    :: RequestBody  -- PICKUP scour http-client lib
+  } deriving (Show)
+
+
+curl -X POST http://localhost:9999/xls \
+  -F "file=@target-template.xlsx"
+
+curl -X POST http://localhost:9999/xls \
+  -H "Accept: application/json" \
+  -F "file=@target-template.xlsx"
+Breakdown of the command:
+-X POST: Specifies the HTTP method.
+-H "Accept: application/json": Tells Laravel to return a JSON response (even if validation fails).
+-F "file=@...": Performs a multipart/form-data upload. The @ symbol is important as it tells curl to read the file from your local disk. The field name must be file to match the controller logic.
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
