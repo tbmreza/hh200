@@ -106,9 +106,9 @@ defaultCallItem = CallItem
     { requestStruct = Nothing
     , rqMethod = "GET"
     , lexedUrl = "http://localhost:80"
-    , headers = RhsDict HM.empty
-    , configs = RhsDict HM.empty
-    , payload = ""
+    , rqHeaders = RhsDict HM.empty
+    , rqConfigs = RhsDict HM.empty
+    , rqBody = ""
     }
   , ciResponseSpec = Nothing
   }
@@ -187,13 +187,13 @@ ciCapturesOrMt :: CallItem -> RhsDict
 ciCapturesOrMt ci =
     case ciResponseSpec ci of
         Nothing -> mtRhsDict
-        Just rs -> captures rs
+        Just rs -> rpCaptures rs
 
 expectCodesOr200 :: CallItem -> [Status]
 expectCodesOr200 ci =
     case ciResponseSpec ci of
         Nothing -> [status200]
-        Just rs -> case statuses rs of
+        Just rs -> case rpStatuses rs of
             [] -> [status200]
             expectCodes -> expectCodes
 

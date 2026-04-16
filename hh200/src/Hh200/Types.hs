@@ -31,7 +31,7 @@ module Hh200.Types
     , show'
     , trimQuotes
     , expectUpper, expectUrl
-    , showVerb, showUrl
+    , showVerb
     , noNews
     , present
     , showHeaders
@@ -135,9 +135,9 @@ ciw = CallItem
     , rqMethod = "GET"
     -- , lexedUrl = "http://localhost:80"
     , lexedUrl = "http://localhost:9999/echo"
-    , headers = RhsDict HM.empty
-    , configs = RhsDict HM.empty
-    , payload = ""
+    , rqHeaders = RhsDict HM.empty
+    , rqConfigs = RhsDict HM.empty
+    , rqBody = ""
     }
   , ciResponseSpec = Nothing
   }
@@ -179,19 +179,21 @@ data RequestSpec = RequestSpec
   { requestStruct :: Maybe HC.Request
   , lexedUrl ::      String
 
-  , rqMethod ::        String
-  , rqUrl :: LexedUrl
-  , headers ::       RhsDict
-  , configs ::       RhsDict
-  , payload ::       String
+  , rqMethod ::  String
+  , rqUrl ::     LexedUrl
+  , rqHeaders :: RhsDict
+  , rqConfigs :: RhsDict
+  , rqBody ::    String
   } deriving (Show)
 
 data ResponseSpec = ResponseSpec
-  { statuses :: [Status]
-  , output :: [String]
-  , captures :: RhsDict
+  { rpStatuses :: [Status]
+  , rpOutput ::   [String]
+  , rpCaptures :: RhsDict
+
   -- List of untyped expr line, input for evaluator.
   , rpAsserts :: [Text]
+
   -- Response and representation headers.
   , rpResponseHeaders :: RhsDict
   }
@@ -269,22 +271,17 @@ defaultHostInfo = HostInfo
 showVerb :: UpperString -> String
 showVerb (UpperString s) = s
 
--- ??:
-showUrl :: UrlString -> String
-showUrl (UrlString s) = s
-
-
 noNews :: Lead -> Bool
 noNews (Lead { leadKind = Non }) = True
 noNews _ = False
 
--- -- Pretty-print.
+-- Pretty-print.
 present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg
     in rqMethod rs ++ " " ++ lexedUrl rs
-       ++ (showHeaders $ headers rs)
-       ++ "\n" ++ (payload rs)
+       ++ (showHeaders $ rqHeaders rs)
+       ++ "\n" ++ (rqBody rs)
        ++ (showResponse $ ciResponseSpec cg) ++ "\n"
 
 showHeaders :: RhsDict -> String
@@ -298,7 +295,7 @@ showPart (BEL.L t) = Text.unpack t
 
 showResponse :: Maybe ResponseSpec -> String
 showResponse Nothing = ""
-showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (statuses rs))
+showResponse (Just rs) = "\nHTTP " ++ (unwords $ map (show . statusCode) (rpStatuses rs))
     ++ (showHeaders $ rpResponseHeaders rs)
 
 data Dat = Dat [(Text, Text, Text)]

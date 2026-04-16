@@ -76,8 +76,8 @@ script : crlf call_items { $2 >>= \is -> returnE Script { kind = Regular, config
 crlf : {- optional newline -} { }
      | crlf newline           { }
 
-request_configs :: { RhsDict }
-request_configs : "[" "Configs" "]" crlf bindings { $5 }
+request_rqConfigs :: { RhsDict }
+request_rqConfigs : "[" "Configs" "]" crlf bindings { $5 }
 
 request_cookies :: { RhsDict }
 request_cookies : "[" "Cookies" "]" crlf bindings { $5 }
@@ -89,55 +89,55 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request :: { E RequestSpec }
-request : method url crlf bindings request_configs braced crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, headers = $4, configs = $5, payload = $6, requestStruct = Nothing }
+request : method url crlf bindings request_rqConfigs braced crlf { do
+                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = $5, rqBody = $6, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     trace "a!!" $ returnE $ case res of
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf bindings                 braced crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, headers = $4, configs = RhsDict HM.empty, payload = $5, requestStruct = Nothing }
+                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = $5, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     trace "b!! ??: pilot LexedUrlSegments" $ returnE $ case res of
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf bindings                        crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, headers = $4, configs = RhsDict HM.empty, payload = "", requestStruct = Nothing }
+                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = "", requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     trace "c!!" $ returnE $ case res of
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf                          braced crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, headers = RhsDict HM.empty, configs = RhsDict HM.empty, payload = $4, requestStruct = Nothing }
+                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = $4, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     trace "d!!" $ returnE $ case res of
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         | method url crlf                                      { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, headers = RhsDict HM.empty, configs = RhsDict HM.empty, payload = "", requestStruct = Nothing }
+                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = "", requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     returnE $ case res of
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
         |        url crlf                                      { do
-                                                                    let r = RequestSpec { lexedUrl = $1, rqMethod = "GET", headers = RhsDict HM.empty, configs = RhsDict HM.empty, payload = "", requestStruct = Nothing }
+                                                                    let r = RequestSpec { lexedUrl = $1, rqMethod = "GET", rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = "", requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $1)
                                                                     returnE $ case res of
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $1, requestStruct = Just (req { HC.method = "GET" }) } }
 
 
-response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, captures = $4, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = $4 } }
-         | "HTTP" response_codes crlf bindings                                      { trace "" $ ResponseSpec { rpAsserts = [],               captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = $4 } }
-         | "HTTP" response_codes crlf response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $4, captures = $6, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf                        response_captures crlf { trace "" $ ResponseSpec { rpAsserts = [],               captures = $4, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf response_asserts  crlf                        { trace "" $ ResponseSpec { rpAsserts = map Text.pack $4, captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
-         | "HTTP" response_codes crlf                                               { trace "" $ ResponseSpec { rpAsserts = [],               captures = RhsDict HM.empty, output = [], statuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
-         |                            response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $3, captures = $1, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
-         |                            response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $1, captures = $3, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
-         |                            response_captures crlf                        { trace "" $ ResponseSpec { rpAsserts = [],               captures = $1, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
-         |                            response_asserts  crlf                        { trace "" $ ResponseSpec { rpAsserts = map Text.pack $1, captures = RhsDict HM.empty, output = [], statuses = [], rpResponseHeaders = RhsDict HM.empty } }
+response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = $4, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = $4 } }
+         | "HTTP" response_codes crlf bindings                                      { trace "" $ ResponseSpec { rpAsserts = [],               rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = $4 } }
+         | "HTTP" response_codes crlf response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $4, rpCaptures = $6, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf                        response_captures crlf { trace "" $ ResponseSpec { rpAsserts = [],               rpCaptures = $4, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf response_asserts  crlf                        { trace "" $ ResponseSpec { rpAsserts = map Text.pack $4, rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         | "HTTP" response_codes crlf                                               { trace "" $ ResponseSpec { rpAsserts = [],               rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $3, rpCaptures = $1, rpOutput = [], rpStatuses = [], rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_asserts  crlf response_captures crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $1, rpCaptures = $3, rpOutput = [], rpStatuses = [], rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_captures crlf                        { trace "" $ ResponseSpec { rpAsserts = [],               rpCaptures = $1, rpOutput = [], rpStatuses = [], rpResponseHeaders = RhsDict HM.empty } }
+         |                            response_asserts  crlf                        { trace "" $ ResponseSpec { rpAsserts = map Text.pack $1, rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = [], rpResponseHeaders = RhsDict HM.empty } }
 
 response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
