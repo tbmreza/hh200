@@ -11,7 +11,6 @@ module Hh200.Execution
   -- , validJsonBody
   , ProcM
   , status200
-  , ExecContext(..)
   -- , rhsDictToResponseHeaders
   , renderHeadersMap
   ) where
@@ -84,15 +83,9 @@ expectHeadersOrMt ci =
 --     partToText (BEL.R t) = t
 --     partToText (BEL.L t) = t  -- ??:
 
--- | Execution context for a procedure.
-data ExecContext = ExecContext
-  { ecManager     :: Http.Manager
-  -- , ecRateLimiter :: Maybe RateLimiter
-  }
-
 -- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
 -- "writes" log as it runs, modifies environment "states" while doing IO.
-type ProcM = MaybeT (Tf.RWST ExecContext Log Env IO)
+type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 
 -- Mechanically, this is a corollary to http-client's defaultRequest.
 --
@@ -133,24 +126,23 @@ runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
     mgr <- Http.newManager True
-    let ctx = ExecContext { ecManager = mgr }
-    _ <- Tf.runRWST (runMaybeT course) ctx env
+    _ <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
 
 -- | Low-level execution of a script. Returns the failing CallItem (if any), 
 -- the final environment, and the execution log.
 -- Nothing means the script finished successfully.
-runProcM :: Script -> ExecContext -> Env -> IO (Maybe CallItem, Env, Log)
-runProcM script ctx env = do
+runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
+runProcM script mgr env = do
     let course :: ProcM CallItem = courseFrom script
-    Tf.runRWST (runMaybeT course) ctx env
+    Tf.runRWST (runMaybeT course) mgr env
 
 -- | High-level wrapper that orchestrates execution, catches exceptions, 
 -- performs side effects (like tracing), and returns a Lead report.
-conduct :: Script -> ExecContext -> Env -> IO Lead
-conduct script ctx env = do
+conduct :: Script -> Http.Manager -> Env -> IO Lead
+conduct script mgr env = do
     hi <- gatherHostInfo
-    result <- try (runProcM script ctx env)
+    result <- try (runProcM script mgr env)
     case result of
         Left (e :: SomeException) -> do
             let errLog = [HttpError (show e)]
@@ -199,8 +191,8 @@ assertionLinesOrMt ci =
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
-    ctx <- ask
-    go ctx (callItems x)
+    mgr <- ask
+    go mgr (callItems x)
 
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
@@ -215,9 +207,9 @@ courseFrom x = do
                 -- rendered <- BEL.render env' (Aeson.String "") parts
                 undefined
 
-    go :: ExecContext -> [CallItem] -> ProcM CallItem
+    go :: Http.Manager -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
-    go ctx (ci:rest) = do
+    go mgr (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
 
         env <- get
@@ -225,7 +217,7 @@ courseFrom x = do
 
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
-        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow (ecManager ctx))) :: IO (Either Http.HttpException Http.Response))
+        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         trace (present ci) $ case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
@@ -245,7 +237,7 @@ courseFrom x = do
                 if not ok then
                     pure ci
                 else
-                    go ctx rest
+                    go mgr rest
 
     -- Status code assertion first, then all other checks (headers, body, and
     -- expressions about the response).
@@ -353,7 +345,7 @@ triggerEmergencyShutdown flag = do
 --     -- bracket (Http.newManager (effectiveTls script))
 --     bracket (Http.newManager True)
 --             Http.closeManager $
---             \mgr -> conduct script (ExecContext mgr) HM.empty
+--             \mgr -> conduct script mgr HM.empty
 
 -- | Render expected headers.
 renderHeadersMap :: BEL.Env -> RhsDict
