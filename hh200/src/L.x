@@ -22,7 +22,7 @@ tokens :-
   | [Oo][Pp][Tt][Ii][Oo][Nn][Ss]
   | [Hh][Ee][Aa][Dd]              { tok (\p s -> METHOD p s) }
 
-    \{                        { tokBraceEnclosed }
+    \{       { tokBraceEnclosed }
     \}       { tok (\p _ -> BRACE_CLS p) }
     \(       { tok (\p _ -> PAREN_OPN p) }
     \)       { tok (\p _ -> PAREN_CLS p) }
@@ -64,11 +64,11 @@ tok f (p, _, _, s) len = return (f p (take len s))
 -- (auto) tokBraceEnclosed, scanBalanced, advancePos  acquire by supporting nested json objects
 tokBraceEnclosed :: AlexInput -> Int -> Alex Token
 tokBraceEnclosed (p, _, _, s) _ = do
-  case scanBalanced 1 False (drop 1 s) "{" of
-    Left err -> alexError err
-    Right (res, rest) -> do
-      alexSetInput (advancePos p res, if null res then ' ' else last res, [], rest)
-      return (BRACE_ENCLOSED p res)
+    case scanBalanced 1 False (drop 1 s) "{" of
+        Left err -> alexError err
+        Right (res, rest) -> do
+            alexSetInput (advancePos p res, if null res then ' ' else last res, [], rest)
+            pure (BRACE_ENCLOSED p res)
 
 scanBalanced :: Int -> Bool -> String -> String -> Either String (String, String)
 scanBalanced 0 _ s acc = Right (reverse acc, s)

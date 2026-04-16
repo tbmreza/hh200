@@ -204,12 +204,7 @@ courseFrom x = do
         case rqUrl of
             LexedUrlFull s -> do
                 req <- HC.parseRequest s
-                let obj = object [ "email" .= ("test@example.com" :: Text)
-                                 , "password" .= ("password" :: Text)
-                                 ]
-                let encoded = Aeson.encode obj
-                -- let !strictBody = BL.toStrict encoded
-                -- strictBody `seq` pure (req { HC.method = BS.pack rqMethod , HC.requestBody = HC.RequestBodyBS strictBody })
+                let encoded = BL.fromStrict (BS.pack rqBody)
                 renderedReqHeaders <- renderRequestHeaders env rqHeaders
                 pure $ req { HC.method = BS.pack rqMethod
                            , HC.requestHeaders = renderedReqHeaders

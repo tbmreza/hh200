@@ -57,7 +57,6 @@ import           L
     url         { URL _ $$ }
     s           { QUOTED _ $$ }
     braced      { BRACE_ENCLOSED _ $$ }
-    braced_old  { BRACED _ $$ }
     rhs         { RHS _ $$ }
 
 
