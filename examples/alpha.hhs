@@ -1,9 +1,11 @@
 ## copy string at jsonpath
-## goal: transmit json body
+## goal: transmit json body  ??: review RhsDict, Content-Type rhs ideally doesn't require ""
 
 POST http://localhost:9999/api/login
-Content-Type: application/json
+Content-Type: "application/json"
 { "email": "test@example.com", "password": "password" }
 HTTP 401
 [Asserts]
->jsonpath "$.message" copy
+# >jsonpath "$.message" copy
+# >jsonpath "$.user.name" copy
+>jsonpath "$.token" copy

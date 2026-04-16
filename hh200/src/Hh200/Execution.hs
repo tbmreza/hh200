@@ -210,8 +210,9 @@ courseFrom x = do
                 let encoded = Aeson.encode obj
                 -- let !strictBody = BL.toStrict encoded
                 -- strictBody `seq` pure (req { HC.method = BS.pack rqMethod , HC.requestBody = HC.RequestBodyBS strictBody })
+                renderedReqHeaders <- renderRequestHeaders env rqHeaders
                 pure $ req { HC.method = BS.pack rqMethod
-                           -- , HC.requestHeaders = rqHeaders
+                           , HC.requestHeaders = renderedReqHeaders
                            , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                            }
             LexedUrlSegments parts -> do
@@ -366,7 +367,19 @@ triggerEmergencyShutdown flag = do
 --             Http.closeManager $
 --             \mgr -> conduct script mgr HM.empty
 
--- | Render expected headers.
+-- | (auto) Render expected headers.
+renderRequestHeaders :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
+renderRequestHeaders env' (RhsDict reqHeaders) =
+    foldM (\ acc (k, parts) -> do
+            let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
+            rendered <- BEL.render env' (Aeson.String "") parts
+            let bsValue = case rendered of
+                    Aeson.String t -> TE.encodeUtf8 t
+                    v -> BL.toStrict (Aeson.encode v)
+            pure $ (ciKey, bsValue) : acc
+        ) [] (HM.toList reqHeaders)
+
+-- | Render expected response headers.
 renderHeadersMap :: BEL.Env -> RhsDict
                  -> IO (HM.HashMap (CaseInsensitive.CI BS.ByteString) Aeson.Value)
 renderHeadersMap env' (RhsDict expectHeaders) =
