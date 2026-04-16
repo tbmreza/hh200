@@ -1,8 +1,9 @@
 ## copy string at jsonpath
+## goal: transmit json body
 
-POST http://localhost:9999/api/login
+POST http://localhost:9999/api/echo
 Content-Type: application/json
-{ "email": "bisa@gmail.com", "password": "isi pdfnya." }
+{ "email": "test@example.com", "password": "password" }
 HTTP 401
 [Asserts]
 >jsonpath "$.message" copy

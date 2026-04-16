@@ -76,8 +76,8 @@ script : crlf call_items { $2 >>= \is -> returnE Script { kind = Regular, config
 crlf : {- optional newline -} { }
      | crlf newline           { }
 
-request_rqConfigs :: { RhsDict }
-request_rqConfigs : "[" "Configs" "]" crlf bindings { $5 }
+request_configs :: { RhsDict }
+request_configs : "[" "Configs" "]" crlf bindings { $5 }
 
 request_cookies :: { RhsDict }
 request_cookies : "[" "Cookies" "]" crlf bindings { $5 }
@@ -89,7 +89,7 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request :: { E RequestSpec }
-request : method url crlf bindings request_rqConfigs braced crlf { do
+request : method url crlf bindings request_configs braced crlf { do
                                                                     let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = $5, rqBody = $6, requestStruct = Nothing }
                                                                     res <- liftIO $ try (HC.parseRequest $2)
                                                                     trace "a!!" $ returnE $ case res of

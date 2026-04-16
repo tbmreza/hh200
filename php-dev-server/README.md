@@ -8,15 +8,6 @@
 </p>
 
 ## About Laravel
-data RequestSpec = RequestSpec
-  { rqMethod :: String
-  , rqUrl :: LexedUrl
-  , rqHeaders :: RhsDict
-  , rqConfigs :: RhsDict
-  , rqBody    :: RequestBody  -- PICKUP scour http-client lib
-  } deriving (Show)
-
-
 curl -X POST http://localhost:9999/xls \
   -F "file=@target-template.xlsx"
 

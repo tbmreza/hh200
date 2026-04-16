@@ -226,7 +226,7 @@ courseFrom x = do
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
         eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow (ecManager ctx))) :: IO (Either Http.HttpException Http.Response))
-        case eitherResp of
+        trace (present ci) $ case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
 
