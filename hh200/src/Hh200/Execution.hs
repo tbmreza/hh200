@@ -41,15 +41,21 @@ import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Text as Text
 import           Data.Text (Text)
-import qualified Data.Aeson as Aeson
+import qualified Data.Aeson as Aeson (encode, decode, Value (..))
+import           Data.Aeson (object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
--- import qualified Data.Aeson.Types as Aeson (Value(..))
 
 import           Control.Lens ((&), (?~))
 import           Control.Lens.At (at)
 
-import qualified Network.HTTP.Client as HC
+import qualified Network.HTTP.Client as HC ( method
+                                           , requestHeaders
+                                           , responseHeaders
+                                           , parseRequest
+                                           , Response
+                                           , requestBody
+                                           , RequestBody (RequestBodyBS, RequestBodyLBS))
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
@@ -196,11 +202,17 @@ courseFrom x = do
 
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
-    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl } } = do
+    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqBody } } = do
         case rqUrl of
             LexedUrlFull s -> do
                 req <- HC.parseRequest s
-                pure $ req { HC.method = BS.pack rqMethod }
+                let obj = object [ "email" .= ("test@example.com" :: Text)
+                                 , "password" .= ("password" :: Text)
+                                 ]
+                let encoded = Aeson.encode obj
+                pure $ req { HC.method = BS.pack rqMethod
+                           , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
+                           }
             LexedUrlSegments parts -> do
                 -- ??: if stronger commitment to returnE in parser is needed
                 -- v <-        BEL.render acc (Aeson.String "") bV
@@ -217,7 +229,8 @@ courseFrom x = do
 
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
-        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
+        -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
+        eitherResp <- liftIO ((try (Http.httpLbs (trace ("built=" ++ show reqOrThrow) reqOrThrow) mgr)) :: IO (Either Http.HttpException Http.Response))
         trace (present ci) $ case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException

@@ -179,10 +179,10 @@ data RequestSpec = RequestSpec
   { requestStruct :: Maybe HC.Request
   , lexedUrl ::      String
 
+  , rqConfigs :: RhsDict
   , rqMethod ::  String
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
-  , rqConfigs :: RhsDict
   , rqBody ::    String
   } deriving (Show)
 
