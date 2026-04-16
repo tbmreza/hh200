@@ -210,6 +210,8 @@ courseFrom x = do
                                  , "password" .= ("password" :: Text)
                                  ]
                 let encoded = Aeson.encode obj
+                -- let !strictBody = BL.toStrict encoded
+                -- strictBody `seq` pure (req { HC.method = BS.pack rqMethod , HC.requestBody = HC.RequestBodyBS strictBody })
                 pure $ req { HC.method = BS.pack rqMethod
                            , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                            }
@@ -230,7 +232,7 @@ courseFrom x = do
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
-        eitherResp <- liftIO ((try (Http.httpLbs (trace ("built=" ++ show reqOrThrow) reqOrThrow) mgr)) :: IO (Either Http.HttpException Http.Response))
+        eitherResp <- liftIO ((try (Http.httpLbs (trace ("built=" ++ show (HC.requestBody reqOrThrow)) reqOrThrow) mgr)) :: IO (Either Http.HttpException Http.Response))
         trace (present ci) $ case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
