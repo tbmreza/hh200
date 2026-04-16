@@ -11,7 +11,6 @@ import qualified Data.HashMap.Strict as HM
 import           Control.Exception (try, SomeException)
 import           Control.Monad.Trans.Except
 import           Control.Monad.IO.Class (liftIO)
--- import           Network.HTTP.Types.Status (Status, mkStatus)
 import           Network.HTTP.Types.Status (mkStatus)
 import qualified Network.HTTP.Client as HC
 

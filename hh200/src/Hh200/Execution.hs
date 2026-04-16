@@ -8,10 +8,8 @@ module Hh200.Execution
 
   , runProcM
   , conduct
-  -- , validJsonBody
   , ProcM
   , status200
-  -- , rhsDictToResponseHeaders
   , renderHeadersMap
   ) where
 
@@ -202,7 +200,7 @@ courseFrom x = do
 
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
-    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqBody } } = do
+    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody } } = do
         case rqUrl of
             LexedUrlFull s -> do
                 req <- HC.parseRequest s
@@ -213,6 +211,7 @@ courseFrom x = do
                 -- let !strictBody = BL.toStrict encoded
                 -- strictBody `seq` pure (req { HC.method = BS.pack rqMethod , HC.requestBody = HC.RequestBodyBS strictBody })
                 pure $ req { HC.method = BS.pack rqMethod
+                           -- , HC.requestHeaders = rqHeaders
                            , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                            }
             LexedUrlSegments parts -> do
@@ -232,7 +231,12 @@ courseFrom x = do
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
-        eitherResp <- liftIO ((try (Http.httpLbs (trace ("built=" ++ show (HC.requestBody reqOrThrow)) reqOrThrow) mgr)) :: IO (Either Http.HttpException Http.Response))
+        eitherResp <- let reqInfo = case HC.requestBody reqOrThrow of
+                                    -- HC.RequestBodyLBS lbs -> "LBS " ++ show (BL.length lbs)
+                                    HC.RequestBodyLBS lbs -> "LBS " ++ show lbs
+                                    HC.RequestBodyBS bs -> "BS " ++ show (BS.length bs)
+                        in trace ("built=" ++ reqInfo) $
+                           liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         trace (present ci) $ case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
