@@ -5,4 +5,4 @@ Content-Type: application/json
 { "email": "bisa@gmail.com", "password": "isi pdfnya." }
 HTTP 401
 [Asserts]
->jsonpath "$.data.token" copy
+>jsonpath "$.message" copy

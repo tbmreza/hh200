@@ -32,6 +32,10 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
+??: in interpreters and evaluators context, decision tree for when to panic,
+when to null. different levels are parser (with binding powers), ast
+matching, and user facing apis.
+??: not all responseBody is textual. also, "print N first characters" seems useful
 
 old aplha.hhs:
 ```

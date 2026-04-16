@@ -57,7 +57,8 @@ workOptimize :: Script -> [Script]
 workOptimize s = [s, mkScript]
 
 dummyDuo :: Script -> [Script]
-dummyDuo s = [s, s]
+-- dummyDuo s = [s, s]
+dummyDuo s = [s]
 
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
 worker    cfg             script    shutdown     done =

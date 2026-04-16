@@ -113,15 +113,6 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
--- leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
--- leadFrom failed el script hi = Lead
---   { leadKind = Normal
---   , firstFailing = failed
---   , hostInfo = hi
---   , echoScript = Just script
---   , interpreterInfo = el
---   }
-
 asMethod :: String -> BS.ByteString
 asMethod s = BS.pack s
 
@@ -156,8 +147,6 @@ runProcM script ctx env = do
 
 -- | High-level wrapper that orchestrates execution, catches exceptions, 
 -- performs side effects (like tracing), and returns a Lead report.
--- conduct :: Script -> Http.Manager -> Env -> HostInfo -> IO Lead
--- conduct script mgr env hi = do
 conduct :: Script -> ExecContext -> Env -> IO Lead
 conduct script ctx env = do
     hi <- gatherHostInfo
