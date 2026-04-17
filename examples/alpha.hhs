@@ -7,7 +7,7 @@ Content-Type: "application/json"
     "email": "test@example.com",
     "password": "password"
 }
-HTTP 401
+HTTP 200
 [Asserts]
 # >jsonpath "$.message" copy
 # >jsonpath "$.user.name" copy

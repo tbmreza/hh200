@@ -198,6 +198,8 @@ courseFrom x = do
     mgr <- ask
     go mgr (callItems x)
 
+                -- PICKUP BEL.render here then in braced / json; stack install
+                -- ??: if stronger commitment to returnE in parser is needed
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
     buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody } } = do
@@ -208,12 +210,14 @@ courseFrom x = do
                 renderedReqHeaders <- renderRequestHeaders env rqHeaders
                 pure $ req { HC.method = BS.pack rqMethod
                            , HC.requestHeaders = renderedReqHeaders
+                           -- The type of requestBody as sent over the wire is
+                           -- abstracted by the library. For example, to get
+                           -- the desired effect of sending an object as JSON,
+                           -- idiomatic Content-Type header is assumed.
                            , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                            }
             LexedUrlSegments parts -> do
-                -- ??: if stronger commitment to returnE in parser is needed
-                -- v <-        BEL.render acc (Aeson.String "") bV
-                -- rendered <- BEL.render env' (Aeson.String "") parts
+                full <- BEL.render env (Aeson.String "") undefined
                 undefined
 
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
@@ -260,10 +264,7 @@ courseFrom x = do
     userAssertions env' ci = do
         let expectList = expectCodesOr200 ci
             gotResp :: HC.Response L8.ByteString = responseCopy env'
-            -- ??: alpha.hhs head on
-            -- gotStatus = Http.getStatus gotResp
-            -- gotStatus = status200
-            gotStatus = status401
+            gotStatus = Http.getStatus gotResp
 
         if gotStatus `notElem` expectList then
             failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show
