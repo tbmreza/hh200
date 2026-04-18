@@ -58,9 +58,7 @@ testScanner_lrMustache = testGroup "Lexer and Parser - Mustache"
       let tokens = Hh.alexScanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
-          Right s -> trace (show tokens) $ pure ()
-          -- PICKUP URL alex output to [BEL.Part]
-          -- Right _ -> pure ()
+          Right _ -> pure ()
           Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
   ]
 

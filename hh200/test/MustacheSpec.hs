@@ -19,10 +19,10 @@ spec = testGroup "hasBalancedMustache"
     ]
 
 testNoMustache :: TestTree
-testNoMustache = testCase "no mustache returns True" $ do
-    assertBool "plain URL" $ hasBalancedMustache "https://example.com/api/resource"
-    assertBool "empty braces" $ hasBalancedMustache "{}"
-    assertBool "single brace" $ hasBalancedMustache "{"
+testNoMustache = testCase "no mustache returns False" $ do
+    assertBool "plain URL" $ not $ hasBalancedMustache "https://example.com/api/resource"
+    assertBool "empty braces" $ not $ hasBalancedMustache "{}"
+    assertBool "single brace" $ not $ hasBalancedMustache "{"
 
 testBalancedSingle :: TestTree
 testBalancedSingle = testCase "single balanced pair returns True" $ do
@@ -51,5 +51,5 @@ testUnbalancedMultipleOpens = testCase "multiple opens, single close returns Fal
     assertBool "three opens" $ not $ hasBalancedMustache "{{{foo}}"
 
 testEmptyString :: TestTree
-testEmptyString = testCase "empty string returns True" $
-    assertBool "empty" $ hasBalancedMustache ""
+testEmptyString = testCase "empty string returns False" $
+    assertBool "empty" $ not $ hasBalancedMustache ""

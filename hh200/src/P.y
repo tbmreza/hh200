@@ -87,20 +87,30 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request :: { E RequestSpec }
-request : method url_proto crlf bindings request_configs braced crlf { undefined }
-        | method url_proto crlf bindings                 braced crlf { do
-                                                                    let r = RequestSpec { rqMethod = $1, rqUrl = LexedUrlFull $2, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = $5, requestStruct = Nothing }
-                                                                    trace "proto" $ pure r }
-        | method url_proto crlf bindings                        crlf { undefined }
-        | method url_proto crlf                          braced crlf { undefined }
-        | method url_proto crlf                                      { undefined }
-        |        url_proto crlf                                      { undefined }
+request : method url crlf bindings request_configs braced crlf { do
+                                                                 let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqConfigs = $5,               rqBody = $6 }
+                                                                 trace "" $ pure r }
+        | method url crlf bindings                 braced crlf { do
+                                                                 let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqConfigs = RhsDict HM.empty, rqBody = $5 }
+                                                                 trace "" $ pure r }
+        | method url crlf bindings                        crlf { do
+                                                                 let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqConfigs = RhsDict HM.empty, rqBody = "" }
+                                                                 trace "" $ pure r }
+        | method url crlf                          braced crlf { do
+                                                                 let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = $4 }
+                                                                 trace "" $ pure r }
+        | method url crlf                                      { do
+                                                                 let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = "" }
+                                                                 trace "" $ pure r }
+        |        url crlf                                      { do
+                                                                 let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = "" }
+                                                                 trace "" $ pure r }
 
 url :: { LexedUrl }
-url : url_proto { 
-                  if hasBalancedMustache $1 
-                    then let parts = BEL.partitions (Text.pack $1) in LexedUrlSegments parts
-                    else LexedUrlFull $1 }
+url : url_proto { if hasBalancedMustache $1 then
+                      LexedUrlSegments (BEL.partitions (Text.pack $1))
+                  else
+                      LexedUrlFull $1 }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = $4, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
          | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = $4 } }
@@ -154,8 +164,9 @@ call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
 
 {
 
+-- (auto)
 hasBalancedMustache :: String -> Bool
-hasBalancedMustache s = countOpen == countClose && countOpen == length (filter isOpenPair allPrefixes)
+hasBalancedMustache s = countOpen > 0 && countOpen == countClose && countOpen == length (filter isOpenPair allPrefixes)
   where
     s' = filter (`elem` ['{', '}']) s
     countOpen = length $ filter isOpenPair allPrefixes

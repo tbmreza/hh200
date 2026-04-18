@@ -32,13 +32,6 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
-        | method url_proto crlf bindings                 braced crlf { do
-                                                                    let r = RequestSpec { rqMethod = $1, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = $5, requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $2)
-                                                                    trace "b!! ??: pilot LexedUrlSegments" $ returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
-
 ??: in interpreters and evaluators context, decision tree for when to panic,
 when to null. different levels are parser (with binding powers), ast
 matching, and user facing apis.

@@ -17,14 +17,14 @@ main :: IO ()
 main = do
     lock <- newMVar ()
     defaultMain $ testGroup "Hh200 Tests"
-      [ ScannerSpec.spec
-      , MustacheSpec.spec ]
+      -- [ ScannerSpec.spec ]
 
-      -- -- [ CliSpec.spec lock
-      -- [ LspSpec.spec
-      -- -- , E2eLspSpec.spec  -- ??:
-      -- -- , NetworkSpec.spec lock
-      -- , ContentTypeSpec.spec
-      -- , ScannerSpec.spec
-      -- , ExecutionSpec.spec
-      -- ]
+      -- [ CliSpec.spec lock
+      [ LspSpec.spec
+      -- , E2eLspSpec.spec  -- ??:
+      -- , NetworkSpec.spec lock
+      , ContentTypeSpec.spec
+      , ScannerSpec.spec
+      , MustacheSpec.spec
+      , ExecutionSpec.spec
+      ]

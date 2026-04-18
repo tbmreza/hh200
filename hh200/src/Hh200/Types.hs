@@ -131,10 +131,9 @@ ciw = CallItem
   { ciDeps = []
   , ciName = "default"
   , ciRequestSpec = RequestSpec
-    { requestStruct = Nothing
-    , rqMethod = "GET"
-    -- , lexedUrl = "http://localhost:80"
-    -- , lexedUrl = "http://localhost:9999/echo"
+    { rqMethod = "GET"
+    -- , rqUrl = "http://localhost:80"
+    , rqUrl = LexedUrlFull "http://localhost:9999/echo"
     , rqHeaders = RhsDict HM.empty
     , rqConfigs = RhsDict HM.empty
     , rqBody = ""
@@ -176,11 +175,8 @@ data LexedUrl =
     deriving (Show)
 
 data RequestSpec = RequestSpec
-  { requestStruct :: Maybe HC.Request
-  -- , lexedUrl ::      String
-
+  { rqMethod ::  String
   , rqConfigs :: RhsDict
-  , rqMethod ::  String
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
   , rqBody ::    String
@@ -246,15 +242,6 @@ defaultScriptConfig = ScriptConfig
   , subjects = (Subject "a") Ls.:| []
   , useTls = Nothing
   }
-
--- effectiveTls :: Script -> Bool
--- effectiveTls Script { config = ScriptConfig { useTls = Just b } } = b
--- effectiveTls Script { callItems = (ci:_) } =
---     -- case parseURI (lexedUrl (ciRequestSpec ci)) of
---     case Nothing of
---         Just uri | uriScheme uri == "http:" -> False
---         _ -> True
--- effectiveTls _ = True -- Default to TLS if not specified
 
 defaultDepsClause :: DepsClause
 defaultDepsClause = DepsClause { deps = [], itemName = "" }
