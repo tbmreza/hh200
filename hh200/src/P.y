@@ -54,7 +54,7 @@ import           L
 
     method      { METHOD _ $$ }
 
-    url         { URL _ $$ }
+    url_proto         { URL _ $$ }
     s           { QUOTED _ $$ }
     braced      { BRACE_ENCLOSED _ $$ }
     rhs         { RHS _ $$ }
@@ -87,45 +87,17 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request :: { E RequestSpec }
-request : method url crlf bindings request_configs braced crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = $5, rqBody = $6, requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $2)
-                                                                    trace "a!!" $ returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
-        | method url crlf bindings                 braced crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = $5, requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $2)
-                                                                    trace "b!! ??: pilot LexedUrlSegments" $ returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
-        | method url crlf bindings                        crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = "", requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $2)
-                                                                    trace "c!!" $ returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
-        | method url crlf                          braced crlf { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = $4, requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $2)
-                                                                    trace "d!!" $ returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
-        | method url crlf                                      { do
-                                                                    let r = RequestSpec { lexedUrl = $2, rqMethod = $1, rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = "", requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $2)
-                                                                    returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $2, requestStruct = Just (req { HC.method = BS.pack $1 }) } }
-        |        url crlf                                      { do
-                                                                    let r = RequestSpec { lexedUrl = $1, rqMethod = "GET", rqHeaders = RhsDict HM.empty, rqConfigs = RhsDict HM.empty, rqBody = "", requestStruct = Nothing }
-                                                                    res <- liftIO $ try (HC.parseRequest $1)
-                                                                    returnE $ case res of
-                                                                        Left (_ :: SomeException) -> r
-                                                                        Right req ->                 r { rqUrl = LexedUrlFull $1, requestStruct = Just (req { HC.method = "GET" }) } }
+request : method url_proto crlf bindings request_configs braced crlf { undefined }
+        | method url_proto crlf bindings                 braced crlf { do
+                                                                    let r = RequestSpec { rqMethod = $1, rqUrl = LexedUrlFull $2, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = $5, requestStruct = Nothing }
+                                                                    trace "proto" $ pure r }
+        | method url_proto crlf bindings                        crlf { undefined }
+        | method url_proto crlf                          braced crlf { undefined }
+        | method url_proto crlf                                      { undefined }
+        |        url_proto crlf                                      { undefined }
 
-url_proto :: { LexedUrl }
-url_proto : url { 
+url :: { LexedUrl }
+url : url_proto { 
                   let parts = BEL.partitions (Text.pack $1) in
                   LexedUrlSegments parts }
 

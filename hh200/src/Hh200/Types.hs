@@ -134,7 +134,7 @@ ciw = CallItem
     { requestStruct = Nothing
     , rqMethod = "GET"
     -- , lexedUrl = "http://localhost:80"
-    , lexedUrl = "http://localhost:9999/echo"
+    -- , lexedUrl = "http://localhost:9999/echo"
     , rqHeaders = RhsDict HM.empty
     , rqConfigs = RhsDict HM.empty
     , rqBody = ""
@@ -177,7 +177,7 @@ data LexedUrl =
 
 data RequestSpec = RequestSpec
   { requestStruct :: Maybe HC.Request
-  , lexedUrl ::      String
+  -- , lexedUrl ::      String
 
   , rqConfigs :: RhsDict
   , rqMethod ::  String
@@ -279,7 +279,8 @@ noNews _ = False
 present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg
-    in rqMethod rs ++ " " ++ lexedUrl rs
+    -- in rqMethod rs ++ " " ++ lexedUrl rs  -- ??
+    in rqMethod rs ++ " "
        ++ (showHeaders $ rqHeaders rs)
        ++ "\n" ++ (rqBody rs)
        ++ (showResponse $ ciResponseSpec cg) ++ "\n"
