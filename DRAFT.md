@@ -32,6 +32,10 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
+        | method url_proto crlf bindings                 braced crlf { do
+                                                                    let r = RequestSpec { rqUrl = $2, rqMethod = $1, rqHeaders = $4, rqConfigs = RhsDict HM.empty, rqBody = $5, requestStruct = Nothing }
+                                                                    pure r }
+
 ??: in interpreters and evaluators context, decision tree for when to panic,
 when to null. different levels are parser (with binding powers), ast
 matching, and user facing apis.

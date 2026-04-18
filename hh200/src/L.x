@@ -153,7 +153,7 @@ data Token =
 
   | LINE  AlexPosn String
   | EOF   AlexPosn
-  deriving (Eq, Show)
+    deriving (Eq, Show)
 
 tokenPosn (DIGITS p _) = p
 tokenPosn (BRACE_ENCLOSED p _) = p

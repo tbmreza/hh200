@@ -124,6 +124,10 @@ request : method url crlf bindings request_configs braced crlf { do
                                                                         Left (_ :: SomeException) -> r
                                                                         Right req ->                 r { rqUrl = LexedUrlFull $1, requestStruct = Just (req { HC.method = "GET" }) } }
 
+url_proto :: { LexedUrl }
+url_proto : url { 
+                  let parts = BEL.partitions (Text.pack $1) in
+                  LexedUrlSegments parts }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = $4, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
          | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = $4 } }

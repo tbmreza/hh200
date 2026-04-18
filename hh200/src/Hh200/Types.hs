@@ -172,7 +172,7 @@ data CallItem = CallItem
 
 data LexedUrl =
     LexedUrlFull String
-  | LexedUrlSegments [String]
+  | LexedUrlSegments [BEL.Part]
     deriving (Show)
 
 data RequestSpec = RequestSpec
