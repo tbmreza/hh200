@@ -80,6 +80,11 @@ request_configs : "[" "Configs" "]" crlf bindings { $5 }
 request_cookies :: { RhsDict }
 request_cookies : "[" "Cookies" "]" crlf bindings { $5 }
 
+squares :: { RhsDict }
+squares : "[" "Configs" "]" crlf bindings { $5 }
+       | "[" "Cookies" "]" crlf bindings { $5 }
+       | "[" "MultipartFormData" "]" crlf bindings { $5 }
+
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
             | s             { DepsClause { deps = [], itemName = $1 } }
 
@@ -87,9 +92,9 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request :: { E RequestSpec }
-request : method url crlf bindings request_configs braced crlf { do
-                                                                 let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqConfigs = $5,               rqBody = $6 }
-                                                                 trace "" $ pure r }
+request : method url crlf bindings squares braced crlf { do
+                                                                  let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqConfigs = $5,               rqBody = $6 }
+                                                                  trace "" $ pure r }
         | method url crlf bindings                 braced crlf { do
                                                                  let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqConfigs = RhsDict HM.empty, rqBody = $5 }
                                                                  trace "" $ pure r }
