@@ -171,7 +171,10 @@ ciCapturesOrMt :: CallItem -> RhsDict
 ciCapturesOrMt ci =
     case ciResponseSpec ci of
         Nothing -> mtRhsDict
-        Just rs -> rpCaptures rs
+        Just rp ->
+            case rpSquares rp of
+                (Just (ResponseSquareCaptures d), _) -> d
+                _ -> mtRhsDict
 
 expectCodesOr200 :: CallItem -> [Status]
 expectCodesOr200 ci =
@@ -183,9 +186,13 @@ expectCodesOr200 ci =
 
 assertionLinesOrMt :: CallItem -> [Text]
 assertionLinesOrMt ci =
-    case ciResponseSpec ci of
+    -- case ciResponseSpec ci of
+    case ciResponseSpec (trace ("assertionLinesOrMt:" ++ show ci) ci) of
         Nothing -> []
-        Just rs -> rpAsserts rs
+        Just rp ->
+            case rpSquares rp of
+                (_, Just (ResponseSquareAsserts d)) -> map Text.pack d
+                _ -> []
 
 
 -- Exceptions:  when running ProcM

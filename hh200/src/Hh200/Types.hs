@@ -40,8 +40,8 @@ module Hh200.Types
     , Dat (..)
     , newEnv
     , LexedUrl (..)
-    , ResponseSquare (..)
-    , RequestSquare (..)
+    , ResponseSquare (..), rpSquaresNothing
+    , RequestSquare (..), rqSquaresNothing
 
     -- temp
     , mkScript
@@ -193,26 +193,27 @@ data RequestSpec = RequestSpec
   { rqMethod ::  String
   -- Static array of hh200 square blocks: Configs, Query, Form, BasicAuth, Cookies
   , rqSquares :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)
-  -- , rqConfigs :: RhsDict
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
   , rqBody ::    String
   } deriving (Show)
 
+rqSquaresNothing :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)
+rqSquaresNothing = (Nothing, Nothing, Nothing, Nothing, Nothing)
+
+rpSquaresNothing :: (Maybe ResponseSquare, Maybe ResponseSquare)
+rpSquaresNothing = (Nothing, Nothing)
+
 data ResponseSpec = ResponseSpec
   { rpStatuses :: [Status]
-  , rpOutput ::   [String]
 
-  -- Static array of hh200 square blocks: Captures, Asserts
+  -- Static array of hh200 square blocks: Captures, Asserts, Output
+  -- [Asserts] List of untyped expr line, input for evaluator.
   , rpSquares :: (Maybe ResponseSquare, Maybe ResponseSquare)
-
-  , rpCaptures :: RhsDict
-
-  -- List of untyped expr line, input for evaluator.
-  , rpAsserts :: [Text]
 
   -- Response and representation headers.
   , rpResponseHeaders :: RhsDict
+  , rpBody :: String
   }
   -- deriving (Show, Eq)
   deriving (Show)
