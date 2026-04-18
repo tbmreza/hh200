@@ -197,8 +197,7 @@ courseFrom x = do
     mgr <- ask
     go mgr (callItems x)
 
-                -- PICKUP BEL.render here then in braced / json; stack install
-                -- ??: if stronger commitment to returnE in parser is needed
+                -- ??: interpolate in braced / json; stack install
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
     buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody } } = do

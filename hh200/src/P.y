@@ -54,7 +54,7 @@ import           L
 
     method      { METHOD _ $$ }
 
-    url_proto         { URL _ $$ }
+    url_proto   { URL _ $$ }
     s           { QUOTED _ $$ }
     braced      { BRACE_ENCLOSED _ $$ }
     rhs         { RHS _ $$ }
