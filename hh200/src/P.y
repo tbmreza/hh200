@@ -98,8 +98,9 @@ request : method url_proto crlf bindings request_configs braced crlf { undefined
 
 url :: { LexedUrl }
 url : url_proto { 
-                  let parts = BEL.partitions (Text.pack $1) in
-                  LexedUrlSegments parts }
+                  if hasBalancedMustache $1 
+                    then let parts = BEL.partitions (Text.pack $1) in LexedUrlSegments parts
+                    else LexedUrlFull $1 }
 
 response : "HTTP" response_codes crlf response_captures crlf response_asserts  crlf { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = $4, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty } }
          | "HTTP" response_codes crlf bindings crlf response_asserts                { trace "" $ ResponseSpec { rpAsserts = map Text.pack $6, rpCaptures = RhsDict HM.empty, rpOutput = [], rpStatuses = map statusFrom $2, rpResponseHeaders = $4 } }
@@ -152,6 +153,15 @@ call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
 
 
 {
+
+hasBalancedMustache :: String -> Bool
+hasBalancedMustache s = go s False
+  where
+    go [] False = True
+    go [] True = False
+    go ('{':'{':rest) False = go rest True
+    go ('}':'}':rest) True = go rest False
+    go (_:rest) balanced = go rest balanced
 
 -- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
