@@ -4,7 +4,7 @@ module P where
 
 import Debug.Trace
 
-import           Data.List (intercalate)
+import           Data.List (intercalate, isPrefixOf, inits, isSuffixOf)
 import qualified Data.Text as Text
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict as HM
@@ -155,13 +155,16 @@ call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
 {
 
 hasBalancedMustache :: String -> Bool
-hasBalancedMustache s = go s False
+hasBalancedMustache s = countOpen == countClose && countOpen == length (filter isOpenPair allPrefixes)
   where
-    go [] False = True
-    go [] True = False
-    go ('{':'{':rest) False = go rest True
-    go ('}':'}':rest) True = go rest False
-    go (_:rest) balanced = go rest balanced
+    s' = filter (`elem` ['{', '}']) s
+    countOpen = length $ filter isOpenPair allPrefixes
+    countClose = length $ filter isClosePair allPrefixes
+    allPrefixes = take (length s' - 1) (inits s')
+    isOpenPair p = "{{" `isSuffixOf` p
+    isClosePair p = "}}" `isSuffixOf` p
+    inits [] = []
+    inits xs = xs : inits (init xs)
 
 -- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""

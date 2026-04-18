@@ -11,12 +11,14 @@ import qualified ContentTypeSpec
 import qualified ScannerSpec
 import qualified ExecutionSpec
 import qualified E2eLspSpec
+import qualified MustacheSpec
 
 main :: IO ()
 main = do
     lock <- newMVar ()
     defaultMain $ testGroup "Hh200 Tests"
-      [ ScannerSpec.spec ]
+      [ ScannerSpec.spec
+      , MustacheSpec.spec ]
 
       -- -- [ CliSpec.spec lock
       -- [ LspSpec.spec

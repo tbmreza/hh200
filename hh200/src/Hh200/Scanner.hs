@@ -8,6 +8,7 @@ module Hh200.Scanner
     ( module Hh200.Scanner
     , module L
     , module P
+    , P.hasBalancedMustache
     ) where
 
 import Debug.Trace

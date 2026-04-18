@@ -112,6 +112,7 @@ test-suite hh200-test
       GoldenCli
       GoldenNetw
       LspSpec
+      MustacheSpec
       NetworkSpec
       ScannerSpec
       Paths_hh200
