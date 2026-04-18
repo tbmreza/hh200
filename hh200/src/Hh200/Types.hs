@@ -40,6 +40,8 @@ module Hh200.Types
     , Dat (..)
     , newEnv
     , LexedUrl (..)
+    , ResponseSquare (..)
+    , RequestSquare (..)
 
     -- temp
     , mkScript
@@ -135,7 +137,7 @@ ciw = CallItem
     -- , rqUrl = "http://localhost:80"
     , rqUrl = LexedUrlFull "http://localhost:9999/echo"
     , rqHeaders = RhsDict HM.empty
-    , rqConfigs = RhsDict HM.empty
+    -- , rqConfigs = RhsDict HM.empty
     , rqBody = ""
     }
   , ciResponseSpec = Nothing
@@ -174,9 +176,21 @@ data LexedUrl =
   | LexedUrlSegments [BEL.Part]
     deriving (Show)
 
+data RequestSquare =
+    RequestSquareConfigs RhsDict
+  | RequestSquareCookies RhsDict
+    deriving (Show)
+
+data ResponseSquare =
+    ResponseSquareAsserts [String]
+  | ResponseSquareCaptures RhsDict
+    deriving (Show)
+
 data RequestSpec = RequestSpec
   { rqMethod ::  String
-  , rqConfigs :: RhsDict
+  -- Static array of hh200 square blocks: Configs, Query, Form, BasicAuth, Cookies
+  , rqSquares :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)
+  -- , rqConfigs :: RhsDict
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
   , rqBody ::    String
@@ -185,6 +199,10 @@ data RequestSpec = RequestSpec
 data ResponseSpec = ResponseSpec
   { rpStatuses :: [Status]
   , rpOutput ::   [String]
+
+  -- Static array of hh200 square blocks: Captures, Asserts
+  , rpSquares :: (Maybe ResponseSquare, Maybe ResponseSquare)
+
   , rpCaptures :: RhsDict
 
   -- List of untyped expr line, input for evaluator.
@@ -193,7 +211,8 @@ data ResponseSpec = ResponseSpec
   -- Response and representation headers.
   , rpResponseHeaders :: RhsDict
   }
-  deriving (Show, Eq)
+  -- deriving (Show, Eq)
+  deriving (Show)
 
 -- Host computer info: /etc/resolv.conf, execution time,
 data HostInfo = HostInfo

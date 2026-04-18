@@ -103,7 +103,7 @@ defaultCallItem = CallItem
     { rqMethod = "GET"
     -- , rqUrl = "http://localhost:80"
     , rqHeaders = RhsDict HM.empty
-    , rqConfigs = RhsDict HM.empty
+    -- , rqConfigs = RhsDict HM.empty
     , rqBody = ""
     }
   , ciResponseSpec = Nothing
