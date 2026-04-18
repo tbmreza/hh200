@@ -178,6 +178,9 @@ data LexedUrl =
 
 data RequestSquare =
     RequestSquareConfigs RhsDict
+  | RequestSquareQuery RhsDict
+  | RequestSquareForm RhsDict
+  | RequestSquareBasicAuth RhsDict
   | RequestSquareCookies RhsDict
     deriving (Show)
 

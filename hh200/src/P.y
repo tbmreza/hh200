@@ -81,7 +81,8 @@ deps : s      { [$1] }
      | deps s { $1 ++ [$2] }
 
 request_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
-request_sqrs : request_sqr { (Nothing, Nothing, Nothing, Nothing, Nothing) }
+request_sqrs : request_sqrs request_sqr { setRequestSquare $2 $1 }
+             | request_sqr              { initRequestSquare $1 }
 
 request_sqr :: { RequestSquare }
 request_sqr : "[" "Configs" "]" crlf bindings { RequestSquareConfigs $5 }
@@ -89,10 +90,10 @@ request_sqr : "[" "Configs" "]" crlf bindings { RequestSquareConfigs $5 }
 
 request :: { E RequestSpec }
 request : method url crlf bindings request_sqrs braced crlf { do
-                                                              let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = $5,           rqBody = $6 }
+                                                              let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = $5,                                            rqBody = $6 }
                                                               trace "a!!!" $ pure r }
         | method url crlf          request_sqrs braced crlf { do
-                                                              let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = (Nothing, Nothing, Nothing, Nothing, Nothing), rqBody = $5 }
+                                                              let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,                                            rqBody = $5 }
                                                               trace "b!!!" $ pure r }
         | method url crlf bindings              braced crlf { do
                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = (Nothing, Nothing, Nothing, Nothing, Nothing), rqBody = $5 }
@@ -117,7 +118,8 @@ url : url_proto { if hasBalancedMustache $1 then
                       LexedUrlFull $1 }
 
 response_sqrs :: { (Maybe ResponseSquare, Maybe ResponseSquare)}
-response_sqrs : response_sqr { (Nothing, Nothing) }
+response_sqrs : response_sqrs response_sqr { setResponseSquare $2 $1 }
+              | response_sqr { initResponseSquare $1 }
 
 response_sqr :: { ResponseSquare }
 response_sqr : "[" "Captures" "]" crlf bindings { ResponseSquareCaptures $5 }
@@ -175,7 +177,30 @@ call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
 
 {
 
--- (auto)
+setResponseSquare sq (a, c) = case sq of
+    ResponseSquareAsserts _ ->  (Just sq, c)
+    ResponseSquareCaptures _ -> (a,       Just sq)
+    _                      ->   (a,       c)
+
+initResponseSquare sq = case sq of
+    ResponseSquareAsserts _ ->  (Just sq, Nothing)
+    ResponseSquareCaptures _ -> (Nothing, Just sq)
+
+setRequestSquare sq (c, q, f, b, k) = case sq of
+    RequestSquareConfigs _ ->   (Just sq, q,       f,       b,       k)
+    RequestSquareQuery _ ->     (c,       Just sq, f,       b,       k)
+    RequestSquareForm _ ->      (c,       q,       Just sq, b,       k)
+    RequestSquareBasicAuth _ -> (c,       q,       f,       Just sq, k)
+    RequestSquareCookies _ ->   (c,       q,       f,       b,       Just sq)
+    _                      ->   (c,       q,       f,       b,       k)
+
+initRequestSquare sq = case sq of
+    RequestSquareConfigs _ ->   (Just sq, Nothing, Nothing, Nothing, Nothing)
+    RequestSquareQuery _ ->     (Nothing, Just sq, Nothing, Nothing, Nothing)
+    RequestSquareForm _ ->      (Nothing, Nothing, Just sq, Nothing, Nothing)
+    RequestSquareBasicAuth _ -> (Nothing, Nothing, Nothing, Just sq, Nothing)
+    RequestSquareCookies _ ->   (Nothing, Nothing, Nothing, Nothing, Just sq)
+
 hasBalancedMustache :: String -> Bool
 hasBalancedMustache s = countOpen > 0 && countOpen == countClose && countOpen == length (filter isOpenPair allPrefixes)
   where
