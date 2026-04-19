@@ -27,3 +27,4 @@ trash.*
 errors.err
 output/
 build/
+*.info
