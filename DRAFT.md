@@ -32,9 +32,11 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
-request_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
-request_sqrs :: "[" "[" { (Nothing, Nothing, Nothing, Nothing, Nothing) }
 
+upload3: file,data.txt; text/html
+# key1: value1
+# upload1: file,data.txt;
+# upload2: file,data.html;
 ??: in interpreters and evaluators context, decision tree for when to panic,
 when to null. different levels are parser (with binding powers), ast
 matching, and user facing apis.

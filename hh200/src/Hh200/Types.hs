@@ -180,7 +180,7 @@ data RequestSquare =
     RequestSquareConfigs RhsDict
   | RequestSquareQuery RhsDict
   | RequestSquareForm RhsDict
-  | RequestSquareBasicAuth RhsDict
+  | RequestSquareMultipart RhsDict
   | RequestSquareCookies RhsDict
     deriving (Show)
 
@@ -191,7 +191,7 @@ data ResponseSquare =
 
 data RequestSpec = RequestSpec
   { rqMethod ::  String
-  -- Static array of hh200 square blocks: Configs, Query, Form, BasicAuth, Cookies
+  -- Static array of hh200 square blocks: Configs, Query, Form, MultipartFormData, Cookies
   , rqSquares :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict

@@ -45,12 +45,15 @@ import           L
     "]"         { LIST_CLS _ }
     "then"      { KW_THEN _ }
     "HTTP"      { KW_HTTP _ }
-    "Configs"   { KW_CONFIGS _ }
-    "Cookies"   { KW_COOKIES _ }
+
+    "Configs"           { KW_CONFIGS _ }
+    "Query"             { KW_QUERY _ }
+    "Form"              { KW_FORM _ }
+    "MultipartFormData" { KW_MULTIPART _ }
+    "Cookies"           { KW_COOKIES _ }
+
     "Captures"  { KW_CAPTURES _ }
     "Asserts"   { KW_ASSERTS _ }
-
-    "MultipartFormData" { KW_MULTIPART _ }
 
     method      { METHOD _ $$ }
 
@@ -85,8 +88,11 @@ request_sqrs : request_sqrs request_sqr crlf { setRequestSquare $2 $1 }
              | request_sqr crlf              { initRequestSquare $1 }
 
 request_sqr :: { RequestSquare }
-request_sqr : "[" "Configs" "]" crlf bindings { RequestSquareConfigs $5 }
-            | "[" "Cookies" "]" crlf bindings { RequestSquareCookies $5 }
+request_sqr : "[" "Configs" "]" crlf bindings           { RequestSquareConfigs $5 }
+            | "[" "Query" "]" crlf bindings             { RequestSquareQuery $5 }
+            | "[" "Form" "]" crlf bindings              { RequestSquareForm $5 }
+            | "[" "MultipartFormData" "]" crlf bindings { RequestSquareMultipart $5 }
+            | "[" "Cookies" "]" crlf bindings           { RequestSquareCookies $5 }
 
 request :: { E RequestSpec }
 request : method url crlf bindings request_sqrs braced crlf { do
@@ -146,17 +152,25 @@ response_sqr :: { ResponseSquare }
 response_sqr : "[" "Captures" "]" crlf bindings { ResponseSquareCaptures $5 }
              | response_asserts                 { ResponseSquareAsserts $1 }
 
-response : "HTTP" response_codes crlf bindings crlf response_sqrs crlf braced crlf { trace "rpA" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpBody = $8 } }
-         | "HTTP" response_codes crlf               response_sqrs crlf             { trace "rpB" $ ResponseSpec { rpSquares = $4,               rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpBody = "" } }
-         | "HTTP" response_codes crlf bindings crlf response_sqrs crlf             { trace "rpC" $ ResponseSpec { rpSquares = $6,               rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpBody = "" } }
-         | "HTTP" response_codes crlf bindings crlf                    braced crlf { trace "rpD" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpBody = $6 } }
-         | "HTTP" response_codes crlf bindings crlf                                { trace "rpE" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpBody = "" } }
-         | "HTTP" response_codes crlf                                              { trace "rpF" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpBody = "" } }
+response : "HTTP" response_codes crlf bindings response_sqrs braced crlf { trace "rpA" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = $6 } }
 
-         | "HTTP" response_codes crlf { trace "rpG" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpBody = "" } }
-         | bindings crlf              { trace "rpH" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = [],                rpResponseHeaders = $1,               rpBody = "" } }
-         | response_sqrs crlf         { trace "rpI" $ ResponseSpec { rpSquares = $1,               rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpBody = "" } }
-         | braced crlf                { trace "rpJ" $ ResponseSpec { rpSquares = rpSquaresNothing, rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpBody = $1 } }
+         | "HTTP" response_codes crlf bindings response_sqrs        crlf { trace "rpB" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = "" } }
+         | "HTTP" response_codes crlf bindings               braced crlf { trace "rpC" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = $5 } }
+         | "HTTP" response_codes crlf          response_sqrs braced crlf { trace "rpD" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = $5 } }
+         |                            bindings response_sqrs braced crlf { trace "rpE" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = $3 } }
+
+         | "HTTP" response_codes crlf bindings                           { trace "rpF" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = "" } }
+         | "HTTP" response_codes crlf          response_sqrs        crlf { trace "rpG" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = "" } }
+         | "HTTP" response_codes crlf                        braced crlf { trace "rpH" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $4 } }
+         |                            bindings response_sqrs        crlf { trace "rpI" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = "" } }
+         |                            bindings               braced crlf { trace "rpJ" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = rpSquaresNothing, rpBody = $2 } }
+         |                                     response_sqrs braced crlf { trace "rpK" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = $2 } }
+
+         | "HTTP" response_codes crlf                                    { trace "rpL" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = "" } }
+         | bindings crlf                                                 { trace "rpM" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1, rpSquares = rpSquaresNothing,               rpBody = "" } }
+         | response_sqrs crlf                                            { trace "rpN" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = "" } }
+         | braced crlf                                                   { trace "rpO" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $1 } }
+         | crlf                                                          { trace "rpP" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = "" } }
 
 response_captures :: { RhsDict }
 response_captures : "[" "Captures" "]" crlf bindings { $5 }
@@ -207,19 +221,19 @@ initResponseSquare sq = case sq of
     ResponseSquareCaptures _ -> (Just sq, Nothing)
     ResponseSquareAsserts _ ->  (Nothing, Just sq)
 
-setRequestSquare sq (c, q, f, b, k) = case sq of
-    RequestSquareConfigs _ ->   (Just sq, q,       f,       b,       k)
-    RequestSquareQuery _ ->     (c,       Just sq, f,       b,       k)
-    RequestSquareForm _ ->      (c,       q,       Just sq, b,       k)
-    RequestSquareBasicAuth _ -> (c,       q,       f,       Just sq, k)
-    RequestSquareCookies _ ->   (c,       q,       f,       b,       Just sq)
-    _                      ->   (c,       q,       f,       b,       k)
+setRequestSquare sq (c, q, f, m, k) = case sq of
+    RequestSquareConfigs _ ->   (Just sq, q,       f,       m,       k)
+    RequestSquareQuery _ ->     (c,       Just sq, f,       m,       k)
+    RequestSquareForm _ ->      (c,       q,       Just sq, m,       k)
+    RequestSquareMultipart _ -> (c,       q,       f,       Just sq, k)
+    RequestSquareCookies _ ->   (c,       q,       f,       m,       Just sq)
+    _                      ->   (c,       q,       f,       m,       k)
 
 initRequestSquare sq = case sq of
     RequestSquareConfigs _ ->   (Just sq, Nothing, Nothing, Nothing, Nothing)
     RequestSquareQuery _ ->     (Nothing, Just sq, Nothing, Nothing, Nothing)
     RequestSquareForm _ ->      (Nothing, Nothing, Just sq, Nothing, Nothing)
-    RequestSquareBasicAuth _ -> (Nothing, Nothing, Nothing, Just sq, Nothing)
+    RequestSquareMultipart _ -> (Nothing, Nothing, Nothing, Just sq, Nothing)
     RequestSquareCookies _ ->   (Nothing, Nothing, Nothing, Nothing, Just sq)
 
 hasBalancedMustache :: String -> Bool
