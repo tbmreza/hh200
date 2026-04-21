@@ -12,3 +12,4 @@ HTTP 200
 # >jsonpath "$.message" copy
 # >jsonpath "$.user.name" copy
 >jsonpath "$.token" copy
+{ "user": { "id": 1 } }

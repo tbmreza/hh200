@@ -8,6 +8,7 @@ This folder will be the future home for a pretty-printer generated using BNFC.
 
 ## hhs-fmt
 
+Support pretty-expressive tooling.
 This directory also contains `hhs-fmt`, a C++26 implementation of the Rope data structure.
 
 ### Building
@@ -22,6 +23,7 @@ make
 
 ### Testing
 
+eBPF
 Run the unit tests using:
 
 ```bash

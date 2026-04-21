@@ -37,6 +37,7 @@ tokens :-
 
     Configs           { tok (\p _ -> KW_CONFIGS p) }
     Query             { tok (\p _ -> KW_QUERY p) }
+    FormParams        { tok (\p _ -> KW_FORM p) }
     Form              { tok (\p _ -> KW_FORM p) }
     MultipartFormData { tok (\p _ -> KW_MULTIPART p) }
     Multipart         { tok (\p _ -> KW_MULTIPART p) }

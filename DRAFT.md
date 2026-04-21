@@ -42,7 +42,7 @@ when to null. different levels are parser (with binding powers), ast
 matching, and user facing apis.
 ??: not all responseBody is textual. also, "print N first characters" seems useful
 
-old aplha.hhs:
+old alpha.hhs:
 ```
 ## post request with cookies and a JSON body,
 ## save the application/pdf response to a file.

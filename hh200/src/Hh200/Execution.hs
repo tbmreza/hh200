@@ -71,22 +71,6 @@ expectHeadersOrMt ci =
         Nothing -> RhsDict HM.empty
         Just rs -> rpResponseHeaders rs
 
--- -- | Convert a RhsDict (spec-side expected headers) to the canonical
--- -- ResponseHeaders type.
--- -- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
--- rhsDictToResponseHeaders :: RhsDict -> ResponseHeaders
--- rhsDictToResponseHeaders (RhsDict hm) =
---     [ ( CaseInsensitive.mk (TE.encodeUtf8 (Text.pack k))
---       , TE.encodeUtf8 (Text.concat (map partToText parts))
---       )
---     | (k, parts) <- HM.toList hm
---     ]
---
---     where
---     partToText :: BEL.Part -> Text
---     partToText (BEL.R t) = t
---     partToText (BEL.L t) = t  -- ??:
-
 -- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
 -- "writes" log as it runs, modifies environment "states" while doing IO.
 type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
@@ -296,6 +280,7 @@ courseFrom x = do
             -------------------------------------------------------------------
             -- Check response body. Can contain BEL parts.
             --
+            -- PICKUP more hurl tests then embark subset checking
             -- Default ??: assert subset of actual response body if it's json.
             -------------------------------------------------------------------
             let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp

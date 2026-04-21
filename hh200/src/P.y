@@ -48,6 +48,7 @@ import           L
 
     "Configs"           { KW_CONFIGS _ }
     "Query"             { KW_QUERY _ }
+    "FormParams"        { KW_FORM _ }
     "Form"              { KW_FORM _ }
     "MultipartFormData" { KW_MULTIPART _ }
     "Cookies"           { KW_COOKIES _ }
@@ -143,6 +144,7 @@ request_sqrs : request_sqrs request_sqr crlf { setRequestSquare $2 $1 }
 request_sqr :: { RequestSquare }
 request_sqr : "[" "Configs" "]" crlf bindings           { RequestSquareConfigs $5 }
             | "[" "Query" "]" crlf bindings             { RequestSquareQuery $5 }
+            | "[" "FormParams" "]" crlf bindings        { RequestSquareForm $5 }
             | "[" "Form" "]" crlf bindings              { RequestSquareForm $5 }
             | "[" "MultipartFormData" "]" crlf bindings { RequestSquareMultipart $5 }
             | "[" "Cookies" "]" crlf bindings           { RequestSquareCookies $5 }
