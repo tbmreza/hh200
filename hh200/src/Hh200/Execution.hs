@@ -50,8 +50,9 @@ import           Control.Lens.At (at)
 import qualified Network.HTTP.Client as HC ( method
                                            , requestHeaders
                                            , responseHeaders
-                                           , parseRequest
+                                           , responseBody
                                            , Response
+                                           , parseRequest
                                            , requestBody
                                            , RequestBody (RequestBodyBS, RequestBodyLBS))
 import           Network.HTTP.Types.Status
@@ -280,13 +281,16 @@ courseFrom x = do
             -------------------------------------------------------------------
             -- Check response body. Can contain BEL parts.
             --
-            -- PICKUP more hurl tests then embark subset checking
+            -- PICKUP subset checking
             -- Default ??: assert subset of actual response body if it's json.
             -------------------------------------------------------------------
-            let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp
-            let actualBodyHM = HM.fromList $ map (\(k, v) -> (Text.unpack (Key.toText k), v)) (KeyMap.toList actualJsonBodyMap)
-            -- We don't have an expected JSON body mapped to RhsDict yet, so we use an empty map.
-            let completeCheckedJsonBody = HM.isSubmapOfBy (==) HM.empty actualBodyHM
+            let b :: L8.ByteString = HC.responseBody gotResp
+            -- ??: render rp braced
+
+            -- let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp
+            -- let actualBodyHM = HM.fromList $ map (\(k, v) -> (Text.unpack (Key.toText k), v)) (KeyMap.toList actualJsonBodyMap)
+            -- -- We don't have an expected JSON body mapped to RhsDict yet, so we use an empty map.
+            -- let completeCheckedJsonBody = HM.isSubmapOfBy (==) HM.empty actualBodyHM
 
             -------------------------------------------------------------------
             -- Collect [Asserts] expressions checks.
@@ -300,7 +304,7 @@ courseFrom x = do
 
             pure $ and [ Aeson.Bool False `notElem` aesonValues
                        , completeCheckedHeaders
-                       , completeCheckedJsonBody
+                       -- , completeCheckedJsonBody
                        ]
 
     -- Reduce captures to Env extensions.
@@ -370,10 +374,11 @@ renderHeadersMap :: BEL.Env -> RhsDict
                  -> IO (HM.HashMap (CaseInsensitive.CI BS.ByteString) Aeson.Value)
 renderHeadersMap env' (RhsDict expectHeaders) =
     foldM (\ acc (k, parts) -> do
-            let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
-            rendered <- BEL.render env' (Aeson.String "") parts
-            pure $ HM.insert ciKey rendered acc
-        ) HM.empty (HM.toList expectHeaders)
+              let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
+              rendered <- BEL.render env' (Aeson.String "") parts
+              pure $ HM.insert ciKey rendered acc)
+          HM.empty
+          (HM.toList expectHeaders)
 
 --------------------------------------------------------------------------------
 -- More lib than app code
