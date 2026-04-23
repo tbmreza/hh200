@@ -37,12 +37,15 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.ByteString.Lazy.Char8 as L8
+-- import           Data.ByteString.Lazy (ByteString, fromStrict)
+import           Data.ByteString.Lazy (fromStrict)
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import qualified Data.Aeson as Aeson (encode, decode, Value (..))
 import           Data.Aeson (object, (.=))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Vector as V
 
 import           Control.Lens ((&), (?~))
 import           Control.Lens.At (at)
@@ -65,6 +68,78 @@ import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
+
+data SubsetResult =
+    ASubsetOfB        -- A ⊆ B
+  | BSubsetOfA        -- B ⊆ A
+  | Equal             -- A = B (mutual subset)
+  | Incomparable      -- neither is a subset of the other
+  | InvalidJson Side  -- one or both inputs failed to parse
+    deriving (Show, Eq)
+
+data Side = SideA | SideB | BothSides deriving (Show, Eq)
+
+-- | Entry point: takes strict ByteStrings
+jsonSubset :: BS.ByteString -> BS.ByteString -> SubsetResult
+jsonSubset a b =
+  case (Aeson.decode (fromStrict a), Aeson.decode (fromStrict b)) of
+    (Nothing, Nothing) -> InvalidJson BothSides
+    (Nothing, _      ) -> InvalidJson SideA
+    (_      , Nothing) -> InvalidJson SideB
+    (Just va, Just vb) ->
+      case (isSubset va vb, isSubset vb va) of
+           (True,  True) ->  Equal
+           (True,  False) -> ASubsetOfB
+           (False, True) ->  BSubsetOfA
+           (False, False) -> Incomparable
+
+-- | @isSubset x y@ — is @x@ structurally contained within @y@?
+--
+-- Rules:
+--   Null     ⊆  anything
+--   Scalar   ⊆  same scalar
+--   Array a  ⊆  Array b  iff every element of a has a match in b (multiset-style)
+--   Object a ⊆  Object b iff every key in a exists in b with a subset value
+--   mixed types → False
+isSubset :: Aeson.Value -> Aeson.Value -> Bool
+isSubset Aeson.Null _ = True
+isSubset _ Aeson.Null = False  -- nothing is subset of Null
+
+-- Scalar subset relation is eq check.
+isSubset (Aeson.Bool x)   (Aeson.Bool y)   = x == y
+isSubset (Aeson.Number x) (Aeson.Number y) = x == y
+isSubset (Aeson.String x) (Aeson.String y) = x == y
+
+isSubset (Aeson.Array xs)    (Aeson.Array ys)   = arraySubset (V.toList xs) (V.toList ys)
+-- isSubset (Aeson.Object as_)  (Aeson.Object bs_) = objectSubset as_ bs_
+isSubset (Aeson.Object as_)  (Aeson.Object bs_) = undefined
+
+isSubset _ _ = False  -- type mismatch
+
+-- For example [1,1] ⊄ [1,2] but [1,2] ⊆ [1,1,2].
+-- ??: use library arraySubset
+arraySubset :: [Aeson.Value] -> [Aeson.Value] -> Bool
+arraySubset [] _  =    True
+arraySubset (_:_) [] = False
+
+arraySubset (x:xs) ys =
+    case removeFirst (isSubset x) ys of
+        Nothing  -> False
+        Just ys' -> arraySubset xs ys'
+
+removeFirst :: (a -> Bool) -> [a] -> Maybe [a]
+removeFirst _ [] = Nothing
+removeFirst p (x:xs)
+  | p x       = Just xs
+  | otherwise = (x :) <$> removeFirst p xs
+
+type Object = HM.HashMap Text Aeson.Value  -- ??:
+
+-- Every key in @as@ must appear in @bs@ with a value that is a subset.
+objectSubset :: Object -> Object -> Bool  -- Object = HashMap Text Value
+objectSubset as_ bs_ =
+    all (\(k, v) -> maybe False (isSubset v) (HM.lookup k bs_)) (HM.toList as_)
+
 
 expectHeadersOrMt :: CallItem -> RhsDict
 expectHeadersOrMt ci =
@@ -282,6 +357,7 @@ courseFrom x = do
             -- Check response body. Can contain BEL parts.
             --
             -- PICKUP subset checking
+            -- haskell fn takes 2 ByteString args. if both parse as valid json strings, decide if one is subset of the other
             -- Default ??: assert subset of actual response body if it's json.
             -------------------------------------------------------------------
             let b :: L8.ByteString = HC.responseBody gotResp
