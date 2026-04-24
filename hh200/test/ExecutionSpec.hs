@@ -33,7 +33,7 @@ fromLiterals pairs =
 -- The dummy request/response are never accessed when rendering R parts.
 testEnv :: BEL.Env
 testEnv = BEL.Env
-    { BEL.responseCopy = undefined
+    { BEL.responseCopy = undefined  -- ??: BEL rename responseCopy storedResponse
     , BEL.requestCopy = undefined
     , BEL.bindings = HM.empty
     }

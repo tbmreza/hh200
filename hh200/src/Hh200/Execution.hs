@@ -83,16 +83,16 @@ data Side = SideA | SideB | BothSides deriving (Show, Eq)
 -- | Entry point: takes strict ByteStrings
 jsonSubset :: BS.ByteString -> BS.ByteString -> SubsetResult
 jsonSubset a b =
-  case (Aeson.decode (fromStrict a), Aeson.decode (fromStrict b)) of
-    (Nothing, Nothing) -> InvalidJson BothSides
-    (Nothing, _      ) -> InvalidJson SideA
-    (_      , Nothing) -> InvalidJson SideB
-    (Just va, Just vb) ->
-      case (isSubset va vb, isSubset vb va) of
-           (True,  True) ->  Equal
-           (True,  False) -> ASubsetOfB
-           (False, True) ->  BSubsetOfA
-           (False, False) -> Incomparable
+    case (Aeson.decode (fromStrict a), Aeson.decode (fromStrict b)) of
+        (Nothing, Nothing) -> InvalidJson BothSides
+        (Nothing, _      ) -> InvalidJson SideA
+        (_,       Nothing) -> InvalidJson SideB
+        (Just va, Just vb) ->
+            case (isSubset va vb, isSubset vb va) of
+                (True,  True) ->  Equal
+                (True,  False) -> ASubsetOfB
+                (False, True) ->  BSubsetOfA
+                (False, False) -> Incomparable
 
 -- | @isSubset x y@ — is @x@ structurally contained within @y@?
 --
@@ -225,8 +225,8 @@ conduct script mgr env = do
       }
 
 
-ciCapturesOrMt :: CallItem -> RhsDict
-ciCapturesOrMt ci =
+specCapturesOrMt :: CallItem -> RhsDict
+specCapturesOrMt ci =
     case ciResponseSpec ci of
         Nothing -> mtRhsDict
         Just rp ->
@@ -234,18 +234,21 @@ ciCapturesOrMt ci =
                 (Just (ResponseSquareCaptures d), _) -> d
                 _ -> mtRhsDict
 
-expectCodesOr200 :: CallItem -> [Status]
-expectCodesOr200 ci =
+specCodesOr200 :: CallItem -> [Status]
+specCodesOr200 ci =
     case ciResponseSpec ci of
         Nothing -> [status200]
         Just rs -> case rpStatuses rs of
             [] -> [status200]
             expectCodes -> expectCodes
 
-assertionLinesOrMt :: CallItem -> [Text]
-assertionLinesOrMt ci =
-    -- case ciResponseSpec ci of
-    case ciResponseSpec (trace ("assertionLinesOrMt:" ++ show ci) ci) of
+specResponseBody :: CallItem -> L8.ByteString
+specResponseBody ci =
+    undefined
+
+specAssertionsOrMt :: CallItem -> [Text]
+specAssertionsOrMt ci =
+    case ciResponseSpec ci of
         Nothing -> []
         Just rp ->
             case rpSquares rp of
@@ -308,6 +311,7 @@ courseFrom x = do
                 pure ci
             Right gotResp -> do
                 let envWithResp = env { BEL.responseCopy = gotResp
+                                      -- , BEL.storedRequest = reqOrThrow
                                       , BEL.requestCopy = reqOrThrow
                                       }
                 f <- liftIO (upsertCaptures envWithResp ci)
@@ -325,13 +329,14 @@ courseFrom x = do
     -- expressions about the response).
     userAssertions :: BEL.Env -> CallItem -> IO Bool
     userAssertions env' ci = do
-        let expectList = expectCodesOr200 ci
+        let expectCodes = specCodesOr200 ci
+            -- gotResp :: HC.Response L8.ByteString = storedResponse env'
             gotResp :: HC.Response L8.ByteString = responseCopy env'
             gotStatus = Http.getStatus gotResp
 
-        if gotStatus `notElem` expectList then
+        if gotStatus `notElem` expectCodes then
             failWith ("status=" ++ show gotStatus ++ ", expect=" ++ show
-                      expectList)
+                      expectCodes)
         else do
             -------------------------------------------------------------------
             -- Collect response headers checks. Can contain BEL parts.
@@ -356,8 +361,9 @@ courseFrom x = do
             --
             -- PICKUP subset checking
             -- haskell fn takes 2 ByteString args. if both parse as valid json strings, decide if one is subset of the other
-            -- Default ??: assert subset of actual response body if it's json.
+            -- Default: assert subset of actual response body if it's json.
             -------------------------------------------------------------------
+
             let b :: L8.ByteString = HC.responseBody gotResp
             -- ??: render rp braced
 
@@ -373,7 +379,7 @@ courseFrom x = do
             -- BEL prints), but single False indicates for the whole [Asserts]
             -- block to be failing.
             -------------------------------------------------------------------
-            expressions <- BEL.mapEval env' (assertionLinesOrMt ci)
+            expressions <- BEL.mapEval env' (specAssertionsOrMt ci)
             let aesonValues = map BEL.finalValue expressions
 
             pure $ and [ Aeson.Bool False `notElem` aesonValues
@@ -384,7 +390,7 @@ courseFrom x = do
     -- Reduce captures to Env extensions.
     upsertCaptures :: BEL.Env -> CallItem -> IO (b0 -> BEL.Env)
     upsertCaptures env' ci = do
-        let RhsDict c = ciCapturesOrMt ci
+        let RhsDict c = specCapturesOrMt ci
 
         ext <- foldlWithKeyM'
             (\ acc bK (bV :: [BEL.Part]) -> do
