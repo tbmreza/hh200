@@ -11,6 +11,7 @@ module Hh200.Execution
   , ProcM
   , status200
   , renderHeadersMap
+  , objectSubset
   ) where
 
 import Debug.Trace
@@ -110,14 +111,12 @@ isSubset (Aeson.Bool x)   (Aeson.Bool y)   = x == y
 isSubset (Aeson.Number x) (Aeson.Number y) = x == y
 isSubset (Aeson.String x) (Aeson.String y) = x == y
 
-isSubset (Aeson.Array xs)    (Aeson.Array ys)   = arraySubset (V.toList xs) (V.toList ys)
--- isSubset (Aeson.Object as_)  (Aeson.Object bs_) = objectSubset as_ bs_
-isSubset (Aeson.Object as_)  (Aeson.Object bs_) = undefined
+isSubset (Aeson.Array xs)   (Aeson.Array ys)   = arraySubset (V.toList xs) (V.toList ys)
+isSubset (Aeson.Object as_) (Aeson.Object bs_) = objectSubset (KeyMap.toHashMap as_) (KeyMap.toHashMap bs_)
 
 isSubset _ _ = False  -- type mismatch
 
 -- For example [1,1] ⊄ [1,2] but [1,2] ⊆ [1,1,2].
--- ??: use library arraySubset
 arraySubset :: [Aeson.Value] -> [Aeson.Value] -> Bool
 arraySubset [] _  =    True
 arraySubset (_:_) [] = False
@@ -133,10 +132,9 @@ removeFirst p (x:xs)
   | p x       = Just xs
   | otherwise = (x :) <$> removeFirst p xs
 
-type Object = HM.HashMap Text Aeson.Value  -- ??:
+type Object = HM.HashMap KeyMap.Key Aeson.Value
 
--- Every key in @as@ must appear in @bs@ with a value that is a subset.
-objectSubset :: Object -> Object -> Bool  -- Object = HashMap Text Value
+objectSubset :: Object -> Object -> Bool
 objectSubset as_ bs_ =
     all (\(k, v) -> maybe False (isSubset v) (HM.lookup k bs_)) (HM.toList as_)
 

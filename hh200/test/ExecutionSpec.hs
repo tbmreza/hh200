@@ -10,6 +10,8 @@ import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.CaseInsensitive     as CI
 import qualified Data.HashMap.Strict      as HM
+import qualified Data.Aeson.Key           as Key
+import qualified Data.Aeson.KeyMap        as KeyMap
 import qualified Data.Text                as Text
 
 import qualified BEL
@@ -50,6 +52,11 @@ spec = testGroup "Execution"
     , testRenderHeadersMap
     , testRenderHeadersMapEmpty
     , testRenderHeadersMapMultiPart
+    , testObjectSubset
+    , testObjectSubsetEmpty
+    , testObjectSubsetExtraKey
+    , testObjectSubsetDifferentValue
+    , testObjectSubsetNested
     ]
 
 -- testRhsDictToResponseHeaders :: TestTree
@@ -124,3 +131,36 @@ testRenderHeadersMapMultiPart = testCase "renderHeadersMap: multiple headers" $ 
         Nothing -> assertFailure "X-Custom key missing"
         Just (Aeson.String v) -> assertEqual "X-Custom value" "value123" v
         Just _ -> assertFailure "expected String value"
+
+-- (auto testObject*)
+testObjectSubset :: TestTree
+testObjectSubset = testCase "objectSubset: identical objects" $ do
+    let obj1 = HM.fromList [(Key.fromString "a", Aeson.Number 1), (Key.fromString "b", Aeson.Number 2)]
+        obj2 = HM.fromList [(Key.fromString "a", Aeson.Number 1), (Key.fromString "b", Aeson.Number 2)]
+    assertBool "identical objects are subsets" $ objectSubset obj1 obj2
+
+testObjectSubsetEmpty :: TestTree
+testObjectSubsetEmpty = testCase "objectSubset: empty object is subset of any" $ do
+    let obj1 = HM.empty :: HM.HashMap Key.Key Aeson.Value
+        obj2 = HM.fromList [(Key.fromString "a", Aeson.Number 1)]
+    assertBool "empty is subset" $ objectSubset obj1 obj2
+
+testObjectSubsetExtraKey :: TestTree
+testObjectSubsetExtraKey = testCase "objectSubset: extra key fails subset" $ do
+    let obj1 = HM.fromList [(Key.fromString "a", Aeson.Number 1), (Key.fromString "b", Aeson.Number 2)]
+        obj2 = HM.fromList [(Key.fromString "a", Aeson.Number 1)]
+    assertBool "extra key should not be subset" $ not (objectSubset obj1 obj2)
+
+testObjectSubsetDifferentValue :: TestTree
+testObjectSubsetDifferentValue = testCase "objectSubset: different value is not subset" $ do
+    let obj1 = HM.fromList [(Key.fromString "a", Aeson.Number 1)]
+        obj2 = HM.fromList [(Key.fromString "a", Aeson.Number 2)]
+    assertBool "different value should not be subset" $ not (objectSubset obj1 obj2)
+
+testObjectSubsetNested :: TestTree
+testObjectSubsetNested = testCase "objectSubset: nested objects" $ do
+    let inner1 = HM.fromList [(Key.fromString "x", Aeson.Number 1)]
+        inner2 = HM.fromList [(Key.fromString "x", Aeson.Number 1), (Key.fromString "y", Aeson.Number 2)]
+        obj1 = HM.fromList [(Key.fromString "nested", Aeson.Object (KeyMap.fromHashMap inner1))]
+        obj2 = HM.fromList [(Key.fromString "nested", Aeson.Object (KeyMap.fromHashMap inner2))]
+    assertBool "nested subset" $ objectSubset obj1 obj2
