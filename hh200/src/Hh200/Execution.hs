@@ -12,6 +12,9 @@ module Hh200.Execution
   , status200
   , renderHeadersMap
   , objectSubset
+  , jsonSubset
+  , SubsetResult(..)
+  , Side(..)
   ) where
 
 import Debug.Trace

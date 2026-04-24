@@ -15,9 +15,9 @@ import qualified Data.Aeson.KeyMap        as KeyMap
 import qualified Data.Text                as Text
 
 import qualified BEL
--- import           Hh200.Execution          (rhsDictToResponseHeaders, renderHeadersMap)
 import           Hh200.Execution
 import           Hh200.Types              (RhsDict (..))
+import           Hh200.Execution         (SubsetResult(..), Side(..))
 import           Network.HTTP.Types.Header (ResponseHeaders)
 
 hdr :: String -> String -> (CI.CI BS.ByteString, BS.ByteString)
@@ -44,10 +44,6 @@ testEnv = BEL.Env
 
 spec :: TestTree
 spec = testGroup "Execution"
-    -- [ testRhsDictToResponseHeaders
-    -- , testRhsDictToResponseHeadersCaseInsensitive
-    -- , testRhsDictToResponseHeadersEmpty
-    -- , testRhsDictToResponseHeadersMultiPartValue
     [ testIsSubmapOfBy
     , testRenderHeadersMap
     , testRenderHeadersMapEmpty
@@ -57,6 +53,12 @@ spec = testGroup "Execution"
     , testObjectSubsetExtraKey
     , testObjectSubsetDifferentValue
     , testObjectSubsetNested
+    , testJsonSubsetEqual
+    , testJsonSubsetASubsetOfB
+    , testJsonSubsetBSubsetOfA
+    , testJsonSubsetIncomparable
+    , testJsonSubsetInvalidA
+    , testJsonSubsetInvalidBoth
     ]
 
 -- testRhsDictToResponseHeaders :: TestTree
@@ -164,3 +166,39 @@ testObjectSubsetNested = testCase "objectSubset: nested objects" $ do
         obj1 = HM.fromList [(Key.fromString "nested", Aeson.Object (KeyMap.fromHashMap inner1))]
         obj2 = HM.fromList [(Key.fromString "nested", Aeson.Object (KeyMap.fromHashMap inner2))]
     assertBool "nested subset" $ objectSubset obj1 obj2
+
+testJsonSubsetEqual :: TestTree
+testJsonSubsetEqual = testCase "jsonSubset: identical JSON objects" $ do
+    let inputA = "{\"a\":1,\"b\":2}" :: BS.ByteString
+        inputB = "{\"a\":1,\"b\":2}" :: BS.ByteString
+    assertEqual "equal objects" Equal (jsonSubset inputA inputB)
+
+testJsonSubsetASubsetOfB :: TestTree
+testJsonSubsetASubsetOfB = testCase "jsonSubset: A is subset of B" $ do
+    let inputA = "{\"a\":1}" :: BS.ByteString
+        inputB = "{\"a\":1,\"b\":2}" :: BS.ByteString
+    assertEqual "A subset of B" ASubsetOfB (jsonSubset inputA inputB)
+
+testJsonSubsetBSubsetOfA :: TestTree
+testJsonSubsetBSubsetOfA = testCase "jsonSubset: B is subset of A" $ do
+    let inputA = "{\"a\":1,\"b\":2}" :: BS.ByteString
+        inputB = "{\"a\":1}" :: BS.ByteString
+    assertEqual "B subset of A" BSubsetOfA (jsonSubset inputA inputB)
+
+testJsonSubsetIncomparable :: TestTree
+testJsonSubsetIncomparable = testCase "jsonSubset: incomparable objects" $ do
+    let inputA = "{\"a\":1}" :: BS.ByteString
+        inputB = "{\"b\":2}" :: BS.ByteString
+    assertEqual "incomparable" Incomparable (jsonSubset inputA inputB)
+
+testJsonSubsetInvalidA :: TestTree
+testJsonSubsetInvalidA = testCase "jsonSubset: invalid JSON on side A" $ do
+    let inputA = "not json" :: BS.ByteString
+        inputB = "{\"a\":1}" :: BS.ByteString
+    assertEqual "invalid A" (InvalidJson SideA) (jsonSubset inputA inputB)
+
+testJsonSubsetInvalidBoth :: TestTree
+testJsonSubsetInvalidBoth = testCase "jsonSubset: invalid JSON on both sides" $ do
+    let inputA = "not json" :: BS.ByteString
+        inputB = "also not" :: BS.ByteString
+    assertEqual "invalid both" (InvalidJson BothSides) (jsonSubset inputA inputB)
