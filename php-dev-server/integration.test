@@ -1,0 +1,21 @@
+#!/usr/bin/env bats
+
+setup_file() {
+  # Start Laravel dev server once for the whole suite
+  php artisan serve --host=127.0.0.1 --port=9999 &>/tmp/laravel-dev.log &
+  export SERVER_PID=$!
+
+  # Wait up to 10s for it to be ready
+  for i in $(seq 1 20); do
+    curl -sf http://127.0.0.1:9999 &>/dev/null && break
+    sleep 0.5
+  done
+}
+
+teardown_file() {
+  kill "$SERVER_PID" 2>/dev/null || true
+}
+
+@test "can run our script" {
+  hh200 /home/tbmreza/gh/hh200/examples/alpha.hhs
+}
