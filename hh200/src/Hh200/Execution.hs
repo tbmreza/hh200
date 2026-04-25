@@ -245,9 +245,11 @@ specCodesOr200 ci =
             [] -> [status200]
             expectCodes -> expectCodes
 
-specResponseBody :: CallItem -> L8.ByteString
+specResponseBody :: CallItem -> String
 specResponseBody ci =
-    undefined
+    case ciResponseSpec ci of
+        Nothing -> ""
+        Just rs -> rpBody rs
 
 specAssertionsOrMt :: CallItem -> [Text]
 specAssertionsOrMt ci =
@@ -362,18 +364,15 @@ courseFrom x = do
             -------------------------------------------------------------------
             -- Check response body. Can contain BEL parts.
             --
-            -- PICKUP subset checking
-            -- haskell fn takes 2 ByteString args. if both parse as valid json strings, decide if one is subset of the other
             -- Default: assert subset of actual response body if it's json.
             -------------------------------------------------------------------
 
-            let b :: L8.ByteString = HC.responseBody gotResp
-            -- ??: render rp braced
+            let expectRespBody :: L8.ByteString = L8.pack $ specResponseBody ci
+            let gotRespBody :: L8.ByteString = HC.responseBody gotResp
+            let completeCheckedJsonBody = case jsonSubset undefined undefined of
+                    ASubsetOfB -> True
+                    _ -> False
 
-            -- let Aeson.Object actualJsonBodyMap = validJsonBody (BEL.requestCopy env') gotResp
-            -- let actualBodyHM = HM.fromList $ map (\(k, v) -> (Text.unpack (Key.toText k), v)) (KeyMap.toList actualJsonBodyMap)
-            -- -- We don't have an expected JSON body mapped to RhsDict yet, so we use an empty map.
-            -- let completeCheckedJsonBody = HM.isSubmapOfBy (==) HM.empty actualBodyHM
 
             -------------------------------------------------------------------
             -- Collect [Asserts] expressions checks.
@@ -387,7 +386,7 @@ courseFrom x = do
 
             pure $ and [ Aeson.Bool False `notElem` aesonValues
                        , completeCheckedHeaders
-                       -- , completeCheckedJsonBody
+                       , completeCheckedJsonBody
                        ]
 
     -- Reduce captures to Env extensions.

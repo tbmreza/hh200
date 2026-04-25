@@ -33,6 +33,7 @@ incremental parsing is non-goal if not free or very cheap
 
 # STASH
 
+            -- ??: render rp braced
 upload3: file,data.txt; text/html
 # key1: value1
 # upload1: file,data.txt;
