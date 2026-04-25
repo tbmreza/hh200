@@ -1,22 +1,23 @@
 {
   "name": "@mauikut/hh200",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Statically-checked DSL for testing HTTP servers",
-  "directories": {
-    "what_to_put_here": "??"
+  "bin": {
+    "hh200": "./bin/hh200"
   },
+  "files": [
+    "bin/hh200"
+  ],
+  "os": ["linux"],
+  "cpu": ["x64"],
   "scripts": {
-    "test": "??"
+    "prepublishOnly": "mkdir -p bin && cp $(cd hh200 && stack path --local-install-root)/bin/hh200 ./bin/hh200 && chmod +x ./bin/hh200"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tbmreza/hh200.git"
   },
-  "keywords": [
-    "test",
-    "http",
-    "dsl"
-  ],
+  "keywords": ["test", "http", "dsl", "haskell"],
   "author": "Reza Handzalah",
   "license": "MIT",
   "bugs": {
