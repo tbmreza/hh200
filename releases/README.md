@@ -1,3 +1,13 @@
+## npmjs
+
+```sh
+npm pack --dry-run
+npm pack
+npm i <path_to_mauikut_tgz>
+# npm login --scope=@mauikut
+# npm publish  # `npm version patch` probably required
+```
+
 Ideally we test releases for every channel where our deps are available.
 
 - [ ] debian (apt)
