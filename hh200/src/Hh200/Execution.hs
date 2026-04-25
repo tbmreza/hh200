@@ -369,9 +369,13 @@ courseFrom x = do
 
             let expectRespBody :: L8.ByteString = L8.pack $ specResponseBody ci
             let gotRespBody :: L8.ByteString = HC.responseBody gotResp
-            let completeCheckedJsonBody = case jsonSubset undefined undefined of
-                    ASubsetOfB -> True
-                    _ -> False
+            let completeCheckedJsonBody =
+                    let expectedBs = BL.toStrict expectRespBody
+                        gotBs = BL.toStrict gotRespBody
+                    in case jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs of
+                        ASubsetOfB -> trace "jsonSubset true" True
+                        -- _ -> False
+                        v -> trace ("jsonSubset=" ++ show v) False
 
 
             -------------------------------------------------------------------
