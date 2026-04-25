@@ -6,18 +6,16 @@
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
 `DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.
 
+```sh
+stack install
+bats php-dev-server integration.test
+```
 ```yaml
 # stack.yaml
 
 snapshot:
   url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml
 ```
-
-### Surprises
-Some nuggets that are less than mundane when I learned them.
-- Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
-- Show in haskell is not intended to be overriden. https://stackoverflow.com/q/9288883
-
 
 ## Features
 The following defining features sum up hh200 in trade-off terms.
@@ -67,9 +65,9 @@ its parser implementation (a [handwritten](https://github.com/Orange-OpenSource/
 URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters-in-strings
 
 
-### Host system dependencies
-- alex == 3.5.2.0
-- happy == 2.1.4
+### Development system dependencies
+- bats (latest npmjs package: 1.13)
+- php (latest debian stable: 8.4)
 
 ### Build Dependencies
 Notable aspects:

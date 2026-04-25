@@ -151,8 +151,6 @@ go _ = exitWith (ExitFailure 1)
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
 
--- ??: All termination conditions have at one point been tested.
--- Stabilize Http module and ExecContext and come back here.
 testSimple :: Script -> IO ()
 testSimple script = do
     -- let scripts = workOptimize script

@@ -163,14 +163,6 @@ data CallItem = CallItem
   , ciResponseSpec :: Maybe ResponseSpec
   } deriving (Show)
 
--- uri needs eval only if it contains matching {{}}
---
--- designing a 
--- when building Request will definitely fail:
--- uneven {{}}; (unallowed/escaped??) chars.
---
--- same trip: Special-Use Domain Names like localhost
-
 data LexedUrl =
     LexedUrlFull String
   | LexedUrlSegments [BEL.Part]

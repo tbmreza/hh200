@@ -1,8 +1,18 @@
 #!/usr/bin/env bats
 
 setup_file() {
+  # Determine the Laravel app directory (either current dir or php-dev-server subdir)
+  if [[ -f "artisan" ]]; then
+    LARAVEL_DIR="$PWD"
+  elif [[ -f "php-dev-server/artisan" ]]; then
+    LARAVEL_DIR="$PWD/php-dev-server"
+  else
+    echo "Error: Cannot find Laravel app directory" >&2
+    exit 1
+  fi
+
   # Start Laravel dev server once for the whole suite
-  php artisan serve --host=127.0.0.1 --port=9999 &>/tmp/laravel-dev.log &
+  (cd "$LARAVEL_DIR" && php artisan serve --host=127.0.0.1 --port=9999) &>/tmp/laravel-dev.log &
   export SERVER_PID=$!
 
   # Wait up to 10s for it to be ready

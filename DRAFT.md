@@ -16,6 +16,11 @@ Architecturally decisive tasks include  happy-flow interpreter (post_json exampl
 ## General
 - "Connection: close" header sent by default; close the connection after the current request/response pair.
 
+## Surprises
+Some nuggets that are less than mundane when I learned them.
+- Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
+- Show in haskell is not intended to be overriden. https://stackoverflow.com/q/9288883
+
 # DONE LIST
 all protocols/specs about cookies
 server vs remote ports? remote == client
@@ -32,6 +37,14 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
+-- uri needs eval only if it contains matching {{}}
+--
+-- designing a 
+-- when building Request will definitely fail:
+-- uneven {{}}; (unallowed/escaped??) chars.
+--
+-- same trip: Special-Use Domain Names like localhost
+
 
             -- ??: render rp braced
 upload3: file,data.txt; text/html
