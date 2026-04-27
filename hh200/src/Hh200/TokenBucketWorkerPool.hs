@@ -74,7 +74,7 @@ worker    cfg             script    shutdown     done =
                 Just rl -> waitAndConsumeToken rl
                 Nothing -> pure ()
 
-            printf "Worker %d: running script...\n" (wcWorkerId cfg)
+            -- printf "Worker %d: running script...\n" (wcWorkerId cfg)  -- ??: stderr
             runScriptM script newEnv
 
             -- OneShot: exit after one run. LoopWithNap: nap then loop.

@@ -3,7 +3,7 @@
 # content type header depending of the request. That said, user has always
 # control over this header and can explicitly override it.
 
-POST http://localhost:9999/content-type-json
+POST http://localhost:9999/api/echo?content-type-json
 {
     "name": "Bob",
     "age": 30

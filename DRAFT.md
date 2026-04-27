@@ -37,6 +37,12 @@ incremental parsing is non-goal if not free or very cheap
 
 
 # STASH
+The exit code
+
+0 — all assertions passed (stdout is empty)
+1 — at least one assertion failed (stdout has residual)
+2 — runtime error (bad syntax, network failure, etc.)
+
 -- uri needs eval only if it contains matching {{}}
 --
 -- designing a 

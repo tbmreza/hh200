@@ -278,6 +278,7 @@ noNews (Lead { leadKind = Non }) = True
 noNews _ = False
 
 -- Pretty-print.
+-- PICKUP callsite should have printed to stdout (and fill piped next.hhs)
 present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg

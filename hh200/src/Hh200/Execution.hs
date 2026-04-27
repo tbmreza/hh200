@@ -303,12 +303,12 @@ courseFrom x = do
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         eitherResp <- let reqInfo = case HC.requestBody reqOrThrow of
-                                    -- HC.RequestBodyLBS lbs -> "LBS " ++ show (BL.length lbs)
                                     HC.RequestBodyLBS lbs -> "LBS " ++ show lbs
                                     HC.RequestBodyBS bs -> "BS " ++ show (BS.length bs)
                         in trace ("built=" ++ reqInfo) $
                            liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
-        trace (present ci) $ case eitherResp of
+        _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci
+        case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
 
@@ -372,10 +372,13 @@ courseFrom x = do
             let completeCheckedJsonBody =
                     let expectedBs = BL.toStrict expectRespBody
                         gotBs = BL.toStrict gotRespBody
-                    in case jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs of
-                        ASubsetOfB -> trace "jsonSubset true" True
-                        -- _ -> False
-                        v -> trace ("jsonSubset=" ++ show v) False
+                    -- in case jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs of
+                    --     ASubsetOfB -> trace "jsonSubset true" True
+                    --     v -> trace ("jsonSubset=" ++ show v) False
+                    in case (expectedBs, jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs) of
+                        ("", _) -> trace "jsonSubset skip" True
+                        (v, ASubsetOfB) -> trace "jsonSubset true" True
+                        (_, v) -> trace ("jsonSubset=" ++ show v) False
 
 
             -------------------------------------------------------------------

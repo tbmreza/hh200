@@ -1,1 +1,7 @@
-String "hardcoded"
+POST 
+{
+  "foo": "bar",
+  "baz": 123
+}
+HTTP 200
+
