@@ -1,0 +1,14 @@
+/data/*.bin
+/data/*.dbg
+/data/*.dwo
+/data/*.dwp
+/data/*.gsym
+/data/*.o
+/data/*.so
+/data/*.sym
+/data/*.zip
+/data/kallsyms
+/data/vmlinux-5.17.12-100.fc34.x86_64*
+/data/zip-dir
+/target
+/tests/bpf/*.bpf.o

@@ -1,0 +1,45 @@
+name: Build blazecli
+
+on:
+  workflow_call:
+    inputs:
+      upload-release:
+        description: 'The release to upload artifacts to, if any'
+        default: ''
+        required: false
+        type: string
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build blazecli
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Please update the test workflow cross-compile matrix when adding a new
+        # target here.
+        target: [
+          aarch64-linux-android,
+          arm-linux-androideabi,
+          armv7-linux-androideabi,
+          i686-unknown-linux-gnu,
+          x86_64-unknown-linux-musl,
+        ]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
+      - run: |
+          CARGO_PROFILE_RELEASE_DEBUG=false CARGO_PROFILE_RELEASE_STRIP=true cargo install --path=cli --root=. --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: blazecli-${{ matrix.target }}
+          path: bin/blazecli
+      - if: ${{ inputs.upload-release != '' }}
+        name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv bin/blazecli blazecli-${{ matrix.target }}
+          gh release upload ${{ inputs.upload-release }} blazecli-${{ matrix.target }}
