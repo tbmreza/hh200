@@ -45,6 +45,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.ByteString.Lazy (fromStrict)
 import qualified Data.Text as Text
 import           Data.Text (Text)
+import           Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Aeson as Aeson (encode, decode, Value (..))
 import           Data.Aeson (object, (.=))
 import qualified Data.Aeson.Key as Key
@@ -61,14 +62,15 @@ import qualified Network.HTTP.Client as HC ( method
                                            , Response
                                            , parseRequest
                                            , requestBody
-                                           , RequestBody (RequestBodyBS, RequestBodyLBS))
+                                           , RequestBody (RequestBodyBS, RequestBodyLBS)
+                                           , path)
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
 import qualified BEL
-import           BEL (responseCopy)
 import qualified Hh200.Http as Http
 import           Hh200.Types
+import qualified Hh200.Database as DB
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 import           Hh200.ContentType (headerJson)
@@ -174,7 +176,7 @@ asMethod :: String -> BS.ByteString
 asMethod s = BS.pack s
 
 headersToAeson :: [(HeaderName, BS.ByteString)] -> Aeson.Value
-headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $ 
+headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $
     map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) hdrs
 
 asBS :: Aeson.Value -> BS.ByteString
@@ -193,7 +195,7 @@ runScriptM script env = do
     _ <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
 
--- | Low-level execution of a script. Returns the failing CallItem (if any), 
+-- | Low-level execution of a script. Returns the failing CallItem (if any),
 -- the final environment, and the execution log.
 -- Nothing means the script finished successfully.
 runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
@@ -201,7 +203,7 @@ runProcM script mgr env = do
     let course :: ProcM CallItem = courseFrom script
     Tf.runRWST (runMaybeT course) mgr env
 
--- | High-level wrapper that orchestrates execution, catches exceptions, 
+-- | High-level wrapper that orchestrates execution, catches exceptions,
 -- performs side effects (like tracing), and returns a Lead report.
 conduct :: Script -> Http.Manager -> Env -> IO Lead
 conduct script mgr env = do
@@ -278,7 +280,7 @@ courseFrom x = do
             LexedUrlFull s -> do
                 req <- HC.parseRequest s
                 let encoded = BL.fromStrict (BS.pack rqBody)
-                renderedReqHeaders <- renderRequestHeaders env rqHeaders
+                renderedReqHeaders <- renderRequestHeaders (belEnv env) rqHeaders
                 pure $ req { HC.method = BS.pack rqMethod
                            , HC.requestHeaders = renderedReqHeaders
                            -- The type of requestBody as sent over the wire is
@@ -288,7 +290,7 @@ courseFrom x = do
                            , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                            }
             LexedUrlSegments parts -> do
-                full <- BEL.render env (Aeson.String "") undefined
+                full <- BEL.render (belEnv env) (Aeson.String "") undefined
                 undefined
 
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
@@ -302,11 +304,19 @@ courseFrom x = do
         -- Unhandled offline HttpExceptionRequest.
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
+        tStartPosix <- liftIO getPOSIXTime
+        let tStartNs = round (tStartPosix * 1000000000)
+
         eitherResp <- let reqInfo = case HC.requestBody reqOrThrow of
                                     HC.RequestBodyLBS lbs -> "LBS " ++ show lbs
                                     HC.RequestBodyBS bs -> "BS " ++ show (BS.length bs)
                         in trace ("built=" ++ reqInfo) $
                            liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
+
+        tEndPosix <- liftIO getPOSIXTime
+        let tEndNs = round (tEndPosix * 1000000000)
+            durationMs = realToFrac (tEndPosix - tStartPosix) * 1000
+
         _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci
         case eitherResp of
             Left e -> do
@@ -315,16 +325,34 @@ courseFrom x = do
                 lift $ Tf.tell [HttpError (show e)]
                 pure ci
             Right gotResp -> do
-                let envWithResp = env { BEL.responseCopy = gotResp
+                let envWithResp = env { belEnv = (belEnv env) { BEL.responseCopy = gotResp
                                       -- , BEL.storedRequest = reqOrThrow
                                       , BEL.requestCopy = reqOrThrow
-                                      }
-                f <- liftIO (upsertCaptures envWithResp ci)
-                modify f
+                                      } }
+
+                -- Push metrics to DB
+                liftIO $ case dbQueue envWithResp of
+                    Nothing -> pure ()
+                    Just q -> atomically $ writeTQueue q $ Just $ DB.AddRequest $ DB.Request
+                        { DB.reqRunId = runId envWithResp
+                        , DB.requestId = Text.pack (ciName ci)
+                        , DB.workerId = workerId envWithResp
+                        , DB.srcPort = 0 -- Placeholder
+                        , DB.url = TE.decodeUtf8With TEE.lenientDecode (HC.path reqOrThrow)
+                        , DB.method = TE.decodeUtf8With TEE.lenientDecode (HC.method reqOrThrow)
+                        , DB.status = statusCode (Http.getStatus gotResp)
+                        , DB.bodyBytes = fromIntegral (BL.length (HC.responseBody gotResp))
+                        , DB.tStart = tStartNs
+                        , DB.tEnd = tEndNs
+                        , DB.durationMs = durationMs
+                        }
+
+                f <- liftIO (upsertCaptures (belEnv envWithResp) ci)
+                modify (\e -> e { belEnv = f (belEnv e) })
 
                 env' <- get
 
-                ok <- liftIO (userAssertions env' ci)
+                ok <- liftIO (userAssertions (belEnv env') ci)
                 if not ok then
                     pure ci
                 else
@@ -336,7 +364,7 @@ courseFrom x = do
     userAssertions env' ci = do
         let expectCodes = specCodesOr200 ci
             -- gotResp :: HC.Response L8.ByteString = storedResponse env'
-            gotResp :: HC.Response L8.ByteString = responseCopy env'
+            gotResp :: HC.Response L8.ByteString = BEL.responseCopy env'
             gotStatus = Http.getStatus gotResp
 
         if gotStatus `notElem` expectCodes then

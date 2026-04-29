@@ -14,6 +14,7 @@ module Hh200.TokenBucketWorkerPool
   , WorkerMode(..)
   , WorkerConfig(..)
   , worker
+  , workerWithEnv
   , workOptimize, dummyDuo
   ) where
 
@@ -61,7 +62,10 @@ dummyDuo :: Script -> [Script]
 dummyDuo s = [s]
 
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
-worker    cfg             script    shutdown     done =
+worker = workerWithEnv newEnv
+
+workerWithEnv :: Env -> WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
+workerWithEnv env cfg script shutdown done =
     loop `finally` putMVar done ()
     where
     loop = do
@@ -75,7 +79,7 @@ worker    cfg             script    shutdown     done =
                 Nothing -> pure ()
 
             -- printf "Worker %d: running script...\n" (wcWorkerId cfg)  -- ??: stderr
-            runScriptM script newEnv
+            runScriptM script env
 
             -- OneShot: exit after one run. LoopWithNap: nap then loop.
             case wcMode cfg of

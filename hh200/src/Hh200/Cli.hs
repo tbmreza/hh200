@@ -27,6 +27,12 @@ import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
 import           Hh200.Types
 import           Hh200.Execution
+import qualified Hh200.Database as DB
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
+import           Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Data.Aeson as Aeson
+import           Database.SQLite.Simple (open, close)
 import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp, runStdio)
 
@@ -151,17 +157,52 @@ go _ = exitWith (ExitFailure 1)
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
 
+data DbHandle = DbHandle
+    { dbConn   :: Connection
+    , dbQueue_ :: TQueue (Maybe DB.DbEvent)
+    , dbRunId  :: Text
+    , dbWriterThread :: ThreadId
+    }
+
+initDbHandle :: String -> Aeson.Value -> IO DbHandle
+initDbHandle dbPath configVal = do
+    conn <- open dbPath
+    DB.initDatabase conn
+    q <- newTQueueIO
+    tid <- DB.startDbWriter conn q
+
+    rid <- UUID.nextRandom
+    let ridText = UUID.toText rid
+
+    startPosix <- getPOSIXTime
+    let startMs = round (startPosix * 1000)
+
+    atomically $ writeTQueue q $ Just $ DB.AddRun $ DB.Run ridText startMs (L8.toStrict $ Aeson.encode configVal)
+
+    pure $ DbHandle conn q ridText tid
+
+closeDbHandle :: DbHandle -> IO ()
+closeDbHandle h = do
+    atomically $ writeTQueue (dbQueue_ h) Nothing
+    -- We could use a MVar to wait for the writer to finish,
+    -- but for now let's just wait a bit or let it be.
+    -- Actually, it's better to wait properly.
+    threadDelay 100000 -- Small delay to allow final writes
+    close (dbConn h)
+
 testSimple :: Script -> IO ()
 testSimple script = do
-    -- let scripts = workOptimize script
     let scripts = dummyDuo script
+    let configVal = Aeson.object [ "mode" Aeson..= ("simple" :: Text), "workers" Aeson..= length scripts ]
 
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM (length scripts) newEmptyMVar
+    bracket (initDbHandle "metrics.db" configVal) closeDbHandle $ \h -> do
+        shutdownFlag <- newTVarIO False
+        doneSignals <- replicateM (length scripts) newEmptyMVar
 
-    forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
-        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
-        forkIO (worker cfg s shutdownFlag done)
+        forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
+            let env = newEnv { dbQueue = Just (dbQueue_ h), runId = dbRunId h, workerId = i }
+            let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
+            forkIO (workerWithEnv env cfg s shutdownFlag done)
 
     -- Termination with ctrl+c, which is handled foremostly by worker.
     _ <- installHandler sigINT
@@ -183,12 +224,15 @@ testSimple script = do
 -- Concurrent one-shot: fire N workers, report how many failed.
 testShotgun :: Int -> Script -> IO ()
 testShotgun numWorkers script = do
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM numWorkers newEmptyMVar
+    let configVal = Aeson.object [ "mode" Aeson..= ("shotgun" :: Text), "workers" Aeson..= numWorkers ]
+    bracket (initDbHandle "metrics.db" configVal) closeDbHandle $ \h -> do
+        shutdownFlag <- newTVarIO False
+        doneSignals <- replicateM numWorkers newEmptyMVar
 
-    forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
-        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
-        forkIO (worker cfg script shutdownFlag done)
+        forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
+            let env = newEnv { dbQueue = Just (dbQueue_ h), runId = dbRunId h, workerId = i }
+            let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
+            forkIO (workerWithEnv env cfg script shutdownFlag done)
 
     -- Termination with ctrl+c.
     _ <- installHandler sigINT
@@ -208,21 +252,26 @@ testShotgun numWorkers script = do
 -- RPS: rate of individual CallItems.
 testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
 testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
-    connect "timeseries.db"
+    let configVal = Aeson.object
+            [ "mode" Aeson..= ("rps" :: Text)
+            , "rps" Aeson..= rpsVal
+            , "concurrency" Aeson..= concurrency
+            ]
+    bracket (initDbHandle "metrics.db" configVal) closeDbHandle $ \h -> do
+        shutdownFlag <- newTVarIO False
+        doneSignals <- replicateM concurrency newEmptyMVar
 
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM concurrency newEmptyMVar
-
-    withRateLimiter (RateLimiterConfig rpsVal rpsVal) $ \rl -> do
-        -- Ramp-up: fork one VU at a time with delay between each.
-        forM_ (zip [1..concurrency] doneSignals) $ \(i, done) -> do
-            let cfg = WorkerConfig
-                    { wcMode = LoopWithNap thinkTimeUs
-                    , wcRateLimiter = Just rl
-                    , wcWorkerId = i
-                    }
-            forkIO (worker cfg script shutdownFlag done)
-            when (i < concurrency) $ threadDelay rampUpUs
+        withRateLimiter (RateLimiterConfig rpsVal rpsVal) $ \rl -> do
+            -- Ramp-up: fork one VU at a time with delay between each.
+            forM_ (zip [1..concurrency] doneSignals) $ \(i, done) -> do
+                let env = newEnv { dbQueue = Just (dbQueue_ h), runId = dbRunId h, workerId = i }
+                let cfg = WorkerConfig
+                        { wcMode = LoopWithNap thinkTimeUs
+                        , wcRateLimiter = Just rl
+                        , wcWorkerId = i
+                        }
+                forkIO (workerWithEnv env cfg script shutdownFlag done)
+                when (i < concurrency) $ threadDelay rampUpUs
 
         putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
 
