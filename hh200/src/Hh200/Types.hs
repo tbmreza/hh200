@@ -58,6 +58,8 @@ import qualified Data.Text as Text
 import qualified Network.HTTP.Client as HC
 import           Network.HTTP.Types.Status
 import           Network.URI (parseURI, uriScheme)
+import           Control.Concurrent.STM (TQueue)
+import qualified Hh200.Database as DB
 
 import qualified BEL
 
@@ -94,9 +96,20 @@ newtype Subject = Subject String
 
 type Binding = (Text, [BEL.Part])
 
-type Env = BEL.Env -- = HM.HashMap String Aeson.Value
+data Env = Env
+    { belEnv  :: BEL.Env
+    , dbQueue :: Maybe (TQueue (Maybe DB.DbEvent))
+    , runId   :: Text
+    , workerId :: Int
+    }
+
 newEnv :: Env
-newEnv = BEL.Env { BEL.bindings = HM.empty }
+newEnv = Env
+    { belEnv = BEL.Env { BEL.bindings = HM.empty }
+    , dbQueue = Nothing
+    , runId = ""
+    , workerId = 0
+    }
 
 data TraceEvent
   = ScriptStart Int

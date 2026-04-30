@@ -12,6 +12,7 @@ import qualified ScannerSpec
 import qualified ExecutionSpec
 import qualified E2eLspSpec
 import qualified MustacheSpec
+import qualified DatabaseSpec
 
 main :: IO ()
 main = do
@@ -27,4 +28,5 @@ main = do
       , ScannerSpec.spec
       , MustacheSpec.spec
       , ExecutionSpec.spec
+      , DatabaseSpec.spec
       ]

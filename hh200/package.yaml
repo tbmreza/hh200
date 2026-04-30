@@ -43,6 +43,7 @@ library:
   exposed-modules:
   - Hh200.Cli
   - Hh200.ContentType
+  - Hh200.Database
   - Hh200.Execution
   - Hh200.Graph
   - Hh200.Http
@@ -74,6 +75,7 @@ library:
   - case-insensitive
   - sqlite-simple
   - time
+  - uuid
   - network-uri >= 2.6 && < 3
   - array
   - hashtables
