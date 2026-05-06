@@ -1,15 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Hh200.ContentType
-    ( headerJson
-    , extensionFor
-    , saveBody
-    ) where
+module Hh200.Database
+    -- ( headerJson
+    -- , extensionFor
+    -- , saveBody
+    -- ) where
+    where
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import           Network.HTTP.Types.Header (HeaderName)
 import           System.FilePath ((<.>), (</>))
+import           Database.SQLite.Simple (Connection, ToRow, FromRow, toRow, fromRow, execute_, execute, close, open, field)
+
+
+-- goal: stash runs data to $XDG/app.db
+-- ??: assert locations of  .config  sqlite  using xdg
+-- Doesn't always need sqlite.
+-- hh200 system-truncate  # truncate temporary files
+-- hh200 checkhealth  # prints locations and sizes of config and sqlite
 
 headerJson :: (HeaderName, BS.ByteString)
 headerJson = ("Content-Type", "application/json")

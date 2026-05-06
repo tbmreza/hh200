@@ -41,7 +41,6 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.ByteString.Lazy.Char8 as L8
--- import           Data.ByteString.Lazy (ByteString, fromStrict)
 import           Data.ByteString.Lazy (fromStrict)
 import qualified Data.Text as Text
 import           Data.Text (Text)
@@ -66,12 +65,11 @@ import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
 import qualified BEL
-import           BEL (responseCopy)
 import qualified Hh200.Http as Http
 import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
-import           Hh200.ContentType (headerJson)
+
 
 data SubsetResult =
     ASubsetOfB        -- A ⊆ B
@@ -270,10 +268,10 @@ courseFrom x = do
     mgr <- ask
     go mgr (callItems x)
 
-                -- ??: interpolate in braced / json; stack install
+                -- ??: interpolate in braced / json
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
-    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody } } = do
+    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
         case rqUrl of
             LexedUrlFull s -> do
                 req <- HC.parseRequest s
@@ -315,9 +313,8 @@ courseFrom x = do
                 lift $ Tf.tell [HttpError (show e)]
                 pure ci
             Right gotResp -> do
-                let envWithResp = env { BEL.responseCopy = gotResp
-                                      -- , BEL.storedRequest = reqOrThrow
-                                      , BEL.requestCopy = reqOrThrow
+                let envWithResp = env { BEL.storedResponse = gotResp
+                                      , BEL.storedRequest = reqOrThrow
                                       }
                 f <- liftIO (upsertCaptures envWithResp ci)
                 modify f
@@ -336,7 +333,7 @@ courseFrom x = do
     userAssertions env' ci = do
         let expectCodes = specCodesOr200 ci
             -- gotResp :: HC.Response L8.ByteString = storedResponse env'
-            gotResp :: HC.Response L8.ByteString = responseCopy env'
+            gotResp :: HC.Response L8.ByteString = BEL.storedResponse env'
             gotStatus = Http.getStatus gotResp
 
         if gotStatus `notElem` expectCodes then

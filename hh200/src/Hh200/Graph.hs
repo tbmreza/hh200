@@ -1,13 +1,13 @@
 module Hh200.Graph
-  ( connect
-  ) where
+  -- ( connect
+  -- ) where
+    where
 
-import           Control.Exception              (bracket)
-import           Control.Monad                  (void)
-import           Data.Int                       (Int64)
-import           Data.Time.Clock.POSIX          (getPOSIXTime)
-import           Database.SQLite.Simple
-import           Database.SQLite.Simple.FromRow
+import           Control.Exception      (bracket)
+import           Control.Monad          (void)
+import           Data.Int               (Int64)
+import           Data.Time.Clock.POSIX  (getPOSIXTime)
+import           Database.SQLite.Simple (Connection, ToRow, FromRow, toRow, fromRow, execute_, execute, close, open, field)
 
 data TimeseriesData = TimeseriesData
   { timestamp :: Int64

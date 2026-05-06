@@ -6,11 +6,9 @@ import Control.Concurrent.MVar (newMVar)
 
 import qualified CliSpec
 import qualified LspSpec
-import qualified NetworkSpec
-import qualified ContentTypeSpec
+import qualified DatabaseSpec
 import qualified ScannerSpec
 import qualified ExecutionSpec
-import qualified E2eLspSpec
 import qualified MustacheSpec
 
 main :: IO ()
@@ -19,11 +17,9 @@ main = do
     defaultMain $ testGroup "Hh200 Tests"
       -- [ ScannerSpec.spec ]
 
-      -- [ CliSpec.spec lock
-      [ LspSpec.spec
-      -- , E2eLspSpec.spec  -- ??:
-      -- , NetworkSpec.spec lock
-      , ContentTypeSpec.spec
+      [ CliSpec.spec lock
+      , LspSpec.spec
+      , DatabaseSpec.spec
       , ScannerSpec.spec
       , MustacheSpec.spec
       , ExecutionSpec.spec

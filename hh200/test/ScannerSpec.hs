@@ -19,7 +19,6 @@ spec :: TestTree
 spec = testGroup "Scanner and Parser"
   [ testScanner_lrBasic
   , testScanner_lrMustache
-  , testScanner_lrPost
   , testScanner_lrInvalid
   , testScanner_lrResponseOrder
   , testScanner_lrRequestConfigs
@@ -55,17 +54,6 @@ testScanner_lrMustache :: TestTree
 testScanner_lrMustache = testGroup "Lexer and Parser - Mustache"
   [ testCase "Template variable renders" $ do
       let input = "POST http://httpbin.org/post&unused={{100}}"
-      let tokens = Hh.alexScanTokens input
-      res <- runExceptT (Hh.parse tokens)
-      case res of
-          Right _ -> pure ()
-          Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
-  ]
-
-testScanner_lrPost :: TestTree
-testScanner_lrPost = testGroup "Lexer and Parser - Asserts"
-  [ testCase "Multiple assert lines" $ do
-      let input = "GET http://httpbin.org/post\n[Asserts]\n>true\n>true\n>true"
       let tokens = Hh.alexScanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of

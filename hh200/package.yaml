@@ -42,7 +42,7 @@ library:
   source-dirs: src
   exposed-modules:
   - Hh200.Cli
-  - Hh200.ContentType
+  - Hh200.Database
   - Hh200.Execution
   - Hh200.Graph
   - Hh200.Http
@@ -73,6 +73,7 @@ library:
   - unordered-containers
   - case-insensitive
   - sqlite-simple
+  - uuid
   - time
   - network-uri >= 2.6 && < 3
   - array

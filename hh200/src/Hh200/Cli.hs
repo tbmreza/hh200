@@ -208,7 +208,7 @@ testShotgun numWorkers script = do
 -- RPS: rate of individual CallItems.
 testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
 testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
-    connect "timeseries.db"
+    connect "timeseries.db"  -- ??:
 
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM concurrency newEmptyMVar

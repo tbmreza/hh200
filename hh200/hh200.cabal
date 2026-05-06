@@ -27,7 +27,7 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
-      Hh200.ContentType
+      Hh200.Database
       Hh200.Execution
       Hh200.Graph
       Hh200.Http
@@ -84,6 +84,7 @@ library
     , transformers
     , unix
     , unordered-containers
+    , uuid
     , vector
     , yaml
   default-language: Haskell2010
@@ -106,14 +107,12 @@ test-suite hh200-test
   other-modules:
       BlindLsp
       CliSpec
-      ContentTypeSpec
-      E2eLspSpec
+      DatabaseSpec
       ExecutionSpec
       GoldenCli
       GoldenNetw
       LspSpec
       MustacheSpec
-      NetworkSpec
       ScannerSpec
       Paths_hh200
   hs-source-dirs:

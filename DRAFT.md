@@ -1,39 +1,38 @@
-Highlight:
-Architecturally decisive tasks include  happy-flow interpreter (post_json example); hh200 exe binary bundles hh200d (separate parsers), mcp etc remain satellites; bel complete pratt parser
-
-# PRIMARY (OR INDUSTRY) SPEC SOURCES
-## Syntax
-- https://hh200-docs.pages.dev/#structure  https://hurl.dev/docs/request.html#structure
-```
-@.headers  $.headers  %.params.start
-```
+# INDUSTRY SPEC SOURCES
+## Syntax https://hh200-docs.pages.dev/#structure
+- https://hurl.dev/docs/request.html#structure
 ## Cookies
 - https://www.rfc-editor.org/rfc/rfc6265.html "HTTP State Management Mechanism"
 - https://curl.se/docs/http-cookies.html      "curl HTTP Cookies"
 
 
-# Design decisions
+# DESIGN
 ## General
-- "Connection: close" header sent by default; close the connection after the current request/response pair.
+- "Connection: close" header sent by default; close the connection after the current request/response pair. httpie sends Connection: close header by default, curl doesn't
+- incremental parsing is non-goal if not very cheap
+- use shelltestrunner for golden integration tests. other options: bats-core
 
-## Surprises
-Some nuggets that are less than mundane when I learned them.
-- Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
-- Show in haskell is not intended to be overriden. https://stackoverflow.com/q/9288883
-
-# DONE LIST
-all protocols/specs about cookies
-server vs remote ports? remote == client
-httpie sends Connection: close header by default, curl doesn't
-plan a self-maintaining fork of httpLbs: do sync using gh actions
-Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS."
+oftenBodyless :: UppercaseString -> Bool
+oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
+```
+@.headers  $.headers  %.params.start
+```
+Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS." https + Secure cookie attr
 http(s) secure
     user story: distinct tls https (https://www.stackage.org/package/http-client-tls) and insecure http (https://hackage-content.haskell.org/package/http-client-0.7.19/docs/Network-HTTP-Client.html#g:4).
     in curl, tls connection may be determined by specified url, not headers
-https + Secure cookie attr
-`ls ~/.local/bin/` checks if `stack install` succeed.
-auto multi line braced: gemini %x JSON hallucination, scanBalanced
-incremental parsing is non-goal if not free or very cheap
+
+tcpretrans.py
+libbpf-bootstrap has a running network example in tc.c
+??: sqlite methods; tables creation migration in haskell
+~/go/bin/lazysql --version
+
+
+# SURPRISES
+Some nuggets that are less than mundane when I learned them.
+- Haskell std lib trace doesn't print if the last value is unused, and doesn't print at all on panicking path.
+- Show in haskell is not intended to be overriden. https://stackoverflow.com/q/9288883
+- server vs remote ports? remote == client
 
 
 # STASH
@@ -43,10 +42,6 @@ The exit code
 1 — at least one assertion failed (stdout has residual)
 2 — runtime error (bad syntax, network failure, etc.)
 
--- uri needs eval only if it contains matching {{}}
---
--- designing a 
--- when building Request will definitely fail:
 -- uneven {{}}; (unallowed/escaped??) chars.
 --
 -- same trip: Special-Use Domain Names like localhost
@@ -87,39 +82,8 @@ HTTP 200
 >header "Content-Type" == "application/pdf"
 ```
 
-oftenBodyless :: UppercaseString -> Bool  -- starting point for webdav or lints
-oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 
 
-Debug traceStack and stack run --profile -- ../examples/asserts_block.hhs +RTS -xc
-[ ScriptStart 1
-, ItemStart ""
-, HttpError "HttpExceptionRequest Request {\n  host = \"example.io\"
-                                           \n  port = 443
-                                           \n  secure = True
-                                           \n  requestHeaders = [(\"authorization\",\"<REDACTED>\")]
-                                           \n  path = \"/v2/target-template\"
-                                           \n  queryString          = \"?project_id=24& year=2025&month=12&salesarea=5\"
-                                           \n  method               = \"GET\"
-                                           \n  proxy                = Nothing
-                                           \n  rawBody              = False
-                                           \n  redirectCount        = 10
-                                           \n  responseTimeout      = ResponseTimeoutDefault
-                                           \n  requestVersion       = HTTP/1.1
-                                           \n  proxySecureMode      = ProxySecureWithConnect
-                                           \n}
-                                \n (InternalException
-                                       (HandshakeFailed
-                                           (Error_Protocol \"certificate rejected: [NameMismatch \\\"example.io\\\"]\"
-                                            CertificateUnknown)))"
-]
-
-hh200-docs page for hh200d
-POST http://localhost:9999/echo.php
-{ "foo": "bar", "baz": 123 }
-HTTP 200
-[Asserts]
->debug $.key
 
 Based on the "MAIN THESIS" comments in app/Main.hs and the structure I verified in src/Hh200/Cli.hs, here are the questions an academic reviewer might have, focused on the
   claims and methodology implied by your code:

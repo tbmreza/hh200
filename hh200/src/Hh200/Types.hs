@@ -56,6 +56,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 
 import qualified Network.HTTP.Client as HC
+import           Network.HTTP.Client (Response(..))
 import           Network.HTTP.Types.Status
 import           Network.URI (parseURI, uriScheme)
 
@@ -172,7 +173,7 @@ data RequestSquare =
     RequestSquareConfigs RhsDict
   | RequestSquareQuery RhsDict
   | RequestSquareForm RhsDict
-  | RequestSquareMultipart RhsDict
+  | RequestSquareMultipart RhsDict  -- PICKUP
   | RequestSquareCookies RhsDict
     deriving (Show)
 
@@ -278,7 +279,6 @@ noNews (Lead { leadKind = Non }) = True
 noNews _ = False
 
 -- Pretty-print.
--- PICKUP callsite should have printed to stdout (and fill piped next.hhs)
 present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg
