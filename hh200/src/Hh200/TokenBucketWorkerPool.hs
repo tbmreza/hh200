@@ -50,7 +50,6 @@ data WorkerConfig = WorkerConfig
   , wcRateLimiter :: Maybe RateLimiter
   , wcWorkerId    :: Int
   }
-  -- deriving (Show)
 
 workOptimize :: Script -> [Script]
 -- ??

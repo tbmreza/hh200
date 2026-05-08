@@ -13,11 +13,12 @@ import qualified Data.HashMap.Strict      as HM
 import qualified Data.Aeson.Key           as Key
 import qualified Data.Aeson.KeyMap        as KeyMap
 import qualified Data.Text                as Text
+import Data.List (isInfixOf)
 
 import qualified BEL
 import           Hh200.Execution
-import           Hh200.Types              (RhsDict (..))
-import           Hh200.Execution         (SubsetResult(..), Side(..))
+import           Hh200.Types              (RhsDict (..), RequestSquare(..))
+import           Hh200.Execution         (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies)
 import           Network.HTTP.Types.Header (ResponseHeaders)
 
 hdr :: String -> String -> (CI.CI BS.ByteString, BS.ByteString)
@@ -55,7 +56,18 @@ spec = testGroup "Execution"
     , testJsonSubsetIncomparable
     , testJsonSubsetInvalidA
     , testJsonSubsetInvalidBoth
+    , testRenderRequestQueryEmpty
+    , testRenderRequestQuerySingle
+    , testRenderRequestQueryMultiple
+    , testRenderRequestFormEmpty
+    , testRenderRequestFormSingle
+    , testRenderRequestFormMultiple
+    , testRenderRequestCookiesEmpty
+    , testRenderRequestCookiesSingle
+    , testRenderRequestCookiesMultiple
     ]
+
+-- PICKUP mimic testSimple's heart here
 
 testIsSubmapOfBy :: TestTree
 testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
@@ -165,3 +177,65 @@ testJsonSubsetInvalidBoth = testCase "jsonSubset: invalid JSON on both sides" $ 
     let inputA = "not json" :: BS.ByteString
         inputB = "also not" :: BS.ByteString
     assertEqual "invalid both" (InvalidJson BothSides) (jsonSubset inputA inputB)
+
+testRenderRequestQueryEmpty :: TestTree
+testRenderRequestQueryEmpty = testCase "renderRequestQuery: empty input" $ do
+    result <- renderRequestQuery testEnv Nothing
+    assertEqual "empty query" "" result
+
+testRenderRequestQuerySingle :: TestTree
+testRenderRequestQuerySingle = testCase "renderRequestQuery: single param" $ do
+    let input = RhsDict $ HM.fromList [("key", [BEL.R "value"])]
+    result <- renderRequestQuery testEnv (Just (RequestSquareQuery input))
+    assertEqual "single param" "key=value" result
+
+testRenderRequestQueryMultiple :: TestTree
+testRenderRequestQueryMultiple = testCase "renderRequestQuery: multiple params" $ do
+    let input = RhsDict $ HM.fromList
+            [ ("a", [BEL.R "1"])
+            , ("b", [BEL.R "2"])
+            ]
+    result <- renderRequestQuery testEnv (Just (RequestSquareQuery input))
+    assertBool "contains both params" (("a=1" `isInfixOf` result) && ("b=2" `isInfixOf` result))
+    assertBool "has ampersand" ('&' `elem` result)
+
+testRenderRequestFormEmpty :: TestTree
+testRenderRequestFormEmpty = testCase "renderRequestForm: empty input" $ do
+    result <- renderRequestForm testEnv Nothing
+    assertEqual "empty form" "" result
+
+testRenderRequestFormSingle :: TestTree
+testRenderRequestFormSingle = testCase "renderRequestForm: single field" $ do
+    let input = RhsDict $ HM.fromList [("username", [BEL.R "alice"])]
+    result <- renderRequestForm testEnv (Just (RequestSquareForm input))
+    assertEqual "single field" "username=alice" result
+
+testRenderRequestFormMultiple :: TestTree
+testRenderRequestFormMultiple = testCase "renderRequestForm: multiple fields" $ do
+    let input = RhsDict $ HM.fromList
+            [ ("name", [BEL.R "John"])
+            , ("age", [BEL.R "30"])
+            ]
+    result <- renderRequestForm testEnv (Just (RequestSquareForm input))
+    assertBool "contains both fields" (("name=John" `isInfixOf` result) && ("age=30" `isInfixOf` result))
+    assertBool "has ampersand" ('&' `elem` result)
+
+testRenderRequestCookiesEmpty :: TestTree
+testRenderRequestCookiesEmpty = testCase "renderRequestCookies: empty input" $ do
+    result <- renderRequestCookies testEnv Nothing
+    assertEqual "empty cookies" [] result
+
+testRenderRequestCookiesSingle :: TestTree
+testRenderRequestCookiesSingle = testCase "renderRequestCookies: single cookie" $ do
+    let input = RhsDict $ HM.fromList [("session", [BEL.R "abc123"])]
+    result <- renderRequestCookies testEnv (Just (RequestSquareCookies input))
+    assertBool "has cookie header" (case result of [("Cookie", v)] -> "session=abc123" `isInfixOf` BS.unpack v; _ -> False)
+
+testRenderRequestCookiesMultiple :: TestTree
+testRenderRequestCookiesMultiple = testCase "renderRequestCookies: multiple cookies" $ do
+    let input = RhsDict $ HM.fromList
+            [ ("sid", [BEL.R "xyz"])
+            , ("uid", [BEL.R "42"])
+            ]
+    result <- renderRequestCookies testEnv (Just (RequestSquareCookies input))
+    assertBool "has cookie header" (case result of [("Cookie", v)] -> ("sid=xyz" `isInfixOf` BS.unpack v) && ("uid=42" `isInfixOf` BS.unpack v); _ -> False)

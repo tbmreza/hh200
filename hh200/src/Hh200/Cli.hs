@@ -33,7 +33,7 @@ import           Hh200.LanguageServer (runTcp, runStdio)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Monad (forM_, replicateM, replicateM_, when)
-import           Hh200.TokenBucketWorkerPool
+import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, RateLimiterConfig, dummyDuo, WorkerMode(..))
 
 data Args = Args
   { source :: Maybe String  -- used for both FilePath and Snippet sources
@@ -120,7 +120,7 @@ go Args { shotgun = 1, call = False, rps = False, source = Just path } = do
     let analyzed = Scanner.analyze path
     m <- runMaybeT analyzed
     case m of
-        Just script -> testSimple script
+        Just script -> trace "CRUM" $ testSimple script
         _ -> error "undefined: bug in hh200 grammar!"
 
 -- Inline program execution.
@@ -154,14 +154,14 @@ go _ = exitWith (ExitFailure 1)
 testSimple :: Script -> IO ()
 testSimple script = do
     -- let scripts = workOptimize script
-    let scripts = dummyDuo script
+    let scripts = Tbwp.dummyDuo script
 
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM (length scripts) newEmptyMVar
 
     forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
-        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
-        forkIO (worker cfg s shutdownFlag done)
+        let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot, Tbwp.wcRateLimiter = Nothing, Tbwp.wcWorkerId = i }
+        forkIO (Tbwp.worker cfg s shutdownFlag done)
 
     -- Termination with ctrl+c, which is handled foremostly by worker.
     _ <- installHandler sigINT
@@ -187,8 +187,8 @@ testShotgun numWorkers script = do
     doneSignals <- replicateM numWorkers newEmptyMVar
 
     forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
-        let cfg = WorkerConfig { wcMode = OneShot, wcRateLimiter = Nothing, wcWorkerId = i }
-        forkIO (worker cfg script shutdownFlag done)
+        let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot, Tbwp.wcRateLimiter = Nothing, Tbwp.wcWorkerId = i }
+        forkIO (Tbwp.worker cfg script shutdownFlag done)
 
     -- Termination with ctrl+c.
     _ <- installHandler sigINT
@@ -213,15 +213,16 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM concurrency newEmptyMVar
 
-    withRateLimiter (RateLimiterConfig rpsVal rpsVal) $ \rl -> do
+    -- Tbwp.withRateLimiter (Tbwp.RateLimiterConfig rpsVal rpsVal) $ \rl -> do
+    Tbwp.withRateLimiter (undefined rpsVal rpsVal) $ \rl -> do
         -- Ramp-up: fork one VU at a time with delay between each.
         forM_ (zip [1..concurrency] doneSignals) $ \(i, done) -> do
-            let cfg = WorkerConfig
-                    { wcMode = LoopWithNap thinkTimeUs
-                    , wcRateLimiter = Just rl
-                    , wcWorkerId = i
+            let cfg = Tbwp.WorkerConfig
+                    { Tbwp.wcMode = Tbwp.LoopWithNap thinkTimeUs
+                    , Tbwp.wcRateLimiter = Just rl
+                    , Tbwp.wcWorkerId = i
                     }
-            forkIO (worker cfg script shutdownFlag done)
+            forkIO (Tbwp.worker cfg script shutdownFlag done)
             when (i < concurrency) $ threadDelay rampUpUs
 
         putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency

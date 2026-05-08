@@ -11,6 +11,9 @@ module Hh200.Execution
   , ProcM
   , status200
   , renderHeadersMap
+  , renderRequestQuery
+  , renderRequestForm
+  , renderRequestCookies
   , objectSubset
   , jsonSubset
   , SubsetResult(..)
@@ -316,9 +319,47 @@ courseFrom x = do
                                    , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
                                    , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                                    }
-            LexedUrlSegments parts -> do
-                full <- BEL.render env (Aeson.String "") undefined
-                undefined
+            LexedUrlSegments urlParts -> do
+                renderedUrlParts <- forM urlParts $ \part -> do
+                    rendered <- BEL.render env (Aeson.String "") [part]
+                    case rendered of
+                        Aeson.String t -> pure $ Text.unpack t
+                        v -> pure $ BS.unpack (BL.toStrict (Aeson.encode v))
+                let fullUrl = intercalate "/" renderedUrlParts
+                let urlWithQuery = case renderedQuery of
+                        "" -> fullUrl
+                        qs -> fullUrl ++ "?" ++ qs
+                req <- HC.parseRequest urlWithQuery
+                renderedReqHeaders <- renderRequestHeaders env rqHeaders
+                let allHeaders = renderedReqHeaders ++ renderedCookies
+
+                case multipartSq of
+                    Just (RequestSquareMultipart (RhsDict mpFields)) -> do
+                        boundary <- HCMP.webkitBoundary
+                        parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
+                            rendered <- BEL.render env (Aeson.String "") parts'
+                            let bsValue = case rendered of
+                                    Aeson.String t -> TE.encodeUtf8 t
+                                    v -> BL.toStrict (Aeson.encode v)
+                            pure $ HCMP.partBS k bsValue
+                        mpBody <- HCMP.renderParts boundary parts
+                        let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
+                        pure $ req { HC.method = BS.pack rqMethod
+                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
+                                   , HC.requestBody = mpBody
+                                   }
+                    _ -> do
+                        let bodyContent = case (renderedForm, rqBody) of
+                                ("", "") -> BS.pack rqBody
+                                ("", _) -> BS.pack rqBody
+                                (f, "") -> BS.pack f
+                                (f, _) -> BS.pack f
+                            contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
+                            encoded = BL.fromStrict bodyContent
+                        pure $ req { HC.method = BS.pack rqMethod
+                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+                                   , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
+                                   }
 
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
