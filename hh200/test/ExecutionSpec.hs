@@ -67,8 +67,6 @@ spec = testGroup "Execution"
     , testRenderRequestCookiesMultiple
     ]
 
--- PICKUP mimic testSimple's heart here
-
 testIsSubmapOfBy :: TestTree
 testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
     let t1 = HM.fromList [("k1" :: String, "v1" :: String)]

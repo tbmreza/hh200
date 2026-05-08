@@ -2,7 +2,7 @@
 
 module Hh200.Cli
   ( cli
-  -- Exported for testing:
+  , testSimple
   , go, Args(..), optsInfo
   ) where
 
@@ -120,13 +120,13 @@ go Args { shotgun = 1, call = False, rps = False, source = Just path } = do
     let analyzed = Scanner.analyze path
     m <- runMaybeT analyzed
     case m of
-        Just script -> trace "CRUM" $ testSimple script
+        Just script -> trace ("path=" ++ show path) $ testSimple script
         _ -> error "undefined: bug in hh200 grammar!"
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snip } =
-    runAnalyzedScript (Scanner.analyze (Snippet $ L8.pack snip))
+    undefined
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
@@ -160,7 +160,10 @@ testSimple script = do
     doneSignals <- replicateM (length scripts) newEmptyMVar
 
     forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
-        let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot, Tbwp.wcRateLimiter = Nothing, Tbwp.wcWorkerId = i }
+        let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot
+                                    , Tbwp.wcRateLimiter = Nothing
+                                    , Tbwp.wcWorkerId = i
+                                    }
         forkIO (Tbwp.worker cfg s shutdownFlag done)
 
     -- Termination with ctrl+c, which is handled foremostly by worker.
@@ -238,13 +241,3 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
             atomically $ writeTVar shutdownFlag True
 
         atomically (readTVar shutdownFlag >>= check)
-
-runAnalyzedScript :: MaybeT IO Script -> IO ()
-runAnalyzedScript mis = do
-    mScript <- runMaybeT mis
-
-    script <- case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        Just s  -> pure s
-
-    undefined

@@ -69,7 +69,7 @@ newtype UpperString = UpperString String
 -- | __Partial__: Asserts uppercase input.
 expectUpper :: String -> UpperString
 expectUpper s | all (`elem` ['A'..'Z']) s = UpperString s
-expectUpper _ = undefined
+expectUpper _ = error "partial function expectUpper"
 
 newtype UrlString = UrlString String
     deriving (Show, Eq)

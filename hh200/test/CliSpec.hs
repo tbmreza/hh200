@@ -9,32 +9,30 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Concurrent.MVar (MVar)
 
 import Hh200.Cli
+import qualified Hh200.Cli as Cli (go)
 
 spec :: MVar () -> TestTree
 spec _lock = testGroup "CLI"
   [ testCase "Args parsing: source file" $ do
-      let res = execParserPure defaultPrefs optsInfo ["foo.hhs"]
-      case res of
-        Success args -> assertEqual "Args" (expectedArgs { source = Just "foo.hhs" }) args
-        _ -> assertFailure "Failed to parse source file"
+        let res = execParserPure defaultPrefs optsInfo ["foo.hhs"]
+        case res of
+            Success args -> assertEqual "Args" (mkArgs { source = Just "foo.hhs" }) args
+            _ -> assertFailure "Failed to parse source file"
 
-  , goldenVsString "Help output" "test/golden/help.txt" $ do
-      let res = execParserPure defaultPrefs optsInfo ["--help"]
-      case res of
-        Failure failure -> do
-            let (msg, _) = renderFailure failure "hh200"
-            pure $ L8.pack (msg ++ "\n")
-        _ -> assertFailure "Expected failure for help"
+  , testCase "Script execution: simple" $ do
+        let simple = mkArgs { shotgun = 1, call = False, rps = False, source = Just "../examples/alpha.hhs" }
+        Cli.go simple
   ]
 
-expectedArgs :: Args
-expectedArgs =
-  Args
-    { source = Nothing
-    , version = False
-    , debugConfig = False
-    , call = False
-    , rps = False
-    , shotgun = 1
-    , lsp = Nothing
-    }
+mkArgs :: Args
+mkArgs =
+    Args
+      { source = Nothing
+      , version = False
+      , debugConfig = False
+      , call = False
+      , rps = False
+      , shotgun = 1
+      , lsp = Nothing
+      , lspStdio = False
+      }

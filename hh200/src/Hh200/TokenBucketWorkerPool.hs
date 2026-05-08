@@ -51,8 +51,8 @@ data WorkerConfig = WorkerConfig
   , wcWorkerId    :: Int
   }
 
+-- [CallItem] deps analysis.
 workOptimize :: Script -> [Script]
--- ??
 workOptimize s = [s, mkScript]
 
 dummyDuo :: Script -> [Script]

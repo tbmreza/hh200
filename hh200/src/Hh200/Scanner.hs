@@ -30,19 +30,6 @@ import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultH
 import L
 import P
 
--- scriptFrom :: Snippet -> IO (Maybe Script)
--- scriptFrom (Snippet s) = do
---     undefined
---     -- let tokensOrPanic = alexScanTokens (L8.unpack s)
---     -- res <- runExceptT (parse tokensOrPanic)
---     --
---     -- case res of
---     --     Left (d, _) -> trace d (pure Nothing)
---     --     Right action -> do
---     --         res2 <- runExceptT action
---     --         case res2 of
---     --             Left (d, _) -> trace d (pure Nothing)
---     --             Right sole -> pure (Just sole)
 
 gatherHostInfo :: IO HostInfo
 gatherHostInfo = do
@@ -67,9 +54,6 @@ trim :: String -> String
 trim = f . f where
     f = reverse . dropWhile (== ' ') . dropWhile (== '\n')
 
-    -- analyzeWithHostInfo :: a -> MaybeT IO (Script, HostInfo)
-    -- -> Nothing | StaticScript | SoleScript? | Script
-    -- -> Nothing | SoleScript
 
 class Analyze a where
     analyze :: a -> MaybeT IO Script
