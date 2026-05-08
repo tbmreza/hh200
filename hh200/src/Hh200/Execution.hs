@@ -61,6 +61,7 @@ import qualified Network.HTTP.Client as HC ( method
                                            , parseRequest
                                            , requestBody
                                            , RequestBody (RequestBodyBS, RequestBodyLBS))
+import qualified Network.HTTP.Client.MultipartFormData as HCMP
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 
@@ -272,19 +273,32 @@ courseFrom x = do
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
     buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
+        let (_, _, _, multipartSq, _) = rqSquares
         case rqUrl of
             LexedUrlFull s -> do
                 req <- HC.parseRequest s
-                let encoded = BL.fromStrict (BS.pack rqBody)
                 renderedReqHeaders <- renderRequestHeaders env rqHeaders
-                pure $ req { HC.method = BS.pack rqMethod
-                           , HC.requestHeaders = renderedReqHeaders
-                           -- The type of requestBody as sent over the wire is
-                           -- abstracted by the library. For example, to get
-                           -- the desired effect of sending an object as JSON,
-                           -- idiomatic Content-Type header is assumed.
-                           , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
-                           }
+                case multipartSq of
+                    Just (RequestSquareMultipart (RhsDict mpFields)) -> do
+                        boundary <- HCMP.webkitBoundary
+                        parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
+                            rendered <- BEL.render env (Aeson.String "") parts'
+                            let bsValue = case rendered of
+                                    Aeson.String t -> TE.encodeUtf8 t
+                                    v -> BL.toStrict (Aeson.encode v)
+                            pure $ HCMP.partBS k bsValue
+                        mpBody <- HCMP.renderParts boundary parts
+                        let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
+                        pure $ req { HC.method = BS.pack rqMethod
+                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : renderedReqHeaders
+                                   , HC.requestBody = trace ("multipart parts=" ++ show (length parts)) mpBody
+                                   }
+                    _ -> do
+                        let encoded = BL.fromStrict (BS.pack rqBody)
+                        pure $ req { HC.method = BS.pack rqMethod
+                                   , HC.requestHeaders = renderedReqHeaders
+                                   , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
+                                   }
             LexedUrlSegments parts -> do
                 full <- BEL.render env (Aeson.String "") undefined
                 undefined
