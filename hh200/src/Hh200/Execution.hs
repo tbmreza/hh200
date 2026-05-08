@@ -273,11 +273,22 @@ courseFrom x = do
     where
     buildRequest :: Env -> CallItem -> IO Http.Request
     buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
-        let (_, _, _, multipartSq, _) = rqSquares
+        let (configsSq, querySq, formSq, multipartSq, cookiesSq) = rqSquares
+
+        renderedConfigs <- renderRequestConfigs env configsSq
+        renderedQuery <- renderRequestQuery env querySq
+        renderedForm <- renderRequestForm env formSq
+        renderedCookies <- renderRequestCookies env cookiesSq
+
         case rqUrl of
             LexedUrlFull s -> do
-                req <- HC.parseRequest s
+                let urlWithQuery = case renderedQuery of
+                        "" -> s
+                        qs -> s ++ "?" ++ qs
+                req <- HC.parseRequest urlWithQuery
                 renderedReqHeaders <- renderRequestHeaders env rqHeaders
+                let allHeaders = renderedReqHeaders ++ renderedCookies
+
                 case multipartSq of
                     Just (RequestSquareMultipart (RhsDict mpFields)) -> do
                         boundary <- HCMP.webkitBoundary
@@ -290,13 +301,19 @@ courseFrom x = do
                         mpBody <- HCMP.renderParts boundary parts
                         let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
                         pure $ req { HC.method = BS.pack rqMethod
-                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : renderedReqHeaders
-                                   , HC.requestBody = trace ("multipart parts=" ++ show (length parts)) mpBody
+                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
+                                   , HC.requestBody = mpBody
                                    }
                     _ -> do
-                        let encoded = BL.fromStrict (BS.pack rqBody)
+                        let bodyContent = case (renderedForm, rqBody) of
+                                ("", "") -> BS.pack rqBody
+                                ("", _) -> BS.pack rqBody
+                                (f, "") -> BS.pack f
+                                (f, _) -> BS.pack f
+                            contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
+                            encoded = BL.fromStrict bodyContent
                         pure $ req { HC.method = BS.pack rqMethod
-                                   , HC.requestHeaders = renderedReqHeaders
+                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
                                    , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                                    }
             LexedUrlSegments parts -> do
@@ -479,6 +496,49 @@ renderHeadersMap env' (RhsDict expectHeaders) =
               pure $ HM.insert ciKey rendered acc)
           HM.empty
           (HM.toList expectHeaders)
+
+renderRequestConfigs :: BEL.Env -> Maybe RequestSquare -> IO [(BS.ByteString, BS.ByteString)]
+renderRequestConfigs _ Nothing = pure []
+renderRequestConfigs _ (Just (RequestSquareConfigs _)) = pure []
+
+renderRequestQuery :: BEL.Env -> Maybe RequestSquare -> IO String
+renderRequestQuery _ Nothing = pure ""
+renderRequestQuery env' (Just (RequestSquareQuery (RhsDict qp))) = do
+    pairs <- forM (HM.toList qp) $ \ (k, parts) -> do
+        rendered <- BEL.render env' (Aeson.String "") parts
+        let bsValue = case rendered of
+                Aeson.String t -> TE.encodeUtf8 t
+                v -> BL.toStrict (Aeson.encode v)
+        pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
+    pure $ intercalate "&" pairs
+
+renderRequestForm :: BEL.Env -> Maybe RequestSquare -> IO String
+renderRequestForm _ Nothing = pure ""
+renderRequestForm env' (Just (RequestSquareForm (RhsDict formFields))) = do
+    pairs <- forM (HM.toList formFields) $ \ (k, parts) -> do
+        rendered <- BEL.render env' (Aeson.String "") parts
+        let bsValue = case rendered of
+                Aeson.String t -> TE.encodeUtf8 t
+                v -> BL.toStrict (Aeson.encode v)
+        pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
+    pure $ intercalate "&" pairs
+
+renderRequestCookies :: BEL.Env -> Maybe RequestSquare -> IO [(HeaderName, BS.ByteString)]
+renderRequestCookies _ Nothing = pure []
+renderRequestCookies env' (Just (RequestSquareCookies (RhsDict ck))) = do
+    pairs <- forM (HM.toList ck) $ \ (k, parts) -> do
+        rendered <- BEL.render env' (Aeson.String "") parts
+        let bsValue = case rendered of
+                Aeson.String t -> TE.encodeUtf8 t
+                v -> BL.toStrict (Aeson.encode v)
+        pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
+    let cookieHeader = BS.pack $ intercalate "; " pairs
+    pure [(CaseInsensitive.mk "Cookie", cookieHeader)]
+
+intercalate :: String -> [String] -> String
+intercalate _ [] = ""
+intercalate _ [x] = x
+intercalate sep (x:xs) = x ++ sep ++ intercalate sep xs
 
 --------------------------------------------------------------------------------
 -- More lib than app code
