@@ -173,7 +173,7 @@ data RequestSquare =
     RequestSquareConfigs RhsDict
   | RequestSquareQuery RhsDict
   | RequestSquareForm RhsDict
-  | RequestSquareMultipart RhsDict  -- PICKUP
+  | RequestSquareMultipart RhsDict
   | RequestSquareCookies RhsDict
     deriving (Show)
 

@@ -400,9 +400,6 @@ courseFrom x = do
             let completeCheckedJsonBody =
                     let expectedBs = BL.toStrict expectRespBody
                         gotBs = BL.toStrict gotRespBody
-                    -- in case jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs of
-                    --     ASubsetOfB -> trace "jsonSubset true" True
-                    --     v -> trace ("jsonSubset=" ++ show v) False
                     in case (expectedBs, jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs) of
                         ("", _) -> trace "jsonSubset skip" True
                         (v, ASubsetOfB) -> trace "jsonSubset true" True
