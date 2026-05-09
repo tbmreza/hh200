@@ -106,6 +106,9 @@ request : method url crlf bindings request_sqrs braced crlf { do
         | method url crlf          request_sqrs braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,               rqBody = $5 }
                                                                trace "reqD" $ pure r }
+        | method url               request_sqrs        crlf { do
+                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $3,               rqBody = "" }
+                                                               trace "reqD1" $ pure r }
         | method url crlf                       braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = $4 }
                                                                trace "reqE" $ pure r }
