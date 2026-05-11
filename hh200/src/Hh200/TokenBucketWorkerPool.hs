@@ -53,7 +53,7 @@ data WorkerConfig = WorkerConfig
 
 -- [CallItem] deps analysis.
 workOptimize :: Script -> [Script]
-workOptimize s = [s, mkScript]
+workOptimize s = [s, s]  -- ??:
 
 dummyDuo :: Script -> [Script]
 -- dummyDuo s = [s, s]

@@ -7,8 +7,7 @@ The project is in ideation phase (Update late 2025: slowly transitioning to a ha
 `DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.
 
 ```sh
-stack install
-bats php-dev-server integration.test
+stack test --test-arguments "--pattern Script"
 ```
 ```yaml
 # stack.yaml

@@ -4,6 +4,7 @@ module Hh200.Cli
   ( cli
   , testSimple
   , go, Args(..), optsInfo
+  , go', mkArgs
   ) where
 
 import Debug.Trace
@@ -34,6 +35,11 @@ import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Monad (forM_, replicateM, replicateM_, when)
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, RateLimiterConfig, dummyDuo, WorkerMode(..))
+
+
+-- data Src =
+--     AbstractSrc  -- for script ds
+--   | PathSrc  -- "" as Nothing
 
 data Args = Args
   { source :: Maybe String  -- used for both FilePath and Snippet sources
@@ -148,6 +154,15 @@ go Args { shotgun = n, call = False, source = Just path } = do
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
 
+go' :: Script -> Args -> IO ()
+
+-- Script execution.
+-- hh200 flow.hhs
+go' script Args { shotgun = 1, call = False, rps = False } = do
+    testSimple script
+
+go' script args = trace ("go':" ++ show args) $ exitWith (ExitFailure 1)
+
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
 
@@ -241,3 +256,14 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
             atomically $ writeTVar shutdownFlag True
 
         atomically (readTVar shutdownFlag >>= check)
+
+mkArgs :: Args
+mkArgs = Args { source = Nothing
+              , version = False
+              , debugConfig = False
+              , call = False
+              , rps = False
+              , shotgun = 1
+              , lsp = Nothing
+              , lspStdio = False
+              }

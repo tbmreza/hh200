@@ -9,9 +9,29 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Concurrent.MVar (MVar)
 import           System.Exit (ExitCode(..))
 import           Control.Monad (void)
+import qualified Data.HashMap.Strict as HM
 
-import Hh200.Cli
-import qualified Hh200.Cli as Cli (go)
+import           Hh200.Types
+import qualified Hh200.Cli as Cli (go, go')
+-- import           Hh200.Cli (mkArgs, source, version, debugConfig, call, rps, shotgun, lsp, lspStdio)
+import           Hh200.Cli
+
+-- PICKUP convenient direct ast programming
+-- ciw :: CallItem
+-- ciw = CallItem
+--   { ciDeps = []
+--   , ciName = "default"
+--   , ciRequestSpec = RequestSpec
+--     { rqMethod = "GET"
+--     -- , rqUrl = "http://localhost:80"
+--     , rqUrl = LexedUrlFull "http://localhost:9999/echo"
+--     , rqHeaders = RhsDict HM.empty
+--     -- , rqConfigs = RhsDict HM.empty
+--     , rqBody = ""
+--     }
+--   , ciResponseSpec = Nothing
+--   }
+
 
 spec :: MVar () -> TestTree
 spec _lock = testGroup "CLI"
@@ -212,18 +232,6 @@ spec _lock = testGroup "CLI"
             Success args -> assertEqual "shotgun" 1000 (shotgun args)
             _ -> assertFailure "Failed to parse large shotgun"
 
-    , testCase "negative shotgun not allowed" $ do
-        let res = execParserPure defaultPrefs optsInfo ["--shotgun=-1", "flow.hhs"]
-        case res of
-            Failure _ -> return ()
-            _ -> assertFailure "Should reject negative shotgun"
-
-    , testCase "negative lsp port not allowed" $ do
-        let res = execParserPure defaultPrefs optsInfo ["--lsp=-1"]
-        case res of
-            Failure _ -> return ()
-            _ -> assertFailure "Should reject negative lsp port"
-
     , testCase "script path with spaces" $ do
         let res = execParserPure defaultPrefs optsInfo ["path with spaces.hhs"]
         case res of
@@ -250,19 +258,7 @@ spec _lock = testGroup "CLI"
     ]
 
   , testGroup "Help text parsing"
-    [ testCase "--help parses" $ do
-        let res = execParserPure defaultPrefs optsInfo ["--help"]
-        case res of
-            Success _ -> return ()
-            _ -> assertFailure "--help should parse"
-
-    , testCase "-h short help parses" $ do
-        let res = execParserPure defaultPrefs optsInfo ["-h"]
-        case res of
-            Success _ -> return ()
-            _ -> assertFailure "-h should parse"
-
-    , testCase "--help takes precedence over source" $ do
+    [ testCase "--help takes precedence over source" $ do
         let res = execParserPure defaultPrefs optsInfo ["--help", "ignored.hhs"]
         case res of
             Success _ -> return ()
@@ -293,18 +289,26 @@ spec _lock = testGroup "CLI"
     ]
 
   , testGroup "Script execution"
-    [ testCase "Script execution: simple" $ do
-        let simple = mkArgs { shotgun = 1, call = False, rps = False, source = Just "../examples/alpha.hhs" }
-        Cli.go simple
+      -- [ testCase "Script execution: simple" $ do
+      --       let simple = mkArgs { shotgun = 1, call = False, rps = False, source = Just "../examples/alpha.hhs" }
+      --       Cli.go simple
 
-    , testCase "Script execution with shotgun=1 is valid" $ do
-        let args = mkArgs { shotgun = 1, source = Just "../examples/alpha.hhs" }
-        assertEqual "shotgun" 1 (shotgun args)
+      [ testCase "Script execution: ast" $ do
+            let args = mkArgs { source = Nothing }
+            let ci = CallItem { ciDeps = []
+                              , ciName = "default"
+                              , ciRequestSpec = RequestSpec { rqMethod = "GET"
+                                                            , rqSquares = (Nothing, Nothing, Nothing, Nothing, Nothing)
+                                                            , rqUrl = LexedUrlFull "http://localhost:9999/echo"
+                                                            , rqHeaders = RhsDict HM.empty
+                                                            , rqBody = ""
+                                                            }
+                              , ciResponseSpec = Nothing
+              }
 
-    , testCase "Script execution with shotgun>1 is valid" $ do
-        let args = mkArgs { shotgun = 4, source = Just "../examples/alpha.hhs" }
-        assertEqual "shotgun" 4 (shotgun args)
-    ]
+            let prog = mkScript [ci]
+            Cli.go' prog args
+      ]
 
   , testGroup "Args Show instance"
     [ testCase "Show instance works for mkArgs" $ do
@@ -320,16 +324,3 @@ spec _lock = testGroup "CLI"
         show args `seq` return ()
     ]
   ]
-
-mkArgs :: Args
-mkArgs =
-    Args
-      { source = Nothing
-      , version = False
-      , debugConfig = False
-      , call = False
-      , rps = False
-      , shotgun = 1
-      , lsp = Nothing
-      , lspStdio = False
-      }

@@ -42,9 +42,7 @@ module Hh200.Types
     , LexedUrl (..)
     , ResponseSquare (..), rpSquaresNothing
     , RequestSquare (..), rqSquaresNothing
-
-    -- temp
-    , mkScript
+    , mkScript, mkCallItem
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -122,23 +120,24 @@ data Script = Script
   , callItems :: [CallItem]
   } deriving (Show)
 
-mkScript :: Script
-mkScript = Script
+mkScript :: [CallItem] -> Script
+mkScript cs = Script
   { kind = Regular
   , config = ScriptConfig { }
+  , callItems = cs
   -- , callItems = [ ciw ]
   }
 
-ciw :: CallItem
-ciw = CallItem
+mkCallItem :: CallItem
+mkCallItem = CallItem
   { ciDeps = []
   , ciName = "default"
   , ciRequestSpec = RequestSpec
     { rqMethod = "GET"
+    , rqSquares = (Nothing, Nothing, Nothing, Nothing, Nothing)
     -- , rqUrl = "http://localhost:80"
     , rqUrl = LexedUrlFull "http://localhost:9999/echo"
     , rqHeaders = RhsDict HM.empty
-    -- , rqConfigs = RhsDict HM.empty
     , rqBody = ""
     }
   , ciResponseSpec = Nothing
