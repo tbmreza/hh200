@@ -375,6 +375,7 @@ courseFrom x = do
         eitherResp <- let reqInfo = case HC.requestBody reqOrThrow of
                                     HC.RequestBodyLBS lbs -> "LBS " ++ show lbs
                                     HC.RequestBodyBS bs -> "BS " ++ show (BS.length bs)
+                                    els -> trace ("reqInfo: els") ""
                         in trace ("built=" ++ reqInfo) $
                            liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci

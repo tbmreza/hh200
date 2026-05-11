@@ -10,6 +10,8 @@ import           Control.Concurrent.MVar (MVar)
 import           System.Exit (ExitCode(..))
 import           Control.Monad (void)
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Text as Text
+
 
 import           Hh200.Types
 import qualified Hh200.Cli as Cli (go, go')
@@ -297,15 +299,16 @@ spec _lock = testGroup "CLI"
             let args = mkArgs { source = Nothing }
             let ci = CallItem { ciDeps = []
                               , ciName = "default"
-                              , ciRequestSpec = RequestSpec { rqMethod = "GET"
-                                                            , rqSquares = (Nothing, Nothing, Nothing, Nothing, Nothing)
+                              , ciRequestSpec = RequestSpec { rqMethod = "POST"
+                                                            , rqSquares = ( Nothing, Nothing, Nothing
+                                                                          , Just (RequestSquareMultipart (RhsDict (HM.singleton (Text.pack "dummy") [])))
+                                                                          , Nothing)
                                                             , rqUrl = LexedUrlFull "http://localhost:9999/echo"
                                                             , rqHeaders = RhsDict HM.empty
                                                             , rqBody = ""
                                                             }
                               , ciResponseSpec = Nothing
-              }
-
+                              }
             let prog = mkScript [ci]
             Cli.go' prog args
       ]
