@@ -1,4 +1,14 @@
-POST http://localhost:9999/api/xls
+# POST http://localhost:9999/api/xls
+
+POST http://localhost:9999/api/echo
+# Content-Type: "application/json"
 [MultipartFormData]
-kk: 9
-HTTP 200
+file: "path/to/value"
+# {
+#     "email": "test@example.com",
+#     "password": "password"
+# }
+HTTP 200 204
+# [Asserts]
+# >jsonpath "$.token" copy
+# { "user": { "id": "abc" } }

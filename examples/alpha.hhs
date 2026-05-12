@@ -7,8 +7,6 @@ Content-Type: "application/json"
     "email": "test@example.com",
     "password": "password"
 }
-# [MultipartFormData]
-# k: "value"
 HTTP 200 204
 [Asserts]
 >jsonpath "$.token" copy
