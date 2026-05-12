@@ -287,7 +287,7 @@ spec _lock = testGroup "CLI"
                                                             , rqSquares = ( Nothing, Nothing, Nothing
                                                                           , Just (RequestSquareMultipart (RhsDict (HM.singleton (Text.pack "dummy") [])))
                                                                           , Nothing
-                                                                          )  -- PICKUP
+                                                                          )
                                                             , rqUrl = LexedUrlFull "http://localhost:9999/api/echo"
                                                             , rqHeaders = RhsDict HM.empty
                                                             , rqBody = ""

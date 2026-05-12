@@ -6,8 +6,8 @@
 module Hh200.Execution
   ( runScriptM
 
-  , runProcM
-  , conduct
+  -- , runProcM
+  -- , conduct
   , ProcM
   , status200
   , renderHeadersMap
@@ -150,7 +150,7 @@ expectHeadersOrMt ci =
         Nothing -> RhsDict HM.empty
         Just rs -> rpResponseHeaders rs
 
--- Procedure "may" fail early, "reads" an execution context (manager + optional rate limiter),
+-- Procedure "may" fail early, "reads" an execution context,
 -- "writes" log as it runs, modifies environment "states" while doing IO.
 type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 
@@ -172,9 +172,6 @@ defaultCallItem = CallItem
   , ciResponseSpec = Nothing
   }
 
-asMethod :: String -> BS.ByteString
-asMethod s = BS.pack s
-
 headersToAeson :: [(HeaderName, BS.ByteString)] -> Aeson.Value
 headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $ 
     map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) hdrs
@@ -183,9 +180,9 @@ asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
 asBS v                = BL.toStrict (Aeson.encode v)
 
-textOrMt :: Aeson.Value -> Text
-textOrMt (Aeson.String t) = t
-textOrMt _ = ""
+-- textOrMt :: Aeson.Value -> Text
+-- textOrMt (Aeson.String t) = t
+-- textOrMt _ = ""
 
 
 runScriptM :: Script -> Env -> IO ()
@@ -195,39 +192,41 @@ runScriptM script env = do
     _ <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
 
--- | Low-level execution of a script. Returns the failing CallItem (if any), 
--- the final environment, and the execution log.
--- Nothing means the script finished successfully.
-runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
-runProcM script mgr env = do
-    let course :: ProcM CallItem = courseFrom script
-    Tf.runRWST (runMaybeT course) mgr env
-
--- | High-level wrapper that orchestrates execution, catches exceptions, 
--- performs side effects (like tracing), and returns a Lead report.
-conduct :: Script -> Http.Manager -> Env -> IO Lead
-conduct script mgr env = do
-    hi <- gatherHostInfo
-    result <- try (runProcM script mgr env)
-    case result of
-        Left (e :: SomeException) -> do
-            let errLog = [HttpError (show e)]
-            -- We use defaultCallItem to indicate a system/execution error
-            -- but we might want a more specific "Error" CallItem later.
-            pure $ leadFrom (Just defaultCallItem) (env, errLog) script hi
-        Right (mci, finalEnv, procLog) -> do
-            traceM $ "Execution finished. Log length: " ++ show (length procLog)
-            pure $ leadFrom mci (finalEnv, procLog) script hi
-
-    where
-    leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
-    leadFrom failed el script hi = Lead
-      { leadKind = Normal
-      , firstFailing = failed
-      , hostInfo = hi
-      , echoScript = Just script
-      , interpreterInfo = el
-      }
+-- -- ??: to be seen if we need to abstract Manager or not
+-- runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
+-- runProcM script mgr env = do
+--     let course :: ProcM CallItem = courseFrom script
+--     Tf.runRWST (runMaybeT course) mgr env
+--
+-- -- ??: waiting for stable worker/tbwp
+-- conduct :: Script -> Http.Manager -> Env -> IO Lead
+-- conduct script mgr env = do
+--     hi <- gatherHostInfo
+--     result <- try (runProcM script mgr env)
+--     case result of
+--         Left (e :: SomeException) -> do
+--             let errLog = [HttpError (show e)]
+--             -- We use defaultCallItem to indicate a system/execution error
+--             -- but we might want a more specific "Error" CallItem later.
+--             pure $ leadFrom (Just defaultCallItem) (env, errLog) script hi
+--         Right (mci, finalEnv, procLog) -> do
+--             traceM $ "Execution finished. Log length: " ++ show (length procLog)
+--             pure $ leadFrom mci (finalEnv, procLog) script hi
+--
+--     where
+--     leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
+--     leadFrom failed el script hi = Lead
+--       { leadKind = Normal
+--       , firstFailing = failed
+--       , hostInfo = hi
+--       , echoScript = Just script
+--       , interpreterInfo = el
+--       }
+-- testOutsideWorld :: Script -> IO Lead
+-- testOutsideWorld script = do
+--     bracket (Http.newManager True)
+--             Http.closeManager $
+--             \mgr -> conduct script mgr HM.empty
 
 
 specCapturesOrMt :: CallItem -> RhsDict
@@ -279,46 +278,14 @@ courseFrom x = do
         let (configsSq, querySq, formSq, multipartSq, cookiesSq) = rqSquares
 
         renderedConfigs <- renderRequestConfigs env configsSq
-        renderedQuery <- renderRequestQuery env querySq
-        renderedForm <- renderRequestForm env formSq
+        renderedQuery <-   renderRequestQuery env querySq
+        renderedForm <-    renderRequestForm env formSq
         renderedCookies <- renderRequestCookies env cookiesSq
 
-        case rqUrl of
-            LexedUrlFull s -> do
-                let urlWithQuery = case renderedQuery of
-                        "" -> s
-                        qs -> s ++ "?" ++ qs
-                req <- HC.parseRequest urlWithQuery
-                renderedReqHeaders <- renderRequestHeaders env rqHeaders
-                let allHeaders = renderedReqHeaders ++ renderedCookies
-
-                case multipartSq of
-                    Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-                        boundary <- HCMP.webkitBoundary
-                        parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
-                            rendered <- BEL.render env (Aeson.String "") parts'
-                            let bsValue = case rendered of
-                                    Aeson.String t -> TE.encodeUtf8 t
-                                    v -> BL.toStrict (Aeson.encode v)
-                            pure $ HCMP.partBS k bsValue
-                        mpBody <- HCMP.renderParts boundary parts
-                        let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
-                        pure $ req { HC.method = BS.pack rqMethod
-                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
-                                   , HC.requestBody = mpBody
-                                   }
-                    _ -> do
-                        let bodyContent = case (renderedForm, rqBody) of
-                                ("", "") -> BS.pack rqBody
-                                ("", _) -> BS.pack rqBody
-                                (f, "") -> BS.pack f
-                                (f, _) -> BS.pack f
-                            contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-                            encoded = BL.fromStrict bodyContent
-                        pure $ req { HC.method = BS.pack rqMethod
-                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                                   , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
-                                   }
+        baseUrl <- case rqUrl of
+            LexedUrlFull s -> pure $ case renderedQuery of
+                "" -> s
+                qs -> s ++ "?" ++ qs
             LexedUrlSegments urlParts -> do
                 renderedUrlParts <- forM urlParts $ \part -> do
                     rendered <- BEL.render env (Aeson.String "") [part]
@@ -326,40 +293,44 @@ courseFrom x = do
                         Aeson.String t -> pure $ Text.unpack t
                         v -> pure $ BS.unpack (BL.toStrict (Aeson.encode v))
                 let fullUrl = intercalate "/" renderedUrlParts
-                let urlWithQuery = case renderedQuery of
-                        "" -> fullUrl
-                        qs -> fullUrl ++ "?" ++ qs
-                req <- HC.parseRequest urlWithQuery
-                renderedReqHeaders <- renderRequestHeaders env rqHeaders
-                let allHeaders = renderedReqHeaders ++ renderedCookies
+                pure $ case renderedQuery of
+                    "" -> fullUrl
+                    qs -> fullUrl ++ "?" ++ qs
 
-                case multipartSq of
-                    Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-                        boundary <- HCMP.webkitBoundary
-                        parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
-                            rendered <- BEL.render env (Aeson.String "") parts'
-                            let bsValue = case rendered of
-                                    Aeson.String t -> TE.encodeUtf8 t
-                                    v -> BL.toStrict (Aeson.encode v)
-                            pure $ HCMP.partBS k bsValue
-                        mpBody <- HCMP.renderParts boundary parts
-                        let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
-                        pure $ req { HC.method = BS.pack rqMethod
-                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
-                                   , HC.requestBody = mpBody
-                                   }
-                    _ -> do
-                        let bodyContent = case (renderedForm, rqBody) of
-                                ("", "") -> BS.pack rqBody
-                                ("", _) -> BS.pack rqBody
-                                (f, "") -> BS.pack f
-                                (f, _) -> BS.pack f
-                            contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-                            encoded = BL.fromStrict bodyContent
-                        pure $ req { HC.method = BS.pack rqMethod
-                                   , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                                   , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
-                                   }
+        req <- HC.parseRequest baseUrl
+        renderedReqHeaders <- renderRequestHeaders env rqHeaders
+        let allHeaders = renderedReqHeaders ++ renderedCookies
+        finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody
+
+    finalizeRequest :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
+    finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
+        case multipartSq of
+            Just (RequestSquareMultipart (RhsDict mpFields)) -> do
+                boundary <- HCMP.webkitBoundary
+                parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
+                    rendered <- BEL.render env (Aeson.String "") parts'
+                    let bsValue = case rendered of
+                            Aeson.String t -> TE.encodeUtf8 t
+                            v -> BL.toStrict (Aeson.encode v)
+                    pure $ HCMP.partBS k bsValue
+                mpBody <- HCMP.renderParts boundary parts
+                let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
+                pure $ req { HC.method = BS.pack rqMethod
+                           , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
+                           , HC.requestBody = mpBody
+                           }
+            _ -> do
+                let bodyContent = case (renderedForm, rqBody) of
+                        ("", "") -> BS.pack rqBody
+                        ("", _) -> BS.pack rqBody
+                        (f, "") -> BS.pack f
+                        (f, _) -> BS.pack f
+                    contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
+                    encoded = BL.fromStrict bodyContent
+                pure $ req { HC.method = BS.pack rqMethod
+                           , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+                           , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
+                           }
 
     go :: Http.Manager -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
@@ -477,22 +448,6 @@ courseFrom x = do
 
         pure (const ext)
 
-validJsonBody :: Http.Request -> Http.Response -> Aeson.Value
-validJsonBody req resp = Aeson.Object $
-    KeyMap.fromList [ (Key.fromText "body", bodyValue)
-                    , (Key.fromText "headers", headersToAeson (Http.getHeaders resp))
-                    , (Key.fromText "status", Aeson.Number (fromIntegral $ statusCode $ Http.getStatus resp))
-                    , (Key.fromText "request", requestValue)
-                    ]
-
-    where
-    bodyBytes = Http.getBody resp
-    bodyValue = fromMaybe (Aeson.String (TE.decodeUtf8With TEE.lenientDecode (BL.toStrict bodyBytes))) (Aeson.decode bodyBytes)
-    requestValue = Aeson.Object $ KeyMap.fromList
-        [ (Key.fromText "method", Aeson.String (TE.decodeUtf8With TEE.lenientDecode (HC.method req)))
-        , (Key.fromText "headers", headersToAeson (HC.requestHeaders req))
-        ]
-
 failWith :: String -> IO Bool
 failWith msg = hPutStrLn stderr msg >> pure False
 
@@ -505,34 +460,28 @@ triggerEmergencyShutdown flag = do
     putStrLn "🚨 EMERGENCY SHUTDOWN TRIGGERED"
     atomically $ writeTVar flag True
 
-
--- testOutsideWorld :: Script -> IO Lead
--- testOutsideWorld script = do
---     -- bracket (Http.newManager (effectiveTls script))
---     bracket (Http.newManager True)
---             Http.closeManager $
---             \mgr -> conduct script mgr HM.empty
-
--- | (auto) Render expected headers.
+-- | Render expected headers.
 renderRequestHeaders :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
-renderRequestHeaders env' (RhsDict reqHeaders) =
+renderRequestHeaders env (RhsDict reqHeaders) =
     foldM (\ acc (k, parts) -> do
-            let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
-            rendered <- BEL.render env' (Aeson.String "") parts
-            let bsValue = case rendered of
-                    Aeson.String t -> TE.encodeUtf8 t
-                    v -> BL.toStrict (Aeson.encode v)
-            pure $ (ciKey, bsValue) : acc
-        ) [] (HM.toList reqHeaders)
+               rendered <- BEL.render env (Aeson.String "") parts
+               -- ??: pattern matching might not be necessary if BEL.render Aeson output is stable
+               let bsValue = case rendered of
+                      Aeson.String t -> TE.encodeUtf8 t
+                      v -> BL.toStrict (Aeson.encode v)
+               let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
+               pure ((ciKey, bsValue) : acc) )
+          []
+          (HM.toList reqHeaders)
 
 -- | Render expected response headers.
 renderHeadersMap :: BEL.Env -> RhsDict
                  -> IO (HM.HashMap (CaseInsensitive.CI BS.ByteString) Aeson.Value)
-renderHeadersMap env' (RhsDict expectHeaders) =
+renderHeadersMap env (RhsDict expectHeaders) =
     foldM (\ acc (k, parts) -> do
-              let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
-              rendered <- BEL.render env' (Aeson.String "") parts
-              pure $ HM.insert ciKey rendered acc)
+               rendered <- BEL.render env (Aeson.String "") parts
+               let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
+               pure $ HM.insert ciKey rendered acc )
           HM.empty
           (HM.toList expectHeaders)
 
@@ -574,14 +523,14 @@ renderRequestCookies env' (Just (RequestSquareCookies (RhsDict ck))) = do
     let cookieHeader = BS.pack $ intercalate "; " pairs
     pure [(CaseInsensitive.mk "Cookie", cookieHeader)]
 
+--------------------------------------------------------------------------------
+-- More lib than app code
+--------------------------------------------------------------------------------
 intercalate :: String -> [String] -> String
 intercalate _ [] = ""
 intercalate _ [x] = x
 intercalate sep (x:xs) = x ++ sep ++ intercalate sep xs
 
---------------------------------------------------------------------------------
--- More lib than app code
---------------------------------------------------------------------------------
 foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
                             -> a
                             -> HM.HashMap k v

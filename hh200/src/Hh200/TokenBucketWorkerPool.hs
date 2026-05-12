@@ -20,19 +20,17 @@ module Hh200.TokenBucketWorkerPool
 import Debug.Trace
 
 import qualified Data.HashMap.Strict as HM
-
--- import Control.Concurrent (threadDelay)
-import Control.Concurrent
-import Control.Concurrent.Async (async, cancel, Async)
--- import Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
-import           Control.Concurrent.STM
-import Control.Exception (bracket, finally)
-import Control.Monad (forever)
+import           Control.Concurrent
+import           Control.Concurrent.Async (async, cancel, Async)
+import           Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+import           Control.Exception (bracket, finally)
+import           Control.Monad (forever)
 import           Control.Monad.Reader
-import Text.Printf (printf)
+import           Text.Printf (printf)
+
 import           Hh200.Types
 import qualified Hh200.Http as Http
-import           Hh200.Execution
+import           Hh200.Execution (runScriptM)
 import qualified Hh200.Scanner as Scanner
 
 -- In all modes, a worker stops on timer or sigint.
@@ -41,9 +39,9 @@ import qualified Hh200.Scanner as Scanner
 -- testShotgun: timer: y  rate-limit: no  feature: of N hits in the same instant, report how many failed
 
 data WorkerMode
-  = OneShot            -- ^ testSimple / testShotgun: run Script once, exit
-  | LoopWithNap Int    -- ^ testRps: loop Script forever, threadDelay n μs between iterations
-  deriving (Show, Eq)
+  = OneShot            -- testSimple / testShotgun: run Script once, exit
+  | LoopWithNap Int    -- testRps: loop Script forever, threadDelay n μs between iterations
+    deriving (Show, Eq)
 
 data WorkerConfig = WorkerConfig
   { wcMode        :: WorkerMode

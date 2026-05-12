@@ -27,7 +27,6 @@ import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
 import           Hh200.Types
-import           Hh200.Execution
 import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp, runStdio)
 
@@ -95,6 +94,8 @@ optsInfo = info (args <**> helper) (fullDesc
         <*> switch ( long "lsp-stdio"
                   <> help "Run hh200 language server over stdio" )
 
+-- Experimental go and go' indirection: prevent diverging debugging &
+-- production code.
 go :: Args -> IO ()
 
 -- Print executable version.
@@ -122,11 +123,12 @@ go Args { source = Just path, debugConfig = True } = do
 
 -- Script execution.
 -- hh200 flow.hhs
-go Args { shotgun = 1, call = False, rps = False, source = Just path } = do
+go args@Args { shotgun = 1, call = False, rps = False, source = Just path } = do
     let analyzed = Scanner.analyze path
     m <- runMaybeT analyzed
     case m of
-        Just script -> trace ("path=" ++ show path) $ testSimple script
+        -- Just script -> trace ("path=" ++ show path) $ testSimple script
+        Just script -> trace ("path=" ++ show path) $ go' script args
         _ -> error "bug in hh200 grammar!"
 
 -- Inline program execution.

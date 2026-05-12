@@ -6,69 +6,61 @@ module ExecutionSpec (spec) where
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import qualified Data.Aeson               as Aeson
-import qualified Data.ByteString.Char8    as BS
-import qualified Data.CaseInsensitive     as CI
-import qualified Data.HashMap.Strict      as HM
-import qualified Data.Aeson.Key           as Key
-import qualified Data.Aeson.KeyMap        as KeyMap
-import qualified Data.Text                as Text
-import Data.List (isInfixOf)
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as Text
+import qualified Data.CaseInsensitive as CI
+import qualified Data.HashMap.Strict as HM
+import           Data.List (isInfixOf)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
+import           Network.HTTP.Types.Header (ResponseHeaders)
 
 import qualified BEL
 import           Hh200.Execution
-import           Hh200.Types              (RhsDict (..), RequestSquare(..))
-import           Hh200.Execution         (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies)
-import           Network.HTTP.Types.Header (ResponseHeaders)
+import           Hh200.Types (RhsDict (..), RequestSquare(..))
+import           Hh200.Execution (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies)
 
-hdr :: String -> String -> (CI.CI BS.ByteString, BS.ByteString)
-hdr k v = (CI.mk (BS.pack k), BS.pack v)
-
--- Build a RhsDict with only literal (R) parts, as produced by the parser for
--- plain string values.
-fromLiterals :: [(String, String)] -> RhsDict
-fromLiterals pairs =
-    RhsDict $ HM.fromList [ (Text.pack k, [BEL.R (Text.pack v)]) | (k, v) <- pairs ]
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
 -- The dummy request/response are never accessed when rendering R parts.
 testEnv :: BEL.Env
 testEnv = BEL.Env
-    { BEL.storedResponse = undefined
-    , BEL.storedRequest = undefined
-    , BEL.bindings = HM.empty
-    }
+  { BEL.storedResponse = undefined
+  , BEL.storedRequest = undefined
+  , BEL.bindings = HM.empty
+  }
 
 spec :: TestTree
 spec = testGroup "Execution"
-    [ testIsSubmapOfBy
-    , testRenderHeadersMap
-    , testRenderHeadersMapEmpty
-    , testRenderHeadersMapMultiPart
-    , testObjectSubset
-    , testObjectSubsetEmpty
-    , testObjectSubsetExtraKey
-    , testObjectSubsetDifferentValue
-    , testObjectSubsetNested
-    , testJsonSubsetEqual
-    , testJsonSubsetASubsetOfB
-    , testJsonSubsetBSubsetOfA
-    , testJsonSubsetIncomparable
-    , testJsonSubsetInvalidA
-    , testJsonSubsetInvalidBoth
-    , testRenderRequestQueryEmpty
-    , testRenderRequestQuerySingle
-    , testRenderRequestQueryMultiple
-    , testRenderRequestFormEmpty
-    , testRenderRequestFormSingle
-    , testRenderRequestFormMultiple
-    , testRenderRequestCookiesEmpty
-    , testRenderRequestCookiesSingle
-    , testRenderRequestCookiesMultiple
-    ]
+  [ testIsSubmapOfBy
+  , testRenderHeadersMap
+  , testRenderHeadersMapStitch
+  , testRenderHeadersMapMultiPart
+  , testObjectSubset
+  , testObjectSubsetEmpty
+  , testObjectSubsetExtraKey
+  , testObjectSubsetDifferentValue
+  , testObjectSubsetNested
+  , testJsonSubsetEqual
+  , testJsonSubsetASubsetOfB
+  , testJsonSubsetBSubsetOfA
+  , testJsonSubsetIncomparable
+  , testJsonSubsetInvalidA
+  , testJsonSubsetInvalidBoth
+  , testRenderRequestQueryEmpty
+  , testRenderRequestQuerySingle
+  , testRenderRequestQueryMultiple
+  , testRenderRequestFormEmpty
+  , testRenderRequestFormSingle
+  , testRenderRequestFormMultiple
+  , testRenderRequestCookiesEmpty
+  , testRenderRequestCookiesSingle
+  , testRenderRequestCookiesMultiple
+  ]
 
 testIsSubmapOfBy :: TestTree
-testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
+testIsSubmapOfBy = testCase "isSubmapOfBy: usage control" $ do
     let t1 = HM.fromList [("k1" :: String, "v1" :: String)]
         t2 = HM.fromList [("k1", "v1"), ("k2", "v2")]
 
@@ -76,19 +68,27 @@ testIsSubmapOfBy = testCase "isSubmapOfBy: nothing to render, subset check" $ do
     assertBool "fail when not submap" (not $ HM.isSubmapOfBy (const (const False)) t1 t1)
 
 testRenderHeadersMap :: TestTree
-testRenderHeadersMap = testCase "renderHeadersMap: single literal header" $ do
+testRenderHeadersMap = testCase "renderHeadersMap: literal" $ do
     let input = HM.fromList [("Content-Type", [BEL.R "application/json"])]
-    result <- renderHeadersMap testEnv (RhsDict input)
-    assertEqual "one entry" 1 (HM.size result)
-    case HM.lookup (CI.mk "content-type") result of
-        Nothing -> assertFailure "Content-Type key missing"
-        Just (Aeson.String v) -> assertEqual "correct value" "application/json" v
-        Just _ -> assertFailure "expected String value"
+    r1 <- renderHeadersMap testEnv (RhsDict input)
+    r2 <- renderHeadersMap testEnv (RhsDict HM.empty)
 
-testRenderHeadersMapEmpty :: TestTree
-testRenderHeadersMapEmpty = testCase "renderHeadersMap: empty input" $ do
-    result <- renderHeadersMap testEnv (RhsDict HM.empty)
-    assertEqual "empty result" 0 (HM.size result)
+    case HM.lookup (CI.mk "content-type") r1 of
+        Just (Aeson.String v) -> do
+            assertEqual "empty result"   0 (HM.size r2)
+            assertEqual "correct value" "application/json" v
+        Just _ ->  assertFailure "expected String value"
+        Nothing -> assertFailure "Content-Type key missing"
+
+testRenderHeadersMapStitch :: TestTree
+testRenderHeadersMapStitch = testCase "renderHeadersMap: list of literals" $ do
+    let input = HM.fromList [("Content-Type", [BEL.R "application", BEL.R "/", BEL.R "json"])]
+    r1 <- renderHeadersMap testEnv (RhsDict input)
+    case HM.lookup (CI.mk "content-type") r1 of
+        Just (Aeson.String v) -> do
+            assertEqual "correct value" "application/json" v
+        Just _ ->  assertFailure "expected String value"
+        Nothing -> assertFailure "Content-Type key missing"
 
 testRenderHeadersMapMultiPart :: TestTree
 testRenderHeadersMapMultiPart = testCase "renderHeadersMap: multiple headers" $ do
