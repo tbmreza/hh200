@@ -18,22 +18,6 @@ import qualified Hh200.Cli as Cli (go, go')
 -- import           Hh200.Cli (mkArgs, source, version, debugConfig, call, rps, shotgun, lsp, lspStdio)
 import           Hh200.Cli
 
--- PICKUP convenient direct ast programming
--- ciw :: CallItem
--- ciw = CallItem
---   { ciDeps = []
---   , ciName = "default"
---   , ciRequestSpec = RequestSpec
---     { rqMethod = "GET"
---     -- , rqUrl = "http://localhost:80"
---     , rqUrl = LexedUrlFull "http://localhost:9999/echo"
---     , rqHeaders = RhsDict HM.empty
---     -- , rqConfigs = RhsDict HM.empty
---     , rqBody = ""
---     }
---   , ciResponseSpec = Nothing
---   }
-
 
 spec :: MVar () -> TestTree
 spec _lock = testGroup "CLI"
@@ -302,8 +286,9 @@ spec _lock = testGroup "CLI"
                               , ciRequestSpec = RequestSpec { rqMethod = "POST"
                                                             , rqSquares = ( Nothing, Nothing, Nothing
                                                                           , Just (RequestSquareMultipart (RhsDict (HM.singleton (Text.pack "dummy") [])))
-                                                                          , Nothing)
-                                                            , rqUrl = LexedUrlFull "http://localhost:9999/echo"
+                                                                          , Nothing
+                                                                          )  -- PICKUP
+                                                            , rqUrl = LexedUrlFull "http://localhost:9999/api/echo"
                                                             , rqHeaders = RhsDict HM.empty
                                                             , rqBody = ""
                                                             }
