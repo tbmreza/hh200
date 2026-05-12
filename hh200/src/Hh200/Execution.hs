@@ -67,6 +67,7 @@ import qualified Network.HTTP.Client as HC ( method
 import qualified Network.HTTP.Client.MultipartFormData as HCMP
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
+import           Network.HTTP.Simple (setRequestBodyFile)
 
 import qualified BEL
 import qualified Hh200.Http as Http
@@ -307,18 +308,22 @@ courseFrom x = do
         case multipartSq of
             Just (RequestSquareMultipart (RhsDict mpFields)) -> do
                 boundary <- HCMP.webkitBoundary
+                -- field2: file,example.txt;
+                -- field3: file,example.zip; application/zip
                 parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
                     rendered <- BEL.render env (Aeson.String "") parts'
                     let bsValue = case rendered of
                             Aeson.String t -> TE.encodeUtf8 t
                             v -> BL.toStrict (Aeson.encode v)
-                    pure $ HCMP.partBS k bsValue
+                    pure $ HCMP.partBS k (trace ("bsValue=" ++ show bsValue ++ "k=" ++ show k) bsValue)
                 mpBody <- HCMP.renderParts boundary parts
                 let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
-                pure $ req { HC.method = BS.pack rqMethod
-                           , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
-                           , HC.requestBody = mpBody
-                           }
+                let req' = req { HC.method = BS.pack rqMethod
+                               , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
+                               , HC.requestBody = mpBody
+                               }
+                -- `setRequestBodyFile` upserts "accept-encoding", "content-length".
+                trace ("inikan" ++ "mpFields=" ++ show mpFields) $ pure $ setRequestBodyFile "/home/tbmreza/gh/hh200/hh200/target-template.xls" req'
             _ -> do
                 let bodyContent = case (renderedForm, rqBody) of
                         ("", "") -> BS.pack rqBody
@@ -346,7 +351,7 @@ courseFrom x = do
         eitherResp <- let reqInfo = case HC.requestBody reqOrThrow of
                                     HC.RequestBodyLBS lbs -> "LBS " ++ show lbs
                                     HC.RequestBodyBS bs -> "BS " ++ show (BS.length bs)
-                                    els -> trace ("reqInfo: els") ""
+                                    els -> trace ("reqInfo: els") ""  -- ??: handle multipart file not found
                         in trace ("built=" ++ reqInfo) $
                            liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci
