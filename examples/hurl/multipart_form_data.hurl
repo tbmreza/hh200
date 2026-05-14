@@ -1,4 +1,4 @@
-# PICKUP laravel upload xls http://localhost:9999/api/xls
+# goal: laravel upload xls http://localhost:9999/api/xls
 
 POST http://localhost:9999/api/xls
 # Content-Type: "application/json"

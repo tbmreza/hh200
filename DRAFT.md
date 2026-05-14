@@ -36,6 +36,7 @@ Some nuggets that are less than mundane when I learned them.
 
 
 # STASH
+-- Unhandled offline HttpExceptionRequest.
 The exit code
 
 0 — all assertions passed (stdout is empty)
