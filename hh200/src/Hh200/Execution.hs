@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
@@ -13,6 +14,7 @@ module Hh200.Execution
   , status200
   , renderHeadersMap
   , renderRequestQuery
+  -- , renderRequestUrl
   , renderRequestForm
   , renderRequestCookies
   , objectSubset
@@ -83,16 +85,17 @@ import           Hh200.Scanner (gatherHostInfo)
 -- experimentalRequestBodyFile :: Int
 experimentalRequestBodyFile = setRequestBody . HI.RequestBodyIO . HC.streamFile
 
--- experimentalRequestBodyFile' :: FilePath -> H.Request -> IO (Either IOException H.Request)
+-- Set request file body, or no-op if something unexpected happened.
+experimentalRequestBodyFile' :: FilePath -> HI.Request -> IO HI.Request
 experimentalRequestBodyFile' path req = do
-  result <- try @IOException $ do
-    handle <- openFile path ReadMode
-    hClose handle  -- just a probe; streamFile will reopen
-  pure $ case result of
-    Left  err -> Left err
-    Right _   -> Right (setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req)
+    result <- try @IOException $ do
+        handle <- openFile path ReadMode
+        hClose handle  -- just a probe; streamFile will reopen
+    pure $ case result of
+        Left err -> req
+        Right _  -> setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req
 
--- PICKUP
+-- ??:
 -- experimentalRequestBodyFile'' :: FilePath -> H.Request -> IO (Either IOException H.Request)
 experimentalRequestBodyFile'' path req = runExceptT $ do
   bytes <- ExceptT $ try @IOException (BS.readFile path)
@@ -203,11 +206,6 @@ asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
 asBS v                = BL.toStrict (Aeson.encode v)
 
--- textOrMt :: Aeson.Value -> Text
--- textOrMt (Aeson.String t) = t
--- textOrMt _ = ""
-
-
 runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
@@ -284,84 +282,42 @@ specAssertionsOrMt ci =
                 (_, Just (ResponseSquareAsserts d)) -> map Text.pack d
                 _ -> []
 
+-- goal in order: multipartSq, rqUrl, test braced interpolation
+buildRequest :: Env -> CallItem -> IO Http.Request
+-- buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
+buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
+                                                        , rqUrl
+                                                        , rqHeaders
+                                                        , rqBody
+                                                        , rqSquares = (configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
+    -- rqUrl, rqHeaders, rqBody interpolatable
 
--- Exceptions:  when running ProcM
--- offline HttpExceptionRequest  -handling->  print
--- http client lib internal error  -handling->  halt (graceful if free)
-courseFrom :: Script -> ProcM CallItem
-courseFrom x = do
-    lift $ Tf.tell [ScriptStart (length $ callItems x)]
-    mgr <- ask
-    go mgr (callItems x)
+    -- reqHeaders <-     renderRequestHeaders env rqHeaders
+    reqHeaders <-     renderRhsDict env rqHeaders
+    cookiesHeaders <- renderRequestCookies env cookiesSq
+    renderedQuery <-  renderRequestQuery env querySq
+    baseUrl <-        renderRequestUrl renderedQuery
 
-    where  -- goal in order: multipartSq, rqUrl, test braced interpolation
-    buildRequest :: Env -> CallItem -> IO Http.Request
-    buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
-        -- rqUrl, rqHeaders, rqBody interpolatable
-        let (configsSq, querySq, formSq, multipartSq, cookiesSq) = rqSquares
+    req <- HC.parseRequest baseUrl
 
-        -- reqHeaders <-     renderRequestHeaders env rqHeaders
-        reqHeaders <-     renderRhsDict env rqHeaders
-        cookiesHeaders <- renderRequestCookies env cookiesSq
-        let allHeaders = reqHeaders ++ cookiesHeaders
+    let allHeaders = reqHeaders ++ cookiesHeaders
 
-        -- Assumption: File reading is only needed for multipart so it acts as
-        -- req struct finalizer.
-        renderMultipart env undefined undefined undefined multipartSq "" rqBody
+    -- Assumption: File reading is only needed for multipart so it acts as
+    -- req struct finalizer.
+    renderMultipart req allHeaders ""
 
-    buildRequest' :: Env -> CallItem -> IO Http.Request
-    buildRequest' env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
-        let (configsSq, querySq, formSq, multipartSq, cookiesSq) = rqSquares
-
-        renderedConfigs <- renderRequestConfigs env configsSq
-        renderedQuery <-   renderRequestQuery env querySq
-        renderedForm <-    renderRequestForm env formSq
-        renderedCookies <- renderRequestCookies env cookiesSq
-
-        baseUrl <- case rqUrl of
-            LexedUrlFull s -> pure $ case renderedQuery of
-                "" -> s
-                qs -> s ++ "?" ++ qs
-            LexedUrlSegments urlParts -> do
-                renderedUrlParts <- forM urlParts $ \part -> do
-                    rendered <- BEL.render env (Aeson.String "") [part]
-                    case rendered of
-                        Aeson.String t -> pure $ Text.unpack t
-                        v -> pure $ BS.unpack (BL.toStrict (Aeson.encode v))
-                let fullUrl = intercalate "/" renderedUrlParts
-                pure $ case renderedQuery of
-                    "" -> fullUrl
-                    qs -> fullUrl ++ "?" ++ qs
-
-        req <- HC.parseRequest baseUrl
-        renderedReqHeaders <- renderRequestHeaders env rqHeaders
-        let allHeaders = renderedReqHeaders ++ renderedCookies
-        finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody
-
-    renderMultipart :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    renderMultipart env req rqMethod allHeaders multipartSq renderedForm rqBody =
+    where
+    -- renderMultipart :: Env -> Http.Request -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
+    renderMultipart :: Http.Request -> [(HeaderName, BS.ByteString)] -> String -> IO Http.Request
+    renderMultipart req allHeaders renderedForm =
         case multipartSq of
-            -- Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-            --     boundary <- HCMP.webkitBoundary
-            --
-            --     parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
-            --         rendered <- BEL.render env (Aeson.String "") parts'
-            --         let bsValue = case rendered of
-            --                 Aeson.String t -> TE.encodeUtf8 t
-            --                 v -> BL.toStrict (Aeson.encode v)
-            --         pure $ HCMP.partBS k (trace ("bsValue=" ++ show bsValue ++ "k=" ++ show k) bsValue)
-            --     mpBody <- HCMP.renderParts boundary parts
-            --     let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
-            --     let req' = req { HC.method = BS.pack rqMethod
-            --                    , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
-            --                    , HC.requestBody = mpBody
-            --                    }
-            --     -- `setRequestBodyFile` upserts "accept-encoding", "content-length".
-            --     let fullPath = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
-            --
-            --     pure $ experimentalRequestBodyFile fullPath req'
+            Just sq -> do
+                -- case multipartFilepathAt sq of
+                --     Just f -> undefined
+                --     _ -> undefined
 
-            _ -> do
+                -- multipartFilepathAt sq
+                req' <- experimentalRequestBodyFile' "" req
                 let bodyContent = case (renderedForm, rqBody) of
                         ("", "") -> BS.pack rqBody
                         ("", _) -> BS.pack rqBody
@@ -373,6 +329,73 @@ courseFrom x = do
                            , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
                            , HC.requestBody = HC.RequestBodyLBS encoded
                            }
+
+    -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
+    renderRequestUrl :: String -> IO String
+    renderRequestUrl renderedQuery = case rqUrl of
+        LexedUrlFull s -> pure $ case renderedQuery of
+            "" -> s
+            qs -> s ++ "?" ++ qs
+        LexedUrlSegments urlParts -> do
+            renderedUrlParts <- forM urlParts $ \part -> do
+                rendered <- BEL.render env (Aeson.String "") [part]
+                pure $ case rendered of
+                    Aeson.String t -> Text.unpack t
+                    v -> BS.unpack (BL.toStrict (Aeson.encode v))
+            let fullUrl = intercalate "/" renderedUrlParts
+            pure $ case renderedQuery of
+                "" -> fullUrl
+                qs -> fullUrl ++ "?" ++ qs
+
+-- Exceptions:  when running ProcM
+-- offline HttpExceptionRequest  -handling->  print
+-- http client lib internal error  -handling->  halt (graceful if free)
+courseFrom :: Script -> ProcM CallItem
+courseFrom x = do
+    lift $ Tf.tell [ScriptStart (length $ callItems x)]
+    mgr <- ask
+    go mgr (callItems x)
+    -- go (callItems x)
+
+    where  -- goal in order: multipartSq, rqUrl, test braced interpolation
+    buildRequest' :: Env -> CallItem -> IO Http.Request
+    buildRequest' env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
+        -- let (configsSq, querySq, formSq, multipartSq, cookiesSq) = rqSquares
+        --
+        -- renderedConfigs <- renderRequestConfigs env configsSq
+        -- renderedQuery <-   renderRequestQuery env querySq
+        -- renderedForm <-    renderRequestForm env formSq
+        -- renderedCookies <- renderRequestCookies env cookiesSq
+        -- baseUrl <-         renderRequestUrl env rqUrl renderedQuery
+        --
+        -- req <- HC.parseRequest baseUrl
+        -- renderedReqHeaders <- renderRequestHeaders env rqHeaders
+        -- let allHeaders = renderedReqHeaders ++ renderedCookies
+        -- finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody
+        undefined
+
+    -- renderMultipart :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
+    -- renderMultipart env req rqMethod allHeaders multipartSq renderedForm rqBody =
+    --     case multipartSq of
+    --         -- Just (RequestSquareMultipart (RhsDict mpFields)) -> do
+    --         --     boundary <- HCMP.webkitBoundary
+    --         --
+    --         --     parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
+    --         --         rendered <- BEL.render env (Aeson.String "") parts'
+    --         --         let bsValue = case rendered of
+    --         --                 Aeson.String t -> TE.encodeUtf8 t
+    --         --                 v -> BL.toStrict (Aeson.encode v)
+    --         --         pure $ HCMP.partBS k (trace ("bsValue=" ++ show bsValue ++ "k=" ++ show k) bsValue)
+    --         --     mpBody <- HCMP.renderParts boundary parts
+    --         --     let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
+    --         --     let req' = req { HC.method = BS.pack rqMethod
+    --         --                    , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
+    --         --                    , HC.requestBody = mpBody
+    --         --                    }
+    --         --     -- `setRequestBodyFile` upserts "accept-encoding", "content-length".
+    --         --     let fullPath = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
+    --         --
+    --         --     pure $ experimentalRequestBodyFile fullPath req'
 
     finalizeRequest :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
     finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
@@ -413,9 +436,11 @@ courseFrom x = do
                            , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
                            }
 
-    go :: Http.Manager -> [CallItem] -> ProcM CallItem
+    -- go :: Http.Manager -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
     go mgr (ci:rest) = do
+    -- go [] = mzero
+    -- go (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
 
         env <- get
@@ -447,6 +472,7 @@ courseFrom x = do
                     pure ci
                 else
                     go mgr rest
+                    -- go rest
 
     -- Status code assertion first, then all other checks (headers, body, and
     -- expressions about the response).
@@ -602,6 +628,22 @@ renderRequestForm env' (Just (RequestSquareForm (RhsDict formFields))) = do
                 v -> BL.toStrict (Aeson.encode v)
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     pure $ intercalate "&" pairs
+
+-- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
+-- renderRequestUrl env rqUrl renderedQuery = case rqUrl of
+--     LexedUrlFull s -> pure $ case renderedQuery of
+--         "" -> s
+--         qs -> s ++ "?" ++ qs
+--     LexedUrlSegments urlParts -> do
+--         renderedUrlParts <- forM urlParts $ \part -> do
+--             rendered <- BEL.render env (Aeson.String "") [part]
+--             pure $ case rendered of
+--                 Aeson.String t -> Text.unpack t
+--                 v -> BS.unpack (BL.toStrict (Aeson.encode v))
+--         let fullUrl = intercalate "/" renderedUrlParts
+--         pure $ case renderedQuery of
+--             "" -> fullUrl
+--             qs -> fullUrl ++ "?" ++ qs
 
 renderRequestCookies :: BEL.Env -> Maybe RequestSquare -> IO [(HeaderName, BS.ByteString)]
 renderRequestCookies _ Nothing = pure []

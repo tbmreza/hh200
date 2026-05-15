@@ -43,6 +43,7 @@ module Hh200.Types
     , ResponseSquare (..), rpSquaresNothing
     , RequestSquare (..), rqSquaresNothing
     , mkScript, mkCallItem
+    , multipartFilepathAt
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -176,6 +177,10 @@ data RequestSquare =
   | RequestSquareCookies RhsDict
     deriving (Show)
 
+multipartFilepathAt :: RequestSquare -> Text -> Maybe FilePath
+multipartFilepathAt (RequestSquareMultipart _) t = Just ""
+-- multipartFilepathAt _ = Nothing
+
 data ResponseSquare =
     ResponseSquareAsserts [String]
   | ResponseSquareCaptures RhsDict
@@ -207,7 +212,6 @@ data ResponseSpec = ResponseSpec
   , rpResponseHeaders :: RhsDict
   , rpBody :: String
   }
-  -- deriving (Show, Eq)
   deriving (Show)
 
 -- Host computer info: /etc/resolv.conf, execution time,
