@@ -81,6 +81,13 @@ newtype Snippet = Snippet L8.ByteString
 -- Cookie is a native concept in BEL.
 newtype RhsDict = RhsDict (HM.HashMap Text [BEL.Part])
     deriving (Show, Eq)
+-- RhsDict -> RhsDictExpanded
+-- expand (RhsDict (HM.HashMap Text [all BEL.R])) 
+-- data Part =
+--     L NeedsEval
+--   | R Text
+--   deriving (Show, Eq)
+
 
 mtRhsDict = RhsDict HM.empty
 
@@ -176,6 +183,13 @@ data RequestSquare =
   | RequestSquareMultipart RhsDict
   | RequestSquareCookies RhsDict
     deriving (Show)
+
+-- foldMultipathRhsDict :: RequestSquare -> 
+--
+-- foldMultipathRhsDict (RequestSquareMultipart rdict) = 
+-- -- file path might appear on right hand side
+--
+-- foldMultipathRhsDict _ = error "partial foldMultipathRhsDict fn"
 
 multipartFilepathAt :: RequestSquare -> Text -> Maybe FilePath
 multipartFilepathAt (RequestSquareMultipart _) t = Just ""

@@ -3,9 +3,12 @@
 
 module ExecutionSpec (spec) where
 
-import Test.Tasty
-import Test.Tasty.HUnit
-
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           System.IO (hPutStrLn, openTempFile, hClose)
+import           System.Directory (removeFile)
+import qualified Network.HTTP.Client as HC
+import qualified Network.HTTP.Client.Internal as HI
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as Text
 import qualified Data.CaseInsensitive as CI
@@ -19,7 +22,7 @@ import           Network.HTTP.Types.Header (ResponseHeaders)
 import qualified BEL
 import           Hh200.Execution
 import           Hh200.Types (RhsDict (..), RequestSquare(..))
-import           Hh200.Execution (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies)
+import           Hh200.Execution (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies, experimentalRequestBodyFile')
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -57,6 +60,9 @@ spec = testGroup "Execution"
   , testRenderRequestCookiesEmpty
   , testRenderRequestCookiesSingle
   , testRenderRequestCookiesMultiple
+  , testExperimentalRequestBodyFileExists
+  , testExperimentalRequestBodyFileNotFound
+  , testExperimentalRequestBodyFileEmptyPath
   ]
 
 testIsSubmapOfBy :: TestTree
@@ -237,3 +243,33 @@ testRenderRequestCookiesMultiple = testCase "renderRequestCookies: multiple cook
             ]
     result <- renderRequestCookies testEnv (Just (RequestSquareCookies input))
     assertBool "has cookie header" (case result of [("Cookie", v)] -> ("sid=xyz" `isInfixOf` BS.unpack v) && ("uid=42" `isInfixOf` BS.unpack v); _ -> False)
+
+-- (auto)
+testExperimentalRequestBodyFileExists :: TestTree
+testExperimentalRequestBodyFileExists = testCase "experimentalRequestBodyFile': file exists" $ do
+    (path, h) <- openTempFile "." "test-body"
+    hPutStrLn h "test content"
+    hClose h
+    req <- HC.parseRequest "http://localhost/"
+    req' <- experimentalRequestBodyFile' path req
+    removeFile path
+    case HC.requestBody req' of
+        HI.RequestBodyIO _ -> assertBool "body is RequestBodyIO" True
+        _ -> assertFailure "expected RequestBodyIO"
+
+testExperimentalRequestBodyFileNotFound :: TestTree
+testExperimentalRequestBodyFileNotFound = testCase "experimentalRequestBodyFile': file not found" $ do
+    let nonexistent = "/nonexistent/path/to/file/that/does/not/exist.txt"
+    req <- HC.parseRequest "http://localhost/"
+    req' <- experimentalRequestBodyFile' nonexistent req
+    case HC.requestBody req' of
+        HI.RequestBodyIO _ -> assertFailure "body should not be RequestBodyIO for nonexistent file"
+        _ -> assertBool "body unchanged for nonexistent file" True
+
+testExperimentalRequestBodyFileEmptyPath :: TestTree
+testExperimentalRequestBodyFileEmptyPath = testCase "experimentalRequestBodyFile': empty path" $ do
+    req <- HC.parseRequest "http://localhost/"
+    req' <- experimentalRequestBodyFile' "" req
+    case HC.requestBody req' of
+        HI.RequestBodyIO _ -> assertFailure "body should not be RequestBodyIO for empty path"
+        _ -> assertBool "body unchanged for empty path" True

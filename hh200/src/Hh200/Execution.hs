@@ -21,6 +21,7 @@ module Hh200.Execution
   , jsonSubset
   , SubsetResult(..)
   , Side(..)
+  , experimentalRequestBodyFile'
   ) where
 
 import Debug.Trace
@@ -40,6 +41,7 @@ import           Control.Monad (foldM, forM, mzero, forever, void)
 import           Control.Monad (forM_, replicateM, replicateM_, when)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
+import           Data.Traversable (for)
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TEE
@@ -282,34 +284,74 @@ specAssertionsOrMt ci =
                 (_, Just (ResponseSquareAsserts d)) -> map Text.pack d
                 _ -> []
 
+isHhFilePrefix :: Text -> Bool
+isHhFilePrefix _ = False
+
 -- goal in order: multipartSq, rqUrl, test braced interpolation
 buildRequest :: Env -> CallItem -> IO Http.Request
--- buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
 buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
-                                                        , rqHeaders
+                                                        , rqHeaders = RhsDict dHeaders
                                                         , rqBody
                                                         , rqSquares = (configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
     -- rqUrl, rqHeaders, rqBody interpolatable
 
-    -- reqHeaders <-     renderRequestHeaders env rqHeaders
-    reqHeaders <-     renderRhsDict env rqHeaders
-    cookiesHeaders <- renderRequestCookies env cookiesSq
-    renderedQuery <-  renderRequestQuery env querySq
-    baseUrl <-        renderRequestUrl renderedQuery
+    eHeaders <- renderRqHeaders
+    -- cookiesHeaders <- renderRequestCookies env cookiesSq
+    -- renderedQuery <-  renderRequestQuery env querySq
+    eUrl <- renderRqUrl
 
-    req <- HC.parseRequest baseUrl
+    -- req <- HC.parseRequest eUrl
+    -- req :: HI.Request <- HC.parseRequest ""
+    req :: HI.Request <- HC.parseRequest eUrl
 
-    let allHeaders = reqHeaders ++ cookiesHeaders
+    -- let allHeaders = eHeaders ++ cookiesHeaders
+    let allHeaders = eHeaders
+
+    -- renderMultipartb req allHeaders ""
+
+    handleMultipartElems req
+
+    where
+    -- fin :: Http.Request -> IO Http.Request
+    -- fin req = do
+    --     let cpy = env
+    --     pure req
+
+    renderRqUrl :: IO String
+    renderRqUrl = do
+        let a = (rqUrl, env)
+        pure "http://localhost:9999/api/xls"
+
+    renderRqHeaders :: IO [(HeaderName, BS.ByteString)]
+    renderRqHeaders = for (HM.toList dHeaders)
+        (\ (k, v :: [BEL.Part]) -> do
+            e <- renderOrEmpty env v
+            pure (asHeaderName k, TE.encodeUtf8 e))
+
+    -- Handle functions are for specs that warrant direct fallible struct modifications.
+    -- Handle functions are for specs with logical dependencies.
+    -- Handle functions are for specs with logical dependencies and warrant direct fallible struct modifications.
+
+    handleMultipartElems :: HI.Request -> IO HI.Request
+    handleMultipartElems req = do
+    -- PICKUP handle non file multipart
+    -- postman non file kv echo
+        case multipartSq of
+            Just (RequestSquareMultipart (RhsDict d)) -> do
+                -- eMultipart <- for (HM.toList d)
+                --     (\ (k, v :: [BEL.Part]) -> do
+                --         e <- renderOrEmpty env v
+                --         -- isHhFilePrefix e
+                --         trace ("renderOrEmpty:" ++ show e) 9)
+                pure req
+            _ -> pure req
 
     -- Assumption: File reading is only needed for multipart so it acts as
     -- req struct finalizer.
-    renderMultipart req allHeaders ""
-
-    where
-    -- renderMultipart :: Env -> Http.Request -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    renderMultipart :: Http.Request -> [(HeaderName, BS.ByteString)] -> String -> IO Http.Request
-    renderMultipart req allHeaders renderedForm =
+    -- renderMultipartb :: Env -> Http.Request -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
+    renderMultipartb :: Http.Request -> [(HeaderName, BS.ByteString)] -> String -> IO Http.Request
+    renderMultipartb req allHeaders renderedForm =
         case multipartSq of
             Just sq -> do
                 -- case multipartFilepathAt sq of
@@ -355,25 +397,8 @@ courseFrom x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
     mgr <- ask
     go mgr (callItems x)
-    -- go (callItems x)
 
     where  -- goal in order: multipartSq, rqUrl, test braced interpolation
-    buildRequest' :: Env -> CallItem -> IO Http.Request
-    buildRequest' env CallItem { ciRequestSpec = RequestSpec { rqMethod, rqUrl, rqHeaders, rqBody, rqSquares } } = do
-        -- let (configsSq, querySq, formSq, multipartSq, cookiesSq) = rqSquares
-        --
-        -- renderedConfigs <- renderRequestConfigs env configsSq
-        -- renderedQuery <-   renderRequestQuery env querySq
-        -- renderedForm <-    renderRequestForm env formSq
-        -- renderedCookies <- renderRequestCookies env cookiesSq
-        -- baseUrl <-         renderRequestUrl env rqUrl renderedQuery
-        --
-        -- req <- HC.parseRequest baseUrl
-        -- renderedReqHeaders <- renderRequestHeaders env rqHeaders
-        -- let allHeaders = renderedReqHeaders ++ renderedCookies
-        -- finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody
-        undefined
-
     -- renderMultipart :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
     -- renderMultipart env req rqMethod allHeaders multipartSq renderedForm rqBody =
     --     case multipartSq of
@@ -554,15 +579,17 @@ courseFrom x = do
 failWith :: String -> IO Bool
 failWith msg = hPutStrLn stderr msg >> pure False
 
---------------------------------------------------------------------------------
--- hh200 modes
---------------------------------------------------------------------------------
 
 triggerEmergencyShutdown :: TVar Bool -> IO ()
 triggerEmergencyShutdown flag = do
     putStrLn "🚨 EMERGENCY SHUTDOWN TRIGGERED"
     atomically $ writeTVar flag True
 
+asHeaderName :: Text -> HeaderName
+asHeaderName t = CaseInsensitive.mk (TE.encodeUtf8 t)
+
+-- collectHeaders
+-- collectMultipart
 -- renderRhsDict :: BEL.Env -> RhsDict -> IO [(BS.ByteString, BS.ByteString)]
 renderRhsDict :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
 renderRhsDict env (RhsDict dict) = do
@@ -578,19 +605,26 @@ renderRhsDict env (RhsDict dict) = do
             Aeson.String s -> TE.encodeUtf8 s
             _ -> TE.encodeUtf8 (Text.pack $ show val)
 
--- | Render expected headers.
-renderRequestHeaders :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
-renderRequestHeaders env (RhsDict reqHeaders) =
-    foldM (\ acc (k, parts) -> do
-               rendered <- BEL.render env (Aeson.String "") parts
-               -- ??: pattern matching might not be necessary if BEL.render Aeson output is stable
-               let bsValue = case rendered of
-                      Aeson.String t -> TE.encodeUtf8 t
-                      v -> BL.toStrict (Aeson.encode v)
-               let ciKey = CaseInsensitive.mk (TE.encodeUtf8 k)
-               pure ((ciKey, bsValue) : acc) )
-          []
-          (HM.toList reqHeaders)
+-- ??: BEL repurpose an Aeson value to encode "filepath to read"
+-- renderOrMt :: BEL.Env -> Text -> [BEL.Part] -> IO Text
+-- renderOrMt env _k parts = do
+--     av <- BEL.render env (Aeson.String "") parts
+--     pure $ case av of
+--         Aeson.String s -> s
+--         _ -> error "shouldn't have happened"
+
+renderOrEmpty :: BEL.Env -> [BEL.Part] -> IO Text
+renderOrEmpty env parts = do
+    av <- BEL.render env (Aeson.String "") parts
+    pure $ case av of
+        Aeson.String s -> s
+        _ -> error "shouldn't have happened"
+
+-- renderMultipart :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
+renderMultipart env multipart@(RhsDict dict) = do
+    -- dict' <- HM.traverseWithKey (renderOrMt env) dict
+    undefined
+
 
 -- | Render expected response headers.
 renderHeadersMap :: BEL.Env -> RhsDict
@@ -612,6 +646,7 @@ renderRequestQuery _ Nothing = pure ""
 renderRequestQuery env' (Just (RequestSquareQuery (RhsDict qp))) = do
     pairs <- forM (HM.toList qp) $ \ (k, parts) -> do
         rendered <- BEL.render env' (Aeson.String "") parts
+        -- ??: pattern matching might not be necessary if BEL.render Aeson output is stable
         let bsValue = case rendered of
                 Aeson.String t -> TE.encodeUtf8 t
                 v -> BL.toStrict (Aeson.encode v)

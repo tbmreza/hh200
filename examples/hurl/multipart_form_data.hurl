@@ -3,8 +3,9 @@
 POST http://localhost:9999/api/xls
 # Content-Type: "application/json"
 [MultipartFormData]
+kk: 144
 # file: "path/to/value"
-file: file,examble.xls;
+# file: file,examble.xls;
 # {
 #     "email": "test@example.com",
 #     "password": "password"

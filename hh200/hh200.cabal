@@ -127,6 +127,7 @@ test-suite hh200-test
     , directory
     , filepath
     , hh200
+    , http-client
     , http-types
     , lsp-test
     , optparse-applicative
