@@ -120,11 +120,13 @@ data HhRequestBody =
   | RBMultipart   [BodyPart]          -- new
   | RBRaw         BS.ByteString Text  -- raw body + content-type
 
+bodyPartToPart :: BodyPart -> HCMP.Part
+bodyPartToPart (BodyPartFile field fp) = partFileSource field fp
+bodyPartToPart (BodyPartText field val) = HCMP.partBS field (TE.encodeUtf8 val)
+
 applyBody :: HhRequestBody -> HI.Request -> IO HI.Request
-applyBody (RBMultipart parts) req = do
-    let mkPart (BodyPartFile field fp) = partFileSource (field) fp
-    let mkPart (BodyPartText field val) = HCMP.partBS (field) (TE.encodeUtf8 val)
-    formDataBody (map mkPart parts) req
+applyBody (RBMultipart parts) req =
+    formDataBody (map bodyPartToPart parts) req
 
 applyBody (RBJson v) req =
     pure $ setRequestBodyJSON v req
