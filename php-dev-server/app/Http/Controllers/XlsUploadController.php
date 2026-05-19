@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\XlsFile;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
@@ -67,12 +68,21 @@ class XlsUploadController extends Controller
 
         if ($request->file('file')->isValid()) {
             $path = $request->file('file')->store('uploads');
+            $file = $request->file('file');
+
+            // Create database record
+            $xlsFile = XlsFile::create([
+                'filename' => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+                'original_name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'size' => $file->getSize(),
+            ]);
 
             return response()->json([
                 'message' => 'File uploaded successfully',
-                'path' => $path,
-                'name' => $request->file('file')->getClientOriginalName(),
-                'size' => $request->file('file')->getSize(),
+                'id' => $xlsFile->id,
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
             ]);
         }
 
@@ -84,25 +94,26 @@ class XlsUploadController extends Controller
      */
     public function index()
     {
-        $files = Storage::disk('local')->files('uploads');
+        $files = XlsFile::all(['id', 'original_name', 'size', 'created_at']);
 
         return response()->json($files);
     }
 
     /**
-     * Download a file by its ID (path).
+     * Download a file by its ID.
      */
     public function download($id)
     {
-        // Validate that the ID starts with 'uploads/' to prevent directory traversal
-        if (!Str::startsWith($id, 'uploads/')) {
-            return response()->json(['error' => 'Invalid file ID'], 400);
+        $xlsFile = XlsFile::find($id);
+
+        if (!$xlsFile) {
+            return response()->json(['error' => 'File not found'], 404);
         }
 
-        if (Storage::disk('local')->exists($id)) {
-            return Storage::disk('local')->download($id);
+        if (Storage::disk('local')->exists($xlsFile->path)) {
+            return Storage::disk('local')->download($xlsFile->path, $xlsFile->original_name);
         }
 
-        return response()->json(['error' => 'File not found'], 404);
+        return response()->json(['error' => 'File not found on disk'], 404);
     }
 }
