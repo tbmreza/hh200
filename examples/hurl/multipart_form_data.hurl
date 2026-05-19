@@ -1,9 +1,9 @@
 # goal: laravel upload xls http://localhost:9999/api/xls
 
 POST http://localhost:9999/api/xls
-# Content-Type: "application/json"
+Content-Type: "application/json"
 [MultipartFormData]
-kk: 144
+file: 144
 # file: "path/to/value"
 # file: file,examble.xls;
 # {

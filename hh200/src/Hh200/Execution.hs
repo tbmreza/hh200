@@ -73,9 +73,10 @@ import qualified Network.HTTP.Client as HC ( method
                                            , streamFile
                                            )
 import qualified Network.HTTP.Client.MultipartFormData as HCMP
+import           Network.HTTP.Client.MultipartFormData (partFileSource, formDataBody)
 import           Network.HTTP.Types.Status
 import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
-import           Network.HTTP.Simple (setRequestBodyFile, setRequestBody)
+import           Network.HTTP.Simple (setRequestBodyFile, setRequestBody, setRequestBodyJSON)
 import qualified Network.HTTP.Client.Internal as HI
 
 import qualified BEL
@@ -92,12 +93,43 @@ experimentalRequestBodyFile' :: FilePath -> HI.Request -> IO HI.Request
 experimentalRequestBodyFile' path req = do
     result <- try @IOException $ do
         handle <- openFile path ReadMode
-        hClose handle  -- just a probe; streamFile will reopen
+        hClose handle  -- (auto) just a probe; streamFile will reopen
     pure $ case result of
         Left err -> req
         Right _  -> setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req
 
--- ??:
+-- (auto)
+requestBodyMultipart :: [(Text, FilePath)] -> HI.Request -> IO HI.Request
+requestBodyMultipart fileParts req = do
+    -- let parts = [ partFileSource (TE.encodeUtf8 fieldName) fp
+    let parts = [ partFileSource (undefined) fp
+                | (fieldName, fp) <- fileParts ]
+    formDataBody parts req
+    -- formDataBody sets Content-Type: multipart/form-data; boundary=...
+    -- and Content-Length automatically
+
+data BodyPart
+    = BodyPartFile  { bpField :: Text, bpPath :: FilePath }
+    | BodyPartText  { bpField :: Text, bpValue :: Text    }
+
+type HhValue = Int
+data HhRequestBody =
+    RBJson        HhValue
+  | RBFormUrl     [(Text, Text)]
+  | RBMultipart   [BodyPart]          -- new
+  | RBRaw         BS.ByteString Text  -- raw body + content-type
+
+applyBody :: HhRequestBody -> HI.Request -> IO HI.Request
+-- applyBody (RBMultipart parts) req = do
+--     let mkPart (BodyPartFile field fp) = partFileSource (TE.encodeUtf8 field) fp
+--         mkPart (BodyPartText field val) =
+--             HCMP.partBS (TE.encodeUtf8 field) (TE.encodeUtf8 val)
+--     formDataBody (map mkPart parts) req
+applyBody (RBJson v) req =
+    pure $ setRequestBodyJSON v req
+applyBody _ _ = undefined
+
+
 -- experimentalRequestBodyFile'' :: FilePath -> H.Request -> IO (Either IOException H.Request)
 experimentalRequestBodyFile'' path req = runExceptT $ do
   bytes <- ExceptT $ try @IOException (BS.readFile path)
@@ -320,8 +352,23 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     renderRqUrl :: IO String
     renderRqUrl = do
-        let a = (rqUrl, env)
-        pure "http://localhost:9999/api/xls"
+        renderedQuery <- renderRequestQuery env querySq
+        renderRequestUrlHelper rqUrl renderedQuery
+
+    renderRequestUrlHelper :: LexedUrl -> String -> IO String
+    renderRequestUrlHelper (LexedUrlFull s) renderedQuery = pure $ case renderedQuery of
+        "" -> s
+        qs -> s ++ "?" ++ qs
+    renderRequestUrlHelper (LexedUrlSegments urlParts) renderedQuery = do
+        renderedUrlParts <- forM urlParts $ \part -> do
+            rendered <- BEL.render env (Aeson.String "") [part]
+            pure $ case rendered of
+                Aeson.String t -> Text.unpack t
+                v -> BS.unpack (BL.toStrict (Aeson.encode v))
+        let fullUrl = intercalate "/" renderedUrlParts
+        pure $ case renderedQuery of
+            "" -> fullUrl
+            qs -> fullUrl ++ "?" ++ qs
 
     renderRqHeaders :: IO [(HeaderName, BS.ByteString)]
     renderRqHeaders = for (HM.toList dHeaders)
@@ -335,17 +382,44 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     handleMultipartElems :: HI.Request -> IO HI.Request
     handleMultipartElems req = do
-    -- PICKUP handle non file multipart
-    -- postman non file kv echo
+    -- PICKUP
+    -- ??: amalgamate [FilePath] for multiple files
         case multipartSq of
-            Just (RequestSquareMultipart (RhsDict d)) -> do
+            Just (RequestSquareMultipart m@(RhsDict d)) -> do
+                -- eMultipart <- hmeRender m
+                -- let eMultipart = 
+                --
+                -- 1. { "file": filepath }
+
                 -- eMultipart <- for (HM.toList d)
                 --     (\ (k, v :: [BEL.Part]) -> do
                 --         e <- renderOrEmpty env v
                 --         -- isHhFilePrefix e
                 --         trace ("renderOrEmpty:" ++ show e) 9)
-                pure req
+                let filepathV = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
+                req' <- experimentalRequestBodyFile' filepathV req
+
+                let contentType = "multipart/form-data; boundary=--------------------------414973037462257374369442"
+                -- let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+                let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : []
+                pure $ req' { HC.method = BS.pack rqMethod
+                            , HC.requestHeaders = zz
+                            -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType)
+                            -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+                            }
+                -- 2. { "kkk": 14 }
             _ -> pure req
+
+    -- hme ::
+
+    -- hmeRender :: RhsDict -> IO (Text, String)
+    hmeRender (RhsDict dMultipart) = for (HM.toList dMultipart)
+        (\ (k, v :: [BEL.Part]) -> do
+            -- e <- renderOrEmpty env v
+            -- pure undefined)
+            -- pure (k, "strin"))
+            pure (undefined, undefined))
+
 
     -- Assumption: File reading is only needed for multipart so it acts as
     -- req struct finalizer.
@@ -367,6 +441,7 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                         (f, _) -> BS.pack f
                     contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"  -- ??:
                     encoded = BL.fromStrict bodyContent
+                let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
                 pure $ req { HC.method = BS.pack rqMethod
                            , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
                            , HC.requestBody = HC.RequestBodyLBS encoded
