@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class XlsUploadController extends Controller
 {
@@ -76,5 +77,32 @@ class XlsUploadController extends Controller
         }
 
         return response()->json(['error' => 'Invalid file upload'], 400);
+    }
+
+    /**
+     * List all uploaded files.
+     */
+    public function index()
+    {
+        $files = Storage::disk('local')->files('uploads');
+
+        return response()->json($files);
+    }
+
+    /**
+     * Download a file by its ID (path).
+     */
+    public function download($id)
+    {
+        // Validate that the ID starts with 'uploads/' to prevent directory traversal
+        if (!Str::startsWith($id, 'uploads/')) {
+            return response()->json(['error' => 'Invalid file ID'], 400);
+        }
+
+        if (Storage::disk('local')->exists($id)) {
+            return Storage::disk('local')->download($id);
+        }
+
+        return response()->json(['error' => 'File not found'], 404);
     }
 }

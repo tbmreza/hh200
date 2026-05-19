@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 Route::any('/echo', EchoController::class);
 Route::post('/xls', XlsUploadController::class);
+Route::get('/xls', [XlsUploadController::class, 'index']);
+Route::get('/xls/{id}', [XlsUploadController::class, 'download']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();
