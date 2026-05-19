@@ -102,15 +102,16 @@ experimentalRequestBodyFile' path req = do
 requestBodyMultipart :: [(Text, FilePath)] -> HI.Request -> IO HI.Request
 requestBodyMultipart fileParts req = do
     -- let parts = [ partFileSource (TE.encodeUtf8 fieldName) fp
-    let parts = [ partFileSource (undefined) fp
+    let parts = [ partFileSource fieldName fp
                 | (fieldName, fp) <- fileParts ]
     formDataBody parts req
     -- formDataBody sets Content-Type: multipart/form-data; boundary=...
     -- and Content-Length automatically
 
-data BodyPart
-    = BodyPartFile  { bpField :: Text, bpPath :: FilePath }
-    | BodyPartText  { bpField :: Text, bpValue :: Text    }
+data BodyPart =
+    BodyPartFile { bpField :: Text, bpPath :: FilePath }
+  | BodyPartText  { bpField :: Text, bpValue :: Text    }
+    deriving (Show)
 
 type HhValue = Int
 data HhRequestBody =
@@ -120,11 +121,11 @@ data HhRequestBody =
   | RBRaw         BS.ByteString Text  -- raw body + content-type
 
 applyBody :: HhRequestBody -> HI.Request -> IO HI.Request
--- applyBody (RBMultipart parts) req = do
---     let mkPart (BodyPartFile field fp) = partFileSource (TE.encodeUtf8 field) fp
---         mkPart (BodyPartText field val) =
---             HCMP.partBS (TE.encodeUtf8 field) (TE.encodeUtf8 val)
---     formDataBody (map mkPart parts) req
+applyBody (RBMultipart parts) req = do
+    let mkPart (BodyPartFile field fp) = partFileSource (field) fp
+    let mkPart (BodyPartText field val) = HCMP.partBS (field) (TE.encodeUtf8 val)
+    formDataBody (map mkPart parts) req
+
 applyBody (RBJson v) req =
     pure $ setRequestBodyJSON v req
 applyBody _ _ = undefined
@@ -382,7 +383,7 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     handleMultipartElems :: HI.Request -> IO HI.Request
     handleMultipartElems req = do
-    -- PICKUP
+    -- PICKUP try idea of auto
     -- ??: amalgamate [FilePath] for multiple files
         case multipartSq of
             Just (RequestSquareMultipart m@(RhsDict d)) -> do
@@ -397,16 +398,24 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                 --         -- isHhFilePrefix e
                 --         trace ("renderOrEmpty:" ++ show e) 9)
                 let filepathV = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
-                req' <- experimentalRequestBodyFile' filepathV req
+                -- req' <- experimentalRequestBodyFile' filepathV req
+                req' <- requestBodyMultipart [] req
+                let bod :: BodyPart = BodyPartFile { bpField = "file", bpPath = filepathV }
+                let eMultipart :: HhRequestBody = RBMultipart [bod]
+                got <- applyBody eMultipart req
+                pure $ got { HC.method = BS.pack rqMethod
+                           -- , 
+                           }
 
-                let contentType = "multipart/form-data; boundary=--------------------------414973037462257374369442"
-                -- let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : []
-                pure $ req' { HC.method = BS.pack rqMethod
-                            , HC.requestHeaders = zz
-                            -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType)
-                            -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                            }
+                -- let contentType = "multipart/form-data; boundary=--------------------------414973037462257374369442"
+                -- -- let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+                -- let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : []
+                -- pure $ req' { HC.method = BS.pack rqMethod
+                --             , HC.requestHeaders = zz
+                --             -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType)
+                --             -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+                --             }
+
                 -- 2. { "kkk": 14 }
             _ -> pure req
 
@@ -783,6 +792,6 @@ foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
     where
     step !acc (k, v) = f acc k v
 
-traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
-traverseKV hm f =
-    forM (HM.toList hm) $ \(k, v) -> f k v
+-- traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
+-- traverseKV hm f =
+--     forM (HM.toList hm) $ \(k, v) -> f k v
