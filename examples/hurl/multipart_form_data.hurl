@@ -3,7 +3,7 @@
 POST http://localhost:9999/api/xls
 Content-Type: "application/json"
 [MultipartFormData]
-file: 144
+file: "target-template.xls"
 # file: "path/to/value"
 # file: file,examble.xls;
 # {

@@ -385,18 +385,18 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     handleMultipartElems :: HI.Request -> IO HI.Request
     handleMultipartElems req = do
-    -- ??: amalgamate [FilePath] for multiple files
         case multipartSq of
-            Just (RequestSquareMultipart m@(RhsDict d)) -> do
-                let filepathV = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
-                req' <- requestBodyMultipart [] req
-                let bod :: BodyPart = BodyPartFile { bpField = "file", bpPath = filepathV }
-                let eMultipart :: HhRequestBody = RBMultipart [bod]
+            Just (RequestSquareMultipart (RhsDict d)) -> do
+                bodyParts <- for (HM.toList d) $ \ (fieldName, parts) -> do
+                    rendered <- BEL.render env (Aeson.String "") parts
+                    let bsValue = case rendered of
+                            Aeson.String t -> TE.encodeUtf8 t
+                            v -> BL.toStrict (Aeson.encode v)
+                    let fp = BS.unpack bsValue
+                    pure $ BodyPartFile { bpField = fieldName, bpPath = fp }
+                let eMultipart :: HhRequestBody = RBMultipart bodyParts
                 got <- applyBody eMultipart req
-                pure $ got { HC.method = BS.pack rqMethod
-                           }
-
-                -- 2. { "kkk": 14 }
+                pure $ got { HC.method = BS.pack rqMethod }
             _ -> pure req
 
     -- hmeRender :: RhsDict -> IO (Text, String)
@@ -483,28 +483,17 @@ courseFrom x = do
     finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
         case multipartSq of
             Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-                boundary <- HCMP.webkitBoundary
-                -- field2: file,example.txt;
-                -- field3: file,example.zip; application/zip
-                parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
+                bodyParts <- for (HM.toList mpFields) $ \ (fieldName, parts') -> do
                     rendered <- BEL.render env (Aeson.String "") parts'
                     let bsValue = case rendered of
                             Aeson.String t -> TE.encodeUtf8 t
                             v -> BL.toStrict (Aeson.encode v)
-                    pure $ HCMP.partBS k (trace ("bsValue=" ++ show bsValue ++ "k=" ++ show k) bsValue)
-                mpBody <- HCMP.renderParts boundary parts
-                let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
-                let req' = req { HC.method = BS.pack rqMethod
-                               , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
-                               , HC.requestBody = mpBody
-                               }
-                -- `setRequestBodyFile` upserts "accept-encoding", "content-length".
-                let fullPath = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
-
-                -- pure $ setRequestBodyFile fullPath req'
-                pure $ experimentalRequestBodyFile fullPath req'
-                -- trace ("inikan" ++ "mpFields=" ++ show mpFields) $ pure $ experimentalRequestBodyFile' fullPath req'  -- Expected: IO Http.Request Actual: IO (IO (Either IOException HI.Request))
-                -- trace ("inikan" ++ "mpFields=" ++ show mpFields) $ pure $ experimentalRequestBodyFile'' fullPath req'  -- Expected: IO Http.Request Actual: IO (IO (Either IOException HI.Request))
+                    pure $ BodyPartFile { bpField = fieldName, bpPath = BS.unpack bsValue }
+                let eMultipart = RBMultipart bodyParts
+                appliedReq <- applyBody eMultipart req
+                pure $ appliedReq { HC.method = BS.pack rqMethod
+                                  , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack "multipart/form-data") : allHeaders
+                                  }
             _ -> do
                 let bodyContent = case (renderedForm, rqBody) of
                         ("", "") -> BS.pack rqBody
