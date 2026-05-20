@@ -385,43 +385,19 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     handleMultipartElems :: HI.Request -> IO HI.Request
     handleMultipartElems req = do
-    -- PICKUP try idea of auto
     -- ??: amalgamate [FilePath] for multiple files
         case multipartSq of
             Just (RequestSquareMultipart m@(RhsDict d)) -> do
-                -- eMultipart <- hmeRender m
-                -- let eMultipart = 
-                --
-                -- 1. { "file": filepath }
-
-                -- eMultipart <- for (HM.toList d)
-                --     (\ (k, v :: [BEL.Part]) -> do
-                --         e <- renderOrEmpty env v
-                --         -- isHhFilePrefix e
-                --         trace ("renderOrEmpty:" ++ show e) 9)
                 let filepathV = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
-                -- req' <- experimentalRequestBodyFile' filepathV req
                 req' <- requestBodyMultipart [] req
                 let bod :: BodyPart = BodyPartFile { bpField = "file", bpPath = filepathV }
                 let eMultipart :: HhRequestBody = RBMultipart [bod]
                 got <- applyBody eMultipart req
                 pure $ got { HC.method = BS.pack rqMethod
-                           -- , 
                            }
-
-                -- let contentType = "multipart/form-data; boundary=--------------------------414973037462257374369442"
-                -- -- let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                -- let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : []
-                -- pure $ req' { HC.method = BS.pack rqMethod
-                --             , HC.requestHeaders = zz
-                --             -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType)
-                --             -- , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                --             }
 
                 -- 2. { "kkk": 14 }
             _ -> pure req
-
-    -- hme ::
 
     -- hmeRender :: RhsDict -> IO (Text, String)
     hmeRender (RhsDict dMultipart) = for (HM.toList dMultipart)
@@ -439,18 +415,13 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
     renderMultipartb req allHeaders renderedForm =
         case multipartSq of
             Just sq -> do
-                -- case multipartFilepathAt sq of
-                --     Just f -> undefined
-                --     _ -> undefined
-
-                -- multipartFilepathAt sq
                 req' <- experimentalRequestBodyFile' "" req
                 let bodyContent = case (renderedForm, rqBody) of
                         ("", "") -> BS.pack rqBody
                         ("", _) -> BS.pack rqBody
                         (f, "") -> BS.pack f
                         (f, _) -> BS.pack f
-                    contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"  -- ??:
+                    contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
                     encoded = BL.fromStrict bodyContent
                 let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
                 pure $ req { HC.method = BS.pack rqMethod
@@ -691,14 +662,6 @@ renderRhsDict env (RhsDict dict) = do
             Aeson.String s -> TE.encodeUtf8 s
             _ -> TE.encodeUtf8 (Text.pack $ show val)
 
--- ??: BEL repurpose an Aeson value to encode "filepath to read"
--- renderOrMt :: BEL.Env -> Text -> [BEL.Part] -> IO Text
--- renderOrMt env _k parts = do
---     av <- BEL.render env (Aeson.String "") parts
---     pure $ case av of
---         Aeson.String s -> s
---         _ -> error "shouldn't have happened"
-
 renderOrEmpty :: BEL.Env -> [BEL.Part] -> IO Text
 renderOrEmpty env parts = do
     av <- BEL.render env (Aeson.String "") parts
@@ -710,7 +673,6 @@ renderOrEmpty env parts = do
 renderMultipart env multipart@(RhsDict dict) = do
     -- dict' <- HM.traverseWithKey (renderOrMt env) dict
     undefined
-
 
 -- | Render expected response headers.
 renderHeadersMap :: BEL.Env -> RhsDict

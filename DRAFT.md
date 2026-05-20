@@ -36,6 +36,15 @@ Some nuggets that are less than mundane when I learned them.
 
 
 # STASH
+-- ??: BEL api
+-- renderOrMt :: BEL.Env -> Text -> [BEL.Part] -> IO Text
+-- renderOrMt env _k parts = do
+--     av <- BEL.render env (Aeson.String "") parts
+--     pure $ case av of
+--         Aeson.String s -> s
+--         _ -> error "shouldn't have happened"
+
+
 -- Unhandled offline HttpExceptionRequest.
 The exit code
 
