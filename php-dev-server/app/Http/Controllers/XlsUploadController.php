@@ -116,4 +116,26 @@ class XlsUploadController extends Controller
 
         return response()->json(['error' => 'File not found on disk'], 404);
     }
+
+    /**
+     * Delete a file by its ID.
+     */
+    public function destroy($id)
+    {
+        $xlsFile = XlsFile::find($id);
+
+        if (!$xlsFile) {
+            return response()->json(['error' => 'File not found'], 404);
+        }
+
+        // Delete file from storage
+        if (Storage::disk('local')->exists($xlsFile->path)) {
+            Storage::disk('local')->delete($xlsFile->path);
+        }
+
+        // Delete database record
+        $xlsFile->delete();
+
+        return response()->json(['message' => 'File deleted successfully']);
+    }
 }

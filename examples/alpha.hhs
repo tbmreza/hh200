@@ -1,13 +1,15 @@
-## copy string at jsonpath
-## goal: transmit json body  ??: review RhsDict, Content-Type rhs ideally doesn't require ""
+# ## copy string at jsonpath
+# ## goal: transmit json body  ??: review RhsDict, Content-Type rhs ideally doesn't require ""
+#
+# POST http://localhost:9999/api/login
+# Content-Type: "application/json"
+# {
+#     "email": "test@example.com",
+#     "password": "password"
+# }
+# HTTP 200 204
+# [Asserts]
+# >jsonpath "$.token" copy
+# { "user": { "id": "abc" } }
 
-POST http://localhost:9999/api/login
-Content-Type: "application/json"
-{
-    "email": "test@example.com",
-    "password": "password"
-}
-HTTP 200 204
-[Asserts]
->jsonpath "$.token" copy
-{ "user": { "id": "abc" } }
+DELETE http://localhost:9999/api/xls/1

@@ -399,35 +399,35 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                 pure $ got { HC.method = BS.pack rqMethod }
             _ -> pure req
 
-    -- hmeRender :: RhsDict -> IO (Text, String)
-    hmeRender (RhsDict dMultipart) = for (HM.toList dMultipart)
-        (\ (k, v :: [BEL.Part]) -> do
-            -- e <- renderOrEmpty env v
-            -- pure undefined)
-            -- pure (k, "strin"))
-            pure (undefined, undefined))
+    -- -- hmeRender :: RhsDict -> IO (Text, String)
+    -- hmeRender (RhsDict dMultipart) = for (HM.toList dMultipart)
+    --     (\ (k, v :: [BEL.Part]) -> do
+    --         -- e <- renderOrEmpty env v
+    --         -- pure undefined)
+    --         -- pure (k, "strin"))
+    --         pure (undefined, undefined))
 
 
-    -- Assumption: File reading is only needed for multipart so it acts as
-    -- req struct finalizer.
-    -- renderMultipartb :: Env -> Http.Request -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    renderMultipartb :: Http.Request -> [(HeaderName, BS.ByteString)] -> String -> IO Http.Request
-    renderMultipartb req allHeaders renderedForm =
-        case multipartSq of
-            Just sq -> do
-                req' <- experimentalRequestBodyFile' "" req
-                let bodyContent = case (renderedForm, rqBody) of
-                        ("", "") -> BS.pack rqBody
-                        ("", _) -> BS.pack rqBody
-                        (f, "") -> BS.pack f
-                        (f, _) -> BS.pack f
-                    contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-                    encoded = BL.fromStrict bodyContent
-                let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                pure $ req { HC.method = BS.pack rqMethod
-                           , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                           , HC.requestBody = HC.RequestBodyLBS encoded
-                           }
+    -- -- Assumption: File reading is only needed for multipart so it acts as
+    -- -- req struct finalizer.
+    -- -- renderMultipartb :: Env -> Http.Request -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
+    -- renderMultipartb :: Http.Request -> [(HeaderName, BS.ByteString)] -> String -> IO Http.Request
+    -- renderMultipartb req allHeaders renderedForm =
+    --     case multipartSq of
+    --         Just sq -> do
+    --             req' <- experimentalRequestBodyFile' "" req
+    --             let bodyContent = case (renderedForm, rqBody) of
+    --                     ("", "") -> BS.pack rqBody
+    --                     ("", _) -> BS.pack rqBody
+    --                     (f, "") -> BS.pack f
+    --                     (f, _) -> BS.pack f
+    --                 contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
+    --                 encoded = BL.fromStrict bodyContent
+    --             let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+    --             pure $ req { HC.method = BS.pack rqMethod
+    --                        , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+    --                        , HC.requestBody = HC.RequestBodyLBS encoded
+    --                        }
 
     -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
     renderRequestUrl :: String -> IO String
