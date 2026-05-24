@@ -336,14 +336,11 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
     -- renderedQuery <-  renderRequestQuery env querySq
     eUrl <- renderRqUrl
 
-    -- req <- HC.parseRequest eUrl
-    -- req :: HI.Request <- HC.parseRequest ""
-    req :: HI.Request <- HC.parseRequest eUrl
+    init :: HI.Request <- HC.parseRequest eUrl
+    let req = init { HC.method = BS.pack rqMethod }
 
     -- let allHeaders = eHeaders ++ cookiesHeaders
     let allHeaders = eHeaders
-
-    -- renderMultipartb req allHeaders ""
 
     handleMultipartElems req
 
@@ -396,17 +393,8 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                     pure $ BodyPartFile { bpField = fieldName, bpPath = fp }
                 let eMultipart :: HhRequestBody = RBMultipart bodyParts
                 got <- applyBody eMultipart req
-                pure $ got { HC.method = BS.pack rqMethod }
+                pure got
             _ -> pure req
-
-    -- -- hmeRender :: RhsDict -> IO (Text, String)
-    -- hmeRender (RhsDict dMultipart) = for (HM.toList dMultipart)
-    --     (\ (k, v :: [BEL.Part]) -> do
-    --         -- e <- renderOrEmpty env v
-    --         -- pure undefined)
-    --         -- pure (k, "strin"))
-    --         pure (undefined, undefined))
-
 
     -- -- Assumption: File reading is only needed for multipart so it acts as
     -- -- req struct finalizer.
@@ -456,29 +444,6 @@ courseFrom x = do
     go mgr (callItems x)
 
     where  -- goal in order: multipartSq, rqUrl, test braced interpolation
-    -- renderMultipart :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    -- renderMultipart env req rqMethod allHeaders multipartSq renderedForm rqBody =
-    --     case multipartSq of
-    --         -- Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-    --         --     boundary <- HCMP.webkitBoundary
-    --         --
-    --         --     parts <- forM (HM.toList mpFields) $ \ (k, parts') -> do
-    --         --         rendered <- BEL.render env (Aeson.String "") parts'
-    --         --         let bsValue = case rendered of
-    --         --                 Aeson.String t -> TE.encodeUtf8 t
-    --         --                 v -> BL.toStrict (Aeson.encode v)
-    --         --         pure $ HCMP.partBS k (trace ("bsValue=" ++ show bsValue ++ "k=" ++ show k) bsValue)
-    --         --     mpBody <- HCMP.renderParts boundary parts
-    --         --     let contentType = BS.pack $ "multipart/form-data; boundary=" ++ BS.unpack boundary
-    --         --     let req' = req { HC.method = BS.pack rqMethod
-    --         --                    , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", contentType) : allHeaders
-    --         --                    , HC.requestBody = mpBody
-    --         --                    }
-    --         --     -- `setRequestBodyFile` upserts "accept-encoding", "content-length".
-    --         --     let fullPath = "/home/tbmreza/gh/hh200/hh200/target-template.xls"
-    --         --
-    --         --     pure $ experimentalRequestBodyFile fullPath req'
-
     finalizeRequest :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
     finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
         case multipartSq of
@@ -511,12 +476,10 @@ courseFrom x = do
     go _ [] = mzero
     go mgr (ci:rest) = do
     -- go [] = mzero
-    -- go (ci:rest) = do
         lift $ Tf.tell [ItemStart (ciName ci)]
 
         env <- get
         reqOrThrow <- liftIO $ buildRequest env ci
-        -- reqOrThrow <- liftIO $ buildRequest' env ci
 
         -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
@@ -531,8 +494,9 @@ courseFrom x = do
                 pure ci
             Right gotResp -> do
                 let envWithResp = env { BEL.storedResponse = gotResp
-                                      , BEL.storedRequest = reqOrThrow
+                                      , BEL.storedRequest = trace ("reqOrThrow=" ++ show reqOrThrow) reqOrThrow
                                       }
+                    !_ = trace ("reqOrThrow=" ++ show reqOrThrow) ()
                 f <- liftIO (upsertCaptures envWithResp ci)
                 modify f
 
@@ -543,14 +507,12 @@ courseFrom x = do
                     pure ci
                 else
                     go mgr rest
-                    -- go rest
 
     -- Status code assertion first, then all other checks (headers, body, and
     -- expressions about the response).
     userAssertions :: BEL.Env -> CallItem -> IO Bool
     userAssertions env' ci = do
         let expectCodes = specCodesOr200 ci
-            -- gotResp :: HC.Response L8.ByteString = storedResponse env'
             gotResp :: HC.Response L8.ByteString = BEL.storedResponse env'
             gotStatus = Http.getStatus gotResp
 
@@ -588,7 +550,8 @@ courseFrom x = do
                     let expectedBs = BL.toStrict expectRespBody
                         gotBs = BL.toStrict gotRespBody
                     in case (expectedBs, jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs) of
-                        ("", _) -> trace "jsonSubset skip" True
+                        -- ("", _) -> trace "jsonSubset skip" True
+                        ("", _) -> trace ("gotStatus=" ++ show gotStatus ++ ";jsonSubset skip") True
                         (v, ASubsetOfB) -> trace "jsonSubset true" True
                         (_, v) -> trace ("jsonSubset=" ++ show v) False
 
@@ -658,10 +621,10 @@ renderOrEmpty env parts = do
         Aeson.String s -> s
         _ -> error "shouldn't have happened"
 
--- renderMultipart :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
-renderMultipart env multipart@(RhsDict dict) = do
-    -- dict' <- HM.traverseWithKey (renderOrMt env) dict
-    undefined
+-- -- renderMultipart :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
+-- renderMultipart env multipart@(RhsDict _dict) = do
+--     -- dict' <- HM.traverseWithKey (renderOrMt env) dict
+--     undefined
 
 -- | Render expected response headers.
 renderHeadersMap :: BEL.Env -> RhsDict
@@ -674,9 +637,10 @@ renderHeadersMap env (RhsDict expectHeaders) =
           HM.empty
           (HM.toList expectHeaders)
 
-renderRequestConfigs :: BEL.Env -> Maybe RequestSquare -> IO [(BS.ByteString, BS.ByteString)]
-renderRequestConfigs _ Nothing = pure []
-renderRequestConfigs _ (Just (RequestSquareConfigs _)) = pure []
+-- renderRequestConfigs :: BEL.Env -> Maybe RequestSquare -> IO [(BS.ByteString, BS.ByteString)]
+-- renderRequestConfigs _ Nothing = pure []
+-- renderRequestConfigs _ (Just (RequestSquareConfigs _)) = pure []
+-- renderRequestConfigs _ _ = undefined
 
 renderRequestQuery :: BEL.Env -> Maybe RequestSquare -> IO String
 renderRequestQuery _ Nothing = pure ""
@@ -689,6 +653,7 @@ renderRequestQuery env' (Just (RequestSquareQuery (RhsDict qp))) = do
                 v -> BL.toStrict (Aeson.encode v)
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     pure $ intercalate "&" pairs
+renderRequestQuery _ _ = undefined
 
 renderRequestForm :: BEL.Env -> Maybe RequestSquare -> IO String
 renderRequestForm _ Nothing = pure ""
@@ -700,6 +665,7 @@ renderRequestForm env' (Just (RequestSquareForm (RhsDict formFields))) = do
                 v -> BL.toStrict (Aeson.encode v)
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     pure $ intercalate "&" pairs
+renderRequestForm _ _ = undefined
 
 -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
 -- renderRequestUrl env rqUrl renderedQuery = case rqUrl of
@@ -728,6 +694,7 @@ renderRequestCookies env' (Just (RequestSquareCookies (RhsDict ck))) = do
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     let cookieHeader = BS.pack $ intercalate "; " pairs
     pure [(CaseInsensitive.mk "Cookie", cookieHeader)]
+renderRequestCookies _ _ = undefined
 
 --------------------------------------------------------------------------------
 -- More lib than app code

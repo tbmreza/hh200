@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\LogRequestToConsole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,7 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->validateCsrfTokens(except: ['*']);
-        $middleware->api(prepend: [ForceJsonResponse::class]);
+        $middleware->api(prepend: [
+            ForceJsonResponse::class,
+            LogRequestToConsole::class,
+        ]);
+        $middleware->web(prepend: [
+            LogRequestToConsole::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

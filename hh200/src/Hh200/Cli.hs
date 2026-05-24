@@ -36,10 +36,6 @@ import           Control.Monad (forM_, replicateM, replicateM_, when)
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, RateLimiterConfig, dummyDuo, WorkerMode(..))
 
 
--- data Src =
---     AbstractSrc  -- for script ds
---   | PathSrc  -- "" as Nothing
-
 data Args = Args
   { source :: Maybe String  -- used for both FilePath and Snippet sources
   , version :: Bool

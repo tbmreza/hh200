@@ -12,4 +12,5 @@
 # >jsonpath "$.token" copy
 # { "user": { "id": "abc" } }
 
-DELETE http://localhost:9999/api/xls/1
+DELETE http://localhost:9999/api/xls/3
+HTTP 200

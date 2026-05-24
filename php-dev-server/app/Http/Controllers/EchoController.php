@@ -21,13 +21,6 @@ class EchoController extends Controller
             'content' => $request->getContent(),
         ];
 
-        // Print to console (stdout)
-        $output = fopen('php://stdout', 'w');
-        fwrite($output, "\n--- Echo Request ---\n");
-        fwrite($output, json_encode($data, JSON_PRETTY_PRINT));
-        fwrite($output, "\n--------------------\n");
-        fclose($output);
-
         return response()->json($data);
     }
 }

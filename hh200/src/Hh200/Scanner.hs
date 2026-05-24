@@ -8,7 +8,7 @@ module Hh200.Scanner
     ( module Hh200.Scanner
     , module L
     , module P
-    , P.hasBalancedMustache
+    -- , P.hasBalancedMustache
     ) where
 
 import Debug.Trace
@@ -26,7 +26,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Char (toLower, isDigit)
 import           Data.List (isPrefixOf)
 
-import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
+-- import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
+import Hh200.Types (Script(..), HostInfo(..), Snippet(..), defaultHostInfo)
 import L
 import P
 
@@ -69,7 +70,7 @@ instance Analyze Snippet where
                 res2 <- liftIO $ runExceptT itemsAction
                 case res2 of
                      Left (d, _) -> trace d (MaybeT (pure Nothing))
-                     Right s -> pure s
+                     Right s' -> pure s'
 
 instance Analyze FilePath where
     analyze :: FilePath -> MaybeT IO Script
@@ -180,6 +181,7 @@ getPos t = case t of
     JSONPATH p _ -> p
     LINE p _ -> p
     EOF p -> p
+    _ -> undefined
 
 tokenSpan :: Token -> (Int, Int)
 tokenSpan t = (offset, len)
@@ -213,6 +215,7 @@ tokenSpan t = (offset, len)
         JSONPATH _ s -> length s
         LINE _ s -> length s -- includes >
         EOF _ -> 0
+        _ -> undefined
 
 hover :: String -> Int -> Maybe String
 hover input pos = 
@@ -224,9 +227,9 @@ hover input pos =
                 [] -> Nothing
 
     where
-    covering p t = 
-        let (start, len) = tokenSpan t
-        in p >= start && p < (start + len)
+    -- covering p t = 
+    --     let (start, len) = tokenSpan t
+    --     in p >= start && p < (start + len)
 
     docFor :: Token -> Maybe String
     docFor t = case t of
@@ -302,12 +305,12 @@ documentSymbols input =
                     in ((s, (l, c)) : more, rest)
                 _ -> extractCaps ts
 
-    isBlockStart (KW_CONFIGS _) = True
-    isBlockStart (KW_CAPTURES _) = True
-    isBlockStart (KW_ASSERTS _) = True
-    isBlockStart (KW_HTTP _) = True
-    isBlockStart (METHOD _ _) = True
-    isBlockStart _ = False
+    -- isBlockStart (KW_CONFIGS _) = True
+    -- isBlockStart (KW_CAPTURES _) = True
+    -- isBlockStart (KW_ASSERTS _) = True
+    -- isBlockStart (KW_HTTP _) = True
+    -- isBlockStart (METHOD _ _) = True
+    -- isBlockStart _ = False
 
 isBlockStart :: Token -> Bool
 isBlockStart (KW_CONFIGS _) = True
@@ -401,7 +404,7 @@ findDefinitionOccurrences name tokens =
     in [ ((l, c), (l, c + length name)) | (n, (l, c)) <- captures, n == name ]
 
 findUsageOccurrences :: String -> [Token] -> [((Int, Int), (Int, Int))]
-findUsageOccurrences name [] = []
+findUsageOccurrences _name [] = []
 findUsageOccurrences name (t:ts) = 
     case t of
         URL (AlexPn _ line col) s -> 
@@ -451,7 +454,7 @@ formatRange    input     ((startL, startC), (endL, endC)) =
         -- take (16 - 1 + 1) . drop (1 - 1)
         subStr = take (endC - startC + 1) $ drop (startC - 1) targetLine
 
-        formatted = if not (null subStr) && head subStr == '{'
+        formatted = if not (null subStr) && head subStr == '{'  -- ??: partial fn head
                     then simpleJsonFormat subStr
                     else subStr
 
@@ -466,7 +469,7 @@ simpleJsonFormat s =
     in s3
 
 replaceStr :: String -> String -> String -> String
-replaceStr old new [] = []
+replaceStr _old _new [] = []
 replaceStr old new str@(c:cs) =
     if old `isPrefixOf` str
     then new ++ replaceStr old new (drop (length old) str)
