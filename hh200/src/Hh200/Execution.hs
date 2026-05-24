@@ -329,27 +329,20 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqHeaders = RhsDict dHeaders
                                                         , rqBody
                                                         , rqSquares = (configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
-    -- PICKUP rqBody; interpolatable;
-
     eHeaders <- renderRqHeaders
-    -- cookiesHeaders <- renderRequestCookies env cookiesSq
-    -- renderedQuery <-  renderRequestQuery env querySq
     eUrl <- renderRqUrl
 
     init :: HI.Request <- HC.parseRequest eUrl
     let req = init { HC.method = BS.pack rqMethod }
-
-    -- let allHeaders = eHeaders ++ cookiesHeaders
     let allHeaders = eHeaders
 
-    handleMultipartElems req
+    renderedForm <- renderRequestForm env formSq
+
+    case multipartSq of
+        Just (RequestSquareMultipart (RhsDict d)) -> handleMultipart req d allHeaders
+        _                                          -> handleBody req renderedForm allHeaders
 
     where
-    -- fin :: Http.Request -> IO Http.Request
-    -- fin req = do
-    --     let cpy = env
-    --     pure req
-
     renderRqUrl :: IO String
     renderRqUrl = do
         renderedQuery <- renderRequestQuery env querySq
@@ -376,25 +369,32 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
             e <- renderOrEmpty env v
             pure (asHeaderName k, TE.encodeUtf8 e))
 
-    -- Handle functions are for specs that warrant direct fallible struct modifications.
-    -- Handle functions are for specs with logical dependencies.
-    -- Handle functions are for specs with logical dependencies and warrant direct fallible struct modifications.
+    handleMultipart :: HI.Request -> HM.HashMap Text [BEL.Part] -> [(HeaderName, BS.ByteString)] -> IO HI.Request
+    handleMultipart req d hs = do
+        bodyParts <- for (HM.toList d) $ \ (fieldName, parts) -> do
+            rendered <- BEL.render env (Aeson.String "") parts
+            let bsValue = case rendered of
+                    Aeson.String t -> TE.encodeUtf8 t
+                    v -> BL.toStrict (Aeson.encode v)
+            let fp = BS.unpack bsValue
+            pure $ BodyPartFile { bpField = fieldName, bpPath = fp }
+        let eMultipart = RBMultipart bodyParts
+        got <- applyBody eMultipart req
+        let existingHdrs = HC.requestHeaders got
+        pure $ got { HC.requestHeaders = existingHdrs ++ hs }
 
-    handleMultipartElems :: HI.Request -> IO HI.Request
-    handleMultipartElems req = do
-        case multipartSq of
-            Just (RequestSquareMultipart (RhsDict d)) -> do
-                bodyParts <- for (HM.toList d) $ \ (fieldName, parts) -> do
-                    rendered <- BEL.render env (Aeson.String "") parts
-                    let bsValue = case rendered of
-                            Aeson.String t -> TE.encodeUtf8 t
-                            v -> BL.toStrict (Aeson.encode v)
-                    let fp = BS.unpack bsValue
-                    pure $ BodyPartFile { bpField = fieldName, bpPath = fp }
-                let eMultipart :: HhRequestBody = RBMultipart bodyParts
-                got <- applyBody eMultipart req
-                pure got
-            _ -> pure req
+    handleBody :: HI.Request -> String -> [(HeaderName, BS.ByteString)] -> IO HI.Request
+    handleBody req renderedForm hs = do
+        let bodyContent = case (renderedForm, rqBody) of
+                ("", "") -> BS.pack rqBody
+                ("", _) -> BS.pack rqBody
+                (f, "") -> BS.pack f
+                (f, _) -> BS.pack f
+            contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
+            encoded = BL.fromStrict bodyContent
+        pure $ req { HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : hs
+                   , HC.requestBody = HC.RequestBodyLBS encoded
+                   }
 
     -- -- Assumption: File reading is only needed for multipart so it acts as
     -- -- req struct finalizer.
