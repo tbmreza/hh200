@@ -14,6 +14,7 @@ import qualified Data.Text as Text
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
 import           Data.List (isInfixOf)
+import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -22,7 +23,7 @@ import           Network.HTTP.Types.Header (ResponseHeaders)
 import qualified BEL
 import           Hh200.Execution
 import           Hh200.Types (RhsDict (..), RequestSquare(..))
-import           Hh200.Execution (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies, experimentalRequestBodyFile')
+import           Hh200.Execution (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies, experimentalRequestBodyFile', applyBody, HhRequestBody(..), BodyPart(..))
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -63,6 +64,11 @@ spec = testGroup "Execution"
   , testExperimentalRequestBodyFileExists
   , testExperimentalRequestBodyFileNotFound
   , testExperimentalRequestBodyFileEmptyPath
+  , testApplyBodyJson
+  , testApplyBodyFormUrl
+  , testApplyBodyFormUrlEmpty
+  , testApplyBodyRaw
+  , testApplyBodyMultipartEmpty
   ]
 
 testIsSubmapOfBy :: TestTree
@@ -273,3 +279,67 @@ testExperimentalRequestBodyFileEmptyPath = testCase "experimentalRequestBodyFile
     case HC.requestBody req' of
         HI.RequestBodyIO _ -> assertFailure "body should not be RequestBodyIO for empty path"
         _ -> assertBool "body unchanged for empty path" True
+
+-- (auto)
+testApplyBodyJson :: TestTree
+testApplyBodyJson = testCase "applyBody: RBJson sets JSON body and content-type" $ do
+    req <- HC.parseRequest "http://localhost/"
+    req' <- applyBody (RBJson 42) req
+    let hs = HC.requestHeaders req'
+        ct = lookup (CI.mk "Content-Type") hs
+    assertBool "Content-Type contains application/json" $
+        maybe False ("application/json" `BS.isInfixOf`) ct
+    case HC.requestBody req' of
+        HC.RequestBodyLBS bs -> assertEqual "JSON body" "42" (L8.unpack bs)
+        _ -> assertFailure "expected Lazy ByteString body"
+
+testApplyBodyFormUrl :: TestTree
+testApplyBodyFormUrl = testCase "applyBody: RBFormUrl sets URL-encoded body and content-type" $ do
+    req <- HC.parseRequest "http://localhost/"
+    let kvs = [("name", "John"), ("age", "30")]
+    req' <- applyBody (RBFormUrl kvs) req
+    let hs = HC.requestHeaders req'
+        ct = lookup (CI.mk "Content-Type") hs
+    assertEqual "Content-Type is application/x-www-form-urlencoded"
+        (Just "application/x-www-form-urlencoded")
+        (BS.unpack <$> ct)
+    case HC.requestBody req' of
+        HC.RequestBodyBS bs -> do
+            assertBool "contains name=John" ("name=John" `BS.isInfixOf` bs)
+            assertBool "contains age=30" ("age=30" `BS.isInfixOf` bs)
+        _ -> assertFailure "expected strict ByteString body"
+
+testApplyBodyFormUrlEmpty :: TestTree
+testApplyBodyFormUrlEmpty = testCase "applyBody: RBFormUrl empty list" $ do
+    req <- HC.parseRequest "http://localhost/"
+    req' <- applyBody (RBFormUrl []) req
+    case HC.requestBody req' of
+        HC.RequestBodyBS bs -> assertEqual "empty body" "" (BS.unpack bs)
+        _ -> assertFailure "expected strict ByteString body"
+
+testApplyBodyRaw :: TestTree
+testApplyBodyRaw = testCase "applyBody: RBRaw sets raw body with custom content-type" $ do
+    req <- HC.parseRequest "http://localhost/"
+    let rawBody = "custom raw data" :: BS.ByteString
+        contentType = "text/custom" :: Text.Text
+    req' <- applyBody (RBRaw rawBody contentType) req
+    let hs = HC.requestHeaders req'
+        ct = lookup (CI.mk "Content-Type") hs
+    assertEqual "Content-Type matches" (Just "text/custom") (BS.unpack <$> ct)
+    case HC.requestBody req' of
+        HC.RequestBodyBS bs -> assertEqual "raw body matches" rawBody bs
+        _ -> assertFailure "expected strict ByteString body"
+
+testApplyBodyMultipartEmpty :: TestTree
+testApplyBodyMultipartEmpty = testCase "applyBody: RBMultipart empty parts" $ do
+    req <- HC.parseRequest "http://localhost/"
+    req' <- applyBody (RBMultipart []) req
+    let hs = HC.requestHeaders req'
+        ct = lookup (CI.mk "Content-Type") hs
+    assertBool "Content-Type contains multipart/form-data" $
+        maybe False ("multipart/form-data" `BS.isInfixOf`) ct
+    let body = HC.requestBody req'
+    assertBool "body is set" $ case body of
+        HC.RequestBodyLBS bs -> not (L8.null bs)
+        HC.RequestBodyBS bs  -> not (BS.null bs)
+        _                    -> True

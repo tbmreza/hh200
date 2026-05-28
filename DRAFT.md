@@ -15,6 +15,8 @@
 oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 ```
+git reset --soft HEAD~<number of commits>  # then commit
+
 @.headers  $.headers  %.params.start
 ```
 Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS." https + Secure cookie attr

@@ -22,6 +22,9 @@ module Hh200.Execution
   , SubsetResult(..)
   , Side(..)
   , experimentalRequestBodyFile'
+  , applyBody
+  , HhRequestBody(..)
+  , BodyPart(..)
   ) where
 
 import Debug.Trace
@@ -85,6 +88,12 @@ import           Hh200.Types
 import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 
+-- PICKUP properly test formDataBody
+-- formDataBody :: MonadIO m => [Part] -> Request -> m Request
+-- Add form data to the Request. This sets a new requestBody, adds a content-type request header and changes the method to POST.
+
+
+
 -- experimentalRequestBodyFile :: Int
 experimentalRequestBodyFile = setRequestBody . HI.RequestBodyIO . HC.streamFile
 
@@ -98,15 +107,15 @@ experimentalRequestBodyFile' path req = do
         Left err -> req
         Right _  -> setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req
 
--- (auto)
-requestBodyMultipart :: [(Text, FilePath)] -> HI.Request -> IO HI.Request
-requestBodyMultipart fileParts req = do
-    -- let parts = [ partFileSource (TE.encodeUtf8 fieldName) fp
-    let parts = [ partFileSource fieldName fp
-                | (fieldName, fp) <- fileParts ]
-    formDataBody parts req
-    -- formDataBody sets Content-Type: multipart/form-data; boundary=...
-    -- and Content-Length automatically
+-- -- (auto)
+-- requestBodyMultipart :: [(Text, FilePath)] -> HI.Request -> IO HI.Request
+-- requestBodyMultipart fileParts req = do
+--     -- let parts = [ partFileSource (TE.encodeUtf8 fieldName) fp
+--     let parts = [ partFileSource fieldName fp
+--                 | (fieldName, fp) <- fileParts ]
+--     formDataBody parts req
+--     -- formDataBody sets Content-Type: multipart/form-data; boundary=...
+--     -- and Content-Length automatically
 
 data BodyPart =
     BodyPartFile { bpField :: Text, bpPath :: FilePath }
@@ -117,7 +126,7 @@ type HhValue = Int
 data HhRequestBody =
     RBJson        HhValue
   | RBFormUrl     [(Text, Text)]
-  | RBMultipart   [BodyPart]          -- new
+  | RBMultipart   [BodyPart]
   | RBRaw         BS.ByteString Text  -- raw body + content-type
 
 bodyPartToPart :: BodyPart -> HCMP.Part
@@ -130,7 +139,19 @@ applyBody (RBMultipart parts) req =
 
 applyBody (RBJson v) req =
     pure $ setRequestBodyJSON v req
-applyBody _ _ = undefined
+
+applyBody (RBFormUrl kvs) req =
+    let encoded = BS.intercalate "&"
+            [ TE.encodeUtf8 k <> "=" <> TE.encodeUtf8 v
+            | (k, v) <- kvs ]
+    in pure $ req { HC.requestHeaders = (CaseInsensitive.mk "Content-Type", "application/x-www-form-urlencoded") : HC.requestHeaders req
+                  , HC.requestBody = HC.RequestBodyBS encoded
+                  }
+
+applyBody (RBRaw body contentType) req =
+    pure $ req { HC.requestHeaders = (CaseInsensitive.mk "Content-Type", TE.encodeUtf8 contentType) : HC.requestHeaders req
+               , HC.requestBody = HC.RequestBodyBS body
+               }
 
 
 -- experimentalRequestBodyFile'' :: FilePath -> H.Request -> IO (Either IOException H.Request)
@@ -597,9 +618,7 @@ triggerEmergencyShutdown flag = do
 asHeaderName :: Text -> HeaderName
 asHeaderName t = CaseInsensitive.mk (TE.encodeUtf8 t)
 
--- collectHeaders
--- collectMultipart
--- renderRhsDict :: BEL.Env -> RhsDict -> IO [(BS.ByteString, BS.ByteString)]
+
 renderRhsDict :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
 renderRhsDict env (RhsDict dict) = do
     results <- HM.traverseWithKey (renderHeader env) dict
@@ -621,11 +640,6 @@ renderOrEmpty env parts = do
         Aeson.String s -> s
         _ -> error "shouldn't have happened"
 
--- -- renderMultipart :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
--- renderMultipart env multipart@(RhsDict _dict) = do
---     -- dict' <- HM.traverseWithKey (renderOrMt env) dict
---     undefined
-
 -- | Render expected response headers.
 renderHeadersMap :: BEL.Env -> RhsDict
                  -> IO (HM.HashMap (CaseInsensitive.CI BS.ByteString) Aeson.Value)
@@ -636,11 +650,6 @@ renderHeadersMap env (RhsDict expectHeaders) =
                pure $ HM.insert ciKey rendered acc )
           HM.empty
           (HM.toList expectHeaders)
-
--- renderRequestConfigs :: BEL.Env -> Maybe RequestSquare -> IO [(BS.ByteString, BS.ByteString)]
--- renderRequestConfigs _ Nothing = pure []
--- renderRequestConfigs _ (Just (RequestSquareConfigs _)) = pure []
--- renderRequestConfigs _ _ = undefined
 
 renderRequestQuery :: BEL.Env -> Maybe RequestSquare -> IO String
 renderRequestQuery _ Nothing = pure ""
@@ -653,7 +662,7 @@ renderRequestQuery env' (Just (RequestSquareQuery (RhsDict qp))) = do
                 v -> BL.toStrict (Aeson.encode v)
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     pure $ intercalate "&" pairs
-renderRequestQuery _ _ = undefined
+renderRequestQuery _ _ = pure ""
 
 renderRequestForm :: BEL.Env -> Maybe RequestSquare -> IO String
 renderRequestForm _ Nothing = pure ""
@@ -665,23 +674,7 @@ renderRequestForm env' (Just (RequestSquareForm (RhsDict formFields))) = do
                 v -> BL.toStrict (Aeson.encode v)
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     pure $ intercalate "&" pairs
-renderRequestForm _ _ = undefined
-
--- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
--- renderRequestUrl env rqUrl renderedQuery = case rqUrl of
---     LexedUrlFull s -> pure $ case renderedQuery of
---         "" -> s
---         qs -> s ++ "?" ++ qs
---     LexedUrlSegments urlParts -> do
---         renderedUrlParts <- forM urlParts $ \part -> do
---             rendered <- BEL.render env (Aeson.String "") [part]
---             pure $ case rendered of
---                 Aeson.String t -> Text.unpack t
---                 v -> BS.unpack (BL.toStrict (Aeson.encode v))
---         let fullUrl = intercalate "/" renderedUrlParts
---         pure $ case renderedQuery of
---             "" -> fullUrl
---             qs -> fullUrl ++ "?" ++ qs
+renderRequestForm _ _ = pure ""
 
 renderRequestCookies :: BEL.Env -> Maybe RequestSquare -> IO [(HeaderName, BS.ByteString)]
 renderRequestCookies _ Nothing = pure []
@@ -694,7 +687,7 @@ renderRequestCookies env' (Just (RequestSquareCookies (RhsDict ck))) = do
         pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
     let cookieHeader = BS.pack $ intercalate "; " pairs
     pure [(CaseInsensitive.mk "Cookie", cookieHeader)]
-renderRequestCookies _ _ = undefined
+renderRequestCookies _ _ = pure []
 
 --------------------------------------------------------------------------------
 -- More lib than app code
@@ -711,7 +704,3 @@ foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
 foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
     where
     step !acc (k, v) = f acc k v
-
--- traverseKV :: HM.HashMap k v -> (k -> v -> IO a) -> IO [a]
--- traverseKV hm f =
---     forM (HM.toList hm) $ \(k, v) -> f k v
