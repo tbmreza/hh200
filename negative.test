@@ -1,0 +1,4 @@
+#$ hh200 examples/not-found.hhs
+$ stack run -- examples/not-found.hhs
+>2 /does not exist/
+>= !0

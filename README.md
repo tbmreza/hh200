@@ -66,6 +66,7 @@ URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters
 
 ### Development system dependencies
 - bats (latest npmjs package: 1.13)
+- shelltestrunner (latest github release: 1.11)
 - php (latest debian stable: 8.4)
 
 ### Build Dependencies

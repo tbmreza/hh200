@@ -43,7 +43,7 @@ module Hh200.Types
     , ResponseSquare (..), rpSquaresNothing
     , RequestSquare (..), rqSquaresNothing
     , mkScript, mkCallItem
-    , multipartFilepathAt
+    -- , multipartFilepathAt
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -191,9 +191,9 @@ data RequestSquare =
 --
 -- foldMultipathRhsDict _ = error "partial foldMultipathRhsDict fn"
 
-multipartFilepathAt :: RequestSquare -> Text -> Maybe FilePath
-multipartFilepathAt (RequestSquareMultipart _) t = Just ""
--- multipartFilepathAt _ = Nothing
+-- multipartFilepathAt :: RequestSquare -> Text -> Maybe FilePath
+-- multipartFilepathAt (RequestSquareMultipart _) t = Just ""
+-- -- multipartFilepathAt _ = Nothing
 
 data ResponseSquare =
     ResponseSquareAsserts [String]
@@ -249,14 +249,14 @@ data Lead = Lead
   , echoScript ::      Maybe Script
   }
 
-mkLead :: Lead
-mkLead = Lead
-  { leadKind = Non
-  , firstFailing = Nothing
-  , hostInfo = defaultHostInfo
-  -- , interpreterInfo = (HM.empty, [])
-  , echoScript = Nothing
-  }
+-- mkLead :: Lead
+-- mkLead = Lead
+--   { leadKind = Non
+--   , firstFailing = Nothing
+--   , hostInfo = defaultHostInfo
+--   -- , interpreterInfo = (HM.empty, [])
+--   , echoScript = Nothing
+--   }
 
 data InternalError = OutOfBounds
                    | Todo

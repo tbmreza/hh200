@@ -8,9 +8,10 @@
 
 # DESIGN
 ## General
+- test; ltt main loop; lsp; mcp
 - "Connection: close" header sent by default; close the connection after the current request/response pair. httpie sends Connection: close header by default, curl doesn't
 - incremental parsing is non-goal if not very cheap
-- use shelltestrunner for golden integration tests. other options: bats-core
+- use shelltestrunner for golden integration tests. bats-core looks too fine grained
 
 oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]

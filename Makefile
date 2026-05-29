@@ -15,3 +15,6 @@ db-create:
 
 db-open:
 	~/go/bin/lazysql --version
+
+golden:
+	shelltest easy.test

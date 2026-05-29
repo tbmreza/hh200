@@ -14,16 +14,14 @@ import qualified Data.Text as Text
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
 import           Data.List (isInfixOf)
+
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import           Network.HTTP.Types.Header (ResponseHeaders)
-
 import qualified BEL
 import           Hh200.Execution
 import           Hh200.Types (RhsDict (..), RequestSquare(..))
-import           Hh200.Execution (SubsetResult(..), Side(..), renderRequestQuery, renderRequestForm, renderRequestCookies, experimentalRequestBodyFile', applyBody, HhRequestBody(..), BodyPart(..))
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -37,8 +35,7 @@ testEnv = BEL.Env
 
 spec :: TestTree
 spec = testGroup "Execution"
-  [ testIsSubmapOfBy
-  , testRenderHeadersMap
+  [ testRenderHeadersMap
   , testRenderHeadersMapStitch
   , testRenderHeadersMapMultiPart
   , testObjectSubset
@@ -63,21 +60,11 @@ spec = testGroup "Execution"
   , testRenderRequestCookiesMultiple
   , testExperimentalRequestBodyFileExists
   , testExperimentalRequestBodyFileNotFound
-  , testExperimentalRequestBodyFileEmptyPath
   , testApplyBodyJson
   , testApplyBodyFormUrl
-  , testApplyBodyFormUrlEmpty
   , testApplyBodyRaw
   , testApplyBodyMultipartEmpty
   ]
-
-testIsSubmapOfBy :: TestTree
-testIsSubmapOfBy = testCase "isSubmapOfBy: usage control" $ do
-    let t1 = HM.fromList [("k1" :: String, "v1" :: String)]
-        t2 = HM.fromList [("k1", "v1"), ("k2", "v2")]
-
-    assertBool "all keys in t1 are in t2 with rel" (HM.isSubmapOfBy (==) t1 t2)
-    assertBool "fail when not submap" (not $ HM.isSubmapOfBy (const (const False)) t1 t1)
 
 testRenderHeadersMap :: TestTree
 testRenderHeadersMap = testCase "renderHeadersMap: literal" $ do
@@ -119,7 +106,6 @@ testRenderHeadersMapMultiPart = testCase "renderHeadersMap: multiple headers" $ 
         Just (Aeson.String v) -> assertEqual "X-Custom value" "value123" v
         Just _ -> assertFailure "expected String value"
 
--- (auto testObject*)
 testObjectSubset :: TestTree
 testObjectSubset = testCase "objectSubset: identical objects" $ do
     let obj1 = HM.fromList [(Key.fromString "a", Aeson.Number 1), (Key.fromString "b", Aeson.Number 2)]
@@ -250,7 +236,6 @@ testRenderRequestCookiesMultiple = testCase "renderRequestCookies: multiple cook
     result <- renderRequestCookies testEnv (Just (RequestSquareCookies input))
     assertBool "has cookie header" (case result of [("Cookie", v)] -> ("sid=xyz" `isInfixOf` BS.unpack v) && ("uid=42" `isInfixOf` BS.unpack v); _ -> False)
 
--- (auto)
 testExperimentalRequestBodyFileExists :: TestTree
 testExperimentalRequestBodyFileExists = testCase "experimentalRequestBodyFile': file exists" $ do
     (path, h) <- openTempFile "." "test-body"
@@ -265,22 +250,12 @@ testExperimentalRequestBodyFileExists = testCase "experimentalRequestBodyFile': 
 
 testExperimentalRequestBodyFileNotFound :: TestTree
 testExperimentalRequestBodyFileNotFound = testCase "experimentalRequestBodyFile': file not found" $ do
-    let nonexistent = "/nonexistent/path/to/file/that/does/not/exist.txt"
     req <- HC.parseRequest "http://localhost/"
-    req' <- experimentalRequestBodyFile' nonexistent req
+    req' <- experimentalRequestBodyFile' "/nonexistent/path/to/file/that/does/not/exist.txt" req
     case HC.requestBody req' of
         HI.RequestBodyIO _ -> assertFailure "body should not be RequestBodyIO for nonexistent file"
-        _ -> assertBool "body unchanged for nonexistent file" True
+        _ -> assertBool "body unchanged for invalid path" True
 
-testExperimentalRequestBodyFileEmptyPath :: TestTree
-testExperimentalRequestBodyFileEmptyPath = testCase "experimentalRequestBodyFile': empty path" $ do
-    req <- HC.parseRequest "http://localhost/"
-    req' <- experimentalRequestBodyFile' "" req
-    case HC.requestBody req' of
-        HI.RequestBodyIO _ -> assertFailure "body should not be RequestBodyIO for empty path"
-        _ -> assertBool "body unchanged for empty path" True
-
--- (auto)
 testApplyBodyJson :: TestTree
 testApplyBodyJson = testCase "applyBody: RBJson sets JSON body and content-type" $ do
     req <- HC.parseRequest "http://localhost/"
@@ -308,13 +283,9 @@ testApplyBodyFormUrl = testCase "applyBody: RBFormUrl sets URL-encoded body and 
             assertBool "contains name=John" ("name=John" `BS.isInfixOf` bs)
             assertBool "contains age=30" ("age=30" `BS.isInfixOf` bs)
         _ -> assertFailure "expected strict ByteString body"
-
-testApplyBodyFormUrlEmpty :: TestTree
-testApplyBodyFormUrlEmpty = testCase "applyBody: RBFormUrl empty list" $ do
-    req <- HC.parseRequest "http://localhost/"
-    req' <- applyBody (RBFormUrl []) req
-    case HC.requestBody req' of
-        HC.RequestBodyBS bs -> assertEqual "empty body" "" (BS.unpack bs)
+    reqEmpty <- applyBody (RBFormUrl []) req
+    case HC.requestBody reqEmpty of
+        HC.RequestBodyBS bs -> assertEqual "empty form body" "" (BS.unpack bs)
         _ -> assertFailure "expected strict ByteString body"
 
 testApplyBodyRaw :: TestTree

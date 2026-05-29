@@ -9,31 +9,35 @@ module Hh200.Cli
 
 import Debug.Trace
 
-import qualified Data.HashMap.Strict as HM
-import qualified Hh200.Http as Http
-import           Hh200.Graph (connect)
-import           Control.Exception        (bracket, bracket_, finally, try, SomeException)
-import           System.Posix.Signals     (installHandler, sigINT, Handler(CatchOnce))
-import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
+-- import qualified Data.HashMap.Strict as HM
+-- import           Control.Exception        (bracket, bracket_, finally, try, SomeException)
+-- import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
+-- import           Control.Monad (unless)
+-- import           Control.Monad (foldM, forM, mzero, forever, void)
+-- import qualified Data.ByteString.Lazy.Char8 as L8
+-- import           System.IO (hPutStrLn, stderr, stdout)
+-- import           Control.Monad (forM_, replicateM, replicateM_, when)
+-- import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, RateLimiterConfig, dummyDuo, WorkerMode(..))
+-- import qualified Hh200.Http as Http
 
-import           Control.Monad (unless)
-import           Control.Monad (foldM, forM, mzero, forever, void)
-import qualified Data.ByteString.Lazy.Char8 as L8
 import           Control.Monad.Trans.Maybe
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Monad (forM_, replicateM, when)
+import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
 import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
+import           System.Directory (doesFileExist)
 import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
+
+import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.Types
+import           Hh200.Graph (connect)
 import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp, runStdio)
-
-import           Control.Concurrent
-import           Control.Concurrent.STM
-import           Control.Monad (forM_, replicateM, replicateM_, when)
-import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, RateLimiterConfig, dummyDuo, WorkerMode(..))
 
 
 data Args = Args
@@ -120,17 +124,21 @@ go Args { source = Just path, debugConfig = True } = do
 -- Script execution.
 -- hh200 flow.hhs
 go args@Args { shotgun = 1, call = False, rps = False, source = Just path } = do
-    let analyzed = Scanner.analyze path
-    m <- runMaybeT analyzed
-    case m of
-        -- Just script -> trace ("path=" ++ show path) $ testSimple script
-        Just script -> trace ("path=" ++ show path) $ go' script args
-        _ -> error "bug in hh200 grammar!"
+    exists <- doesFileExist path
+    if not exists then do
+        hPutStrLn stderr $ "error: file not found: " ++ path
+        exitWith (ExitFailure 1)
+    else do
+        let analyzed = Scanner.analyze path
+        m <- runMaybeT analyzed
+        case m of
+            Just script -> trace ("path=" ++ show path) $ go' script args
+            _ -> error "bug in hh200 grammar!"
 
 -- Inline program execution.
 -- hh200 --call "GET ..."
 go Args { call = True, source = Just snip } =
-    undefined
+    error ("undefined --call snip=" ++ snip)
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
@@ -159,7 +167,7 @@ go' :: Script -> Args -> IO ()
 go' script Args { shotgun = 1, call = False, rps = False } = do
     testSimple script
 
-go' script args = trace ("go':" ++ show args) $ exitWith (ExitFailure 1)
+go' _script args = trace ("go':" ++ show args) $ exitWith (ExitFailure 1)
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
@@ -238,7 +246,7 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
                     , Tbwp.wcRateLimiter = Just rl
                     , Tbwp.wcWorkerId = i
                     }
-            forkIO (Tbwp.worker cfg script shutdownFlag done)
+            _ <- forkIO (Tbwp.worker cfg script shutdownFlag done)
             when (i < concurrency) $ threadDelay rampUpUs
 
         putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
