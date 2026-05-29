@@ -1,7 +1,8 @@
+-- Living spec of Graph.hs:
+-- 1. depends on future proof _http server_ library
 module Hh200.Graph
-  -- ( connect
-  -- ) where
-    where
+  ( startGraphServer
+  ) where
 
 import           Control.Exception      (bracket)
 import           Control.Monad          (void)
@@ -9,35 +10,39 @@ import           Data.Int               (Int64)
 import           Data.Time.Clock.POSIX  (getPOSIXTime)
 import           Database.SQLite.Simple (Connection, ToRow, FromRow, toRow, fromRow, execute_, execute, close, open, field)
 
-data TimeseriesData = TimeseriesData
-  { timestamp :: Int64
-  , value     :: Double
-  } deriving (Eq, Show)
+-- startGraphServer  :: AppEnv -> Port -> IO ()
+startGraphServer  :: Int -> Int -> IO ()
+startGraphServer = undefined
 
-instance FromRow TimeseriesData where
-    fromRow = TimeseriesData <$> field <*> field
-
-instance ToRow TimeseriesData where
-    toRow (TimeseriesData ts val) = toRow (ts, val)
-
-connect :: FilePath -> IO ()
-connect dbPath =
-    bracket (open dbPath :: IO Connection)
-            (close)
-            (\with -> do
-                putStrLn $ "Connected to SQLite database: " ++ dbPath
-                createTable with
-                insertDummyData with
-                putStrLn "Dummy data inserted.")
-
-createTable :: Connection -> IO ()
-createTable conn =
-    execute_ conn "CREATE TABLE IF NOT EXISTS timeseries_data (timestamp INTEGER PRIMARY KEY, value REAL)"
-
-insertDummyData :: Connection -> IO ()
-insertDummyData conn = do
-    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886400 :: Int64, 10.5 :: Double)
-    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886460 :: Int64, 12.3 :: Double)
-    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886520 :: Int64, 11.8 :: Double)
-    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886580 :: Int64, 15.1 :: Double)
-    void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886640 :: Int64, 13.7 :: Double)
+-- data TimeseriesData = TimeseriesData
+--   { timestamp :: Int64
+--   , value     :: Double
+--   } deriving (Eq, Show)
+--
+-- instance FromRow TimeseriesData where
+--     fromRow = TimeseriesData <$> field <*> field
+--
+-- instance ToRow TimeseriesData where
+--     toRow (TimeseriesData ts val) = toRow (ts, val)
+--
+-- connect :: FilePath -> IO ()
+-- connect dbPath =
+--     bracket (open dbPath :: IO Connection)
+--             (close)
+--             (\with -> do
+--                 putStrLn $ "Connected to SQLite database: " ++ dbPath
+--                 createTable with
+--                 insertDummyData with
+--                 putStrLn "Dummy data inserted.")
+--
+-- createTable :: Connection -> IO ()
+-- createTable conn =
+--     execute_ conn "CREATE TABLE IF NOT EXISTS timeseries_data (timestamp INTEGER PRIMARY KEY, value REAL)"
+--
+-- insertDummyData :: Connection -> IO ()
+-- insertDummyData conn = do
+--     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886400 :: Int64, 10.5 :: Double)
+--     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886460 :: Int64, 12.3 :: Double)
+--     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886520 :: Int64, 11.8 :: Double)
+--     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886580 :: Int64, 15.1 :: Double)
+--     void $ execute conn "INSERT INTO timeseries_data (timestamp, value) VALUES (?, ?)" (1678886640 :: Int64, 13.7 :: Double)

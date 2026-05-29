@@ -35,7 +35,7 @@ import qualified Paths_hh200 (version)
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.Types
-import           Hh200.Graph (connect)
+-- import           Hh200.Graph (connect)
 import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp, runStdio)
 
@@ -232,7 +232,7 @@ testShotgun numWorkers script = do
 -- RPS: rate of individual CallItems.
 testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
 testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
-    connect "timeseries.db"  -- ??:
+    -- connect "timeseries.db"  -- ??:
 
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM concurrency newEmptyMVar

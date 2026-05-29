@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Hh200.Database
-    -- ( headerJson
-    -- , extensionFor
-    -- , saveBody
-    -- ) where
-    where
+  ( RunId
+  -- , MetricRow
+  -- , BpfRow
+  -- , RunMeta
+  , initDb
+  , closeDb
+  ) where
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -14,34 +16,41 @@ import           System.FilePath ((<.>), (</>))
 import           Database.SQLite.Simple (Connection, ToRow, FromRow, toRow, fromRow, execute_, execute, close, open, field)
 
 
--- goal: stash runs data to $XDG/app.db
--- ??: assert locations of  .config  sqlite  using xdg
--- Doesn't always need sqlite.
--- hh200 system-truncate  # truncate temporary files
--- hh200 checkhealth  # prints locations and sizes of config and sqlite
+newtype RunId = RunId Int
+-- MetricRow   -- a completed request's recorded data
+-- BpfRow      -- a BPF event row (placeholder shape for now)
+-- RunMeta     -- metadata about a test run (start time, config snapshot, etc.)
 
-headerJson :: (HeaderName, BS.ByteString)
-headerJson = ("Content-Type", "application/json")
 
--- | Map MIME types to file extensions
-extensionFor :: BS.ByteString -> String
-extensionFor raw = match (BSC.takeWhile (/= ';') raw) where
-    match "application/pdf" = "pdf"
-    match "audio/mpeg" = "mp3"
-    match "image/gif" = "gif"
-    match "multipart/form-data" = "txt" -- Often processed, but saving as txt/log for debug
-    match "text/csv" = "csv"
-    match "video/mp4" = "mp4"
-    match "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" = "xlsx"
-    match "application/json" = "json"
-    match "text/html" = "html"
-    match "text/plain" = "txt"
-    match _ = "dat" -- Fallback
+initDb :: FilePath -> IO Connection
+initDb = undefined
 
--- | Save the body to a file with the appropriate extension based on Content-Type
-saveBody :: FilePath -> String -> BS.ByteString -> BS.ByteString -> IO FilePath
-saveBody dir baseName contentType body = do
-    let ext = extensionFor contentType
-        filename = dir </> (baseName <.> ext)
-    BS.writeFile filename body
-    pure filename
+closeDb :: Connection -> IO ()
+closeDb = undefined
+
+-- insertRun      :: Connection -> RunMeta -> IO RunId
+-- insertRun = undefined
+--
+-- insertMetric   :: Connection -> RunId -> MetricRow -> IO ()
+-- insertMetric = undefined
+--
+-- insertMetrics  :: Connection -> RunId -> [MetricRow] -> IO ()
+-- insertMetrics = undefined
+--
+-- insertBpfEvent :: Connection -> RunId -> BpfRow -> IO ()
+-- insertBpfEvent = undefined
+
+-- getRun          :: Connection -> RunId -> IO (Maybe RunMeta)
+-- getRun = undefined
+-- listRuns        :: Connection -> IO [RunMeta]
+-- listRuns = undefined
+-- getMetrics      :: Connection -> RunId -> IO [MetricRow]
+-- getMetrics = undefined
+-- getMetricsSince :: Connection -> RunId -> UTCTime -> IO [MetricRow]
+-- getMetricsSince = undefined
+-- getBpfEvents    :: Connection -> RunId -> IO [BpfRow]
+-- getBpfEvents = undefined
+
+-- aggLatencyPercentiles :: Connection -> RunId -> IO LatencyStats
+-- aggErrorRate          :: Connection -> RunId -> IO ErrorStats
+-- aggThroughput         :: Connection -> RunId -> IO ThroughputStats

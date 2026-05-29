@@ -85,16 +85,9 @@ import qualified Network.HTTP.Client.Internal as HI
 import qualified BEL
 import qualified Hh200.Http as Http
 import           Hh200.Types
-import           Hh200.Graph (connect)
 import           Hh200.Scanner (gatherHostInfo)
 
--- PICKUP properly test formDataBody
--- formDataBody :: MonadIO m => [Part] -> Request -> m Request
--- Add form data to the Request. This sets a new requestBody, adds a content-type request header and changes the method to POST.
 
-
-
--- experimentalRequestBodyFile :: Int
 experimentalRequestBodyFile = setRequestBody . HI.RequestBodyIO . HC.streamFile
 
 -- Set request file body, or no-op if something unexpected happened.
@@ -135,6 +128,9 @@ bodyPartToPart (BodyPartText field val) = HCMP.partBS field (TE.encodeUtf8 val)
 
 applyBody :: HhRequestBody -> HI.Request -> IO HI.Request
 applyBody (RBMultipart parts) req =
+    -- formDataBody :: MonadIO m => [Part] -> Request -> m Request
+    -- Add form data to the Request. This sets a new requestBody, adds a content-type request header and changes the method to POST.
+
     formDataBody (map bodyPartToPart parts) req
 
 applyBody (RBJson v) req =

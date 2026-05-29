@@ -18,20 +18,21 @@ module Hh200.TokenBucketWorkerPool
   ) where
 
 import Debug.Trace
+-- import           Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+-- import           Control.Monad.Reader
+-- import           Text.Printf (printf)
+-- import qualified Hh200.Http as Http
+-- import qualified Hh200.Scanner as Scanner
 
 import qualified Data.HashMap.Strict as HM
 import           Control.Concurrent
 import           Control.Concurrent.Async (async, cancel, Async)
-import           Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
+import           Control.Concurrent.STM (TVar, STM, atomically, newTVar, readTVar, writeTVar, check, modifyTVar')
 import           Control.Exception (bracket, finally)
 import           Control.Monad (forever)
-import           Control.Monad.Reader
-import           Text.Printf (printf)
 
 import           Hh200.Types
-import qualified Hh200.Http as Http
 import           Hh200.Execution (runScriptM)
-import qualified Hh200.Scanner as Scanner
 
 -- In all modes, a worker stops on timer or sigint.
 -- testSimple:  timer: y  rate-limit: no  feature: Script can be optimized to [Script], fork that number of workers.
@@ -107,20 +108,20 @@ data RateLimiterStats = RateLimiterStats
 -- Use 'destroyRateLimiter' or 'withRateLimiter' to ensure the refill thread
 -- is cancelled when done.
 initRateLimiter :: RateLimiterConfig -> IO RateLimiter
-initRateLimiter config = do
-    tokens <- atomically $ newTVar (bucketCapacity config)
+initRateLimiter rlc = do
+    tokens <- atomically $ newTVar (bucketCapacity rlc)
     consumed <- atomically $ newTVar 0
     let (intervalUs, tokensPerTick)
-          | refillRate config >= 10 = (100000, refillRate config `div` 10)
-          | refillRate config > 0   = (1000000 `div` refillRate config, 1)
+          | refillRate rlc >= 10 = (100000, refillRate rlc `div` 10)
+          | refillRate rlc > 0   = (1000000 `div` refillRate rlc, 1)
           | otherwise               = (1000000, 0) -- rate=0: no refill
     refillAsync <- async $ forever $ do
         threadDelay intervalUs
         atomically $ do
             current <- readTVar tokens
-            let newValue = min (bucketCapacity config) (current + tokensPerTick)
+            let newValue = min (bucketCapacity rlc) (current + tokensPerTick)
             writeTVar tokens newValue
-    pure $ RateLimiter tokens config consumed refillAsync
+    pure $ RateLimiter tokens rlc consumed refillAsync
 
 -- | Cancel the refill thread. Safe to call multiple times.
 destroyRateLimiter :: RateLimiter -> IO ()
@@ -128,7 +129,7 @@ destroyRateLimiter = cancel . rlRefillAsync
 
 -- | Bracket-style rate limiter lifecycle.
 withRateLimiter :: RateLimiterConfig -> (RateLimiter -> IO a) -> IO a
-withRateLimiter config = bracket (initRateLimiter config) destroyRateLimiter
+withRateLimiter rlc = bracket (initRateLimiter rlc) destroyRateLimiter
 
 -- | Consume a token, blocking if unavailable
 waitAndConsumeToken :: RateLimiter -> IO ()

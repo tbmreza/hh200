@@ -2,6 +2,35 @@
 
 [![CI](https://github.com/tbmreza/hh200/actions/workflows/ci.yml/badge.svg)](https://github.com/tbmreza/hh200/actions/workflows/ci.yml)
 
+hh200 is distributed as single monolithic binary, e.g. `npm install -g @mauikut/hh200`.
+
+```
++---------------------------------------------------------------------------+
+|                        SINGLE MONOLITHIC BINARY                           |
+|                                                                           |
+|  +------------------------------+      +-------------------------------+  |
+|  |      HASKELL RUNTIME         |      |         C STATIC LIB          |  |
+|  |                              |      |                               |  |
+|  |   +---------------------+    |      |  +-------------------------+  |  |
+|  |   |     DSL Grammar     |    |      |  | Network Monitoring eBPF |  |  |
+|  |   +---------------------+    |      |  +-------------------------+  |  |
+|  |            |                 |      |              |                |  |
+|  |            v                 |      |              v                |  |
+|  |  +------------------------+  |      |   +-----------------------+   |  |
+|  |  | Concurrent HTTP Client |  |      |   | HTTP Server Main Loop |   |  |
+|  |  +------------------------+  |      |   +-----------------------+   |  |
+|  +---------------+--------------+      +---------------+---------------+  |
+|                  |                                     |                  |
+|                  +-----------> [???       ] <----------+                  |
++---------------------------------------------------------------------------+
+```
+
+where C static lib is the part that supports a web viewing dashboard and is optional.
+- **DSL Grammar** defines the language HTTP server test designers can use to express test cases.
+- **Concurrent HTTP Client** that's capable of generating large HTTP request load safely in _single_ machine (i.e. distributed load generation warrants a version 2).
+- **Network Monitoring 🐝 eBPF** in safe kernel-level programming.
+- **HTTP Server Main Loop** in C using future-proof, popular web framework [cesanta/mongoose](https://github.com/cesanta/mongoose).
+
 ## Contributing
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
 `DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.

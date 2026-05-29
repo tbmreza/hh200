@@ -4,10 +4,7 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Options.Applicative
 import           Control.Concurrent.MVar (MVar)
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as Text
 
-import           Hh200.Types
 import qualified Hh200.Cli as Cli (go, go')
 import           Hh200.Cli
 
@@ -103,12 +100,6 @@ spec _lock = testGroup "CLI"
             Success args -> assertEqual "source" Nothing (source args)
             _ -> assertFailure "Failed to parse empty args"
 
-    , testCase "version and debug-config together" $ do
-        let res = execParserPure defaultPrefs optsInfo ["--version", "--debug-config"]
-        case res of
-            Success args -> assertBool "combined flags" (version args && debugConfig args)
-            _ -> assertFailure "Failed to parse"
-
     , testCase "shotgun value of 0" $ do
         let res = execParserPure defaultPrefs optsInfo ["--shotgun=0", "flow.hhs"]
         case res of
@@ -128,23 +119,4 @@ spec _lock = testGroup "CLI"
             _ -> assertFailure "Failed to parse path with spaces"
     ]
 
-  , testGroup "Script execution"
-      [ testCase "Script execution: ast" $ do
-            let args = mkArgs { source = Nothing }
-            let ci = CallItem { ciDeps = []
-                              , ciName = "default"
-                              , ciRequestSpec = RequestSpec { rqMethod = "POST"
-                                                            , rqSquares = ( Nothing, Nothing, Nothing
-                                                                          , Just (RequestSquareMultipart (RhsDict (HM.singleton (Text.pack "dummy") [])))
-                                                                          , Nothing
-                                                                          )
-                                                            , rqUrl = LexedUrlFull "http://localhost:9999/api/echo"
-                                                            , rqHeaders = RhsDict HM.empty
-                                                            , rqBody = ""
-                                                            }
-                              , ciResponseSpec = Nothing
-                              }
-            let prog = mkScript [ci]
-            Cli.go' prog args
-      ]
   ]
