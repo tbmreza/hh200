@@ -44,6 +44,12 @@ library
   default-extensions:
       OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  include-dirs:
+      packets
+  c-sources:
+      packets/add.cpp
+  extra-libraries:
+      stdc++
   build-depends:
       aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
@@ -96,6 +102,12 @@ executable hh200
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      packets
+  c-sources:
+      packets/add.cpp
+  extra-libraries:
+      stdc++
   build-depends:
       base >=4.7 && <5
     , hh200
@@ -118,6 +130,12 @@ test-suite hh200-test
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      packets
+  c-sources:
+      packets/add.cpp
+  extra-libraries:
+      stdc++
   build-depends:
       aeson
     , base >=4.7 && <5

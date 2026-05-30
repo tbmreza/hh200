@@ -134,3 +134,14 @@ tests:
     - bel-expr
     - lsp-test
     - http-client
+
+# 🐝 C and C++ sources ahead 🐝
+
+extra-libraries:
+  - stdc++
+
+c-sources:
+  - packets/add.cpp
+
+include-dirs:
+  - packets

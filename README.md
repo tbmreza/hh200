@@ -2,34 +2,34 @@
 
 [![CI](https://github.com/tbmreza/hh200/actions/workflows/ci.yml/badge.svg)](https://github.com/tbmreza/hh200/actions/workflows/ci.yml)
 
-hh200 is distributed as single monolithic binary, e.g. `npm install -g @mauikut/hh200`.
+hh200 is distributed as single binary, e.g. `npm install -g @mauikut/hh200`.
 
 ```
 +---------------------------------------------------------------------------+
-|                        SINGLE MONOLITHIC BINARY                           |
+| haskell-stack managed binary                                              |
 |                                                                           |
 |  +------------------------------+      +-------------------------------+  |
-|  |      HASKELL RUNTIME         |      |         C STATIC LIB          |  |
+|  | HASKELL RUNTIME              |      |                               |  |
 |  |                              |      |                               |  |
-|  |   +---------------------+    |      |  +-------------------------+  |  |
-|  |   |     DSL Grammar     |    |      |  | Network Monitoring eBPF |  |  |
-|  |   +---------------------+    |      |  +-------------------------+  |  |
+|  |   +--------------------+     |      |  +-------------------------+  |  |
+|  |   |     DSL Grammar    |     |      |  | Network Monitoring eBPF |  |  |
+|  |   +--------------------+     |      |  +-------------------------+  |  |
 |  |            |                 |      |              |                |  |
 |  |            v                 |      |              v                |  |
-|  |  +------------------------+  |      |   +-----------------------+   |  |
-|  |  | Concurrent HTTP Client |  |      |   | HTTP Server Main Loop |   |  |
-|  |  +------------------------+  |      |   +-----------------------+   |  |
+|  |  +------------------------+  |      |   +----------------------+    |  |
+|  |  | Concurrent HTTP Client |  |      |   |   Dashboard Server   |    |  |
+|  |  +------------------------+  |      |   +----------------------+    |  |
 |  +---------------+--------------+      +---------------+---------------+  |
 |                  |                                     |                  |
-|                  +-----------> [???       ] <----------+                  |
+|                  +------------> [sqlite] <-------------+                  |
 +---------------------------------------------------------------------------+
 ```
 
-where C static lib is the part that supports a web viewing dashboard and is optional.
+where the right-hand side half is the part that supports a web viewing dashboard and is optional.
 - **DSL Grammar** defines the language HTTP server test designers can use to express test cases.
-- **Concurrent HTTP Client** that's capable of generating large HTTP request load safely in _single_ machine (i.e. distributed load generation warrants a version 2).
-- **Network Monitoring 🐝 eBPF** in safe kernel-level programming.
-- **HTTP Server Main Loop** in C using future-proof, popular web framework [cesanta/mongoose](https://github.com/cesanta/mongoose).
+- **Concurrent HTTP Client** that's capable of generating large HTTP request load safely in _single_ machine (Sidenote is that distributed load generation warrants a version 2).
+- **Network Monitoring 🐝 eBPF** in safe kernel-level programming. Requires user sudo.
+- **Dashboard Server** in C using the fuzzed, safe-to-forget network framework [cesanta/mongoose](https://github.com/cesanta/mongoose).
 
 ## Contributing
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
@@ -37,6 +37,7 @@ The project is in ideation phase (Update late 2025: slowly transitioning to a ha
 
 ```sh
 stack test --test-arguments "--pattern Script"
+shelltest easy.test
 ```
 ```yaml
 # stack.yaml
@@ -93,16 +94,17 @@ its parser implementation (a [handwritten](https://github.com/Orange-OpenSource/
 URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters-in-strings
 
 
-### Development system dependencies
+### Development dependencies
 - bats (latest npmjs package: 1.13)
 - shelltestrunner (latest github release: 1.11)
 - php (latest debian stable: 8.4)
+- mongoose (latest master branch sources: `c62f8b4` 2026-May-30)
 
 ### Build Dependencies
 Notable aspects:
 - Uses `bel-expr` expression language
 - Integrates with Language Server Protocol (`lsp`) for IDE support
-- Includes both parsing (`parsec`) and lexer/generator tools (`alex`/`happy`)
+
 
 ### Development
 Developing a rule in the grammar is an activity of conservatively editing `src/L.x` and `src/P.y` at the following sites.
@@ -128,25 +130,4 @@ stack purge  # rm -rf .stack-work
 stack run
 ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
 stack exec hh200 -- --version +RTS -l -RTS  # generates .eventlog
-```
-
-## Modelling parallel test users
-
-Haskell distincts parallelism (executing computations simultaneously to improve
-performance) from concurrency (managing multiple independent computations that may interact,
-such as through I/O or shared resources).
-
-hh200 doesn't try to speak in the same granularity as haskell or any parallelism-supporting
-languages. We could reexport our host language's semantics with our syntax;
-this option is always option for future implementations of hh200. But for now when we say
-"HTTP server test with parallel users", we are thinking about a specific semantics for the
-following example program:
-
-```
-#! ["user1", "user2"] row
-
-"download image.jpg"
-GET https://fastly.picsum.photos/id/19/200/200.jpg?hmac=U8dBrPCcPP89QG1EanVOKG3qBsZwAvtCLUrfeXdE0FI
-HTTP [200 201] ("/downloads/img-{{row}}.jpg" fresh)
-
 ```

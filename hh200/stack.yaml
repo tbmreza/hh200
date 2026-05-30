@@ -17,8 +17,8 @@
 #
 # snapshot: ./custom-snapshot.yaml
 # snapshot: https://example.com/snapshots/2024-01-01.yaml
+# PICKUP claude cbits/ folder
 snapshot:
-  # url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/23/4.yaml
   url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml
 
 # User packages to be built.
@@ -40,7 +40,6 @@ extra-deps:
   - aeson-jsonpath-0.3.0.2@sha256:765111f324a33a61ae95d0fd91ae7f6bbf01893d1717781e160ec87986f438a3,4203
   # - github: tbmreza/bel-expr
   #   commit: 985f6e8d0
-  # - ../../bel-expr
   - /home/tbmreza/gh/bel-expr
   - /home/tbmreza/gh/http-client/http-client-tls
   - /home/tbmreza/gh/http-client/http-client
