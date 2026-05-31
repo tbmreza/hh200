@@ -90,6 +90,7 @@ library:
   - aeson-jsonpath >= 0.3.0.2 && < 0.4.0.0
   - bel-expr
   - optparse-applicative
+  - scotty
   - lsp
   - co-log-core
   - gitrev

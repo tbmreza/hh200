@@ -30,3 +30,4 @@ errors.err
 output/
 build/
 *.info
+node_modules/

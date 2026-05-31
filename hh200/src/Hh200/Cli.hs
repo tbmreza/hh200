@@ -2,9 +2,8 @@
 
 module Hh200.Cli
   ( cli
-  , testSimple
   , go, Args(..), optsInfo
-  , go', mkArgs
+  , mkArgs
   ) where
 
 import Debug.Trace
@@ -17,9 +16,6 @@ import Debug.Trace
 -- import qualified Data.ByteString.Lazy.Char8 as L8
 -- import           System.IO (hPutStrLn, stderr, stdout)
 -- import           Control.Monad (forM_, replicateM, replicateM_, when)
--- import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, RateLimiterConfig, dummyDuo, WorkerMode(..))
--- import qualified Hh200.Http as Http
-
 import           Control.Monad.Trans.Maybe
 import           Control.Concurrent
 import           Control.Concurrent.STM
@@ -29,13 +25,13 @@ import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
+import qualified Web.Scotty as Scotty
 import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.Types
--- import           Hh200.Graph (connect)
 import qualified Hh200.Scanner as Scanner
 import           Hh200.LanguageServer (runTcp, runStdio)
 
@@ -49,15 +45,35 @@ data Args = Args
   , shotgun :: Int
   , lsp :: Maybe Int
   , lspStdio :: Bool
+  , browse :: Maybe Int    -- browse mode port (Nothing = not browse)
   } deriving (Show, Eq)
 
 cli :: IO ()
 cli = go =<< execParser optsInfo
 
 optsInfo :: ParserInfo Args
-optsInfo = info (args <**> helper) (fullDesc
-                                 <> header "Run hh200 scripts") where
-    args = Args
+optsInfo = info (parser <**> helper) (fullDesc
+                                  <> header "Run hh200 scripts") where
+    parser = browseCmd <|> normalArgs
+
+    browseCmd = subparser
+      ( command "browse"
+          ( info
+              ( ((\p -> mkArgs { browse = Just p }) <$>
+                 option auto
+                   ( long "port"
+                  <> short 'p'
+                  <> help "HTTP port for dashboard"
+                  <> value 8089
+                  <> showDefault
+                   )
+                ) <**> helper
+              )
+              (progDesc "Launch the dashboard")
+          )
+      )
+
+    normalArgs = Args
         -- Bound by order, not by name; allowing e.g. different casing between
         -- above `debugConfig` and below `debug-config`.
         <$> optional (argument str (metavar "SOURCE"
@@ -87,15 +103,16 @@ optsInfo = info (args <**> helper) (fullDesc
                        <> showDefault )     -- Shows "[default: 1]" in help text
 
         <*> optional ( option auto ( long "lsp"
-                                  <> short 'd'
-                                  <> help "Run hh200 language server"
-                                  <> metavar "PORT" ) )
+                                   <> short 'd'
+                                   <> help "Run hh200 language server"
+                                   <> metavar "PORT" ) )
 
         <*> switch ( long "lsp-stdio"
                   <> help "Run hh200 language server over stdio" )
 
--- Experimental go and go' indirection: prevent diverging debugging &
--- production code.
+        <*> pure Nothing
+
+-- go and goStraight indirection: debug programming directly in Script structs.
 go :: Args -> IO ()
 
 -- Print executable version.
@@ -111,6 +128,11 @@ go Args { lsp = Just port } = runTcp port
 -- Run language server over stdio.
 -- hh200 --lsp-stdio
 go Args { lspStdio = True } = runStdio
+
+-- Browse/dashboard mode.
+-- hh200 browse
+-- hh200 browse --port 9090
+go Args { browse = Just port } = startServer (show port)
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
@@ -132,7 +154,7 @@ go args@Args { shotgun = 1, call = False, rps = False, source = Just path } = do
         let analyzed = Scanner.analyze path
         m <- runMaybeT analyzed
         case m of
-            Just script -> trace ("path=" ++ show path) $ go' script args
+            Just script -> trace ("path=" ++ show path) $ goStraight script args
             _ -> error "bug in hh200 grammar!"
 
 -- Inline program execution.
@@ -160,49 +182,49 @@ go Args { shotgun = n, call = False, source = Just path } = do
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
 
-go' :: Script -> Args -> IO ()
+goStraight :: Script -> Args -> IO ()
 
 -- Script execution.
 -- hh200 flow.hhs
-go' script Args { shotgun = 1, call = False, rps = False } = do
-    testSimple script
+goStraight script Args { shotgun = 1, call = False, rps = False } = do
+    testSimple
 
-go' _script args = trace ("go':" ++ show args) $ exitWith (ExitFailure 1)
+    where
+    testSimple :: IO ()
+    testSimple = do
+        -- let scripts = workOptimize script
+        let scripts = Tbwp.dummyDuo script
+
+        shutdownFlag <- newTVarIO False
+        doneSignals <- replicateM (length scripts) newEmptyMVar
+
+        forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
+            let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot
+                                        , Tbwp.wcRateLimiter = Nothing
+                                        , Tbwp.wcWorkerId = i
+                                        }
+            forkIO (Tbwp.worker cfg s shutdownFlag done)
+
+        -- Termination with ctrl+c, which is handled foremostly by worker.
+        _ <- installHandler sigINT
+                            (CatchOnce (atomically $ writeTVar shutdownFlag True))
+                            Nothing
+
+        -- Termination when all workers are done.
+        _ <- forkIO $ do
+            forM_ doneSignals readMVar
+            atomically $ writeTVar shutdownFlag True
+
+        -- Termination based on timer.
+        _ <- forkIO $ do
+            threadDelay (10 * 1000000)
+            atomically $ writeTVar shutdownFlag True
+
+        atomically (readTVar shutdownFlag >>= check)
+
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
-
-testSimple :: Script -> IO ()
-testSimple script = do
-    -- let scripts = workOptimize script
-    let scripts = Tbwp.dummyDuo script
-
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM (length scripts) newEmptyMVar
-
-    forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
-        let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot
-                                    , Tbwp.wcRateLimiter = Nothing
-                                    , Tbwp.wcWorkerId = i
-                                    }
-        forkIO (Tbwp.worker cfg s shutdownFlag done)
-
-    -- Termination with ctrl+c, which is handled foremostly by worker.
-    _ <- installHandler sigINT
-                        (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                        Nothing
-
-    -- Termination when all workers are done.
-    _ <- forkIO $ do
-        forM_ doneSignals readMVar
-        atomically $ writeTVar shutdownFlag True
-
-    -- Termination based on timer.
-    _ <- forkIO $ do
-        threadDelay (10 * 1000000)
-        atomically $ writeTVar shutdownFlag True
-
-    atomically (readTVar shutdownFlag >>= check)
 
 -- Concurrent one-shot: fire N workers, report how many failed.
 testShotgun :: Int -> Script -> IO ()
@@ -230,6 +252,7 @@ testShotgun numWorkers script = do
 
 -- Rampup-able pool of virtual users with rate limiting.
 -- RPS: rate of individual CallItems.
+-- ??: if the name testRps survives, move to where clause of goStraight
 testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
 testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
     -- connect "timeseries.db"  -- ??:
@@ -272,4 +295,17 @@ mkArgs = Args { source = Nothing
               , shotgun = 1
               , lsp = Nothing
               , lspStdio = False
+              , browse = Nothing
               }
+
+--------------------------------------------------------------------------------
+-- Dashboard server
+--------------------------------------------------------------------------------
+
+startServer :: String -> IO ()
+startServer portStr = do
+    let port = read portStr :: Int
+    putStrLn $ "hh200 dashboard listening on http://localhost:" ++ show port
+    Scotty.scotty port $ do
+        Scotty.get "/" $ do
+            Scotty.html "<html><body><h1>hh200 Dashboard</h1><p>Browse mode active.</p></body></html>"

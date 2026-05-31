@@ -80,6 +80,7 @@ library
     , parsec
     , process
     , random
+    , scotty
     , split
     , sqlite-simple
     , stm

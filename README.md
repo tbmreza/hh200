@@ -95,10 +95,9 @@ URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters
 
 
 ### Development dependencies
-- bats (latest npmjs package: 1.13)
 - shelltestrunner (latest github release: 1.11)
 - php (latest debian stable: 8.4)
-- mongoose (latest master branch sources: `c62f8b4` 2026-May-30)
+- sequelize (latest npm release: 6 stable)
 
 ### Build Dependencies
 Notable aspects:

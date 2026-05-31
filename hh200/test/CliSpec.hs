@@ -5,7 +5,7 @@ import           Test.Tasty.HUnit
 import           Options.Applicative
 import           Control.Concurrent.MVar (MVar)
 
-import qualified Hh200.Cli as Cli (go, go')
+import qualified Hh200.Cli as Cli (go)
 import           Hh200.Cli
 
 spec :: MVar () -> TestTree
@@ -76,6 +76,24 @@ spec _lock = testGroup "CLI"
         case res of
             Success args -> assertEqual "Args" (mkArgs { source = Just "flow.hhs", rps = True, shotgun = 2 }) args
             _ -> assertFailure "Failed to parse rps with shotgun"
+
+    , testCase "browse subcommand default port" $ do
+        let res = execParserPure defaultPrefs optsInfo ["browse"]
+        case res of
+            Success args -> assertEqual "Args" (mkArgs { browse = Just 8089 }) args
+            _ -> assertFailure "Failed to parse browse subcommand"
+
+    , testCase "browse subcommand custom port" $ do
+        let res = execParserPure defaultPrefs optsInfo ["browse", "--port=9090"]
+        case res of
+            Success args -> assertEqual "Args" (mkArgs { browse = Just 9090 }) args
+            _ -> assertFailure "Failed to parse browse --port=9090"
+
+    , testCase "browse subcommand custom port separate" $ do
+        let res = execParserPure defaultPrefs optsInfo ["browse", "--port", "7070"]
+        case res of
+            Success args -> assertEqual "Args" (mkArgs { browse = Just 7070 }) args
+            _ -> assertFailure "Failed to parse browse --port 7070"
     ]
 
   , testGroup "Default values"
@@ -90,6 +108,7 @@ spec _lock = testGroup "CLI"
                 assertBool "rps defaults to False" (not (rps args))
                 assertEqual "lsp defaults to Nothing" Nothing (lsp args)
                 assertBool "lspStdio defaults to False" (not (lspStdio args))
+                assertEqual "browse defaults to Nothing" Nothing (browse args)
             _ -> assertFailure "Failed to parse"
     ]
 

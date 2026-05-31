@@ -23,5 +23,9 @@
   "bugs": {
     "url": "https://github.com/tbmreza/hh200/issues"
   },
-  "homepage": "https://github.com/tbmreza/hh200#readme"
+  "homepage": "https://github.com/tbmreza/hh200#readme",
+  "dependencies": {
+    "sequelize": "^6.37.8",
+    "sequelize-cli": "^6.6.5"
+  }
 }
