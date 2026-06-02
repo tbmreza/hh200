@@ -26,6 +26,7 @@
   "homepage": "https://github.com/tbmreza/hh200#readme",
   "dependencies": {
     "sequelize": "^6.37.8",
-    "sequelize-cli": "^6.6.5"
+    "sequelize-cli": "^6.6.5",
+    "xdg-app-paths": "^8.3.0"
   }
 }
