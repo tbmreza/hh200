@@ -1,3 +1,4 @@
+PICKUP insert to and delete from runs; inquire what kind of web app is served by browse-side
 # INDUSTRY SPEC SOURCES
 ## Syntax https://hh200-docs.pages.dev/#structure
 - https://hurl.dev/docs/request.html#structure
@@ -27,7 +28,6 @@ http(s) secure
 
 tcpretrans.py
 libbpf-bootstrap has a running network example in tc.c
-??: sqlite methods; tables creation migration in haskell
 ~/go/bin/lazysql --version
 
 
@@ -139,11 +139,10 @@ haskell-c (Lockless Ring Buffers / FFI)
 --         filename = dir </> (baseName <.> ext)
 --     BS.writeFile filename body
 --     pure filename
--- ??: assert locations of  .config  sqlite  using xdg
+
 -- Doesn't always need sqlite.
 -- hh200 system-truncate  # truncate temporary files
 -- hh200 checkhealth  # prints locations and sizes of config and sqlite
--- ??: BEL api
 -- renderOrMt :: BEL.Env -> Text -> [BEL.Part] -> IO Text
 -- renderOrMt env _k parts = do
 --     av <- BEL.render env (Aeson.String "") parts
@@ -163,16 +162,10 @@ The exit code
 --
 -- same trip: Special-Use Domain Names like localhost
 
-
-            -- ??: render rp braced
 upload3: file,data.txt; text/html
 # key1: value1
 # upload1: file,data.txt;
 # upload2: file,data.html;
-??: in interpreters and evaluators context, decision tree for when to panic,
-when to null. different levels are parser (with binding powers), ast
-matching, and user facing apis.
-??: not all responseBody is textual. also, "print N first characters" seems useful
 
 old alpha.hhs:
 ```

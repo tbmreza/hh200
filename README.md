@@ -8,17 +8,16 @@ hh200 is distributed as single binary, e.g. `npm install -g @mauikut/hh200`.
 +---------------------------------------------------------------------------+
 | haskell-stack managed binary                                              |
 |                                                                           |
-|  +------------------------------+      +-------------------------------+  |
-|  | HASKELL RUNTIME              |      |                               |  |
-|  |                              |      |                               |  |
-|  |   +--------------------+     |      |  +-------------------------+  |  |
-|  |   |     DSL Grammar    |     |      |  | Network Monitoring eBPF |  |  |
-|  |   +--------------------+     |      |  +-------------------------+  |  |
-|  |            |                 |      |              |                |  |
-|  |            v                 |      |              v                |  |
-|  |  +------------------------+  |      |   +----------------------+    |  |
-|  |  | Concurrent HTTP Client |  |      |   |   Dashboard Server   |    |  |
-|  |  +------------------------+  |      |   +----------------------+    |  |
+|  +------------------------------+                                         |
+|  |                              |                                         |
+|  |   +--------------------+     |                                         |
+|  |   |     DSL Grammar    |     |                                         |
+|  |   +--------------------+     |                                         |
+|  |            |                 |                                         |
+|  |            v                 |      +-------------------------------+  |
+|  |  +------------------------+  |      |                               |  |
+|  |  | Concurrent HTTP Client |  |      |    Network Monitoring eBPF    |  |
+|  |  +------------------------+  |      |                               |  |
 |  +---------------+--------------+      +---------------+---------------+  |
 |                  |                                     |                  |
 |                  +------------> [sqlite] <-------------+                  |
@@ -28,8 +27,8 @@ hh200 is distributed as single binary, e.g. `npm install -g @mauikut/hh200`.
 where the right-hand side half is the part that supports a web viewing dashboard and is optional.
 - **DSL Grammar** defines the language HTTP server test designers can use to express test cases.
 - **Concurrent HTTP Client** that's capable of generating large HTTP request load safely in _single_ machine (Sidenote is that distributed load generation warrants a version 2).
-- **Network Monitoring 🐝 eBPF** in safe kernel-level programming. Requires user sudo.
-- **Dashboard Server** in C using the fuzzed, safe-to-forget network framework [cesanta/mongoose](https://github.com/cesanta/mongoose).
+- **Network Monitoring 🐝 eBPF** in safe kernel-extending program. Requires user sudo.
+- **Dashboard Server** with familiar JavaScript.
 
 ## Contributing
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).

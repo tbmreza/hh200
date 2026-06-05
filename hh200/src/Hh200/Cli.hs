@@ -8,14 +8,6 @@ module Hh200.Cli
 
 import Debug.Trace
 
--- import qualified Data.HashMap.Strict as HM
--- import           Control.Exception        (bracket, bracket_, finally, try, SomeException)
--- import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
--- import           Control.Monad (unless)
--- import           Control.Monad (foldM, forM, mzero, forever, void)
--- import qualified Data.ByteString.Lazy.Char8 as L8
--- import           System.IO (hPutStrLn, stderr, stdout)
--- import           Control.Monad (forM_, replicateM, replicateM_, when)
 import           Control.Monad.Trans.Maybe
 import           Control.Concurrent
 import           Control.Concurrent.STM
@@ -45,7 +37,7 @@ data Args = Args
   , shotgun :: Int
   , lsp :: Maybe Int
   , lspStdio :: Bool
-  , browse :: Maybe Int    -- browse mode port (Nothing = not browse)
+  , browse :: Maybe Int -- browse mode port (Nothing = not browse)
   } deriving (Show, Eq)
 
 cli :: IO ()
@@ -56,6 +48,7 @@ optsInfo = info (parser <**> helper) (fullDesc
                                   <> header "Run hh200 scripts") where
     parser = browseCmd <|> normalArgs
 
+    -- PICKUP browse-related compiler warnings
     browseCmd = subparser
       ( command "browse"
           ( info
