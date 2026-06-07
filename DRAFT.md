@@ -1,4 +1,4 @@
-PICKUP insert to and delete from runs; inquire what kind of web app is served by browse-side
+??: insert to and delete from runs; inquire what kind of web app is served by browse-side
 # INDUSTRY SPEC SOURCES
 ## Syntax https://hh200-docs.pages.dev/#structure
 - https://hurl.dev/docs/request.html#structure
@@ -13,6 +13,7 @@ PICKUP insert to and delete from runs; inquire what kind of web app is served by
 - "Connection: close" header sent by default; close the connection after the current request/response pair. httpie sends Connection: close header by default, curl doesn't
 - incremental parsing is non-goal if not very cheap
 - use shelltestrunner for golden integration tests. bats-core looks too fine grained
+- live: full svelte app that sends pause/resume/stop and receives SSE
 
 oftenBodyless :: UppercaseString -> Bool
 oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]

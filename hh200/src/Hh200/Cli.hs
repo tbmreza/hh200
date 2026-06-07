@@ -44,31 +44,27 @@ cli :: IO ()
 cli = go =<< execParser optsInfo
 
 optsInfo :: ParserInfo Args
-optsInfo = info (parser <**> helper) (fullDesc
-                                  <> header "Run hh200 scripts") where
-    parser = browseCmd <|> normalArgs
+-- ??: haskell other styles of writing; <**> helper
+optsInfo = info ((modeBrowse <|> modeA) <**> helper)
+                (fullDesc <> header "Run hh200 scripts")
+    where
+    modeBrowse :: Parser Args
+    modeBrowse = subparser $
+        command "browse" $
+            info (((\p -> mkArgs { browse = Just p }) <$>
+                   option auto ( long "port"
+                              <> short 'p'
+                              <> help "HTTP port for dashboard"
+                              <> value 8089
+                              <> showDefault ))
+                  <**> helper)
+                 (progDesc "Launch the dashboard")
 
-    -- PICKUP browse-related compiler warnings
-    browseCmd = subparser
-      ( command "browse"
-          ( info
-              ( ((\p -> mkArgs { browse = Just p }) <$>
-                 option auto
-                   ( long "port"
-                  <> short 'p'
-                  <> help "HTTP port for dashboard"
-                  <> value 8089
-                  <> showDefault
-                   )
-                ) <**> helper
-              )
-              (progDesc "Launch the dashboard")
-          )
-      )
-
-    normalArgs = Args
-        -- Bound by order, not by name; allowing e.g. different casing between
-        -- above `debugConfig` and below `debug-config`.
+    modeA :: Parser Args
+    modeA = Args
+        -- Bound with Args fields by order, not by name; which makes sense as
+        -- it allows different casing between above `debugConfig` and below
+        -- `debug-config`.
         <$> optional (argument str (metavar "SOURCE"
                                  <> help "Path of source program"))
 
