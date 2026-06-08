@@ -93,6 +93,7 @@ library
     , unordered-containers
     , uuid
     , vector
+    , wai-middleware-static
     , yaml
   default-language: Haskell2010
 

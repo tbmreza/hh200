@@ -91,6 +91,7 @@ library:
   - bel-expr
   - optparse-applicative
   - scotty
+  - wai-middleware-static
   - lsp
   - co-log-core
   - gitrev

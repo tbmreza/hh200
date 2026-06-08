@@ -21,7 +21,7 @@ import adapter from '@sveltejs/adapter-static';
 const config = {
 	kit: {
 		adapter: adapter({
-			fallback: '200.html' // ??: serve sveltekit SPA build folder using haskell-scotty. PICKUP use next available ports
+			fallback: '200.html' // ??: serve sveltekit SPA build folder using haskell-scotty. PICKUP help trouble shoot why it's giving Failed to load module script: Expected a JavaScript-or-Wasm module script
 		})
 	}
 };

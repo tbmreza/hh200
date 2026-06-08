@@ -18,6 +18,7 @@ import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
 import qualified Web.Scotty as Scotty
+import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           Options.Applicative
 import           Data.Version (showVersion)
 import qualified Paths_hh200 (version)
@@ -294,7 +295,8 @@ mkArgs = Args { source = Nothing
 startServer :: String -> IO ()
 startServer portStr = do
     let port = read portStr :: Int
+    let root = "min"
     putStrLn $ "hh200 dashboard listening on http://localhost:" ++ show port
     Scotty.scotty port $ do
-        Scotty.get "/" $ do
-            Scotty.html "<html><body><h1>hh200 Dashboard</h1><p>Browse mode active.</p></body></html>"
+        Scotty.middleware (staticPolicy (addBase root))
+        Scotty.get (Scotty.regex "(.*)") $ Scotty.file $ root ++ "/200.html"
