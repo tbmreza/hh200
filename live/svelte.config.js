@@ -1,27 +1,11 @@
-// import adapter from '@sveltejs/adapter-auto';
-//
-// /** @type {import('@sveltejs/kit').Config} */
-// const config = {
-// 	compilerOptions: {
-// 		// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
-// 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
-// 	},
-// 	kit: {
-// 		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-// 		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-// 		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-// 		adapter: adapter()
-// 	}
-// };
-//
-// export default config;
+// PICKUP stop button to write to unix socket; chart to read initially and then SSE sequence
 import adapter from '@sveltejs/adapter-static';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	kit: {
 		adapter: adapter({
-			fallback: '200.html' // ??: serve sveltekit SPA build folder using haskell-scotty. PICKUP help trouble shoot why it's giving Failed to load module script: Expected a JavaScript-or-Wasm module script
+			fallback: '200.html'
 		})
 	}
 };
