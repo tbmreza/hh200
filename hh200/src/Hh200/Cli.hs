@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Cli
@@ -8,6 +9,7 @@ module Hh200.Cli
 
 import Debug.Trace
 
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Maybe
 import           Control.Concurrent
 import           Control.Concurrent.STM
@@ -17,15 +19,21 @@ import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
+import           Web.Scotty (scotty)
 import qualified Web.Scotty as Scotty
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           Options.Applicative
+import           Data.Aeson (ToJSON (..), object, (.=))
+import           Data.Int (Int64)
+import           Data.Text (Text)
 import           Data.Version (showVersion)
+import           Database.SQLite.Simple (FromRow (..), field, query_, Connection)
 import qualified Paths_hh200 (version)
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
+import           Hh200.Database (initDb)
 import           Hh200.LanguageServer (runTcp, runStdio)
 
 
@@ -135,6 +143,7 @@ go Args { source = Just path, debugConfig = True } = do
 
 -- Script execution.
 -- hh200 flow.hhs
+-- ??: spin UDS listener here?
 go args@Args { shotgun = 1, call = False, rps = False, source = Just path } = do
     exists <- doesFileExist path
     if not exists then do
@@ -291,12 +300,59 @@ mkArgs = Args { source = Nothing
 --------------------------------------------------------------------------------
 -- Dashboard server
 --------------------------------------------------------------------------------
+-- Path                  Notes
+-- GET /api/runs         List runs from SQLite
+-- GET /api/runs/live    In-progress run at the time being
+-- GET /api/runs/:runId  Completed run detail
+-- GET /sse              SSE stream for live inserts
+-- POST /sig             Receives pause/resume/stop from dashboard, forwards to UDS
+-- GET /*                SvelteKit static SPA
+
+-- ??: standard way of using the same source of truth between sequelize and haskell toJSON interface
+data RunRow = RunRow
+    { runName         :: !Text
+    , runScriptPath   :: !Text
+    , runStartedAt    :: !Int64
+    , runEndedAt      :: !Int64
+    , runStatus       :: !Text
+    , runConcurrency  :: !Int
+    , runRateLimit    :: !Double
+    , runControlSocket :: !Text
+    }
+
+instance FromRow RunRow where
+    fromRow = RunRow <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+
+instance ToJSON RunRow where
+    toJSON (RunRow n sp sa ea s c rl cs) = object
+        [ "name" .= n
+        , "script_path" .= sp
+        , "started_at" .= sa
+        , "ended_at" .= ea  -- ??: make nullable as to correctly accommodate live runs. Unhandled exception of ResultError: ConversionFailed {errSQLType = "NULL", errHaskellType = "Int64", errMessage = "need an int"}
+        , "status" .= s
+        , "concurrency" .= c
+        , "rate_limit" .= rl
+        , "control_socket" .= cs
+        ]
 
 startServer :: String -> IO ()
 startServer portStr = do
     let port = read portStr :: Int
-    let root = "min"
     putStrLn $ "hh200 dashboard listening on http://localhost:" ++ show port
-    Scotty.scotty port $ do
-        Scotty.middleware (staticPolicy (addBase root))
-        Scotty.get (Scotty.regex "(.*)") $ Scotty.file $ root ++ "/200.html"
+    scotty port $ do
+        Scotty.middleware (staticPolicy (addBase "min"))
+
+        -- PICKUP tes dari postman
+        Scotty.get "/runs" $ do
+            conn <- liftIO initDb
+            -- (auto)
+            rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
+            Scotty.json $ object ["runs" .= rows]
+
+        Scotty.get (Scotty.regex "(.*)") $
+            Scotty.file "min/200.html"
+
+        Scotty.post "/sig" $
+            -- pause/resume warrants ack; stop is fire-and-forget.
+            -- ??: write to an ipc
+            undefined

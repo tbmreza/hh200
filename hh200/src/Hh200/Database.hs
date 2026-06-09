@@ -9,11 +9,16 @@ module Hh200.Database
   , closeDb
   ) where
 
+import Debug.Trace
+
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import           Network.HTTP.Types.Header (HeaderName)
-import           System.FilePath ((<.>), (</>))
 import           Database.SQLite.Simple (Connection, ToRow, FromRow, toRow, fromRow, execute_, execute, close, open, field)
+import           Network.HTTP.Types.Header (HeaderName)
+import           System.Directory (XdgDirectory (XdgData), getXdgDirectory)
+import           System.Environment (lookupEnv)
+import           System.Exit (exitSuccess)
+import           System.FilePath ((<.>), (</>))
 
 
 newtype RunId = RunId Int
@@ -22,8 +27,16 @@ newtype RunId = RunId Int
 -- RunMeta     -- metadata about a test run (start time, config snapshot, etc.)
 
 
-initDb :: FilePath -> IO Connection
-initDb = undefined
+-- (auto)
+initDb :: IO Connection
+initDb = do
+    mPath <- lookupEnv "HH200_SQLITE"
+    case mPath of
+        Just fp -> open (trace ("mPath=" ++ fp) fp)
+        Nothing -> do
+            dir <- getXdgDirectory XdgData "hh200"
+            putStrLn dir
+            exitSuccess
 
 closeDb :: Connection -> IO ()
 closeDb = undefined

@@ -31,3 +31,4 @@ output/
 build/
 *.info
 node_modules/
+app.db
