@@ -8,13 +8,10 @@
 module Hh200.Execution
   ( runScriptM
 
-  -- , runProcM
-  -- , conduct
   , ProcM
   , status200
   , renderHeadersMap
   , renderRequestQuery
-  -- , renderRequestUrl
   , renderRequestForm
   , renderRequestCookies
   , objectSubset
@@ -267,43 +264,6 @@ runScriptM script env = do
     _ <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
 
--- -- ??: to be seen if we need to abstract Manager or not
--- runProcM :: Script -> Http.Manager -> Env -> IO (Maybe CallItem, Env, Log)
--- runProcM script mgr env = do
---     let course :: ProcM CallItem = courseFrom script
---     Tf.runRWST (runMaybeT course) mgr env
---
--- -- ??: waiting for stable worker/tbwp
--- conduct :: Script -> Http.Manager -> Env -> IO Lead
--- conduct script mgr env = do
---     hi <- gatherHostInfo
---     result <- try (runProcM script mgr env)
---     case result of
---         Left (e :: SomeException) -> do
---             let errLog = [HttpError (show e)]
---             -- We use defaultCallItem to indicate a system/execution error
---             -- but we might want a more specific "Error" CallItem later.
---             pure $ leadFrom (Just defaultCallItem) (env, errLog) script hi
---         Right (mci, finalEnv, procLog) -> do
---             traceM $ "Execution finished. Log length: " ++ show (length procLog)
---             pure $ leadFrom mci (finalEnv, procLog) script hi
---
---     where
---     leadFrom :: Maybe CallItem -> (Env, Log) -> Script -> HostInfo -> Lead
---     leadFrom failed el script hi = Lead
---       { leadKind = Normal
---       , firstFailing = failed
---       , hostInfo = hi
---       , echoScript = Just script
---       , interpreterInfo = el
---       }
--- testOutsideWorld :: Script -> IO Lead
--- testOutsideWorld script = do
---     bracket (Http.newManager True)
---             Http.closeManager $
---             \mgr -> conduct script mgr HM.empty
-
-
 specCapturesOrMt :: CallItem -> RhsDict
 specCapturesOrMt ci =
     case ciResponseSpec ci of
@@ -498,7 +458,7 @@ courseFrom x = do
         env <- get
         reqOrThrow <- liftIO $ buildRequest env ci
 
-        -- ??: after exception handling sites are clear, print offline HttpExceptionRequest to user right away (or else).
+        -- ??: print offline HttpExceptionRequest to user right away (or otherwise).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         -- ??: handle multipart file not found
         eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))

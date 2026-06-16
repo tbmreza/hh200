@@ -123,7 +123,7 @@ data ScriptKind = Regular | Static | Sole
     deriving (Show, Eq)
 
 data Script = Script
-  { kind :: ScriptKind
+  { kind :: ScriptKind  -- ??: retire
   , config :: ScriptConfig
   , callItems :: [CallItem]
   } deriving (Show)

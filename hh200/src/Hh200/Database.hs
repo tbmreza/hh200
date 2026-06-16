@@ -39,7 +39,7 @@ initDb = do
             exitSuccess
 
 closeDb :: Connection -> IO ()
-closeDb = undefined
+closeDb = close
 
 -- insertRun      :: Connection -> RunMeta -> IO RunId
 -- insertRun = undefined

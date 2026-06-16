@@ -78,6 +78,7 @@ instance Analyze FilePath where
         exists <- liftIO $ doesFileExist path
         MaybeT $ case exists of
             False -> do
+                -- ??: Analyze is probably dead code
                 -- Proceeding to testOutsideWorld is unnecessary.
                 pure Nothing
             _ -> do

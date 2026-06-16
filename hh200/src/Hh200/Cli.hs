@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Hh200.Cli
   ( cli
@@ -11,29 +12,37 @@ import Debug.Trace
 
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Maybe
+import           Control.Exception (finally, try, SomeException)
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           Control.Monad (forM_, replicateM, when)
+import           Control.Concurrent.STM.TQueue (flushTQueue)
+import           Control.Monad (forM_, replicateM, when, forever)
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
 import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
-import           Web.Scotty (scotty)
-import qualified Web.Scotty as Scotty
+import           Web.Scotty (scotty, regex)
+import qualified Web.Scotty as Server
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           Options.Applicative
 import           Data.Aeson (ToJSON (..), object, (.=))
 import           Data.Int (Int64)
-import           Data.Text (Text)
+import           Data.Text (Text, pack)
 import           Data.Version (showVersion)
-import           Database.SQLite.Simple (FromRow (..), field, query_, Connection)
+import           Database.SQLite.Simple (FromRow (..), field, query_, Connection, execute, lastInsertRowId)
 import qualified Paths_hh200 (version)
+
+import Network.Socket
+import qualified Network.Socket.ByteString as NBS
+import Data.ByteString.Char8 (unpack)
+import Control.Monad (unless)
+import System.Directory (removeFile, doesFileExist)
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
-import           Hh200.Database (initDb)
+import           Hh200.Database (initDb, closeDb)
 import           Hh200.LanguageServer (runTcp, runStdio)
 
 
@@ -43,7 +52,7 @@ data Args = Args
   , debugConfig :: Bool
   , call :: Bool
   , rps :: Bool
-  , shotgun :: Int
+  , duration :: Int  -- ??: repurpose for number of VUs; shotgun as shorthand for --nvu=N --duration=0
   , lsp :: Maybe Int
   , lspStdio :: Bool
   , browse :: Maybe Int -- browse mode port (Nothing = not browse)
@@ -53,7 +62,7 @@ cli :: IO ()
 cli = go =<< execParser optsInfo
 
 optsInfo :: ParserInfo Args
--- ??: haskell other styles of writing; <**> helper
+-- ??: refactor so it's closer to natural language reading
 optsInfo = info ((modeBrowse <|> modeA) <**> helper)
                 (fullDesc <> header "Run hh200 scripts")
     where
@@ -93,11 +102,17 @@ optsInfo = info ((modeBrowse <|> modeA) <**> helper)
                   <> short 'R'
                   <> help "Start \"requests per second\" mode" )
 
-        <*> option auto ( long "shotgun"
-                       <> short 'S'
-                       <> help "Execute in N parallel workers at once"
-                       <> metavar "N"       -- Displays as: -S N or --shotgun N
-                       <> value 1           -- Default to 1 if flag is omitted
+        -- <*> option auto ( long "shotgun"
+        --                <> short 'S'
+        --                <> help "Execute in N parallel workers at once"
+        --                <> metavar "N"       -- Displays as: -S N or --shotgun N
+        --                <> value 1           -- Default to 1 if flag is omitted
+        --                <> showDefault )     -- Shows "[default: 1]" in help text
+        <*> option auto ( long "duration"
+                       <> short 't'
+                       <> help "Set duration of load test execution in seconds"
+                       <> metavar "S"       -- Displays as: -t S or --duration S
+                       <> value 0           -- Default 0 encodes shotgun mode
                        <> showDefault )     -- Shows "[default: 1]" in help text
 
         <*> optional ( option auto ( long "lsp"
@@ -144,7 +159,7 @@ go Args { source = Just path, debugConfig = True } = do
 -- Script execution.
 -- hh200 flow.hhs
 -- ??: spin UDS listener here?
-go args@Args { shotgun = 1, call = False, rps = False, source = Just path } = do
+go args@Args { duration = 1, call = False, rps = False, source = Just path } = do
     exists <- doesFileExist path
     if not exists then do
         hPutStrLn stderr $ "error: file not found: " ++ path
@@ -153,7 +168,8 @@ go args@Args { shotgun = 1, call = False, rps = False, source = Just path } = do
         let analyzed = Scanner.analyze path
         m <- runMaybeT analyzed
         case m of
-            Just script -> trace ("path=" ++ show path) $ goStraight script args
+            -- Just script -> trace ("path=" ++ show path) $ goStraight script args
+            Just script -> trace ("goMode path=" ++ show path) $ goMode script args
             _ -> error "bug in hh200 grammar!"
 
 -- Inline program execution.
@@ -163,7 +179,7 @@ go Args { call = True, source = Just snip } =
 
 -- Inserts timeseries data to a file database and optionally serves a web frontend.
 -- hh200 flow.hhs --rps
-go Args { rps = True, shotgun = n, source = Just path } = do
+go Args { rps = True, duration = n, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
@@ -171,21 +187,153 @@ go Args { rps = True, shotgun = n, source = Just path } = do
         Just s  -> testRps 10 n 1000000 500000 s
 
 -- Shotgun.
--- hh200 flow.hhs --shotgun=4
-go Args { shotgun = n, call = False, source = Just path } = do
+-- hh200 flow.hhs --nvu=4 --duration=0
+        -- Just script  -> testShotgun n script
+-- Load test mode.
+-- hh200 flow.hhs --duration=30
+go args@Args { duration = n, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just s  -> testShotgun n s
+        Just script  -> goMode script args
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
+
+genName = "default run name"
+
+data RunState = Running | Paused | Stopped
+    deriving (Eq)
+
+goMode :: Script -> Args -> IO ()
+
+goMode script args = do
+    testSimple
+
+    where
+
+-- type Flag = TVar Bool
+    -- terminate :: Flag -> IO ()
+    terminate v = atomically $ writeTVar v Stopped
+
+    -- awaitStopped :: TVar RunState -> STM ()
+
+    mkRunRow :: IO RunRow
+    mkRunRow = do
+        pure $ RunRow
+          { runControlSocket = ""
+          , runStatus = "running"
+          , runEndedAt = ETStillRunning
+          -- args fields --
+          , runRateLimit = 0.0
+          , runScriptPath = ""
+          -- system io --
+          , runName = genName
+          , runStartedAt = 0
+          }
+
+    -- Script of single call item, repeatedly fired for duration unless
+    -- interrupted.
+    testSimple :: IO ()
+    testSimple = do
+        conn <- initDb
+
+        -- let scripts = Tbwp.dummyDuo script
+
+        rr <- mkRunRow
+
+        mRunId <- insertRun conn rr
+
+        -- Control flag.
+        s <- newTVarIO Running
+        -- doneSignals <- replicateM (length scripts) newEmptyMVar
+        doneSignals <- replicateM 1 newEmptyMVar
+
+        -- Termination with ctrl+c, which is handled foremostly by worker.
+        _ <- installHandler sigINT
+                            -- (CatchOnce $ terminate s)
+                            (CatchOnce $ undefined)
+                            Nothing
+
+        -- Unix Domain Socket listener
+        _ <- forkIO $
+            controlSocketListener "/tmp/hh200_socket" $ \msg ->
+                case msg of
+                    "pause\n" -> undefined
+                    "resume\n" -> atomically $ writeTVar s Running
+                    "stop\n" -> terminate s
+                    _        -> putStrLn $ "received: " ++ msg
+
+        -- Termination when all workers are done.
+        _ <- forkIO $ do
+            forM_ doneSignals readMVar
+            undefined
+            -- terminate s
+
+        -- Termination based on timer.
+        _ <- forkIO $ do
+            threadDelay ((duration args) * 1000000)
+            terminate s
+
+
+        atomically $
+            check . (== Stopped) =<< readTVar s
+
+
+controlSocketListener
+    :: FilePath
+    -> (String -> IO ())
+    -> IO ()
+controlSocketListener path handler = do
+    sock <- socket AF_UNIX Stream defaultProtocol
+
+    bind sock (SockAddrUnix path)
+    listen sock 1
+
+    forever $ do
+        (client, _) <- accept sock
+
+        _ <- forkIO $
+            finally
+                (let loop = do
+                        bs <- NBS.recv client 4096
+                        unless (bs == mempty) $ do
+                            handler (unpack bs)
+                            loop
+                 in loop)
+                (close client)
+
+        pure ()
+
+
+-- ??: what's a "live event"?
+-- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()
+-- persistMetrics conn e shutdownFlag = loop
+persistMetrics :: Connection -> IO ()
+persistMetrics conn = loop
+-- flushTQueue :: TQueue a -> STM [a]
+    where
+    loop = do
+        case True of
+            True -> pure ()
+
+insertRun :: Connection -> RunRow -> IO (Maybe Int64)
+insertRun conn rr = do
+    result <- try $ do
+        execute conn
+                "INSERT INTO runs (name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket) VALUES (?, ?, unixepoch('now'), ?, ?, ?, ?, ?)"
+                ("dummy" :: Text, "test.hhs" :: Text, 0 :: Int64, "completed" :: Text, 1 :: Int, 0.0 :: Double, "" :: Text)
+        lastInsertRowId conn
+    case result of
+        Left (_ :: SomeException) -> pure Nothing
+        Right rid -> pure (Just rid)
 
 goStraight :: Script -> Args -> IO ()
 
 -- Script execution.
 -- hh200 flow.hhs
-goStraight script Args { shotgun = 1, call = False, rps = False } = do
+-- - Always touches filesystem sqlite. Non-RPS runs are saved or not saved to database.
+goStraight script args = do
     testSimple
 
     where
@@ -193,6 +341,21 @@ goStraight script Args { shotgun = 1, call = False, rps = False } = do
     testSimple = do
         -- let scripts = workOptimize script
         let scripts = Tbwp.dummyDuo script
+
+
+        conn <- initDb
+        let rr = RunRow
+                { runName = "default"
+                -- , runScriptPath = maybe "" pack args.source
+                , runScriptPath = ""
+                , runStartedAt = 0
+                , runEndedAt = ETStillRunning
+                , runStatus = "running"
+                , runConcurrency = length scripts
+                , runRateLimit = 0.0
+                , runControlSocket = ""
+                }
+        mRunId <- insertRun conn rr
 
         shutdownFlag <- newTVarIO False
         doneSignals <- replicateM (length scripts) newEmptyMVar
@@ -204,6 +367,7 @@ goStraight script Args { shotgun = 1, call = False, rps = False } = do
                                         }
             forkIO (Tbwp.worker cfg s shutdownFlag done)
 
+        -- ??: (callsite of persistMetrics) when there's no live events left.
         -- Termination with ctrl+c, which is handled foremostly by worker.
         _ <- installHandler sigINT
                             (CatchOnce (atomically $ writeTVar shutdownFlag True))
@@ -220,6 +384,7 @@ goStraight script Args { shotgun = 1, call = False, rps = False } = do
             atomically $ writeTVar shutdownFlag True
 
         atomically (readTVar shutdownFlag >>= check)
+        -- closeDb conn  -- ??:
 
 
 -- Globally interruptible worker(s) running Script.
@@ -254,7 +419,7 @@ testShotgun numWorkers script = do
 -- ??: if the name testRps survives, move to where clause of goStraight
 testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
 testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
-    -- connect "timeseries.db"  -- ??:
+    -- connect "timeseries.db"
 
     shutdownFlag <- newTVarIO False
     doneSignals <- replicateM concurrency newEmptyMVar
@@ -291,7 +456,7 @@ mkArgs = Args { source = Nothing
               , debugConfig = False
               , call = False
               , rps = False
-              , shotgun = 1
+              , duration = 1
               , lsp = Nothing
               , lspStdio = False
               , browse = Nothing
@@ -308,51 +473,71 @@ mkArgs = Args { source = Nothing
 -- POST /sig             Receives pause/resume/stop from dashboard, forwards to UDS
 -- GET /*                SvelteKit static SPA
 
--- ??: standard way of using the same source of truth between sequelize and haskell toJSON interface
+-- ?? full review of RunRow: runEndedAt is optional
+data RREndTime =
+    ETStillRunning
+  | ETHasEnded !Int64
+
+-- ??: use the same source of truth between sequelize and haskell toJSON interface
 data RunRow = RunRow
-    { runName         :: !Text
-    , runScriptPath   :: !Text
-    , runStartedAt    :: !Int64
-    , runEndedAt      :: !Int64
-    , runStatus       :: !Text
-    , runConcurrency  :: !Int
-    , runRateLimit    :: !Double
-    , runControlSocket :: !Text
-    }
+  -- { runName          :: !Text
+  -- , runScriptPath    :: !Text
+  -- , runStartedAt     :: Int64
+  -- , runEndedAt       :: RREndTime
+  -- , runStatus        :: !Text
+  -- , runConcurrency   :: !Int
+  -- , runRateLimit     :: !Double
+  -- , runControlSocket :: !Text
+  -- }
+  { runName          :: Text
+  , runScriptPath    :: Text
+  , runStartedAt     :: Int64
+  , runEndedAt       :: RREndTime
+  , runStatus        :: Text
+  , runConcurrency   :: Int
+  , runRateLimit     :: Double
+  , runControlSocket :: Text
+  }
 
 instance FromRow RunRow where
-    fromRow = RunRow <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+    fromRow = RunRow <$> field
+                     <*> field
+                     <*> field
+                     <*> (maybe ETStillRunning ETHasEnded <$> field)
+                     <*> field
+                     <*> field
+                     <*> field
+                     <*> field
 
 instance ToJSON RunRow where
     toJSON (RunRow n sp sa ea s c rl cs) = object
-        [ "name" .= n
-        , "script_path" .= sp
-        , "started_at" .= sa
-        , "ended_at" .= ea  -- ??: make nullable as to correctly accommodate live runs. Unhandled exception of ResultError: ConversionFailed {errSQLType = "NULL", errHaskellType = "Int64", errMessage = "need an int"}
-        , "status" .= s
-        , "concurrency" .= c
-        , "rate_limit" .= rl
-        , "control_socket" .= cs
-        ]
+      [ "name" .= n
+      , "script_path" .= sp
+      , "started_at" .= sa
+      , "ended_at" .= case ea of ETStillRunning -> Nothing; ETHasEnded v -> Just v
+      , "status" .= s
+      , "concurrency" .= c
+      , "rate_limit" .= rl
+      , "control_socket" .= cs
+      ]
 
 startServer :: String -> IO ()
 startServer portStr = do
     let port = read portStr :: Int
     putStrLn $ "hh200 dashboard listening on http://localhost:" ++ show port
     scotty port $ do
-        Scotty.middleware (staticPolicy (addBase "min"))
+        Server.middleware (staticPolicy (addBase "min"))
 
-        -- PICKUP tes dari postman
-        Scotty.get "/runs" $ do
+        Server.get "/runs" $ do
             conn <- liftIO initDb
             -- (auto)
             rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
-            Scotty.json $ object ["runs" .= rows]
+            Server.json $ object ["runs" .= rows]
 
-        Scotty.get (Scotty.regex "(.*)") $
-            Scotty.file "min/200.html"
+        Server.get (regex "(.*)") $
+            Server.file "min/200.html"
 
-        Scotty.post "/sig" $
+        Server.post "/sig" $
             -- pause/resume warrants ack; stop is fire-and-forget.
             -- ??: write to an ipc
             undefined
