@@ -35,6 +35,7 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 ```bash
 composer install
+php artisan migrate --seed
 php artisan serve
 ```
 

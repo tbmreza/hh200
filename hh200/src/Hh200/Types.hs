@@ -43,7 +43,6 @@ module Hh200.Types
     , ResponseSquare (..), rpSquaresNothing
     , RequestSquare (..), rqSquaresNothing
     , mkScript, mkCallItem
-    -- , multipartFilepathAt
     ) where
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -184,17 +183,6 @@ data RequestSquare =
   | RequestSquareCookies RhsDict
     deriving (Show)
 
--- foldMultipathRhsDict :: RequestSquare -> 
---
--- foldMultipathRhsDict (RequestSquareMultipart rdict) = 
--- -- file path might appear on right hand side
---
--- foldMultipathRhsDict _ = error "partial foldMultipathRhsDict fn"
-
--- multipartFilepathAt :: RequestSquare -> Text -> Maybe FilePath
--- multipartFilepathAt (RequestSquareMultipart _) t = Just ""
--- -- multipartFilepathAt _ = Nothing
-
 data ResponseSquare =
     ResponseSquareAsserts [String]
   | ResponseSquareCaptures RhsDict
@@ -207,6 +195,8 @@ data RequestSpec = RequestSpec
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
   , rqBody ::    String
+  -- , rqDelay ::   Int  -- ??: think time default is 0. here vs at CallItem will be clear if/when implemented. jitter addition can wait until ebpf monitoring data.
+                         -- a CallItem that sleeps as a delay statement is also planned
   } deriving (Show)
 
 rqSquaresNothing :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)

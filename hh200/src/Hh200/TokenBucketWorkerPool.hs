@@ -13,8 +13,9 @@ module Hh200.TokenBucketWorkerPool
   , waitAndConsumeToken
   , WorkerMode(..)
   , WorkerConfig(..)
-  , worker
+  , worker, courier
   , workOptimize, dummyDuo
+  , RunState(..)
   ) where
 
 import Debug.Trace
@@ -58,6 +59,32 @@ dummyDuo :: Script -> [Script]
 -- dummyDuo s = [s, s]
 dummyDuo s = [s]
 
+data RunState = Running | Paused | Stopped
+    deriving (Eq)
+
+-- acquireToken :: RateLimiter -> RunState -> STM ()
+-- fire :: AppEnv -> RateLimiter -> MVar () -> IO ()
+-- fire = loop
+
+-- acquireToken :: TVar RunState -> RateLimite -> STM ()
+-- acquireToken s Unlimited = do
+--   st <- readTVar s
+--   case st of
+--     Paused  -> retry
+--     Stopped -> return ()
+--     Running -> return ()
+-- acquireToken s (TokenBucket { tbTokens = tokens }) = do
+--   st <- readTVar s
+--   case st of
+--     Paused  -> retry
+--     Stopped -> return ()
+--     Running -> do
+--       n <- readTVar tokens
+--       if n > 0
+--         then writeTVar tokens (n - 1)
+--         else retry
+
+-- worker :: WorkerConfig -> Script -> TVar RunState -> MVar () -> IO ()
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
 worker    cfg             script    shutdown     done =
     loop `finally` putMVar done ()
@@ -72,21 +99,36 @@ worker    cfg             script    shutdown     done =
                 Just rl -> waitAndConsumeToken rl
                 Nothing -> pure ()
 
-            -- printf "Worker %d: running script...\n" (wcWorkerId cfg)  -- ??: stderr
-            runScriptM script newEnv
+            -- acquireToken
+            trace ("worker:runScriptM........") $ runScriptM script newEnv
 
             -- OneShot: exit after one run. LoopWithNap: nap then loop.
             case wcMode cfg of
                 OneShot       -> pure ()
                 LoopWithNap n -> threadDelay n >> loop
 
-
+courier :: Script -> TVar RunState -> MVar () -> IO ()
+courier    script    cue              done =
+    loop `finally` putMVar done ()
+    where
+    loop = do
+        stop <- atomically $ readTVar cue
+        case stop of
+            Stopped -> pure ()
+            _ -> do
+                -- acquireToken
+                trace ("courier:runScriptM........") $ runScriptM script newEnv
+                threadDelay 1000
+                loop
 
 -- | Configuration for the Rate Limiter
 data RateLimiterConfig = RateLimiterConfig
   { bucketCapacity :: Int
   , refillRate     :: Int -- ^ Tokens per second
   } deriving (Show, Eq)
+
+data RateLimite =
+    Unlimited  -- network monitoring is probably more interesting here
 
 -- | Token Bucket Rate Limiter
 data RateLimiter = RateLimiter

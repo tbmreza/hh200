@@ -10,4 +10,4 @@ Content-Type: "application/json"
 HTTP 200 204
 [Asserts]
 >jsonpath "$.token" copy
-{ "user": { "id": "abc" } }
+{ "user": { "name": "Test User" } }

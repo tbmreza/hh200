@@ -40,19 +40,21 @@ import Control.Monad (unless)
 import System.Directory (removeFile, doesFileExist)
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
+import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
 import           Hh200.Database (initDb, closeDb)
 import           Hh200.LanguageServer (runTcp, runStdio)
 
 
+-- PICKUP
+-- shotgun as shorthand for --nvu=N --duration=0
 data Args = Args
   { source :: Maybe String  -- used for both FilePath and Snippet sources
   , version :: Bool
   , debugConfig :: Bool
   , call :: Bool
-  , rps :: Bool
-  , duration :: Int  -- ??: repurpose for number of VUs; shotgun as shorthand for --nvu=N --duration=0
+  , duration :: Int
   , lsp :: Maybe Int
   , lspStdio :: Bool
   , browse :: Maybe Int -- browse mode port (Nothing = not browse)
@@ -98,9 +100,9 @@ optsInfo = info ((modeBrowse <|> modeA) <**> helper)
                   <> short 'C'
                   <> help "Execute a script snippet directly" )
 
-        <*> switch ( long "rps"
-                  <> short 'R'
-                  <> help "Start \"requests per second\" mode" )
+        -- <*> switch ( long "rps"
+        --           <> short 'R'
+        --           <> help "Start \"requests per second\" mode" )
 
         -- <*> option auto ( long "shotgun"
         --                <> short 'S'
@@ -159,7 +161,8 @@ go Args { source = Just path, debugConfig = True } = do
 -- Script execution.
 -- hh200 flow.hhs
 -- ??: spin UDS listener here?
-go args@Args { duration = 1, call = False, rps = False, source = Just path } = do
+-- go args@Args { duration = 1, call = False, rps = False, source = Just path } = do
+go args@Args { duration = 1, call = False, source = Just path } = do
     exists <- doesFileExist path
     if not exists then do
         hPutStrLn stderr $ "error: file not found: " ++ path
@@ -177,14 +180,14 @@ go args@Args { duration = 1, call = False, rps = False, source = Just path } = d
 go Args { call = True, source = Just snip } =
     error ("undefined --call snip=" ++ snip)
 
--- Inserts timeseries data to a file database and optionally serves a web frontend.
--- hh200 flow.hhs --rps
-go Args { rps = True, duration = n, source = Just path } = do
-    mScript <- runMaybeT (Scanner.analyze path)
-    case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        -- Just s  -> testRps rpsVal concurrency rampUpUs thinkTimeUs script
-        Just s  -> testRps 10 n 1000000 500000 s
+-- -- Inserts timeseries data to a file database and optionally serves a web frontend.
+-- -- hh200 flow.hhs --rps
+-- go Args { rps = True, duration = n, source = Just path } = do
+--     mScript <- runMaybeT (Scanner.analyze path)
+--     case mScript of
+--         Nothing -> exitWith (ExitFailure 1)
+--         -- Just s  -> testRps rpsVal concurrency rampUpUs thinkTimeUs script
+--         Just s  -> testRps 10 n 1000000 500000 s
 
 -- Shotgun.
 -- hh200 flow.hhs --nvu=4 --duration=0
@@ -202,8 +205,22 @@ go _ = exitWith (ExitFailure 1)
 
 genName = "default run name"
 
-data RunState = Running | Paused | Stopped
-    deriving (Eq)
+-- data RunState = Running | Paused | Stopped
+--     deriving (Eq)
+
+-- data RateLimiter
+--   = Unlimited
+--   | TokenBucket
+--       { tbTokens   :: TVar Int  -- current tokens
+--       , tbCapacity :: Int       -- max tokens (burst ceiling)
+--       , tbPerTick  :: Int       -- tokens added per refill tick
+--       , tbInterval :: Int       -- refill interval in microseconds
+--       }
+
+-- staggerDelayMicr :: Int -> Int -> Int
+-- staggerDelayMicr n i
+--     | n >= 4    = i * (1_000_000 `div` n)   -- spread evenly across 1 s
+--     | otherwise = 0
 
 goMode :: Script -> Args -> IO ()
 
@@ -211,12 +228,8 @@ goMode script args = do
     testSimple
 
     where
-
--- type Flag = TVar Bool
     -- terminate :: Flag -> IO ()
     terminate v = atomically $ writeTVar v Stopped
-
-    -- awaitStopped :: TVar RunState -> STM ()
 
     mkRunRow :: IO RunRow
     mkRunRow = do
@@ -238,21 +251,24 @@ goMode script args = do
     testSimple = do
         conn <- initDb
 
-        -- let scripts = Tbwp.dummyDuo script
-
         rr <- mkRunRow
 
         mRunId <- insertRun conn rr
 
         -- Control flag.
         s <- newTVarIO Running
-        -- doneSignals <- replicateM (length scripts) newEmptyMVar
-        doneSignals <- replicateM 1 newEmptyMVar
+
+        -- The loop that fires HTTP requests. Automatic 1-second stagger for
+        -- nvu >= 4.
+        let argsNvu = 2
+        drawer <- replicateM argsNvu newEmptyMVar
+        -- forM_ (zip undefined drawer) $ \(_, hole) -> do
+        forM_ (drawer) $ \(hole) -> do
+            forkIO $ courier script s hole
 
         -- Termination with ctrl+c, which is handled foremostly by worker.
         _ <- installHandler sigINT
-                            -- (CatchOnce $ terminate s)
-                            (CatchOnce $ undefined)
+                            (CatchOnce $ terminate s)
                             Nothing
 
         -- Unix Domain Socket listener
@@ -266,15 +282,15 @@ goMode script args = do
 
         -- Termination when all workers are done.
         _ <- forkIO $ do
-            forM_ doneSignals readMVar
-            undefined
-            -- terminate s
-
-        -- Termination based on timer.
-        _ <- forkIO $ do
-            threadDelay ((duration args) * 1000000)
+            forM_ drawer readMVar
             terminate s
 
+        -- Termination based on timer only when duration > 0.
+        when (duration args > 0) $ do
+            _ <- forkIO $ do
+                threadDelay ((duration args) * 1000000)
+                terminate s
+            pure ()
 
         atomically $
             check . (== Stopped) =<< readTVar s
@@ -328,63 +344,63 @@ insertRun conn rr = do
         Left (_ :: SomeException) -> pure Nothing
         Right rid -> pure (Just rid)
 
-goStraight :: Script -> Args -> IO ()
-
--- Script execution.
--- hh200 flow.hhs
--- - Always touches filesystem sqlite. Non-RPS runs are saved or not saved to database.
-goStraight script args = do
-    testSimple
-
-    where
-    testSimple :: IO ()
-    testSimple = do
-        -- let scripts = workOptimize script
-        let scripts = Tbwp.dummyDuo script
-
-
-        conn <- initDb
-        let rr = RunRow
-                { runName = "default"
-                -- , runScriptPath = maybe "" pack args.source
-                , runScriptPath = ""
-                , runStartedAt = 0
-                , runEndedAt = ETStillRunning
-                , runStatus = "running"
-                , runConcurrency = length scripts
-                , runRateLimit = 0.0
-                , runControlSocket = ""
-                }
-        mRunId <- insertRun conn rr
-
-        shutdownFlag <- newTVarIO False
-        doneSignals <- replicateM (length scripts) newEmptyMVar
-
-        forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
-            let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot
-                                        , Tbwp.wcRateLimiter = Nothing
-                                        , Tbwp.wcWorkerId = i
-                                        }
-            forkIO (Tbwp.worker cfg s shutdownFlag done)
-
-        -- ??: (callsite of persistMetrics) when there's no live events left.
-        -- Termination with ctrl+c, which is handled foremostly by worker.
-        _ <- installHandler sigINT
-                            (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                            Nothing
-
-        -- Termination when all workers are done.
-        _ <- forkIO $ do
-            forM_ doneSignals readMVar
-            atomically $ writeTVar shutdownFlag True
-
-        -- Termination based on timer.
-        _ <- forkIO $ do
-            threadDelay (10 * 1000000)
-            atomically $ writeTVar shutdownFlag True
-
-        atomically (readTVar shutdownFlag >>= check)
-        -- closeDb conn  -- ??:
+-- goStraight :: Script -> Args -> IO ()
+--
+-- -- Script execution.
+-- -- hh200 flow.hhs
+-- -- - Always touches filesystem sqlite. Non-RPS runs are saved or not saved to database.
+-- goStraight script args = do
+--     testSimple
+--
+--     where
+--     testSimple :: IO ()
+--     testSimple = do
+--         -- let scripts = workOptimize script
+--         let scripts = Tbwp.dummyDuo script
+--
+--
+--         conn <- initDb
+--         let rr = RunRow
+--                 { runName = "default"
+--                 -- , runScriptPath = maybe "" pack args.source
+--                 , runScriptPath = ""
+--                 , runStartedAt = 0
+--                 , runEndedAt = ETStillRunning
+--                 , runStatus = "running"
+--                 , runConcurrency = length scripts
+--                 , runRateLimit = 0.0
+--                 , runControlSocket = ""
+--                 }
+--         mRunId <- insertRun conn rr
+--
+--         shutdownFlag <- newTVarIO False
+--         doneSignals <- replicateM (length scripts) newEmptyMVar
+--
+--         forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
+--             let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot
+--                                         , Tbwp.wcRateLimiter = Nothing
+--                                         , Tbwp.wcWorkerId = i
+--                                         }
+--             forkIO (Tbwp.worker cfg s shutdownFlag done)
+--
+--         -- ??: (callsite of persistMetrics) when there's no live events left.
+--         -- Termination with ctrl+c, which is handled foremostly by worker.
+--         _ <- installHandler sigINT
+--                             (CatchOnce (atomically $ writeTVar shutdownFlag True))
+--                             Nothing
+--
+--         -- Termination when all workers are done.
+--         _ <- forkIO $ do
+--             forM_ doneSignals readMVar
+--             atomically $ writeTVar shutdownFlag True
+--
+--         -- Termination based on timer.
+--         _ <- forkIO $ do
+--             threadDelay (10 * 1000000)
+--             atomically $ writeTVar shutdownFlag True
+--
+--         atomically (readTVar shutdownFlag >>= check)
+--         -- closeDb conn  -- ??:
 
 
 -- Globally interruptible worker(s) running Script.
@@ -455,7 +471,7 @@ mkArgs = Args { source = Nothing
               , version = False
               , debugConfig = False
               , call = False
-              , rps = False
+              -- , rps = False
               , duration = 1
               , lsp = Nothing
               , lspStdio = False

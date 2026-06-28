@@ -32,7 +32,7 @@ initDb :: IO Connection
 initDb = do
     mPath <- lookupEnv "HH200_SQLITE"
     case mPath of
-        Just fp -> open (trace ("mPath=" ++ fp) fp)
+        Just fp -> open (trace ("kmPath=" ++ fp) fp)
         Nothing -> do
             dir <- getXdgDirectory XdgData "hh200"
             putStrLn dir

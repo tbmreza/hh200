@@ -1,4 +1,3 @@
-??: insert to and delete from runs; inquire what kind of web app is served by browse-side
 # INDUSTRY SPEC SOURCES
 ## Syntax https://hh200-docs.pages.dev/#structure
 - https://hurl.dev/docs/request.html#structure
@@ -21,6 +20,7 @@ oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 git reset --soft HEAD~<number of commits>  # then commit
 
 @.headers  $.headers  %.params.start
+HH200_SQLITE=/home/tbmreza/gh/hh200/app.db stack run -- ../examples/alpha.hhs
 ```
 Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS." https + Secure cookie attr
 http(s) secure
