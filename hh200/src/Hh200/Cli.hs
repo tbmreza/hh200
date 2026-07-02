@@ -36,6 +36,7 @@ import qualified Paths_hh200 (version)
 import Network.Socket
 import qualified Network.Socket.ByteString as NBS
 import Data.ByteString.Char8 (unpack)
+import qualified Data.ByteString.Lazy as BL
 import Control.Monad (unless)
 import System.Directory (removeFile, doesFileExist)
 
@@ -47,13 +48,12 @@ import           Hh200.Database (initDb, closeDb)
 import           Hh200.LanguageServer (runTcp, runStdio)
 
 
--- PICKUP
--- shotgun as shorthand for --nvu=N --duration=0
 data Args = Args
   { source :: Maybe String  -- used for both FilePath and Snippet sources
   , version :: Bool
   , debugConfig :: Bool
   , call :: Bool
+  , nvu :: Int
   , duration :: Int
   , lsp :: Maybe Int
   , lspStdio :: Bool
@@ -64,9 +64,8 @@ cli :: IO ()
 cli = go =<< execParser optsInfo
 
 optsInfo :: ParserInfo Args
--- ??: refactor so it's closer to natural language reading
-optsInfo = info ((modeBrowse <|> modeA) <**> helper)
-                (fullDesc <> header "Run hh200 scripts")
+optsInfo = info (helper <*>   modeBrowse <|> modeA)
+                (fullDesc <>  header "Run hh200 scripts")
     where
     modeBrowse :: Parser Args
     modeBrowse = subparser $
@@ -80,11 +79,13 @@ optsInfo = info ((modeBrowse <|> modeA) <**> helper)
                   <**> helper)
                  (progDesc "Launch the dashboard")
 
+    applyMods :: Args -> Maybe (Args -> Args) -> Args
+    applyMods args (Just f) = f args
+    applyMods args Nothing  = args
+
     modeA :: Parser Args
-    modeA = Args
-        -- Bound with Args fields by order, not by name; which makes sense as
-        -- it allows different casing between above `debugConfig` and below
-        -- `debug-config`.
+    modeA = applyMods
+        <$> (Args
         <$> optional (argument str (metavar "SOURCE"
                                  <> help "Path of source program"))
 
@@ -100,22 +101,19 @@ optsInfo = info ((modeBrowse <|> modeA) <**> helper)
                   <> short 'C'
                   <> help "Execute a script snippet directly" )
 
-        -- <*> switch ( long "rps"
-        --           <> short 'R'
-        --           <> help "Start \"requests per second\" mode" )
+        <*> option auto ( long "nvu"
+                       <> short 'n'
+                       <> help "Number of virtual users"
+                       <> metavar "N"
+                       <> value 1
+                       <> showDefault )
 
-        -- <*> option auto ( long "shotgun"
-        --                <> short 'S'
-        --                <> help "Execute in N parallel workers at once"
-        --                <> metavar "N"       -- Displays as: -S N or --shotgun N
-        --                <> value 1           -- Default to 1 if flag is omitted
-        --                <> showDefault )     -- Shows "[default: 1]" in help text
         <*> option auto ( long "duration"
                        <> short 't'
                        <> help "Set duration of load test execution in seconds"
-                       <> metavar "S"       -- Displays as: -t S or --duration S
-                       <> value 0           -- Default 0 encodes shotgun mode
-                       <> showDefault )     -- Shows "[default: 1]" in help text
+                       <> metavar "S"
+                       <> value 0
+                       <> showDefault )
 
         <*> optional ( option auto ( long "lsp"
                                    <> short 'd'
@@ -125,7 +123,12 @@ optsInfo = info ((modeBrowse <|> modeA) <**> helper)
         <*> switch ( long "lsp-stdio"
                   <> help "Run hh200 language server over stdio" )
 
-        <*> pure Nothing
+        -- (auto)
+        <*> pure Nothing)
+        <*> optional ((\n a -> a { nvu = n, duration = 0 }) <$>
+                      option auto ( long "shotgun"
+                                 <> help "Alias for --nvu=N --duration=0"
+                                 <> metavar "N" ))
 
 -- go and goStraight indirection: debug programming directly in Script structs.
 go :: Args -> IO ()
@@ -156,7 +159,6 @@ go Args { source = Just path, debugConfig = True } = do
     m <- runMaybeT analyzed
     case m of
         _ -> undefined
-        -- ?? define debug-config
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -258,13 +260,15 @@ goMode script args = do
         -- Control flag.
         s <- newTVarIO Running
 
-        -- The loop that fires HTTP requests. Automatic 1-second stagger for
-        -- nvu >= 4.
-        let argsNvu = 2
+        -- The loop that fires HTTP requests.
+        -- ??: Automatic 1-second stagger for nvu >= 4. Starting point could be
+        -- to assume sequencing N imperative forkIO $ courier ... statements
+        -- starts N couriers at the same instant.
+        let argsNvu = nvu args
         drawer <- replicateM argsNvu newEmptyMVar
         -- forM_ (zip undefined drawer) $ \(_, hole) -> do
         forM_ (drawer) $ \(hole) -> do
-            forkIO $ courier script s hole
+            forkIO $ courier (script, duration args) s hole
 
         -- Termination with ctrl+c, which is handled foremostly by worker.
         _ <- installHandler sigINT
@@ -400,7 +404,7 @@ insertRun conn rr = do
 --             atomically $ writeTVar shutdownFlag True
 --
 --         atomically (readTVar shutdownFlag >>= check)
---         -- closeDb conn  -- ??:
+--         -- closeDb conn
 
 
 -- Globally interruptible worker(s) running Script.
@@ -432,7 +436,7 @@ testShotgun numWorkers script = do
 
 -- Rampup-able pool of virtual users with rate limiting.
 -- RPS: rate of individual CallItems.
--- ??: if the name testRps survives, move to where clause of goStraight
+-- ??: if the name testRps survives, find sibling i.e. as a where clause fn
 testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
 testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
     -- connect "timeseries.db"
@@ -472,6 +476,7 @@ mkArgs = Args { source = Nothing
               , debugConfig = False
               , call = False
               -- , rps = False
+              , nvu = 1
               , duration = 1
               , lsp = Nothing
               , lspStdio = False
@@ -494,7 +499,7 @@ data RREndTime =
     ETStillRunning
   | ETHasEnded !Int64
 
--- ??: use the same source of truth between sequelize and haskell toJSON interface
+-- ??: use lessons learned from ergonomic sqlite flow (drizzle/prisma)
 data RunRow = RunRow
   -- { runName          :: !Text
   -- , runScriptPath    :: !Text
@@ -553,7 +558,12 @@ startServer portStr = do
         Server.get (regex "(.*)") $
             Server.file "min/200.html"
 
-        Server.post "/sig" $
-            -- pause/resume warrants ack; stop is fire-and-forget.
-            -- ??: write to an ipc
-            undefined
+        -- (auto)
+        Server.post "/sig" $ do
+            body <- Server.body
+            liftIO $ do
+                sock <- socket AF_UNIX Stream defaultProtocol
+                connect sock (SockAddrUnix "/tmp/hh200_socket")
+                _ <- NBS.send sock (BL.toStrict body)
+                close sock
+            Server.json $ object ["ok" .= (True :: Bool)]

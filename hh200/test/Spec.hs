@@ -4,7 +4,7 @@
 import Test.Tasty
 import Control.Concurrent.MVar (newMVar)
 
-import qualified CliSpec
+import qualified CliSpec  -- ??
 import qualified LspSpec
 import qualified DatabaseSpec
 import qualified ScannerSpec

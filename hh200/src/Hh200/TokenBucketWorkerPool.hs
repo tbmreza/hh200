@@ -107,8 +107,9 @@ worker    cfg             script    shutdown     done =
                 OneShot       -> pure ()
                 LoopWithNap n -> threadDelay n >> loop
 
-courier :: Script -> TVar RunState -> MVar () -> IO ()
-courier    script    cue              done =
+-- Terminates after first iteration on duration=0
+courier :: (Script, Int) -> TVar RunState -> MVar () -> IO ()
+courier    (script, dur)    cue              done =
     loop `finally` putMVar done ()
     where
     loop = do
@@ -116,10 +117,11 @@ courier    script    cue              done =
         case stop of
             Stopped -> pure ()
             _ -> do
-                -- acquireToken
                 trace ("courier:runScriptM........") $ runScriptM script newEnv
                 threadDelay 1000
-                loop
+                case dur of
+                    0 -> pure ()
+                    _ -> loop
 
 -- | Configuration for the Rate Limiter
 data RateLimiterConfig = RateLimiterConfig
