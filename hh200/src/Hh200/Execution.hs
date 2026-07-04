@@ -261,7 +261,7 @@ runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom script
     mgr <- Http.newManager True
-    _ <- Tf.runRWST (runMaybeT course) mgr env
+    _undefined <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
 
 specCapturesOrMt :: CallItem -> RhsDict
@@ -300,6 +300,7 @@ isHhFilePrefix :: Text -> Bool
 isHhFilePrefix _ = False
 
 -- goal in order: multipartSq, rqUrl, test braced interpolation
+-- buildRequest :: ScriptCtx -> Env -> CallItem -> IO Http.Request
 buildRequest :: Env -> CallItem -> IO Http.Request
 buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
@@ -373,27 +374,6 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                    , HC.requestBody = HC.RequestBodyLBS encoded
                    }
 
-    -- -- Assumption: File reading is only needed for multipart so it acts as
-    -- -- req struct finalizer.
-    -- -- renderMultipartb :: Env -> Http.Request -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    -- renderMultipartb :: Http.Request -> [(HeaderName, BS.ByteString)] -> String -> IO Http.Request
-    -- renderMultipartb req allHeaders renderedForm =
-    --     case multipartSq of
-    --         Just sq -> do
-    --             req' <- experimentalRequestBodyFile' "" req
-    --             let bodyContent = case (renderedForm, rqBody) of
-    --                     ("", "") -> BS.pack rqBody
-    --                     ("", _) -> BS.pack rqBody
-    --                     (f, "") -> BS.pack f
-    --                     (f, _) -> BS.pack f
-    --                 contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-    --                 encoded = BL.fromStrict bodyContent
-    --             let zz :: [(CaseInsensitive.CI BS.ByteString, BS.ByteString)] = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-    --             pure $ req { HC.method = BS.pack rqMethod
-    --                        , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-    --                        , HC.requestBody = HC.RequestBodyLBS encoded
-    --                        }
-
     -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
     renderRequestUrl :: String -> IO String
     renderRequestUrl renderedQuery = case rqUrl of
@@ -414,6 +394,8 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 -- Exceptions:  when running ProcM
 -- offline HttpExceptionRequest  -handling->  print
 -- http client lib internal error  -handling->  halt (graceful if free)
+-- courseFrom :: CourierCtx -> Script -> ProcM CallItem
+-- courseFrom courierCtx x = do
 courseFrom :: Script -> ProcM CallItem
 courseFrom x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]

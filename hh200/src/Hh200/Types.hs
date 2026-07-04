@@ -13,7 +13,6 @@ module Hh200.Types
     , Env
     , TraceEvent (..)
     , Log
-    , ScriptKind (..)
     , Script (..)
     , ScriptConfig (..)
     , DepsClause (..)
@@ -80,13 +79,6 @@ newtype Snippet = Snippet L8.ByteString
 -- Cookie is a native concept in BEL.
 newtype RhsDict = RhsDict (HM.HashMap Text [BEL.Part])
     deriving (Show, Eq)
--- RhsDict -> RhsDictExpanded
--- expand (RhsDict (HM.HashMap Text [all BEL.R])) 
--- data Part =
---     L NeedsEval
---   | R Text
---   deriving (Show, Eq)
-
 
 mtRhsDict = RhsDict HM.empty
 
@@ -118,21 +110,15 @@ data TraceEvent
 type Log = [TraceEvent]
 
 
-data ScriptKind = Regular | Static | Sole
-    deriving (Show, Eq)
-
 data Script = Script
-  { kind :: ScriptKind  -- ??: retire
-  , config :: ScriptConfig
+  { config :: ScriptConfig
   , callItems :: [CallItem]
   } deriving (Show)
 
 mkScript :: [CallItem] -> Script
 mkScript cs = Script
-  { kind = Regular
-  , config = ScriptConfig { }
+  { config = ScriptConfig { }
   , callItems = cs
-  -- , callItems = [ ciw ]
   }
 
 mkCallItem :: CallItem

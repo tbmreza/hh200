@@ -73,7 +73,7 @@ import           L
 
 
 script :: { E Script }
-script : crlf call_items { $2 >>= \is -> returnE Script { kind = Regular, config = defaultScriptConfig, callItems = is } }
+script : crlf call_items { $2 >>= \is -> returnE Script { config = defaultScriptConfig, callItems = is } }
 
 call_items :: { E [CallItem] }
 call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
