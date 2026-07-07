@@ -6,7 +6,7 @@
 
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
-  ( runScriptM
+  ( runScriptM, runScriptWith, CourierCtx(..)
 
   , ProcM
   , status200
@@ -96,16 +96,6 @@ experimentalRequestBodyFile' path req = do
     pure $ case result of
         Left err -> req
         Right _  -> setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req
-
--- -- (auto)
--- requestBodyMultipart :: [(Text, FilePath)] -> HI.Request -> IO HI.Request
--- requestBodyMultipart fileParts req = do
---     -- let parts = [ partFileSource (TE.encodeUtf8 fieldName) fp
---     let parts = [ partFileSource fieldName fp
---                 | (fieldName, fp) <- fileParts ]
---     formDataBody parts req
---     -- formDataBody sets Content-Type: multipart/form-data; boundary=...
---     -- and Content-Length automatically
 
 data BodyPart =
     BodyPartFile { bpField :: Text, bpPath :: FilePath }
@@ -257,9 +247,22 @@ asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
 asBS v                = BL.toStrict (Aeson.encode v)
 
+data CourierCtx = CourierCtx
+  { courierName :: Text
+  }
+
+runScriptWith :: CourierCtx -> Script -> Env -> IO ()
+-- runScriptWith ctx = runScriptM
+runScriptWith ctx script env = do
+    let course :: ProcM CallItem = courseFrom (Just ctx) script
+    -- let course :: ProcM CallItem = courseFrom script
+    mgr <- Http.newManager True
+    _undefined <- Tf.runRWST (runMaybeT course) mgr env
+    pure ()
+
 runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
-    let course :: ProcM CallItem = courseFrom script
+    let course :: ProcM CallItem = courseFrom Nothing script
     mgr <- Http.newManager True
     _undefined <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
@@ -300,9 +303,9 @@ isHhFilePrefix :: Text -> Bool
 isHhFilePrefix _ = False
 
 -- goal in order: multipartSq, rqUrl, test braced interpolation
--- buildRequest :: ScriptCtx -> Env -> CallItem -> IO Http.Request
-buildRequest :: Env -> CallItem -> IO Http.Request
-buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
+buildRequest :: Maybe CourierCtx -> Env -> CallItem -> IO Http.Request
+-- buildRequest :: Env -> CallItem -> IO Http.Request
+buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
                                                         , rqHeaders = RhsDict dHeaders
                                                         , rqBody
@@ -312,41 +315,19 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     init :: HI.Request <- HC.parseRequest eUrl
     let req = init { HC.method = BS.pack rqMethod }
-    let allHeaders = eHeaders
+    let ctx = Just $ CourierCtx { courierName = "hh200a" }
+
+    let allHeaders = case mcc of
+            Nothing -> eHeaders
+            Just cc -> (CaseInsensitive.mk "x-hh-vu", TE.encodeUtf8 $ courierName cc) : eHeaders
 
     renderedForm <- renderRequestForm env formSq
 
     case multipartSq of
         Just (RequestSquareMultipart (RhsDict d)) -> handleMultipart req d allHeaders
-        _                                          -> handleBody req renderedForm allHeaders
+        _                                         -> handleBody req renderedForm allHeaders
 
     where
-    renderRqUrl :: IO String
-    renderRqUrl = do
-        renderedQuery <- renderRequestQuery env querySq
-        renderRequestUrlHelper rqUrl renderedQuery
-
-    renderRequestUrlHelper :: LexedUrl -> String -> IO String
-    renderRequestUrlHelper (LexedUrlFull s) renderedQuery = pure $ case renderedQuery of
-        "" -> s
-        qs -> s ++ "?" ++ qs
-    renderRequestUrlHelper (LexedUrlSegments urlParts) renderedQuery = do
-        renderedUrlParts <- forM urlParts $ \part -> do
-            rendered <- BEL.render env (Aeson.String "") [part]
-            pure $ case rendered of
-                Aeson.String t -> Text.unpack t
-                v -> BS.unpack (BL.toStrict (Aeson.encode v))
-        let fullUrl = intercalate "/" renderedUrlParts
-        pure $ case renderedQuery of
-            "" -> fullUrl
-            qs -> fullUrl ++ "?" ++ qs
-
-    renderRqHeaders :: IO [(HeaderName, BS.ByteString)]
-    renderRqHeaders = for (HM.toList dHeaders)
-        (\ (k, v :: [BEL.Part]) -> do
-            e <- renderOrEmpty env v
-            pure (asHeaderName k, TE.encodeUtf8 e))
-
     handleMultipart :: HI.Request -> HM.HashMap Text [BEL.Part] -> [(HeaderName, BS.ByteString)] -> IO HI.Request
     handleMultipart req d hs = do
         bodyParts <- for (HM.toList d) $ \ (fieldName, parts) -> do
@@ -374,6 +355,32 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
                    , HC.requestBody = HC.RequestBodyLBS encoded
                    }
 
+    renderRqUrl :: IO String
+    renderRqUrl = do
+        renderedQuery <- renderRequestQuery env querySq
+        renderRequestUrlHelper rqUrl renderedQuery
+
+    renderRequestUrlHelper :: LexedUrl -> String -> IO String
+    renderRequestUrlHelper (LexedUrlFull s) renderedQuery = pure $ case renderedQuery of
+        "" -> s
+        qs -> s ++ "?" ++ qs
+    renderRequestUrlHelper (LexedUrlSegments urlParts) renderedQuery = do
+        renderedUrlParts <- forM urlParts $ \part -> do
+            rendered <- BEL.render env (Aeson.String "") [part]
+            pure $ case rendered of
+                Aeson.String t -> Text.unpack t
+                v -> BS.unpack (BL.toStrict (Aeson.encode v))
+        let fullUrl = intercalate "/" renderedUrlParts
+        pure $ case renderedQuery of
+            "" -> fullUrl
+            qs -> fullUrl ++ "?" ++ qs
+
+    renderRqHeaders :: IO [(HeaderName, BS.ByteString)]
+    renderRqHeaders = for (HM.toList dHeaders)
+        (\ (k, v :: [BEL.Part]) -> do
+            e <- renderOrEmpty env v
+            pure (asHeaderName k, TE.encodeUtf8 e))
+
     -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
     renderRequestUrl :: String -> IO String
     renderRequestUrl renderedQuery = case rqUrl of
@@ -394,10 +401,9 @@ buildRequest env CallItem { ciRequestSpec = RequestSpec { rqMethod
 -- Exceptions:  when running ProcM
 -- offline HttpExceptionRequest  -handling->  print
 -- http client lib internal error  -handling->  halt (graceful if free)
--- courseFrom :: CourierCtx -> Script -> ProcM CallItem
--- courseFrom courierCtx x = do
-courseFrom :: Script -> ProcM CallItem
-courseFrom x = do
+courseFrom :: Maybe CourierCtx -> Script -> ProcM CallItem
+-- courseFrom :: Script -> ProcM CallItem
+courseFrom mcc x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
     mgr <- ask
     go mgr (callItems x)
@@ -438,7 +444,7 @@ courseFrom x = do
         lift $ Tf.tell [ItemStart (ciName ci)]
 
         env <- get
-        reqOrThrow <- liftIO $ buildRequest env ci
+        reqOrThrow <- liftIO $ buildRequest mcc env ci
 
         -- ??: print offline HttpExceptionRequest to user right away (or otherwise).
         -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))

@@ -33,7 +33,7 @@ import           Control.Exception (bracket, finally)
 import           Control.Monad (forever)
 
 import           Hh200.Types
-import           Hh200.Execution (runScriptM)
+import           Hh200.Execution (runScriptM, runScriptWith, CourierCtx(..))
 
 -- In all modes, a worker stops on timer or sigint.
 -- testSimple:  timer: y  rate-limit: no  feature: Script can be optimized to [Script], fork that number of workers.
@@ -109,7 +109,7 @@ worker    cfg             script    shutdown     done =
 
 -- Terminates after first iteration on duration=0
 -- goal: each vu sends identifiable Origin header: scriptCtx (across CallItems. atm basically Env), courierCtx (throughout script repetition in courier's life. "under this ctx, Origin header is the same")
--- the Env-ScriptCtx analogy may or may not extend to CourierCtx is the fact that Env grows/folds/mutates throughout its life
+-- the Env-ScriptCtx analogy that may or may not extend to CourierCtx is the fact that Env grows/folds/mutates throughout its life
 
 -- review this train of thoughts on hammerhead
 --
@@ -118,27 +118,21 @@ worker    cfg             script    shutdown     done =
 -- 3. Script comprises [CallItem], all sharing the same courier Origin header
 --
 -- hypothesis: we should make the monad stack ready made in terms of courier hand off
--- current code:
--- -- Procedure "may" fail early, "reads" an execution context,
--- -- "writes" log as it runs, modifies environment "states" while doing IO.
--- type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
 courier :: Script -> (TVar RunState, Int) -> MVar () -> IO ()
 courier    script    (cue, dur)              done =
--- courier :: (Script, Int) -> TVar RunState -> MVar () -> IO ()
--- courier    (script, dur)    cue              done =
     loop `finally` putMVar done ()
     where
--- runScriptM :: Script -> Env -> IO ()
-    courierName = "hh200a"  -- PICKUP test programming headers at Env and see effects; runScriptM :: CourierCtx { courierName } -> (Script -> EnvMinusCourierKeys -> IO ())
+
     loop = do
         stop <- atomically $ readTVar cue
         case stop of
             Stopped -> pure ()
             _ -> do
-                -- trace ("courier:runScriptM........") $ runScriptM script newEnv courierCtx
-                trace ("courier:runScriptM........") $ runScriptM script newEnv
+                let courierCtx = CourierCtx { courierName = "hh200a" }
+                trace ("courier:runScriptM........") $ (runScriptWith courierCtx) script newEnv
+                -- trace ("courier:runScriptM........") $ runScriptM script newEnv
                 threadDelay 1000
                 case dur of
                     0 -> pure ()
