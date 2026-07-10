@@ -26,6 +26,6 @@
 </section>
 
 <h1>goal: serve from scotty</h1>
-<button>stop</button>
+<button>yatta</button>
 
 <p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>

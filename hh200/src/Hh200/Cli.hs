@@ -39,6 +39,13 @@ import Data.ByteString.Char8 (unpack)
 import qualified Data.ByteString.Lazy as BL
 import Control.Monad (unless)
 import System.Directory (removeFile, doesFileExist)
+import Control.Exception  (bracket)
+import Network.Socket     (Family (..), SockAddr (..), SocketType (..),
+                           accept, bind, close, defaultProtocol, listen,
+                           socket, socketToHandle)
+import System.Directory   (removePathForcibly)
+import System.IO          (BufferMode (..), Handle, IOMode (..), hClose,
+                           hSetBuffering)
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
@@ -162,7 +169,6 @@ go Args { source = Just path, debugConfig = True } = do
 
 -- Script execution.
 -- hh200 flow.hhs
--- ??: spin UDS listener here?
 -- go args@Args { duration = 1, call = False, rps = False, source = Just path } = do
 go args@Args { duration = 1, call = False, source = Just path } = do
     exists <- doesFileExist path
@@ -200,29 +206,29 @@ go args@Args { duration = n, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just script  -> goMode script args
+        Just script  -> trace "this goMode!!!!" $ goMode script args
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
 
 genName = "default run name"
 
--- data RunState = Running | Paused | Stopped
---     deriving (Eq)
-
--- data RateLimiter
---   = Unlimited
---   | TokenBucket
---       { tbTokens   :: TVar Int  -- current tokens
---       , tbCapacity :: Int       -- max tokens (burst ceiling)
---       , tbPerTick  :: Int       -- tokens added per refill tick
---       , tbInterval :: Int       -- refill interval in microseconds
---       }
-
 -- staggerDelayMicr :: Int -> Int -> Int
 -- staggerDelayMicr n i
 --     | n >= 4    = i * (1_000_000 `div` n)   -- spread evenly across 1 s
 --     | otherwise = 0
+
+-- listenUds :: FilePath -> (Handle -> IO ()) -> IO ()
+-- listenUds path handler = do
+--     removePathForcibly path
+--     bracket (socket AF_UNIX Stream defaultProtocol) close $ \srv -> do
+--         bind srv (SockAddrUnix path)
+--         listen srv 1
+--         (client, _addr) <- accept srv
+--         bracket (socketToHandle client ReadMode) hClose $ \h -> do
+--             hSetBuffering h LineBuffering
+--             handler h
+
 
 goMode :: Script -> Args -> IO ()
 
@@ -260,6 +266,8 @@ goMode script args = do
         -- Control flag.
         s <- newTVarIO Running
 
+        let udsFile = "/tmp/uds_socket"
+
         -- The loop that fires HTTP requests.
         -- ??: Automatic 1-second stagger for nvu >= 4. Starting point could be
         -- to assume sequencing N imperative forkIO $ courier ... statements
@@ -268,8 +276,6 @@ goMode script args = do
         drawer <- replicateM argsNvu newEmptyMVar
         -- forM_ (zip undefined drawer) $ \(_, hole) -> do
         forM_ (drawer) $ \(hole) -> do
--- courier :: Script -> (TVar RunState, Int) -> MVar () -> IO ()
-            -- forkIO $ courier (script, duration args) s hole
             forkIO $ courier script (s, duration args) hole
 
         -- Termination with ctrl+c, which is handled foremostly by worker.
@@ -279,11 +285,13 @@ goMode script args = do
 
         -- Unix Domain Socket listener
         _ <- forkIO $
-            controlSocketListener "/tmp/hh200_socket" $ \msg ->
+            controlSocketListener "/tmp/uds_socket" $ \msg ->
                 case msg of
                     "pause\n" -> undefined
                     "resume\n" -> atomically $ writeTVar s Running
-                    "stop\n" -> terminate s
+                    -- "stop\n" -> terminate s  -- PICKUP
+                    "hello from writer\n" -> terminate s
+                    "hello from writer" -> terminate s
                     _        -> putStrLn $ "received: " ++ msg
 
         -- Termination when all workers are done.
@@ -503,15 +511,6 @@ data RREndTime =
 
 -- ??: use lessons learned from ergonomic sqlite flow (drizzle/prisma)
 data RunRow = RunRow
-  -- { runName          :: !Text
-  -- , runScriptPath    :: !Text
-  -- , runStartedAt     :: Int64
-  -- , runEndedAt       :: RREndTime
-  -- , runStatus        :: !Text
-  -- , runConcurrency   :: !Int
-  -- , runRateLimit     :: !Double
-  -- , runControlSocket :: !Text
-  -- }
   { runName          :: Text
   , runScriptPath    :: Text
   , runStartedAt     :: Int64
@@ -551,17 +550,15 @@ startServer portStr = do
     scotty port $ do
         Server.middleware (staticPolicy (addBase "min"))
 
-        Server.get "/runs" $ do
+        Server.get "/api/runs" $ do
             conn <- liftIO initDb
             -- (auto)
-            rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
-            Server.json $ object ["runs" .= rows]
-
-        Server.get (regex "(.*)") $
-            Server.file "min/200.html"
+            -- rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
+            -- Server.json $ object ["runs" .= rows]
+            Server.json $ object []
 
         -- (auto)
-        Server.post "/sig" $ do
+        Server.post "/api/sig" $ do
             body <- Server.body
             liftIO $ do
                 sock <- socket AF_UNIX Stream defaultProtocol
@@ -569,3 +566,6 @@ startServer portStr = do
                 _ <- NBS.send sock (BL.toStrict body)
                 close sock
             Server.json $ object ["ok" .= (True :: Bool)]
+
+        Server.get (regex "(.*)") $
+            Server.file "min/200.html"

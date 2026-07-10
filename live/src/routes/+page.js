@@ -1,7 +1,7 @@
 export const prerender = false;
 
 export async function load({ fetch }) {
-  const res = await fetch('/runs');
+  const res = await fetch('/api/runs');
   const json = await res.json();
   const chartData = json.runs.map(run => ({
     year: run.name.length,

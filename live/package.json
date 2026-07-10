@@ -7,7 +7,7 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"upstream": "cp -r build ../hh200/min",
+		"upstream": "vite build && rm -rf ../hh200/min && cp -r build ../hh200/min",
 		"prepare": "svelte-kit sync || echo ''"
 	},
 	"devDependencies": {

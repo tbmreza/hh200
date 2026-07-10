@@ -19,11 +19,6 @@ module Hh200.TokenBucketWorkerPool
   ) where
 
 import Debug.Trace
--- import           Control.Concurrent.STM (TVar, STM, TQueue, atomically, readTQueue, newTVar, readTVar, writeTVar, check, modifyTVar')
--- import           Control.Monad.Reader
--- import           Text.Printf (printf)
--- import qualified Hh200.Http as Http
--- import qualified Hh200.Scanner as Scanner
 
 import qualified Data.HashMap.Strict as HM
 import           Control.Concurrent
@@ -35,10 +30,6 @@ import           Control.Monad (forever)
 import           Hh200.Types
 import           Hh200.Execution (runScriptM, runScriptWith, CourierCtx(..))
 
--- In all modes, a worker stops on timer or sigint.
--- testSimple:  timer: y  rate-limit: no  feature: Script can be optimized to [Script], fork that number of workers.
--- testRps:     timer: y  rate-limit: y   feature: rampup-able pool of virtual users. each vu takes nap at the end of Script.
--- testShotgun: timer: y  rate-limit: no  feature: of N hits in the same instant, report how many failed
 
 data WorkerMode
   = OneShot            -- testSimple / testShotgun: run Script once, exit
@@ -87,38 +78,28 @@ data RunState = Running | Paused | Stopped
 -- worker :: WorkerConfig -> Script -> TVar RunState -> MVar () -> IO ()
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
 worker    cfg             script    shutdown     done =
-    loop `finally` putMVar done ()
-    where
-    loop = do
-        stop <- atomically $ readTVar shutdown
-        if stop then
-            pure ()
-        else do
-            -- Rate-limit if configured.
-            case wcRateLimiter cfg of
-                Just rl -> waitAndConsumeToken rl
-                Nothing -> pure ()
-
-            -- acquireToken
-            trace ("worker:runScriptM........") $ runScriptM script newEnv
-
-            -- OneShot: exit after one run. LoopWithNap: nap then loop.
-            case wcMode cfg of
-                OneShot       -> pure ()
-                LoopWithNap n -> threadDelay n >> loop
+    undefined
+    -- loop `finally` putMVar done ()
+    -- where
+    -- loop = do
+    --     stop <- atomically $ readTVar shutdown
+    --     if stop then
+    --         pure ()
+    --     else do
+    --         -- Rate-limit if configured.
+    --         case wcRateLimiter cfg of
+    --             Just rl -> waitAndConsumeToken rl
+    --             Nothing -> pure ()
+    --
+    --         -- acquireToken
+    --         trace ("worker:runScriptM........") $ runScriptM script newEnv
+    --
+    --         -- OneShot: exit after one run. LoopWithNap: nap then loop.
+    --         case wcMode cfg of
+    --             OneShot       -> pure ()
+    --             LoopWithNap n -> threadDelay n >> loop
 
 -- Terminates after first iteration on duration=0
--- goal: each vu sends identifiable Origin header: scriptCtx (across CallItems. atm basically Env), courierCtx (throughout script repetition in courier's life. "under this ctx, Origin header is the same")
--- the Env-ScriptCtx analogy that may or may not extend to CourierCtx is the fact that Env grows/folds/mutates throughout its life
-
--- review this train of thoughts on hammerhead
---
--- 1. buildRequest does set headers to do its function
--- 2. currently buildRequest :: Env -> CallItem -> Http.Request
--- 3. Script comprises [CallItem], all sharing the same courier Origin header
---
--- hypothesis: we should make the monad stack ready made in terms of courier hand off
-
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
 courier :: Script -> (TVar RunState, Int) -> MVar () -> IO ()
 courier    script    (cue, dur)              done =
@@ -130,10 +111,9 @@ courier    script    (cue, dur)              done =
         case stop of
             Stopped -> pure ()
             _ -> do
-                let courierCtx = CourierCtx { courierName = "hh200a" }
+                let courierCtx = CourierCtx { courierName = "hh200a" }  -- ??: freshCourierName
                 trace ("courier:runScriptM........") $ (runScriptWith courierCtx) script newEnv
-                -- trace ("courier:runScriptM........") $ runScriptM script newEnv
-                threadDelay 1000
+                threadDelay 4000
                 case dur of
                     0 -> pure ()
                     _ -> loop
