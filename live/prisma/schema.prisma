@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum HeaderDirection {
+  request
+  response
+}
+
+model Run {
+  id             Int       @id @default(autoincrement())
+  name           String
+  script_path    String
+  started_at     BigInt
+  ended_at       BigInt?
+  status         String
+  concurrency    Int
+  rate_limit     Float
+  control_socket String
+
+  requests Request[]
+  signals  Signal[]
+
+  @@map("runs")
+}
+
+model Request {
+  id          Int      @id @default(autoincrement())
+  run_id      Int
+  seq         Int
+  sent_at     BigInt
+  duration_ms Float?
+  method      String
+  url         String
+  status_code Int?
+  error       String?
+  bytes_in    Int?
+  bytes_out   Int?
+  worker_id   Int?
+
+  run     Run             @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  headers RequestHeader[]
+  bodies  RequestBody[]
+
+  @@index([run_id])
+  @@map("requests")
+}
+
+model RequestHeader {
+  id         Int             @id @default(autoincrement())
+  request_id Int
+  direction  HeaderDirection
+  name       String
+  value      String
+
+  request Request @relation(fields: [request_id], references: [id], onDelete: Cascade)
+
+  @@index([request_id])
+  @@map("request_headers")
+}
+
+model RequestBody {
+  id         Int             @id @default(autoincrement())
+  request_id Int
+  direction  HeaderDirection
+  content    Bytes?
+  truncated  Boolean         @default(false)
+
+  request Request @relation(fields: [request_id], references: [id], onDelete: Cascade)
+
+  @@index([request_id])
+  @@map("request_bodies")
+}
+
+model Signal {
+  id        Int     @id @default(autoincrement())
+  run_id    Int
+  kind      String
+  sent_at   BigInt
+  acked_at  BigInt?
+
+  run Run @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@index([run_id])
+  @@map("signals")
+}

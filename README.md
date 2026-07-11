@@ -104,13 +104,6 @@ Location of `package.json` manifest isn't set in stone yet, but `releases/README
 
 Whether there's value in using the same manifest for both npm packaging and db development setup is also to be seen.
 
-```
-bunx sequelize-cli model:generate --name Run --attributes name:string,script_path:string,started_at:bigint,ended_at:bigint,status:string,concurrency:integer,rate_limit:float,control_socket:string
-bunx sequelize-cli model:generate --name Request --attributes run_id:integer,seq:integer,sent_at:bigint,duration_ms:float,method:string,url:string,status_code:integer,error:string,bytes_in:integer,bytes_out:integer,worker_id:integer
-bunx sequelize-cli model:generate --name RequestHeader --attributes request_id:integer,direction:string,name:string,value:string
-bunx sequelize-cli model:generate --name RequestBody --attributes request_id:integer,direction:string,content:blob,truncated:integer
-bunx sequelize-cli model:generate --name Signal --attributes run_id:integer,kind:string,sent_at:bigint,acked_at:bigint
-
 ### Build Dependencies
 Notable aspects:
 - Uses `bel-expr` expression language

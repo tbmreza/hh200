@@ -289,7 +289,7 @@ goMode script args = do
                 case msg of
                     "pause\n" -> undefined
                     "resume\n" -> atomically $ writeTVar s Running
-                    -- "stop\n" -> terminate s  -- PICKUP
+                    -- "stop\n" -> terminate s  -- PICKUP prisma getting started creating tables @ live
                     "hello from writer\n" -> terminate s
                     "hello from writer" -> terminate s
                     _        -> putStrLn $ "received: " ++ msg
@@ -509,7 +509,6 @@ data RREndTime =
     ETStillRunning
   | ETHasEnded !Int64
 
--- ??: use lessons learned from ergonomic sqlite flow (drizzle/prisma)
 data RunRow = RunRow
   { runName          :: Text
   , runScriptPath    :: Text
@@ -553,9 +552,9 @@ startServer portStr = do
         Server.get "/api/runs" $ do
             conn <- liftIO initDb
             -- (auto)
-            -- rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
-            -- Server.json $ object ["runs" .= rows]
-            Server.json $ object []
+            rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
+            Server.json $ object ["runs" .= rows]
+            -- Server.json $ object []
 
         -- (auto)
         Server.post "/api/sig" $ do

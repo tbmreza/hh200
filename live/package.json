@@ -4,17 +4,22 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "vite dev",
+		"db:fresh": "rm -f prisma/app.db && bunx prisma migrate deploy && bunx prisma generate",
+		"db:dummy": "bun run prisma/seed.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"upstream": "vite build && rm -rf ../hh200/min && cp -r build ../hh200/min",
 		"prepare": "svelte-kit sync || echo ''"
 	},
 	"devDependencies": {
+		"@faker-js/faker": "^10.5.0",
+		"@prisma/adapter-libsql": "^7.8.0",
+		"@prisma/client": "^7.8.0",
 		"@sveltejs/adapter-auto": "^7.0.1",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"prisma": "^7.8.0",
 		"svelte": "^5.55.2",
 		"vite": "^8.0.7"
 	},
