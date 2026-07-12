@@ -35,7 +35,7 @@ import qualified Paths_hh200 (version)
 
 import Network.Socket
 import qualified Network.Socket.ByteString as NBS
-import Data.ByteString.Char8 (unpack)
+import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
 import Control.Monad (unless)
 import System.Directory (removeFile, doesFileExist)
@@ -285,11 +285,11 @@ goMode script args = do
 
         -- Unix Domain Socket listener
         _ <- forkIO $
-            controlSocketListener "/tmp/uds_socket" $ \msg ->
+            controlSocketListener "/tmp/uds_socket" $ \msg ->  -- ??: xdg comply
                 case msg of
                     "pause\n" -> undefined
                     "resume\n" -> atomically $ writeTVar s Running
-                    -- "stop\n" -> terminate s  -- PICKUP prisma getting started creating tables @ live
+                    -- "stop\n" -> terminate s
                     "hello from writer\n" -> terminate s
                     "hello from writer" -> terminate s
                     _        -> putStrLn $ "received: " ++ msg
@@ -328,12 +328,20 @@ controlSocketListener path handler = do
                 (let loop = do
                         bs <- NBS.recv client 4096
                         unless (bs == mempty) $ do
-                            handler (unpack bs)
+                            handler (C8.unpack bs)
                             loop
                  in loop)
                 (close client)
 
         pure ()
+
+
+controlSocketWriter :: FilePath -> String -> IO ()
+controlSocketWriter path msg = do
+    sock <- socket AF_UNIX Stream defaultProtocol
+    connect sock (SockAddrUnix path)
+    _ <- NBS.send sock (C8.pack msg)
+    close sock
 
 
 -- ??: what's a "live event"?
@@ -556,14 +564,9 @@ startServer portStr = do
             Server.json $ object ["runs" .= rows]
             -- Server.json $ object []
 
-        -- (auto)
         Server.post "/api/sig" $ do
             body <- Server.body
-            liftIO $ do
-                sock <- socket AF_UNIX Stream defaultProtocol
-                connect sock (SockAddrUnix "/tmp/hh200_socket")
-                _ <- NBS.send sock (BL.toStrict body)
-                close sock
+            liftIO $ controlSocketWriter "/tmp/uds_socket" "hello from writer"
             Server.json $ object ["ok" .= (True :: Bool)]
 
         Server.get (regex "(.*)") $
