@@ -287,11 +287,9 @@ goMode script args = do
         _ <- forkIO $
             controlSocketListener "/tmp/uds_socket" $ \msg ->  -- ??: xdg comply
                 case msg of
-                    "pause\n" -> undefined
-                    "resume\n" -> atomically $ writeTVar s Running
-                    -- "stop\n" -> terminate s
-                    "hello from writer\n" -> terminate s
-                    "hello from writer" -> terminate s
+                    "pause" ->  atomically $ writeTVar s Paused
+                    "resume" -> atomically $ writeTVar s Running
+                    "stop" ->   terminate s
                     _        -> putStrLn $ "received: " ++ msg
 
         -- Termination when all workers are done.
@@ -336,11 +334,11 @@ controlSocketListener path handler = do
         pure ()
 
 
-controlSocketWriter :: FilePath -> String -> IO ()
+controlSocketWriter :: FilePath -> BL.ByteString -> IO ()
 controlSocketWriter path msg = do
     sock <- socket AF_UNIX Stream defaultProtocol
     connect sock (SockAddrUnix path)
-    _ <- NBS.send sock (C8.pack msg)
+    _ <- NBS.send sock (BL.toStrict msg)
     close sock
 
 
@@ -365,65 +363,6 @@ insertRun conn rr = do
     case result of
         Left (_ :: SomeException) -> pure Nothing
         Right rid -> pure (Just rid)
-
--- goStraight :: Script -> Args -> IO ()
---
--- -- Script execution.
--- -- hh200 flow.hhs
--- -- - Always touches filesystem sqlite. Non-RPS runs are saved or not saved to database.
--- goStraight script args = do
---     testSimple
---
---     where
---     testSimple :: IO ()
---     testSimple = do
---         -- let scripts = workOptimize script
---         let scripts = Tbwp.dummyDuo script
---
---
---         conn <- initDb
---         let rr = RunRow
---                 { runName = "default"
---                 -- , runScriptPath = maybe "" pack args.source
---                 , runScriptPath = ""
---                 , runStartedAt = 0
---                 , runEndedAt = ETStillRunning
---                 , runStatus = "running"
---                 , runConcurrency = length scripts
---                 , runRateLimit = 0.0
---                 , runControlSocket = ""
---                 }
---         mRunId <- insertRun conn rr
---
---         shutdownFlag <- newTVarIO False
---         doneSignals <- replicateM (length scripts) newEmptyMVar
---
---         forM_ (zip3 [1..] scripts doneSignals) $ \(i, s, done) -> do
---             let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot
---                                         , Tbwp.wcRateLimiter = Nothing
---                                         , Tbwp.wcWorkerId = i
---                                         }
---             forkIO (Tbwp.worker cfg s shutdownFlag done)
---
---         -- ??: (callsite of persistMetrics) when there's no live events left.
---         -- Termination with ctrl+c, which is handled foremostly by worker.
---         _ <- installHandler sigINT
---                             (CatchOnce (atomically $ writeTVar shutdownFlag True))
---                             Nothing
---
---         -- Termination when all workers are done.
---         _ <- forkIO $ do
---             forM_ doneSignals readMVar
---             atomically $ writeTVar shutdownFlag True
---
---         -- Termination based on timer.
---         _ <- forkIO $ do
---             threadDelay (10 * 1000000)
---             atomically $ writeTVar shutdownFlag True
---
---         atomically (readTVar shutdownFlag >>= check)
---         -- closeDb conn
-
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
@@ -565,9 +504,11 @@ startServer portStr = do
             -- Server.json $ object []
 
         Server.post "/api/sig" $ do
-            body <- Server.body
-            liftIO $ controlSocketWriter "/tmp/uds_socket" "hello from writer"
-            Server.json $ object ["ok" .= (True :: Bool)]
+            body :: BL.ByteString <- Server.body
+
+            liftIO $ controlSocketWriter "/tmp/uds_socket" body
+
+            Server.json $ object ["ok" .= ((show body) :: String)]
 
         Server.get (regex "(.*)") $
             Server.file "min/200.html"

@@ -23,7 +23,7 @@ import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 import           Control.Concurrent
 import           Control.Concurrent.Async (async, cancel, Async)
-import           Control.Concurrent.STM (TVar, STM, atomically, newTVar, readTVar, writeTVar, check, modifyTVar')
+import           Control.Concurrent.STM (TVar, STM, atomically, newTVar, readTVar, writeTVar, check, modifyTVar', retry)
 import           Control.Exception (bracket, finally)
 import           Control.Monad (forever)
 
@@ -79,25 +79,6 @@ data RunState = Running | Paused | Stopped
 worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
 worker    cfg             script    shutdown     done =
     undefined
-    -- loop `finally` putMVar done ()
-    -- where
-    -- loop = do
-    --     stop <- atomically $ readTVar shutdown
-    --     if stop then
-    --         pure ()
-    --     else do
-    --         -- Rate-limit if configured.
-    --         case wcRateLimiter cfg of
-    --             Just rl -> waitAndConsumeToken rl
-    --             Nothing -> pure ()
-    --
-    --         -- acquireToken
-    --         trace ("worker:runScriptM........") $ runScriptM script newEnv
-    --
-    --         -- OneShot: exit after one run. LoopWithNap: nap then loop.
-    --         case wcMode cfg of
-    --             OneShot       -> pure ()
-    --             LoopWithNap n -> threadDelay n >> loop
 
 -- Terminates after first iteration on duration=0
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
@@ -110,7 +91,14 @@ courier    script    (cue, dur)              done =
         stop <- atomically $ readTVar cue
         case stop of
             Stopped -> pure ()
-            _ -> do
+            Paused -> do
+                atomically $ do
+                    st <- readTVar cue
+                    case st of
+                        Paused -> retry
+                        _ -> pure ()
+                loop
+            Running -> do
                 let courierCtx = CourierCtx { courierName = "hh200a" }  -- ??: freshCourierName
                 trace ("courier:runScriptM........") $ (runScriptWith courierCtx) script newEnv
                 threadDelay 4000
