@@ -40,6 +40,7 @@ Some nuggets that are less than mundane when I learned them.
 
 
 # STASH
+PICKUP cucumber execFileAsync('hh200
 - bats (latest npmjs package: 1.13)
 - mongoose (latest master branch sources: `c62f8b4` 2026-May-30)
 ffi around the commit "mongoose hello world"
