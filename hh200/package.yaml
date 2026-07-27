@@ -136,6 +136,8 @@ tests:
     - bel-expr
     - lsp-test
     - http-client
+    - sqlite-simple
+    - temporary
 
 # 🐝 C and C++ sources ahead 🐝
 

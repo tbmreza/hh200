@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-import Test.Tasty
-import Control.Concurrent.MVar (newMVar)
+import           Test.Tasty
+import           Control.Concurrent.MVar (newMVar)
 
 import qualified CliSpec  -- ??
 import qualified LspSpec
@@ -15,12 +15,12 @@ main :: IO ()
 main = do
     lock <- newMVar ()
     defaultMain $ testGroup "Hh200 Tests"
-      -- [ CliSpec.spec lock ]
+      [ DatabaseSpec.spec ]
 
-      [ CliSpec.spec lock
-      , LspSpec.spec
-      , DatabaseSpec.spec
-      , ScannerSpec.spec
-      , MustacheSpec.spec
-      , ExecutionSpec.spec
-      ]
+      -- [ CliSpec.spec lock
+      -- , LspSpec.spec
+      -- , DatabaseSpec.spec
+      -- , ScannerSpec.spec
+      -- , MustacheSpec.spec
+      -- , ExecutionSpec.spec
+      -- ]

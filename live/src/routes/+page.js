@@ -7,5 +7,5 @@ export async function load({ fetch }) {
     year: run.name.length,
     count: run.script_path.length
   }));
-  return { chartData };
+  return { chartData, runs: json.runs };
 }

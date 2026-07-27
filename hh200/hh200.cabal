@@ -152,9 +152,11 @@ test-suite hh200-test
     , lsp-test
     , optparse-applicative
     , silently
+    , sqlite-simple
     , tasty
     , tasty-golden
     , tasty-hunit
+    , temporary
     , text
     , transformers
     , unordered-containers

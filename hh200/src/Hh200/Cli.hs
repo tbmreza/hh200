@@ -12,7 +12,7 @@ import Debug.Trace
 
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Maybe
-import           Control.Exception (finally, try, SomeException)
+import           Control.Exception (finally)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TQueue (flushTQueue)
@@ -26,11 +26,11 @@ import           Web.Scotty (scotty, regex)
 import qualified Web.Scotty as Server
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           Options.Applicative
-import           Data.Aeson (ToJSON (..), object, (.=))
-import           Data.Int (Int64)
-import           Data.Text (Text, pack)
+import           Data.Maybe (fromMaybe)
+import           Data.Aeson (object, (.=))
+import           Data.Text (pack)
 import           Data.Version (showVersion)
-import           Database.SQLite.Simple (FromRow (..), field, query_, Connection, execute, lastInsertRowId)
+import           Database.SQLite.Simple (Connection)
 import qualified Paths_hh200 (version)
 
 import Network.Socket
@@ -51,7 +51,7 @@ import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter,
 import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
-import           Hh200.Database (initDb, closeDb)
+import           Hh200.Database (initDb, closeDb, insertRun, listRuns, RunRow(..), RREndTime(..))
 import           Hh200.LanguageServer (runTcp, runStdio)
 
 
@@ -137,7 +137,7 @@ optsInfo = info (helper <*>   modeBrowse <|> modeA)
                                  <> help "Alias for --nvu=N --duration=0"
                                  <> metavar "N" ))
 
--- go and goStraight indirection: debug programming directly in Script structs.
+-- go and goMode indirection: debug programming directly in Script structs.
 go :: Args -> IO ()
 
 -- Print executable version.
@@ -179,7 +179,6 @@ go args@Args { duration = 1, call = False, source = Just path } = do
         let analyzed = Scanner.analyze path
         m <- runMaybeT analyzed
         case m of
-            -- Just script -> trace ("path=" ++ show path) $ goStraight script args
             Just script -> trace ("goMode path=" ++ show path) $ goMode script args
             _ -> error "bug in hh200 grammar!"
 
@@ -218,20 +217,9 @@ genName = "default run name"
 --     | n >= 4    = i * (1_000_000 `div` n)   -- spread evenly across 1 s
 --     | otherwise = 0
 
--- listenUds :: FilePath -> (Handle -> IO ()) -> IO ()
--- listenUds path handler = do
---     removePathForcibly path
---     bracket (socket AF_UNIX Stream defaultProtocol) close $ \srv -> do
---         bind srv (SockAddrUnix path)
---         listen srv 1
---         (client, _addr) <- accept srv
---         bracket (socketToHandle client ReadMode) hClose $ \h -> do
---             hSetBuffering h LineBuffering
---             handler h
-
-
 goMode :: Script -> Args -> IO ()
 
+-- PICKUP test plan for Database module; insert to main.runs every stack run; rm sequelize
 goMode script args = do
     testSimple
 
@@ -242,12 +230,12 @@ goMode script args = do
     mkRunRow :: IO RunRow
     mkRunRow = do
         pure $ RunRow
-          { runControlSocket = ""
+          { runControlSocket = "/tmp/uds_socket"
           , runStatus = "running"
           , runEndedAt = ETStillRunning
           -- args fields --
           , runRateLimit = 0.0
-          , runScriptPath = ""
+          , runScriptPath = pack $ fromMaybe "" (source args)
           -- system io --
           , runName = genName
           , runStartedAt = 0
@@ -266,8 +254,6 @@ goMode script args = do
         -- Control flag.
         s <- newTVarIO Running
 
-        let udsFile = "/tmp/uds_socket"
-
         -- The loop that fires HTTP requests.
         -- ??: Automatic 1-second stagger for nvu >= 4. Starting point could be
         -- to assume sequencing N imperative forkIO $ courier ... statements
@@ -285,7 +271,8 @@ goMode script args = do
 
         -- Unix Domain Socket listener
         _ <- forkIO $
-            controlSocketListener "/tmp/uds_socket" $ \msg ->  -- ??: xdg comply
+            -- controlSocketListener (runControlSocket rr) $ \msg ->  -- ??: xdg comply
+            controlSocketListener "/tmp/uds_socket" $ \msg ->
                 case msg of
                     "pause" ->  atomically $ writeTVar s Paused
                     "resume" -> atomically $ writeTVar s Running
@@ -352,17 +339,6 @@ persistMetrics conn = loop
     loop = do
         case True of
             True -> pure ()
-
-insertRun :: Connection -> RunRow -> IO (Maybe Int64)
-insertRun conn rr = do
-    result <- try $ do
-        execute conn
-                "INSERT INTO runs (name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket) VALUES (?, ?, unixepoch('now'), ?, ?, ?, ?, ?)"
-                ("dummy" :: Text, "test.hhs" :: Text, 0 :: Int64, "completed" :: Text, 1 :: Int, 0.0 :: Double, "" :: Text)
-        lastInsertRowId conn
-    case result of
-        Left (_ :: SomeException) -> pure Nothing
-        Right rid -> pure (Just rid)
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
@@ -451,44 +427,6 @@ mkArgs = Args { source = Nothing
 -- POST /sig             Receives pause/resume/stop from dashboard, forwards to UDS
 -- GET /*                SvelteKit static SPA
 
--- ?? full review of RunRow: runEndedAt is optional
-data RREndTime =
-    ETStillRunning
-  | ETHasEnded !Int64
-
-data RunRow = RunRow
-  { runName          :: Text
-  , runScriptPath    :: Text
-  , runStartedAt     :: Int64
-  , runEndedAt       :: RREndTime
-  , runStatus        :: Text
-  , runConcurrency   :: Int
-  , runRateLimit     :: Double
-  , runControlSocket :: Text
-  }
-
-instance FromRow RunRow where
-    fromRow = RunRow <$> field
-                     <*> field
-                     <*> field
-                     <*> (maybe ETStillRunning ETHasEnded <$> field)
-                     <*> field
-                     <*> field
-                     <*> field
-                     <*> field
-
-instance ToJSON RunRow where
-    toJSON (RunRow n sp sa ea s c rl cs) = object
-      [ "name" .= n
-      , "script_path" .= sp
-      , "started_at" .= sa
-      , "ended_at" .= case ea of ETStillRunning -> Nothing; ETHasEnded v -> Just v
-      , "status" .= s
-      , "concurrency" .= c
-      , "rate_limit" .= rl
-      , "control_socket" .= cs
-      ]
-
 startServer :: String -> IO ()
 startServer portStr = do
     let port = read portStr :: Int
@@ -498,10 +436,8 @@ startServer portStr = do
 
         Server.get "/api/runs" $ do
             conn <- liftIO initDb
-            -- (auto)
-            rows <- liftIO $ (query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC" :: IO [RunRow])
+            rows <- liftIO $ listRuns conn
             Server.json $ object ["runs" .= rows]
-            -- Server.json $ object []
 
         Server.post "/api/sig" $ do
             body :: BL.ByteString <- Server.body
