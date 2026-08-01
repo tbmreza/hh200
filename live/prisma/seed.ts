@@ -96,14 +96,14 @@ async function seedRun(): Promise<void> {
     });
   }
 
-  await prisma.signal.createMany({
-    data: [
-      { run_id: run.id, kind: 'start', sent_at: run.started_at, acked_at: run.started_at + 10n },
-      ...(finished
-        ? [{ run_id: run.id, kind: 'stop', sent_at: endedAt!, acked_at: endedAt! + 15n }]
-        : []),
-    ],
-  });
+  // await prisma.signal.createMany({
+  //   data: [
+  //     { run_id: run.id, kind: 'start', sent_at: run.started_at, acked_at: run.started_at + 10n },
+  //     ...(finished
+  //       ? [{ run_id: run.id, kind: 'stop', sent_at: endedAt!, acked_at: endedAt! + 15n }]
+  //       : []),
+  //   ],
+  // });
 }
 
 async function main(): Promise<void> {
@@ -115,7 +115,7 @@ async function main(): Promise<void> {
     await seedRun();
   }
 
-  console.log(`Seeded ${runCount} runs with requests, headers, bodies, and signals.`);
+  console.log(`Seeded ${runCount} runs with dummy data.`);
 }
 
 main()

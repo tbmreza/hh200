@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -29,7 +27,7 @@ model Run {
   control_socket String
 
   requests Request[]
-  signals  Signal[]
+  // signals  Signal[]
 
   @@map("runs")
 }
@@ -82,15 +80,15 @@ model RequestBody {
   @@map("request_bodies")
 }
 
-model Signal {
+model Metric {
   id        Int     @id @default(autoincrement())
   run_id    Int
   kind      String
   sent_at   BigInt
   acked_at  BigInt?
-
-  run Run @relation(fields: [run_id], references: [id], onDelete: Cascade)
-
-  @@index([run_id])
-  @@map("signals")
+// 
+  // run Run @relation(fields: [run_id], references: [id], onDelete: Cascade)
+// 
+  // @@index([run_id])
+  @@map("metrics")
 }

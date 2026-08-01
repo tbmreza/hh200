@@ -265,7 +265,6 @@ export type RunWhereInput = {
   rate_limit?: Prisma.FloatFilter<"Run"> | number
   control_socket?: Prisma.StringFilter<"Run"> | string
   requests?: Prisma.RequestListRelationFilter
-  signals?: Prisma.SignalListRelationFilter
 }
 
 export type RunOrderByWithRelationInput = {
@@ -279,7 +278,6 @@ export type RunOrderByWithRelationInput = {
   rate_limit?: Prisma.SortOrder
   control_socket?: Prisma.SortOrder
   requests?: Prisma.RequestOrderByRelationAggregateInput
-  signals?: Prisma.SignalOrderByRelationAggregateInput
 }
 
 export type RunWhereUniqueInput = Prisma.AtLeast<{
@@ -296,7 +294,6 @@ export type RunWhereUniqueInput = Prisma.AtLeast<{
   rate_limit?: Prisma.FloatFilter<"Run"> | number
   control_socket?: Prisma.StringFilter<"Run"> | string
   requests?: Prisma.RequestListRelationFilter
-  signals?: Prisma.SignalListRelationFilter
 }, "id">
 
 export type RunOrderByWithAggregationInput = {
@@ -341,7 +338,6 @@ export type RunCreateInput = {
   rate_limit: number
   control_socket: string
   requests?: Prisma.RequestCreateNestedManyWithoutRunInput
-  signals?: Prisma.SignalCreateNestedManyWithoutRunInput
 }
 
 export type RunUncheckedCreateInput = {
@@ -355,7 +351,6 @@ export type RunUncheckedCreateInput = {
   rate_limit: number
   control_socket: string
   requests?: Prisma.RequestUncheckedCreateNestedManyWithoutRunInput
-  signals?: Prisma.SignalUncheckedCreateNestedManyWithoutRunInput
 }
 
 export type RunUpdateInput = {
@@ -368,7 +363,6 @@ export type RunUpdateInput = {
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
   requests?: Prisma.RequestUpdateManyWithoutRunNestedInput
-  signals?: Prisma.SignalUpdateManyWithoutRunNestedInput
 }
 
 export type RunUncheckedUpdateInput = {
@@ -382,7 +376,6 @@ export type RunUncheckedUpdateInput = {
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
   requests?: Prisma.RequestUncheckedUpdateManyWithoutRunNestedInput
-  signals?: Prisma.SignalUncheckedUpdateManyWithoutRunNestedInput
 }
 
 export type RunCreateManyInput = {
@@ -527,20 +520,6 @@ export type RunUpdateOneRequiredWithoutRequestsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.RunUpdateToOneWithWhereWithoutRequestsInput, Prisma.RunUpdateWithoutRequestsInput>, Prisma.RunUncheckedUpdateWithoutRequestsInput>
 }
 
-export type RunCreateNestedOneWithoutSignalsInput = {
-  create?: Prisma.XOR<Prisma.RunCreateWithoutSignalsInput, Prisma.RunUncheckedCreateWithoutSignalsInput>
-  connectOrCreate?: Prisma.RunCreateOrConnectWithoutSignalsInput
-  connect?: Prisma.RunWhereUniqueInput
-}
-
-export type RunUpdateOneRequiredWithoutSignalsNestedInput = {
-  create?: Prisma.XOR<Prisma.RunCreateWithoutSignalsInput, Prisma.RunUncheckedCreateWithoutSignalsInput>
-  connectOrCreate?: Prisma.RunCreateOrConnectWithoutSignalsInput
-  upsert?: Prisma.RunUpsertWithoutSignalsInput
-  connect?: Prisma.RunWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.RunUpdateToOneWithWhereWithoutSignalsInput, Prisma.RunUpdateWithoutSignalsInput>, Prisma.RunUncheckedUpdateWithoutSignalsInput>
-}
-
 export type RunCreateWithoutRequestsInput = {
   name: string
   script_path: string
@@ -550,7 +529,6 @@ export type RunCreateWithoutRequestsInput = {
   concurrency: number
   rate_limit: number
   control_socket: string
-  signals?: Prisma.SignalCreateNestedManyWithoutRunInput
 }
 
 export type RunUncheckedCreateWithoutRequestsInput = {
@@ -563,7 +541,6 @@ export type RunUncheckedCreateWithoutRequestsInput = {
   concurrency: number
   rate_limit: number
   control_socket: string
-  signals?: Prisma.SignalUncheckedCreateNestedManyWithoutRunInput
 }
 
 export type RunCreateOrConnectWithoutRequestsInput = {
@@ -591,7 +568,6 @@ export type RunUpdateWithoutRequestsInput = {
   concurrency?: Prisma.IntFieldUpdateOperationsInput | number
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
-  signals?: Prisma.SignalUpdateManyWithoutRunNestedInput
 }
 
 export type RunUncheckedUpdateWithoutRequestsInput = {
@@ -604,73 +580,6 @@ export type RunUncheckedUpdateWithoutRequestsInput = {
   concurrency?: Prisma.IntFieldUpdateOperationsInput | number
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
-  signals?: Prisma.SignalUncheckedUpdateManyWithoutRunNestedInput
-}
-
-export type RunCreateWithoutSignalsInput = {
-  name: string
-  script_path: string
-  started_at: bigint | number
-  ended_at?: bigint | number | null
-  status: string
-  concurrency: number
-  rate_limit: number
-  control_socket: string
-  requests?: Prisma.RequestCreateNestedManyWithoutRunInput
-}
-
-export type RunUncheckedCreateWithoutSignalsInput = {
-  id?: number
-  name: string
-  script_path: string
-  started_at: bigint | number
-  ended_at?: bigint | number | null
-  status: string
-  concurrency: number
-  rate_limit: number
-  control_socket: string
-  requests?: Prisma.RequestUncheckedCreateNestedManyWithoutRunInput
-}
-
-export type RunCreateOrConnectWithoutSignalsInput = {
-  where: Prisma.RunWhereUniqueInput
-  create: Prisma.XOR<Prisma.RunCreateWithoutSignalsInput, Prisma.RunUncheckedCreateWithoutSignalsInput>
-}
-
-export type RunUpsertWithoutSignalsInput = {
-  update: Prisma.XOR<Prisma.RunUpdateWithoutSignalsInput, Prisma.RunUncheckedUpdateWithoutSignalsInput>
-  create: Prisma.XOR<Prisma.RunCreateWithoutSignalsInput, Prisma.RunUncheckedCreateWithoutSignalsInput>
-  where?: Prisma.RunWhereInput
-}
-
-export type RunUpdateToOneWithWhereWithoutSignalsInput = {
-  where?: Prisma.RunWhereInput
-  data: Prisma.XOR<Prisma.RunUpdateWithoutSignalsInput, Prisma.RunUncheckedUpdateWithoutSignalsInput>
-}
-
-export type RunUpdateWithoutSignalsInput = {
-  name?: Prisma.StringFieldUpdateOperationsInput | string
-  script_path?: Prisma.StringFieldUpdateOperationsInput | string
-  started_at?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
-  ended_at?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
-  status?: Prisma.StringFieldUpdateOperationsInput | string
-  concurrency?: Prisma.IntFieldUpdateOperationsInput | number
-  rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
-  control_socket?: Prisma.StringFieldUpdateOperationsInput | string
-  requests?: Prisma.RequestUpdateManyWithoutRunNestedInput
-}
-
-export type RunUncheckedUpdateWithoutSignalsInput = {
-  id?: Prisma.IntFieldUpdateOperationsInput | number
-  name?: Prisma.StringFieldUpdateOperationsInput | string
-  script_path?: Prisma.StringFieldUpdateOperationsInput | string
-  started_at?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
-  ended_at?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
-  status?: Prisma.StringFieldUpdateOperationsInput | string
-  concurrency?: Prisma.IntFieldUpdateOperationsInput | number
-  rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
-  control_socket?: Prisma.StringFieldUpdateOperationsInput | string
-  requests?: Prisma.RequestUncheckedUpdateManyWithoutRunNestedInput
 }
 
 
@@ -680,12 +589,10 @@ export type RunUncheckedUpdateWithoutSignalsInput = {
 
 export type RunCountOutputType = {
   requests: number
-  signals: number
 }
 
 export type RunCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   requests?: boolean | RunCountOutputTypeCountRequestsArgs
-  signals?: boolean | RunCountOutputTypeCountSignalsArgs
 }
 
 /**
@@ -705,13 +612,6 @@ export type RunCountOutputTypeCountRequestsArgs<ExtArgs extends runtime.Types.Ex
   where?: Prisma.RequestWhereInput
 }
 
-/**
- * RunCountOutputType without action
- */
-export type RunCountOutputTypeCountSignalsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.SignalWhereInput
-}
-
 
 export type RunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -724,7 +624,6 @@ export type RunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = ru
   rate_limit?: boolean
   control_socket?: boolean
   requests?: boolean | Prisma.Run$requestsArgs<ExtArgs>
-  signals?: boolean | Prisma.Run$signalsArgs<ExtArgs>
   _count?: boolean | Prisma.RunCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["run"]>
 
@@ -767,7 +666,6 @@ export type RunSelectScalar = {
 export type RunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "script_path" | "started_at" | "ended_at" | "status" | "concurrency" | "rate_limit" | "control_socket", ExtArgs["result"]["run"]>
 export type RunInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   requests?: boolean | Prisma.Run$requestsArgs<ExtArgs>
-  signals?: boolean | Prisma.Run$signalsArgs<ExtArgs>
   _count?: boolean | Prisma.RunCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type RunIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -777,7 +675,6 @@ export type $RunPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   name: "Run"
   objects: {
     requests: Prisma.$RequestPayload<ExtArgs>[]
-    signals: Prisma.$SignalPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1184,7 +1081,6 @@ readonly fields: RunFieldRefs;
 export interface Prisma__RunClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   requests<T extends Prisma.Run$requestsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Run$requestsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  signals<T extends Prisma.Run$signalsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Run$signalsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SignalPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1635,30 +1531,6 @@ export type Run$requestsArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
   take?: number
   skip?: number
   distinct?: Prisma.RequestScalarFieldEnum | Prisma.RequestScalarFieldEnum[]
-}
-
-/**
- * Run.signals
- */
-export type Run$signalsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the Signal
-   */
-  select?: Prisma.SignalSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the Signal
-   */
-  omit?: Prisma.SignalOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.SignalInclude<ExtArgs> | null
-  where?: Prisma.SignalWhereInput
-  orderBy?: Prisma.SignalOrderByWithRelationInput | Prisma.SignalOrderByWithRelationInput[]
-  cursor?: Prisma.SignalWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.SignalScalarFieldEnum | Prisma.SignalScalarFieldEnum[]
 }
 
 /**

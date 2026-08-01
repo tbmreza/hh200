@@ -388,7 +388,7 @@ export const ModelName = {
   Request: 'Request',
   RequestHeader: 'RequestHeader',
   RequestBody: 'RequestBody',
-  Signal: 'Signal'
+  Metric: 'Metric'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -404,7 +404,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "run" | "request" | "requestHeader" | "requestBody" | "signal"
+    modelProps: "run" | "request" | "requestHeader" | "requestBody" | "metric"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -704,77 +704,77 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
-    Signal: {
-      payload: Prisma.$SignalPayload<ExtArgs>
-      fields: Prisma.SignalFieldRefs
+    Metric: {
+      payload: Prisma.$MetricPayload<ExtArgs>
+      fields: Prisma.MetricFieldRefs
       operations: {
         findUnique: {
-          args: Prisma.SignalFindUniqueArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload> | null
+          args: Prisma.MetricFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload> | null
         }
         findUniqueOrThrow: {
-          args: Prisma.SignalFindUniqueOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+          args: Prisma.MetricFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
         }
         findFirst: {
-          args: Prisma.SignalFindFirstArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload> | null
+          args: Prisma.MetricFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload> | null
         }
         findFirstOrThrow: {
-          args: Prisma.SignalFindFirstOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+          args: Prisma.MetricFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
         }
         findMany: {
-          args: Prisma.SignalFindManyArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>[]
+          args: Prisma.MetricFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>[]
         }
         create: {
-          args: Prisma.SignalCreateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+          args: Prisma.MetricCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
         }
         createMany: {
-          args: Prisma.SignalCreateManyArgs<ExtArgs>
+          args: Prisma.MetricCreateManyArgs<ExtArgs>
           result: BatchPayload
         }
         createManyAndReturn: {
-          args: Prisma.SignalCreateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>[]
+          args: Prisma.MetricCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>[]
         }
         delete: {
-          args: Prisma.SignalDeleteArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+          args: Prisma.MetricDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
         }
         update: {
-          args: Prisma.SignalUpdateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+          args: Prisma.MetricUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
         }
         deleteMany: {
-          args: Prisma.SignalDeleteManyArgs<ExtArgs>
+          args: Prisma.MetricDeleteManyArgs<ExtArgs>
           result: BatchPayload
         }
         updateMany: {
-          args: Prisma.SignalUpdateManyArgs<ExtArgs>
+          args: Prisma.MetricUpdateManyArgs<ExtArgs>
           result: BatchPayload
         }
         updateManyAndReturn: {
-          args: Prisma.SignalUpdateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>[]
+          args: Prisma.MetricUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>[]
         }
         upsert: {
-          args: Prisma.SignalUpsertArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+          args: Prisma.MetricUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
         }
         aggregate: {
-          args: Prisma.SignalAggregateArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AggregateSignal>
+          args: Prisma.MetricAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMetric>
         }
         groupBy: {
-          args: Prisma.SignalGroupByArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.SignalGroupByOutputType>[]
+          args: Prisma.MetricGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MetricGroupByOutputType>[]
         }
         count: {
-          args: Prisma.SignalCountArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.SignalCountAggregateOutputType> | number
+          args: Prisma.MetricCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MetricCountAggregateOutputType> | number
         }
       }
     }
@@ -869,7 +869,7 @@ export const RequestBodyScalarFieldEnum = {
 export type RequestBodyScalarFieldEnum = (typeof RequestBodyScalarFieldEnum)[keyof typeof RequestBodyScalarFieldEnum]
 
 
-export const SignalScalarFieldEnum = {
+export const MetricScalarFieldEnum = {
   id: 'id',
   run_id: 'run_id',
   kind: 'kind',
@@ -877,7 +877,7 @@ export const SignalScalarFieldEnum = {
   acked_at: 'acked_at'
 } as const
 
-export type SignalScalarFieldEnum = (typeof SignalScalarFieldEnum)[keyof typeof SignalScalarFieldEnum]
+export type MetricScalarFieldEnum = (typeof MetricScalarFieldEnum)[keyof typeof MetricScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1064,7 +1064,7 @@ export type GlobalOmitConfig = {
   request?: Prisma.RequestOmit
   requestHeader?: Prisma.RequestHeaderOmit
   requestBody?: Prisma.RequestBodyOmit
-  signal?: Prisma.SignalOmit
+  metric?: Prisma.MetricOmit
 }
 
 /* Types for Logging */

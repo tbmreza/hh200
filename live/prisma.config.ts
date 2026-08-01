@@ -11,7 +11,7 @@ export default defineConfig({
   datasource: {
     // Our notion of production & development environment is different from
     // standard web apps: production means xdg compliant installation,
-    // development is just current repo directory.
+    // development is just relative to current repo directory.
     // url: process.env["DATABASE_URL"],
     url: "file:./prisma/app.db",
   },

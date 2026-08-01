@@ -55,7 +55,7 @@ export const ModelName = {
   Request: 'Request',
   RequestHeader: 'RequestHeader',
   RequestBody: 'RequestBody',
-  Signal: 'Signal'
+  Metric: 'Metric'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -126,7 +126,7 @@ export const RequestBodyScalarFieldEnum = {
 export type RequestBodyScalarFieldEnum = (typeof RequestBodyScalarFieldEnum)[keyof typeof RequestBodyScalarFieldEnum]
 
 
-export const SignalScalarFieldEnum = {
+export const MetricScalarFieldEnum = {
   id: 'id',
   run_id: 'run_id',
   kind: 'kind',
@@ -134,7 +134,7 @@ export const SignalScalarFieldEnum = {
   acked_at: 'acked_at'
 } as const
 
-export type SignalScalarFieldEnum = (typeof SignalScalarFieldEnum)[keyof typeof SignalScalarFieldEnum]
+export type MetricScalarFieldEnum = (typeof MetricScalarFieldEnum)[keyof typeof MetricScalarFieldEnum]
 
 
 export const SortOrder = {

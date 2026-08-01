@@ -219,7 +219,6 @@ genName = "default run name"
 
 goMode :: Script -> Args -> IO ()
 
--- PICKUP test plan for Database module; insert to main.runs every stack run; rm sequelize
 goMode script args = do
     testSimple
 

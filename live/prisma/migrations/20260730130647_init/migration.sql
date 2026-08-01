@@ -49,13 +49,12 @@ CREATE TABLE "request_bodies" (
 );
 
 -- CreateTable
-CREATE TABLE "signals" (
+CREATE TABLE "Metric" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "run_id" INTEGER NOT NULL,
     "kind" TEXT NOT NULL,
     "sent_at" BIGINT NOT NULL,
-    "acked_at" BIGINT,
-    CONSTRAINT "signals_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "runs" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "acked_at" BIGINT
 );
 
 -- CreateIndex
@@ -66,6 +65,3 @@ CREATE INDEX "request_headers_request_id_idx" ON "request_headers"("request_id")
 
 -- CreateIndex
 CREATE INDEX "request_bodies_request_id_idx" ON "request_bodies"("request_id");
-
--- CreateIndex
-CREATE INDEX "signals_run_id_idx" ON "signals"("run_id");

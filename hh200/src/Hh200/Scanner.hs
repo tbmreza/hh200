@@ -6,7 +6,7 @@
 -- Re-export lexer and parser generated code.
 module Hh200.Scanner
     ( module Hh200.Scanner
-    , module L
+    , module L  -- ??: if test modules can import this directly, rm this re-exports
     , module P
     -- , P.hasBalancedMustache
     ) where

@@ -62,7 +62,7 @@ export type RequestHeader = Prisma.RequestHeaderModel
  */
 export type RequestBody = Prisma.RequestBodyModel
 /**
- * Model Signal
+ * Model Metric
  * 
  */
-export type Signal = Prisma.SignalModel
+export type Metric = Prisma.MetricModel
