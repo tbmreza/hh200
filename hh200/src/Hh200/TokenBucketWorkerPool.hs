@@ -24,7 +24,7 @@ import qualified Data.HashMap.Strict as HM
 import           Control.Concurrent
 import           Control.Concurrent.Async (async, cancel, Async)
 import           Control.Concurrent.STM (TVar, STM, atomically, newTVar, readTVar, writeTVar, check, modifyTVar', retry)
-import           Control.Exception (bracket, finally)
+import           Control.Exception (bracket, try, SomeException)
 import           Control.Monad (forever)
 
 import           Hh200.Types
@@ -82,9 +82,14 @@ worker    cfg             script    shutdown     done =
 
 -- Terminates after first iteration on duration=0
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
-courier :: Script -> (TVar RunState, Int) -> MVar () -> IO ()
-courier    script    (cue, dur)              done =
-    loop `finally` putMVar done ()
+-- done :: MVar Bool  -- True if the Script failed its assertions
+courier :: Script -> (TVar RunState, Int) -> MVar Bool -> IO ()
+courier    script    (cue, dur)              done = do
+    -- (auto)
+    r <- try loop :: IO (Either SomeException ())
+    putMVar done $ case r of
+        Left _  -> True
+        Right _ -> False
     where
 
     loop = do

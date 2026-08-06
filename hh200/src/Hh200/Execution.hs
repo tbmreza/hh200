@@ -7,6 +7,7 @@
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
   ( runScriptM, runScriptWith, CourierCtx(..)
+  , AssertionFailure(..)
 
   , status200
   , ProcM
@@ -33,7 +34,7 @@ import           System.IO (hPutStrLn, stderr, hClose, openFile, IOMode(..))
 -- import           Control.Concurrent.STM
 -- import           Control.Concurrent.QSemN
 -- import           Control.Exception        (bracket, bracket_, try, SomeException, IOException)
-import           Control.Exception        (try, IOException)
+import           Control.Exception        (try, throwIO, Exception, IOException)
 -- import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -109,6 +110,13 @@ data BodyPart =
     BodyPartFile { bpField :: Text, bpPath :: FilePath, bpValue :: Text }
   | BodyPartText  { bpField :: Text, bpValue :: Text, bpPath :: FilePath     }
     deriving (Show)
+
+-- | Thrown by 'courseFrom' when a response fails its assertions so callers can
+-- propagate a non-zero exit code.
+data AssertionFailure = AssertionFailure String
+    deriving (Show)
+
+instance Exception AssertionFailure
 
 type HhValue = Int
 data HhRequestBody =
@@ -261,10 +269,8 @@ data CourierCtx = CourierCtx
   }
 
 runScriptWith :: CourierCtx -> Script -> Env -> IO ()
--- runScriptWith ctx = runScriptM
 runScriptWith ctx script env = do
     let course :: ProcM CallItem = courseFrom (Just ctx) script
-    -- let course :: ProcM CallItem = courseFrom script
     mgr <- Http.newManager True
     _undefined <- Tf.runRWST (runMaybeT course) mgr env
     pure ()
@@ -419,34 +425,6 @@ courseFrom mcc x = do
     go mgr (callItems x)
 
     where  -- goal in order: multipartSq, rqUrl, test braced interpolation
-    -- finalizeRequest :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    -- finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
-    --     case multipartSq of
-    --         Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-    --             bodyParts <- for (HM.toList mpFields) $ \ (fieldName, parts') -> do
-    --                 rendered <- BEL.render env (Aeson.String "") parts'
-    --                 let bsValue = case rendered of
-    --                         Aeson.String t -> TE.encodeUtf8 t
-    --                         v -> BL.toStrict (Aeson.encode v)
-    --                 pure $ BodyPartFile { bpField = fieldName, bpPath = BS.unpack bsValue }
-    --             let eMultipart = RBMultipart bodyParts
-    --             appliedReq <- applyBody eMultipart req
-    --             pure $ appliedReq { HC.method = BS.pack rqMethod
-    --                               , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack "multipart/form-data") : allHeaders
-    --                               }
-    --         _ -> do
-    --             let bodyContent = case (renderedForm, rqBody) of
-    --                     ("", "") -> BS.pack rqBody
-    --                     ("", _) -> BS.pack rqBody
-    --                     (f, "") -> BS.pack f
-    --                     (f, _) -> BS.pack f
-    --                 contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-    --                 encoded = BL.fromStrict bodyContent
-    --             pure $ req { HC.method = BS.pack rqMethod
-    --                        , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-    --                        , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
-    --                        }
-
     -- ??: print offline HttpExceptionRequest to user right away (or otherwise).
     -- ??: handle multipart file not found
     -- go :: Http.Manager -> [CallItem] -> ProcM CallItem
@@ -478,7 +456,7 @@ courseFrom mcc x = do
 
                 ok <- liftIO (userAssertions env' ci)
                 if not ok then
-                    pure ci
+                    liftIO (throwIO (AssertionFailure (ciName ci)))
                 else
                     go mgr rest
 

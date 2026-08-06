@@ -283,6 +283,11 @@ goMode script args = do
         atomically $
             check . (== Stopped) =<< readTVar s
 
+        -- (auto)
+        results <- mapM tryReadMVar drawer
+        when (or [ b | Just b <- results ]) $
+            exitWith (ExitFailure 1)
+
 
 controlSocketListener
     :: FilePath
