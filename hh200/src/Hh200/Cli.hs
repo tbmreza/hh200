@@ -22,12 +22,12 @@ import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
-import           Web.Scotty (scotty, regex)
+import           Web.Scotty (scotty, regex, pathParam)
 import qualified Web.Scotty as Server
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           Options.Applicative
 import           Data.Maybe (fromMaybe)
-import           Data.Aeson (object, (.=))
+import           Data.Aeson (object, encode, (.=))
 import           Data.Text (pack)
 import           Data.Version (showVersion)
 import           Database.SQLite.Simple (Connection)
@@ -37,6 +37,7 @@ import Network.Socket
 import qualified Network.Socket.ByteString as NBS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Builder as B
 import Control.Monad (unless)
 import System.Directory (removeFile, doesFileExist)
 import Control.Exception  (bracket)
@@ -46,12 +47,13 @@ import Network.Socket     (Family (..), SockAddr (..), SocketType (..),
 import System.Directory   (removePathForcibly)
 import System.IO          (BufferMode (..), Handle, IOMode (..), hClose,
                            hSetBuffering)
+import qualified Data.Csv as Csv
 
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
 import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
-import           Hh200.Database (initDb, closeDb, insertRun, listRuns, RunRow(..), RREndTime(..))
+import           Hh200.Database (initDb, closeDb, insertRun, listRuns, RunRow(..), RREndTime(..), queryStatsHistory)
 import           Hh200.LanguageServer (runTcp, runStdio)
 
 
@@ -130,7 +132,6 @@ optsInfo = info (helper <*>   modeBrowse <|> modeA)
         <*> switch ( long "lsp-stdio"
                   <> help "Run hh200 language server over stdio" )
 
-        -- (auto)
         <*> pure Nothing)
         <*> optional ((\n a -> a { nvu = n, duration = 0 }) <$>
                       option auto ( long "shotgun"
@@ -183,18 +184,12 @@ go args@Args { duration = 1, call = False, source = Just path } = do
             _ -> error "bug in hh200 grammar!"
 
 -- Inline program execution.
--- hh200 --call "GET ..."
-go Args { call = True, source = Just snip } =
-    error ("undefined --call snip=" ++ snip)
-
--- -- Inserts timeseries data to a file database and optionally serves a web frontend.
--- -- hh200 flow.hhs --rps
--- go Args { rps = True, duration = n, source = Just path } = do
---     mScript <- runMaybeT (Scanner.analyze path)
---     case mScript of
---         Nothing -> exitWith (ExitFailure 1)
---         -- Just s  -> testRps rpsVal concurrency rampUpUs thinkTimeUs script
---         Just s  -> testRps 10 n 1000000 500000 s
+-- hh200 --call "GET http://localhost:9999/health"
+go args@Args { call = True, source = Just snip } = do
+    m <- runMaybeT (Scanner.analyze (Snippet (BL.fromStrict (C8.pack snip))))
+    case m of
+        Just script -> goMode script args
+        _ -> error "bug in hh200 grammar!"
 
 -- Shotgun.
 -- hh200 flow.hhs --nvu=4 --duration=0
@@ -211,11 +206,6 @@ go args@Args { duration = n, call = False, source = Just path } = do
 go _ = exitWith (ExitFailure 1)
 
 genName = "default run name"
-
--- staggerDelayMicr :: Int -> Int -> Int
--- staggerDelayMicr n i
---     | n >= 4    = i * (1_000_000 `div` n)   -- spread evenly across 1 s
---     | otherwise = 0
 
 goMode :: Script -> Args -> IO ()
 
@@ -328,7 +318,6 @@ controlSocketWriter path msg = do
     close sock
 
 
--- ??: what's a "live event"?
 -- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()
 -- persistMetrics conn e shutdownFlag = loop
 persistMetrics :: Connection -> IO ()
@@ -418,13 +407,18 @@ mkArgs = Args { source = Nothing
 --------------------------------------------------------------------------------
 -- Dashboard server
 --------------------------------------------------------------------------------
--- Path                  Notes
--- GET /api/runs         List runs from SQLite
--- GET /api/runs/live    In-progress run at the time being
--- GET /api/runs/:runId  Completed run detail
--- GET /sse              SSE stream for live inserts
--- POST /sig             Receives pause/resume/stop from dashboard, forwards to UDS
--- GET /*                SvelteKit static SPA
+-- -- Frontend-initiated
+-- GET /api/runs           List runs from SQLite
+-- GET /api/runs/live      In-progress run at the time being
+-- GET /api/runs/:runId    Completed run detail
+-- GET /api/report/:runId  Download report for a Run in CSV
+--
+-- -- Backend-initiated
+-- GET /sse                SSE stream for live data
+--
+-- -- Browse mode
+-- POST /sig               Receives pause/resume/stop, forwards to UDS
+-- GET /*                  SvelteKit static SPA
 
 startServer :: String -> IO ()
 startServer portStr = do
@@ -438,6 +432,22 @@ startServer portStr = do
             rows <- liftIO $ listRuns conn
             Server.json $ object ["runs" .= rows]
 
+        Server.get "/api/report/:runId" $ do
+            conn <- liftIO initDb
+            runId :: Int <- pathParam "runId"
+
+            statsHistory <- liftIO $ queryStatsHistory conn
+
+            -- ??: stats_history.csv
+            -- case result of
+            --     Left (e :: SomeException) ->
+            --         pure $ Left (Text.pack (displayException e))
+            --     Right rid ->
+            --         pure $ Right rid
+
+            -- let bs = Csv.encode 
+            Server.json $ object []
+
         Server.post "/api/sig" $ do
             body :: BL.ByteString <- Server.body
 
@@ -445,5 +455,23 @@ startServer portStr = do
 
             Server.json $ object ["ok" .= ((show body) :: String)]
 
+        Server.get "/sse" $ do
+            Server.setHeader "Content-Type" "text/event-stream"
+            Server.setHeader "Cache-Control" "no-cache"
+            -- ??: type Event = NoNews | NewRow | UpdateRow
+            Server.stream $ \send flush -> forever $ do
+                let evt = object
+                        [ "nested" .= (object ["inner" .= (1 :: Int)])
+                        , "float" .= (1.5 :: Double)
+                        , "array" .= ([1, 2, 3] :: [Int])
+                        , "string" .= ("hello" :: String)
+                        , "bool" .= True
+                        ]
+                    frame = "data: " <> encode evt <> "\n\n"
+                send (B.lazyByteString frame)
+                flush
+                threadDelay 2000000  -- ??: event every 1.5s
+
+        -- Catch-all GET for SvelteKit pages routes.
         Server.get (regex "(.*)") $
             Server.file "min/200.html"

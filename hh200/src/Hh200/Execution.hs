@@ -8,8 +8,8 @@
 module Hh200.Execution
   ( runScriptM, runScriptWith, CourierCtx(..)
 
-  , ProcM
   , status200
+  , ProcM
   , renderHeadersMap
   , renderRequestQuery
   , renderRequestForm
@@ -26,25 +26,28 @@ module Hh200.Execution
 
 import Debug.Trace
 
-import           System.IO (hPutStrLn, stderr, stdout, hClose, openFile, IOMode(..))
+-- import           System.IO (hPutStrLn, stderr, stdout, hClose, openFile, IOMode(..))
+import           System.IO (hPutStrLn, stderr, hClose, openFile, IOMode(..))
 
-import           Control.Concurrent
-import           Control.Concurrent.STM
-import           Control.Concurrent.QSemN
-import           Control.Exception        (bracket, bracket_, try, SomeException, IOException)
-import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
+-- import           Control.Concurrent
+-- import           Control.Concurrent.STM
+-- import           Control.Concurrent.QSemN
+-- import           Control.Exception        (bracket, bracket_, try, SomeException, IOException)
+import           Control.Exception        (try, IOException)
+-- import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.Except (runExceptT, ExceptT(..))
-import           Control.Monad (foldM, forM, mzero, forever, void)
-import           Control.Monad (forM_, replicateM, replicateM_, when)
+-- import           Control.Monad.Trans.Except (runExceptT, ExceptT(..))
+-- import           Control.Monad (foldM, forM, mzero, forever, void)
+import           Control.Monad (foldM, forM, mzero)
+-- import           Control.Monad (forM_, replicateM, replicateM_, when)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import           Data.Traversable (for)
-import           Data.Maybe (fromMaybe)
+-- import           Data.Maybe (fromMaybe)
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Encoding.Error as TEE
+-- import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Char8 as BS
@@ -54,13 +57,13 @@ import           Data.ByteString.Lazy (fromStrict)
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import qualified Data.Aeson as Aeson (encode, decode, Value (..))
-import           Data.Aeson (object, (.=))
-import qualified Data.Aeson.Key as Key
+-- import           Data.Aeson (object, (.=))
+-- import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Vector as V
 
-import           Control.Lens ((&), (?~))
-import           Control.Lens.At (at)
+-- import           Control.Lens ((&), (?~))
+-- import           Control.Lens.At (at)
 
 import qualified Network.HTTP.Client as HC ( method
                                            , requestHeaders
@@ -75,17 +78,19 @@ import qualified Network.HTTP.Client as HC ( method
 import qualified Network.HTTP.Client.MultipartFormData as HCMP
 import           Network.HTTP.Client.MultipartFormData (partFileSource, formDataBody)
 import           Network.HTTP.Types.Status
-import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
-import           Network.HTTP.Simple (setRequestBodyFile, setRequestBody, setRequestBodyJSON)
+-- import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
+import           Network.HTTP.Types.Header (HeaderName)
+-- import           Network.HTTP.Simple (setRequestBodyFile, setRequestBody, setRequestBodyJSON)
+import           Network.HTTP.Simple (setRequestBody, setRequestBodyJSON)
 import qualified Network.HTTP.Client.Internal as HI
 
 import qualified BEL
 import qualified Hh200.Http as Http
 import           Hh200.Types
-import           Hh200.Scanner (gatherHostInfo)
+-- import           Hh200.Scanner (gatherHostInfo)
+-- PICKUP warnings
 
-
-experimentalRequestBodyFile = setRequestBody . HI.RequestBodyIO . HC.streamFile
+-- experimentalRequestBodyFile = setRequestBody . HI.RequestBodyIO . HC.streamFile
 
 -- Set request file body, or no-op if something unexpected happened.
 experimentalRequestBodyFile' :: FilePath -> HI.Request -> IO HI.Request
@@ -94,12 +99,15 @@ experimentalRequestBodyFile' path req = do
         handle <- openFile path ReadMode
         hClose handle  -- (auto) just a probe; streamFile will reopen
     pure $ case result of
-        Left err -> req
+        Left _err -> req
         Right _  -> setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req
 
+-- ??: store file paths in Text for BodyPartFile bpValue
+--   BodyPartFile { bpField :: Text }
+-- | BodyPartText  { bpField :: Text }
 data BodyPart =
-    BodyPartFile { bpField :: Text, bpPath :: FilePath }
-  | BodyPartText  { bpField :: Text, bpValue :: Text    }
+    BodyPartFile { bpField :: Text, bpPath :: FilePath, bpValue :: Text }
+  | BodyPartText  { bpField :: Text, bpValue :: Text, bpPath :: FilePath     }
     deriving (Show)
 
 type HhValue = Int
@@ -110,8 +118,9 @@ data HhRequestBody =
   | RBRaw         BS.ByteString Text  -- raw body + content-type
 
 bodyPartToPart :: BodyPart -> HCMP.Part
-bodyPartToPart (BodyPartFile field fp) = partFileSource field fp
-bodyPartToPart (BodyPartText field val) = HCMP.partBS field (TE.encodeUtf8 val)
+bodyPartToPart (BodyPartFile field fp "") = partFileSource field fp
+bodyPartToPart (BodyPartText field val "") = HCMP.partBS field (TE.encodeUtf8 val)
+bodyPartToPart _ = undefined  -- ??: rm after data BodyPart
 
 applyBody :: HhRequestBody -> HI.Request -> IO HI.Request
 applyBody (RBMultipart parts) req =
@@ -137,10 +146,10 @@ applyBody (RBRaw body contentType) req =
                }
 
 
--- experimentalRequestBodyFile'' :: FilePath -> H.Request -> IO (Either IOException H.Request)
-experimentalRequestBodyFile'' path req = runExceptT $ do
-  bytes <- ExceptT $ try @IOException (BS.readFile path)
-  pure $ setRequestBody (HI.RequestBodyBS bytes) req
+-- -- experimentalRequestBodyFile'' :: FilePath -> H.Request -> IO (Either IOException H.Request)
+-- experimentalRequestBodyFile'' path req = runExceptT $ do
+--   bytes <- ExceptT $ try @IOException (BS.readFile path)
+--   pure $ setRequestBody (HI.RequestBodyBS bytes) req
 
 data SubsetResult =
     ASubsetOfB        -- A ⊆ B
@@ -221,27 +230,27 @@ expectHeadersOrMt ci =
 -- "writes" log as it runs, modifies environment "states" while doing IO.
 type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
 
--- Mechanically, this is a corollary to http-client's defaultRequest.
---
--- "A default request value, a GET request of localhost/:80, with an empty
--- request body." - http-client hoogle
-defaultCallItem :: CallItem
-defaultCallItem = CallItem
-  { ciDeps = []
-  , ciName = "default"
-  , ciRequestSpec = RequestSpec
-    { rqMethod = "GET"
-    -- , rqUrl = "http://localhost:80"
-    , rqHeaders = RhsDict HM.empty
-    -- , rqConfigs = RhsDict HM.empty
-    , rqBody = ""
-    }
-  , ciResponseSpec = Nothing
-  }
+-- -- Mechanically, this is a corollary to http-client's defaultRequest.
+-- --
+-- -- "A default request value, a GET request of localhost/:80, with an empty
+-- -- request body." - http-client hoogle
+-- defaultCallItem :: CallItem
+-- defaultCallItem = CallItem
+--   { ciDeps = []
+--   , ciName = "default"
+--   , ciRequestSpec = RequestSpec
+--     { rqMethod = "GET"
+--     -- , rqUrl = "http://localhost:80"
+--     , rqHeaders = RhsDict HM.empty
+--     -- , rqConfigs = RhsDict HM.empty
+--     , rqBody = ""
+--     }
+--   , ciResponseSpec = Nothing
+--   }
 
-headersToAeson :: [(HeaderName, BS.ByteString)] -> Aeson.Value
-headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $ 
-    map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) hdrs
+-- headersToAeson :: [(HeaderName, BS.ByteString)] -> Aeson.Value
+-- headersToAeson hdrs = Aeson.Object $ KeyMap.fromList $ 
+--     map (\(k, v) -> (Key.fromText (Text.pack (BS.unpack (CaseInsensitive.original k))), Aeson.String (TE.decodeUtf8With TEE.lenientDecode v))) hdrs
 
 asBS :: Aeson.Value -> BS.ByteString
 asBS (Aeson.String t) = TE.encodeUtf8 t
@@ -299,8 +308,8 @@ specAssertionsOrMt ci =
                 (_, Just (ResponseSquareAsserts d)) -> map Text.pack d
                 _ -> []
 
-isHhFilePrefix :: Text -> Bool
-isHhFilePrefix _ = False
+-- isHhFilePrefix :: Text -> Bool
+-- isHhFilePrefix _ = False
 
 -- goal in order: multipartSq, rqUrl, test braced interpolation
 buildRequest :: Maybe CourierCtx -> Env -> CallItem -> IO Http.Request
@@ -309,13 +318,13 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
                                                         , rqHeaders = RhsDict dHeaders
                                                         , rqBody
-                                                        , rqSquares = (configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
+                                                        , rqSquares = (_configsSq, querySq, formSq, multipartSq, _cookiesSq) } } = do
     eHeaders <- renderRqHeaders
     eUrl <- renderRqUrl
 
-    init :: HI.Request <- HC.parseRequest eUrl
-    let req = init { HC.method = BS.pack rqMethod }
-    let ctx = Just $ CourierCtx { courierName = "hh200a" }
+    initReq :: HI.Request <- HC.parseRequest eUrl
+    let req = initReq { HC.method = BS.pack rqMethod }
+    let _ctx = Just $ CourierCtx { courierName = "hh200a" }
 
     let allHeaders = case mcc of
             Nothing -> eHeaders
@@ -336,7 +345,8 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
                     Aeson.String t -> TE.encodeUtf8 t
                     v -> BL.toStrict (Aeson.encode v)
             let fp = BS.unpack bsValue
-            pure $ BodyPartFile { bpField = fieldName, bpPath = fp }
+            pure $ BodyPartFile { bpField = fieldName, bpPath = fp, bpValue = "" }
+            -- pure $ BodyPartFile { bpField = fieldName, bpValue = fp }
         let eMultipart = RBMultipart bodyParts
         got <- applyBody eMultipart req
         let existingHdrs = HC.requestHeaders got
@@ -381,22 +391,22 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
             e <- renderOrEmpty env v
             pure (asHeaderName k, TE.encodeUtf8 e))
 
-    -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
-    renderRequestUrl :: String -> IO String
-    renderRequestUrl renderedQuery = case rqUrl of
-        LexedUrlFull s -> pure $ case renderedQuery of
-            "" -> s
-            qs -> s ++ "?" ++ qs
-        LexedUrlSegments urlParts -> do
-            renderedUrlParts <- forM urlParts $ \part -> do
-                rendered <- BEL.render env (Aeson.String "") [part]
-                pure $ case rendered of
-                    Aeson.String t -> Text.unpack t
-                    v -> BS.unpack (BL.toStrict (Aeson.encode v))
-            let fullUrl = intercalate "/" renderedUrlParts
-            pure $ case renderedQuery of
-                "" -> fullUrl
-                qs -> fullUrl ++ "?" ++ qs
+    -- -- renderRequestUrl :: BEL.Env -> LexedUrl -> String -> IO String
+    -- renderRequestUrl :: String -> IO String
+    -- renderRequestUrl renderedQuery = case rqUrl of
+    --     LexedUrlFull s -> pure $ case renderedQuery of
+    --         "" -> s
+    --         qs -> s ++ "?" ++ qs
+    --     LexedUrlSegments urlParts -> do
+    --         renderedUrlParts <- forM urlParts $ \part -> do
+    --             rendered <- BEL.render env (Aeson.String "") [part]
+    --             pure $ case rendered of
+    --                 Aeson.String t -> Text.unpack t
+    --                 v -> BS.unpack (BL.toStrict (Aeson.encode v))
+    --         let fullUrl = intercalate "/" renderedUrlParts
+    --         pure $ case renderedQuery of
+    --             "" -> fullUrl
+    --             qs -> fullUrl ++ "?" ++ qs
 
 -- Exceptions:  when running ProcM
 -- offline HttpExceptionRequest  -handling->  print
@@ -409,34 +419,36 @@ courseFrom mcc x = do
     go mgr (callItems x)
 
     where  -- goal in order: multipartSq, rqUrl, test braced interpolation
-    finalizeRequest :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
-    finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
-        case multipartSq of
-            Just (RequestSquareMultipart (RhsDict mpFields)) -> do
-                bodyParts <- for (HM.toList mpFields) $ \ (fieldName, parts') -> do
-                    rendered <- BEL.render env (Aeson.String "") parts'
-                    let bsValue = case rendered of
-                            Aeson.String t -> TE.encodeUtf8 t
-                            v -> BL.toStrict (Aeson.encode v)
-                    pure $ BodyPartFile { bpField = fieldName, bpPath = BS.unpack bsValue }
-                let eMultipart = RBMultipart bodyParts
-                appliedReq <- applyBody eMultipart req
-                pure $ appliedReq { HC.method = BS.pack rqMethod
-                                  , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack "multipart/form-data") : allHeaders
-                                  }
-            _ -> do
-                let bodyContent = case (renderedForm, rqBody) of
-                        ("", "") -> BS.pack rqBody
-                        ("", _) -> BS.pack rqBody
-                        (f, "") -> BS.pack f
-                        (f, _) -> BS.pack f
-                    contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-                    encoded = BL.fromStrict bodyContent
-                pure $ req { HC.method = BS.pack rqMethod
-                           , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
-                           , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
-                           }
+    -- finalizeRequest :: Env -> Http.Request -> String -> [(HeaderName, BS.ByteString)] -> Maybe RequestSquare -> String -> String -> IO Http.Request
+    -- finalizeRequest env req rqMethod allHeaders multipartSq renderedForm rqBody =
+    --     case multipartSq of
+    --         Just (RequestSquareMultipart (RhsDict mpFields)) -> do
+    --             bodyParts <- for (HM.toList mpFields) $ \ (fieldName, parts') -> do
+    --                 rendered <- BEL.render env (Aeson.String "") parts'
+    --                 let bsValue = case rendered of
+    --                         Aeson.String t -> TE.encodeUtf8 t
+    --                         v -> BL.toStrict (Aeson.encode v)
+    --                 pure $ BodyPartFile { bpField = fieldName, bpPath = BS.unpack bsValue }
+    --             let eMultipart = RBMultipart bodyParts
+    --             appliedReq <- applyBody eMultipart req
+    --             pure $ appliedReq { HC.method = BS.pack rqMethod
+    --                               , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack "multipart/form-data") : allHeaders
+    --                               }
+    --         _ -> do
+    --             let bodyContent = case (renderedForm, rqBody) of
+    --                     ("", "") -> BS.pack rqBody
+    --                     ("", _) -> BS.pack rqBody
+    --                     (f, "") -> BS.pack f
+    --                     (f, _) -> BS.pack f
+    --                 contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
+    --                 encoded = BL.fromStrict bodyContent
+    --             pure $ req { HC.method = BS.pack rqMethod
+    --                        , HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : allHeaders
+    --                        , HC.requestBody = HC.RequestBodyLBS (trace ("encoded=" ++ show encoded) encoded)
+    --                        }
 
+    -- ??: print offline HttpExceptionRequest to user right away (or otherwise).
+    -- ??: handle multipart file not found
     -- go :: Http.Manager -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
     go mgr (ci:rest) = do
@@ -446,9 +458,6 @@ courseFrom mcc x = do
         env <- get
         reqOrThrow <- liftIO $ buildRequest mcc env ci
 
-        -- ??: print offline HttpExceptionRequest to user right away (or otherwise).
-        -- eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
-        -- ??: handle multipart file not found
         eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
         _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci
         case eitherResp of
@@ -517,7 +526,7 @@ courseFrom mcc x = do
                     in case (expectedBs, jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs) of
                         -- ("", _) -> trace "jsonSubset skip" True
                         ("", _) -> trace ("gotStatus=" ++ show gotStatus ++ ";jsonSubset skip") True
-                        (v, ASubsetOfB) -> trace "jsonSubset true" True
+                        (_v, ASubsetOfB) -> trace "jsonSubset true" True
                         (_, v) -> trace ("jsonSubset=" ++ show v) False
 
 
@@ -554,28 +563,28 @@ failWith :: String -> IO Bool
 failWith msg = hPutStrLn stderr msg >> pure False
 
 
-triggerEmergencyShutdown :: TVar Bool -> IO ()
-triggerEmergencyShutdown flag = do
-    putStrLn "🚨 EMERGENCY SHUTDOWN TRIGGERED"
-    atomically $ writeTVar flag True
+-- triggerEmergencyShutdown :: TVar Bool -> IO ()
+-- triggerEmergencyShutdown flag = do
+--     putStrLn "🚨 EMERGENCY SHUTDOWN TRIGGERED"
+--     atomically $ writeTVar flag True
 
 asHeaderName :: Text -> HeaderName
 asHeaderName t = CaseInsensitive.mk (TE.encodeUtf8 t)
 
 
-renderRhsDict :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
-renderRhsDict env (RhsDict dict) = do
-    results <- HM.traverseWithKey (renderHeader env) dict
-    let toByteStringPairs = map (\(k, v) -> (CaseInsensitive.mk (TE.encodeUtf8 k), v))
-    pure $ toByteStringPairs $ HM.toList results
-
-    where
-    renderHeader :: BEL.Env -> Text -> [BEL.Part] -> IO BS.ByteString
-    renderHeader env _ parts = do
-        val <- BEL.render env (Aeson.String "") parts
-        pure $ case val of
-            Aeson.String s -> TE.encodeUtf8 s
-            _ -> TE.encodeUtf8 (Text.pack $ show val)
+-- renderRhsDict :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
+-- renderRhsDict env (RhsDict dict) = do
+--     results <- HM.traverseWithKey (renderHeader env) dict
+--     let toByteStringPairs = map (\(k, v) -> (CaseInsensitive.mk (TE.encodeUtf8 k), v))
+--     pure $ toByteStringPairs $ HM.toList results
+--
+--     where
+--     renderHeader :: BEL.Env -> Text -> [BEL.Part] -> IO BS.ByteString
+--     renderHeader env _ parts = do
+--         val <- BEL.render env (Aeson.String "") parts
+--         pure $ case val of
+--             Aeson.String s -> TE.encodeUtf8 s
+--             _ -> TE.encodeUtf8 (Text.pack $ show val)
 
 renderOrEmpty :: BEL.Env -> [BEL.Part] -> IO Text
 renderOrEmpty env parts = do

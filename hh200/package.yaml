@@ -24,10 +24,6 @@ dependencies:
 - base >= 4.7 && < 5
 
 ghc-options:
-# # Looking for faster build.
-# - -w
-# - -O2
-# Check warnings.
 - -Wall
 - -Wcompat
 - -Widentities
@@ -96,6 +92,7 @@ library:
   - co-log-core
   - gitrev
   - lens
+  - cassava
 
 executables:
   hh200:

@@ -1,5 +1,13 @@
 <script>
+  import { onMount } from 'svelte';
   let { data } = $props();
+
+  // ??: if live dashboard means an event represents a new row or a row field update
+  onMount(() => {
+    const es = new EventSource('/sse');
+    es.onmessage = (e) => console.log('event received', e.data);
+    return () => es.close();
+  });
 </script>
 
 <h1>Runs</h1>

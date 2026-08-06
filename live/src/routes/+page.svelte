@@ -1,6 +1,9 @@
 <script>
-	import { Chart } from 'chart.js/auto';
 	import { onMount } from 'svelte';
+	import { Chart } from 'chart.js/auto';
+	// import { source } from 'sveltekit-sse';
+
+	// const balue = source('/sse').select('message')
 
 	let { data } = $props();
 	let runs = $derived(data.runs ?? []);

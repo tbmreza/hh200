@@ -13,6 +13,7 @@ tokens :-
     $white+   ;
     "#".*     ;
     $newline  { tok (\p _ -> LN p) }
+    \\n       { tok (\p _ -> LN p) }
 
     [Gg][Ee][Tt]
   | [Pp][Oo][Ss][Tt]

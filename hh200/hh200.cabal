@@ -59,6 +59,7 @@ library
     , bel-expr
     , bytestring
     , case-insensitive
+    , cassava
     , co-log-core
     , directory
     , fast-logger

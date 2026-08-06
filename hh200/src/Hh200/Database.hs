@@ -2,14 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hh200.Database
-  -- ( RunId
-  -- , RREndTime(..)
-  -- , RunRow(..)
-  -- , initDb
-  -- , closeDb
-  -- , insertRun
-  -- , listRuns
-  -- ) where
     where
 
 import Debug.Trace
@@ -21,6 +13,7 @@ import qualified Data.ByteString.Char8 as BSC
 import           Data.Int (Int64)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Csv as Csv
 import           Database.SQLite.Simple (query, Only (..), Connection, ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId)
 import           Network.HTTP.Types.Header (HeaderName)
 import           System.Directory (XdgDirectory (XdgData), getXdgDirectory)
@@ -38,7 +31,7 @@ data RREndTime =
     deriving (Show, Eq)
 
 -- (auto) ebpf field will be added here
--- PICKUP plan how metrics will be filtered
+-- ??: plan how metrics will be filtered
 data MetricRow = MetricRow
   { metricTcpRetransmits :: Int
   -- { metricRunId       :: Int64
@@ -134,9 +127,7 @@ updateRunStatus conn runId status = do
         Right _ ->
             pure $ Right ()
 
--- getRunById :: Connection -> Int64 -> IO (Maybe RunRow)
 getRunById :: Connection -> Int64 -> IO (Either Text RunRow)
--- getRunById = undefined
 getRunById conn rid = do
     result <- try $
         query conn
@@ -174,6 +165,34 @@ insertMetric = undefined
 --             pure $ Left (Text.pack (displayException e))
 --         Right () ->
 --             pure $ Right ()
+
+data RunMetric = RunMetric
+  { csvRunName :: Text
+  , csvMetricTcp :: Int
+  } deriving (Show)
+type StatsHistory = [RunMetric]
+
+instance Csv.ToNamedRecord RunMetric where
+    toNamedRecord (RunMetric runName metricTcp) = undefined
+-- instance Csv.ToNamedRecord UserPost where
+--     toNamedRecord (UserPost name title) =
+--         Csv.namedRecord
+--             [ "user_name" Csv..= name
+--             , "post_title" Csv..= title
+--             ]
+--
+-- instance Csv.DefaultOrdered UserPost where  -- ??: when use case comes up
+--     headerOrder _ =
+--         Csv.header
+--             [ "user_name"
+--             , "post_title"
+--             ]
+
+-- runs-metrics joined to feed to report serializer.
+-- queryStatsHistory :: Connection -> ... -> IO (Either Text StatsHistory)
+queryStatsHistory :: Connection -> IO (Either Text StatsHistory)
+queryStatsHistory conn = do
+    pure (Right [])
 
 insertRun :: Connection -> RunRow -> IO (Either Text Int64)
 insertRun conn rr = do

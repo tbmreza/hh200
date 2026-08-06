@@ -36,7 +36,7 @@ The project is in ideation phase (Update late 2025: slowly transitioning to a ha
 
 ```sh
 stack test --test-arguments "--pattern Script"
-shelltest easy.test
+shelltest easy.test  # https://github.com/simonmichael/shelltestrunner
 ```
 ```yaml
 # stack.yaml
@@ -131,7 +131,7 @@ rule : ...
 ```
 ``` sh
 stack purge  # rm -rf .stack-work
-stack run
+HH200_SQLITE=$HOME/gh/hh200/live/prisma/app.db stack run -- --call 'POST http://localhost:9999/api/echo \n {"k":9}'
 ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
 stack exec hh200 -- --version +RTS -l -RTS  # generates .eventlog
 ```

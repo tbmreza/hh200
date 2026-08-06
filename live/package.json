@@ -3,17 +3,14 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"//comments": "??: rm sveltekit-sse",
 	"scripts": {
 		"prisma:nuke": "rm -rf ./src/generated/prisma && rm -rf ./prisma/migrations && rm ./prisma/app.db",
 		"schema": "bunx prisma generate",
 		"apply": "bunx prisma migrate dev --name init",
 		"dummy": "bun run prisma/seed.ts",
-
-
 		"check": "vite build",
 		"upstream": "vite build && rm -rf ../hh200/min && cp -r build ../hh200/min",
-
-
 		"prepare": "svelte-kit sync || echo ''"
 	},
 	"devDependencies": {
@@ -26,6 +23,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"prisma": "^7.8.0",
 		"svelte": "^5.55.2",
+		"sveltekit-sse": "^0.15.1",
 		"vite": "^8.0.7"
 	},
 	"dependencies": {

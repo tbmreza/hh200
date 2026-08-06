@@ -19,7 +19,6 @@ import           System.IO.Temp (withSystemTempDirectory)
 -- import           Database.SQLite.Simple (Connection, ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId)
 import           Database.SQLite.Simple (Connection, query_, Only (..), open, close, execute_)
 
-
 import           Hh200.Database
 
 mkRun :: Text -> RunRow
@@ -27,7 +26,6 @@ mkRun name = RunRow
   { runName          = name
   , runScriptPath    = "scripts/example.hhs"
   , runStartedAt     = 1_700_000_000
-  -- , runEndedAt       = RRStillRunning
   , runEndedAt       = ETStillRunning
   , runStatus        = "running"
   , runConcurrency   = 10
@@ -48,7 +46,8 @@ mkMetric rid workerId = MetricRow
   -- }
 
 
--- GOAL insert to main.runs every new stack run; rm sequelize
+-- GOAL insert to main.runs every new stack run
+-- ??: downloading a run report joins metrics on runId
 
 prismaProjectDir :: IO FilePath
 prismaProjectDir = do
@@ -58,13 +57,6 @@ prismaProjectDir = do
 
 fixtureDbPathEnvVar :: String
 fixtureDbPathEnvVar = "HH200_TEST_FIXTURE_DB"
-
--- getFixtureDbPath :: IO FilePath
--- getFixtureDbPath = do
---     mPath <- lookupEnv fixtureDbPathEnvVar
---     case mPath of
---         Just p  -> pure p
---         Nothing -> pure "test/fixtures/premigrated.db"  -- default: checked into repo
 
 appDbPath :: FilePath -> FilePath
 appDbPath projDir = projDir </> "prisma" </> "app.db"
@@ -123,20 +115,6 @@ spec = synchronously $ testGroup "sqlite"
       ]
 
   ]
-
--- -- | Fresh per-test-case db, seeded by copying the pre-migrated template
--- -- rather than re-running Prisma. Fast, and every case still gets full
--- -- isolation since it's a distinct file/Connection.
--- withPreMigratedDb :: IO FilePath -> (Connection -> IO ()) -> IO ()
--- withPreMigratedDb getTemplatePath action =
---     withSystemTempDirectory "hh200-test-db" $ \tmpDir -> do
---         templatePath <- getTemplatePath
---         let dbPath = tmpDir </> "test.db"
---         copyFile templatePath dbPath
---         setEnv "HH200_SQLITE" dbPath
---         conn <- initDb
---         action conn
---         closeDb conn
 
 withRawDb :: (Connection -> FilePath -> IO ()) -> IO ()
 withRawDb action =
