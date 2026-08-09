@@ -38,6 +38,7 @@ library:
   source-dirs: src
   exposed-modules:
   - Hh200.Cli
+  - Hh200.Dashboard
   - Hh200.Database
   - Hh200.Execution
   - Hh200.Graph

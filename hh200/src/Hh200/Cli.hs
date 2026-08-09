@@ -4,57 +4,51 @@
 
 module Hh200.Cli
   ( cli
-  , go, Args(..), optsInfo
   , mkArgs
+  , go, Args(..), optsInfo
   ) where
 
 import Debug.Trace
 
+import           Options.Applicative
+-- import           Control.Exception (bracket, finally)
+import           Control.Exception (finally)
+import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Maybe
-import           Control.Exception (finally)
+import           Control.Monad (forM_, replicateM, when, forever)
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TQueue (flushTQueue)
-import           Control.Monad (forM_, replicateM, when, forever)
+-- import           Control.Concurrent.STM.TQueue (flushTQueue)
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
 import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
-import           Web.Scotty (scotty, regex, pathParam)
-import qualified Web.Scotty as Server
-import           Network.Wai.Middleware.Static (staticPolicy, addBase)
-import           Options.Applicative
+-- import           System.Directory (removeFile, doesFileExist)
 import           Data.Maybe (fromMaybe)
-import           Data.Aeson (object, encode, (.=))
 import           Data.Text (pack)
 import           Data.Version (showVersion)
 import           Database.SQLite.Simple (Connection)
-import qualified Paths_hh200 (version)
-
-import Network.Socket
-import qualified Network.Socket.ByteString as NBS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Builder as B
-import Control.Monad (unless)
-import System.Directory (removeFile, doesFileExist)
-import Control.Exception  (bracket)
-import Network.Socket     (Family (..), SockAddr (..), SocketType (..),
-                           accept, bind, close, defaultProtocol, listen,
-                           socket, socketToHandle)
-import System.Directory   (removePathForcibly)
-import System.IO          (BufferMode (..), Handle, IOMode (..), hClose,
-                           hSetBuffering)
-import qualified Data.Csv as Csv
 
-import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, dummyDuo, WorkerMode(..))
-import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
+import           Network.Socket
+import qualified Network.Socket.ByteString as NBS
+
+import qualified Paths_hh200 (version)
+import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, WorkerMode(..))
+-- import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
+import           Hh200.TokenBucketWorkerPool (RunState(..), courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
-import           Hh200.Database (initDb, closeDb, insertRun, listRuns, RunRow(..), RREndTime(..), queryStatsHistory)
+import           Hh200.Database (initDb, insertRun, RunRow(..), RREndTime(..))
 import           Hh200.LanguageServer (runTcp, runStdio)
+import           Hh200.Dashboard (startServer)
+
+-- import System.Directory   (removePathForcibly)
+-- import System.IO          (BufferMode (..), Handle, IOMode (..), hClose,
+--                            hSetBuffering)
 
 
 data Args = Args
@@ -157,7 +151,7 @@ go Args { lspStdio = True } = runStdio
 
 -- Browse/dashboard mode.
 -- hh200 browse
--- hh200 browse --port 9090
+-- PICKUP btn download rows csv
 go Args { browse = Just port } = startServer (show port)
 
 -- Static-check script.
@@ -219,7 +213,8 @@ goMode script args = do
     mkRunRow :: IO RunRow
     mkRunRow = do
         pure $ RunRow
-          { runControlSocket = "/tmp/uds_socket"
+          { runId = 0
+          , runControlSocket = "/tmp/uds_socket"
           , runStatus = "running"
           , runEndedAt = ETStillRunning
           -- args fields --
@@ -228,6 +223,7 @@ goMode script args = do
           -- system io --
           , runName = genName
           , runStartedAt = 0
+          , runConcurrency = nvu args
           }
 
     -- Script of single call item, repeatedly fired for duration unless
@@ -315,14 +311,6 @@ controlSocketListener path handler = do
         pure ()
 
 
-controlSocketWriter :: FilePath -> BL.ByteString -> IO ()
-controlSocketWriter path msg = do
-    sock <- socket AF_UNIX Stream defaultProtocol
-    connect sock (SockAddrUnix path)
-    _ <- NBS.send sock (BL.toStrict msg)
-    close sock
-
-
 -- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()
 -- persistMetrics conn e shutdownFlag = loop
 persistMetrics :: Connection -> IO ()
@@ -408,75 +396,3 @@ mkArgs = Args { source = Nothing
               , lspStdio = False
               , browse = Nothing
               }
-
---------------------------------------------------------------------------------
--- Dashboard server
---------------------------------------------------------------------------------
--- -- Frontend-initiated
--- GET /api/runs           List runs from SQLite
--- GET /api/runs/live      In-progress run at the time being
--- GET /api/runs/:runId    Completed run detail
--- GET /api/report/:runId  Download report for a Run in CSV
---
--- -- Backend-initiated
--- GET /sse                SSE stream for live data
---
--- -- Browse mode
--- POST /sig               Receives pause/resume/stop, forwards to UDS
--- GET /*                  SvelteKit static SPA
-
-startServer :: String -> IO ()
-startServer portStr = do
-    let port = read portStr :: Int
-    putStrLn $ "hh200 dashboard listening on http://localhost:" ++ show port
-    scotty port $ do
-        Server.middleware (staticPolicy (addBase "min"))
-
-        Server.get "/api/runs" $ do
-            conn <- liftIO initDb
-            rows <- liftIO $ listRuns conn
-            Server.json $ object ["runs" .= rows]
-
-        Server.get "/api/report/:runId" $ do
-            conn <- liftIO initDb
-            runId :: Int <- pathParam "runId"
-
-            statsHistory <- liftIO $ queryStatsHistory conn
-
-            -- ??: stats_history.csv
-            -- case result of
-            --     Left (e :: SomeException) ->
-            --         pure $ Left (Text.pack (displayException e))
-            --     Right rid ->
-            --         pure $ Right rid
-
-            -- let bs = Csv.encode 
-            Server.json $ object []
-
-        Server.post "/api/sig" $ do
-            body :: BL.ByteString <- Server.body
-
-            liftIO $ controlSocketWriter "/tmp/uds_socket" body
-
-            Server.json $ object ["ok" .= ((show body) :: String)]
-
-        Server.get "/sse" $ do
-            Server.setHeader "Content-Type" "text/event-stream"
-            Server.setHeader "Cache-Control" "no-cache"
-            -- ??: type Event = NoNews | NewRow | UpdateRow
-            Server.stream $ \send flush -> forever $ do
-                let evt = object
-                        [ "nested" .= (object ["inner" .= (1 :: Int)])
-                        , "float" .= (1.5 :: Double)
-                        , "array" .= ([1, 2, 3] :: [Int])
-                        , "string" .= ("hello" :: String)
-                        , "bool" .= True
-                        ]
-                    frame = "data: " <> encode evt <> "\n\n"
-                send (B.lazyByteString frame)
-                flush
-                threadDelay 2000000  -- ??: event every 1.5s
-
-        -- Catch-all GET for SvelteKit pages routes.
-        Server.get (regex "(.*)") $
-            Server.file "min/200.html"

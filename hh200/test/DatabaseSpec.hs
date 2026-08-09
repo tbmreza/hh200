@@ -23,7 +23,8 @@ import           Hh200.Database
 
 mkRun :: Text -> RunRow
 mkRun name = RunRow
-  { runName          = name
+  { runId            = 0
+  , runName          = name
   , runScriptPath    = "scripts/example.hhs"
   , runStartedAt     = 1_700_000_000
   , runEndedAt       = ETStillRunning

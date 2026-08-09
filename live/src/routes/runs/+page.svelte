@@ -4,7 +4,7 @@
 
   // ??: if live dashboard means an event represents a new row or a row field update
   onMount(() => {
-    const es = new EventSource('/sse');
+    const es = new EventSource('/api/sse');
     es.onmessage = (e) => console.log('event received', e.data);
     return () => es.close();
   });

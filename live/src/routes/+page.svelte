@@ -26,7 +26,7 @@
 </script>
 
 <section>
-	<canvas bind:this={canvas} />
+	<canvas bind:this={canvas}></canvas>
 </section>
 
 <h1>goal: serve from scotty</h1>

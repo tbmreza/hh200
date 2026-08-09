@@ -1,6 +1,19 @@
 <script>
   let { data } = $props();
   let run = $derived(data.run);
+
+  async function downloadCsv() {
+    if (!run) return;
+    const res = await fetch(`/api/report/${run.id}`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stats_history.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 </script>
 
 <h1>{run.name}</h1>
@@ -21,5 +34,7 @@
   <dt>Control socket</dt>
   <dd>{run.control_socket}</dd>
 </dl>
+
+<button onclick={downloadCsv}>download csv</button>
 
 <a href="/runs">&larr; Back to runs</a>

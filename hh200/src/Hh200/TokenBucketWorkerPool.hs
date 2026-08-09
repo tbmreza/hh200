@@ -14,7 +14,7 @@ module Hh200.TokenBucketWorkerPool
   , WorkerMode(..)
   , WorkerConfig(..)
   , worker, courier
-  , workOptimize, dummyDuo
+  , workOptimize
   , RunState(..)
   ) where
 
@@ -46,9 +46,9 @@ data WorkerConfig = WorkerConfig
 workOptimize :: Script -> [Script]
 workOptimize s = [s, s]  -- ??:
 
-dummyDuo :: Script -> [Script]
--- dummyDuo s = [s, s]
-dummyDuo s = [s]
+-- dummyDuo :: Script -> [Script]
+-- -- dummyDuo s = [s, s]
+-- dummyDuo s = [s]
 
 data RunState = Running | Paused | Stopped
     deriving (Eq)

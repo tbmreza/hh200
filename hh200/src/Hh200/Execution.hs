@@ -89,7 +89,6 @@ import qualified BEL
 import qualified Hh200.Http as Http
 import           Hh200.Types
 -- import           Hh200.Scanner (gatherHostInfo)
--- PICKUP warnings
 
 -- experimentalRequestBodyFile = setRequestBody . HI.RequestBodyIO . HC.streamFile
 

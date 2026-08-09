@@ -43,7 +43,8 @@ data MetricRow = MetricRow
   } deriving (Show, Eq)
 
 data RunRow = RunRow
-  { runName          :: Text
+  { runId            :: Int64
+  , runName          :: Text
   , runScriptPath    :: Text
   , runStartedAt     :: Int64
   , runEndedAt       :: RREndTime
@@ -61,12 +62,13 @@ getMetricsForRun :: Connection -> Int64 -> IO [MetricRow]
 getMetricsForRun = undefined
 
 instance ToRow RunRow where
-    toRow (RunRow n sp sa ea s c rl cs) = toRow (n, sp, sa, endedAtVal, s, c, rl, cs)
+    toRow (RunRow rid n sp sa ea s c rl cs) = toRow (rid, n, sp, sa, endedAtVal, s, c, rl, cs)
       where
         endedAtVal = case ea of ETStillRunning -> Nothing; ETHasEnded v -> Just v
 
 instance FromRow RunRow where
     fromRow = RunRow <$> field
+                     <*> field
                      <*> field
                      <*> field
                      <*> (maybe ETStillRunning ETHasEnded <$> field)
@@ -76,8 +78,9 @@ instance FromRow RunRow where
                      <*> field
 
 instance ToJSON RunRow where
-    toJSON (RunRow n sp sa ea s c rl cs) = object
-      [ "name" .= n
+    toJSON (RunRow rid n sp sa ea s c rl cs) = object
+      [ "id" .= rid
+      , "name" .= n
       , "script_path" .= sp
       , "started_at" .= sa
       , "ended_at" .= case ea of ETStillRunning -> Nothing; ETHasEnded v -> Just v
@@ -99,20 +102,6 @@ initDb = do
 
 closeDb :: Connection -> IO ()
 closeDb = close
-
--- insertRun :: Connection -> RunRow -> IO (Maybe Int64)
--- insertRun conn rr = do
---     result <- try $ do
---         execute conn
---                 "INSERT INTO runs (name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket) VALUES (?, ?, unixepoch('now'), ?, ?, ?, ?, ?)"
---                 (runName rr, runScriptPath rr, endedAtSql (runEndedAt rr), runStatus rr, runConcurrency rr, runRateLimit rr, runControlSocket rr)
---         lastInsertRowId conn
---     case result of
---         Left (_ :: SomeException) -> pure Nothing
---         Right rid -> pure (Just rid)
---   where
---     endedAtSql ETStillRunning = Nothing
---     endedAtSql (ETHasEnded v) = Just v
 
 updateRunStatus :: Connection -> Int64 -> Text -> IO (Either Text ())
 updateRunStatus conn runId status = do
@@ -173,26 +162,34 @@ data RunMetric = RunMetric
 type StatsHistory = [RunMetric]
 
 instance Csv.ToNamedRecord RunMetric where
-    toNamedRecord (RunMetric runName metricTcp) = undefined
--- instance Csv.ToNamedRecord UserPost where
---     toNamedRecord (UserPost name title) =
---         Csv.namedRecord
---             [ "user_name" Csv..= name
---             , "post_title" Csv..= title
---             ]
---
--- instance Csv.DefaultOrdered UserPost where  -- ??: when use case comes up
---     headerOrder _ =
---         Csv.header
---             [ "user_name"
---             , "post_title"
---             ]
+    toNamedRecord (RunMetric rmName rmTcp) =
+        Csv.namedRecord
+            [ "run_name" Csv..= rmName
+            , "metric_tcp" Csv..= rmTcp
+            ]
+
+instance Csv.DefaultOrdered RunMetric where
+    headerOrder _ =
+        Csv.header
+            [ "run_name"
+            , "metric_tcp"
+            ]
 
 -- runs-metrics joined to feed to report serializer.
--- queryStatsHistory :: Connection -> ... -> IO (Either Text StatsHistory)
-queryStatsHistory :: Connection -> IO (Either Text StatsHistory)
-queryStatsHistory conn = do
-    pure (Right [])
+queryStatsHistory :: Connection -> Int -> IO (Either Text StatsHistory)
+queryStatsHistory conn runId = do
+    result <- try $
+        (query conn
+            "SELECT r.name, m.id \
+            \FROM metrics m JOIN runs r ON r.id = m.run_id \
+            \WHERE m.run_id = ? ORDER BY m.id"
+            (Only runId) :: IO [(Text, Int64)])
+
+    case result of
+        Left (e :: SomeException) ->
+            pure $ Left (Text.pack (displayException e))
+        Right rows ->
+            pure $ Right [ RunMetric name (fromIntegral mId) | (name, mId) <- rows ]
 
 insertRun :: Connection -> RunRow -> IO (Either Text Int64)
 insertRun conn rr = do
@@ -214,9 +211,10 @@ insertRun conn rr = do
             pure $ Left (Text.pack (displayException e))
         Right rid ->
             pure $ Right rid
-  where
+
+    where
     endedAtSql ETStillRunning = Nothing
     endedAtSql (ETHasEnded v) = Just v
 
 listRuns :: Connection -> IO [RunRow]
-listRuns conn = query_ conn "SELECT name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC"
+listRuns conn = query_ conn "SELECT id, name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC"

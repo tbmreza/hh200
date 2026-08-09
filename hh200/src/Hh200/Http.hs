@@ -13,9 +13,7 @@ import qualified Data.ByteString.Char8 as BS
 -- 1. Unchanging hosts: fully analyzed hhs script can tell when to instantiate
 --                      new Manager.
 -- 2. Load test mode
---
--- ??: config respect-url-insecure-http, leaving it false means always use TLS
--- ??: stack build config to switch between http client libs, goal: fork development exit mechanism + guide general (presumably more correct) api
+-- ??: housekeep warnings; a good prompt for claude code to refactor current Http backend module that I have to such record of closures
 type Manager = HC.Manager
 type Request = HC.Request
 type Response = HC.Response LBS.ByteString
