@@ -11,6 +11,7 @@
 		"dummy": "bun run prisma/seed.ts",
 
 		"dev": "vite dev",
+		"test": "bun test",
 		"check": "tsc -b && vite build",
 		"upstream": "vite build && rm -rf ../hh200/min && cp -r build ../hh200/min",
 

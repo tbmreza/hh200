@@ -1,6 +1,7 @@
 import { PrismaLibSql } from '@prisma/adapter-libsql';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { faker } from '@faker-js/faker';
+import { msAgo, randomHttpStatus, randomStatus } from '../src/lib/seed-helpers';
 
 // Tricks ahead: although path in imports above alludes working directory, path
 // below is relative to repo root
@@ -8,26 +9,9 @@ const adapter = new PrismaLibSql({ url: 'file:./prisma/app.db' });
 const prisma = new PrismaClient({ adapter });
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] as const;
-const OK_STATUSES = [200, 201, 204] as const;
-const ERR_STATUSES = [400, 404, 429, 500, 502, 503] as const;
-
-function msAgo(rangeMs: number): bigint {
-  return BigInt(Date.now()) - BigInt(faker.number.int({ min: 0, max: rangeMs }));
-}
 
 async function truncateAll(): Promise<void> {
   await prisma.run.deleteMany();
-}
-
-function randomStatus(isFinished: boolean): string {
-  if (!isFinished) return 'running';
-  return faker.helpers.arrayElement(['completed', 'failed', 'cancelled']);
-}
-
-function randomHttpStatus(isError: boolean): number {
-  return isError
-    ? faker.helpers.arrayElement([...ERR_STATUSES])
-    : faker.helpers.arrayElement([...OK_STATUSES]);
 }
 
 async function seedRun(): Promise<void> {
