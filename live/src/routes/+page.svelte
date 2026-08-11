@@ -27,7 +27,7 @@
 
 	async function downloadCsv(runId: number) {
 		const res = await fetch(`/api/report/${runId}`);
-		if (!res.ok) return;
+		if (!res.ok) throw new Error(`report ${runId}: HTTP ${res.status}`);
 		const blob = await res.blob();
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');

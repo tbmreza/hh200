@@ -135,7 +135,7 @@ getRunById conn rid = do
 
 insertMetric :: Connection -> MetricWindowRow -> IO (Either Text ())
 insertMetric = undefined
--- insertMetric conn mr = do
+-- insertMetricWindow conn mr = do
 --     result <- try $
 --         execute conn
 --             "INSERT INTO metrics \
@@ -165,19 +165,14 @@ type StatsHistory = [RunMetric]
 instance Csv.ToNamedRecord RunMetric where
     toNamedRecord (RunMetric r0 r1) =
         Csv.namedRecord
-            -- [ "run_name" Csv..= r0
-            -- , "metric_tcp" Csv..= r1
-            -- ]
             [ "run_name" Csv..= r0
             , "metric_window_rps" Csv..= r1
             ]
 
--- PICKUP insertMetric --> insertMetricWindow
 instance Csv.DefaultOrdered RunMetric where
     headerOrder _ =
         Csv.header
             [ "run_name"
-            -- , "metric_tcp"
             , "metric_window_rps"
             ]
 
@@ -187,7 +182,7 @@ queryStatsHistory conn runId = do
     result <- try $
         (query conn
             "SELECT r.name, m.id \
-            \FROM metrics m JOIN runs r ON r.id = m.run_id \
+            \FROM metric_windows m JOIN runs r ON r.id = m.run_id \
             \WHERE m.run_id = ? ORDER BY m.id"
             (Only runId) :: IO [(Text, Int64)])
 

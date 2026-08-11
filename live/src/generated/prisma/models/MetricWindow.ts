@@ -28,65 +28,65 @@ export type AggregateMetricWindow = {
 
 export type MetricWindowAvgAggregateOutputType = {
   id: number | null
-  runId: number | null
+  run_id: number | null
   count: number | null
-  failCount: number | null
-  minLatency: number | null
-  maxLatency: number | null
-  avgLatency: number | null
+  fail_count: number | null
+  min_latency: number | null
+  max_latency: number | null
+  avg_latency: number | null
   rps: number | null
 }
 
 export type MetricWindowSumAggregateOutputType = {
   id: number | null
-  runId: number | null
+  run_id: number | null
   count: number | null
-  failCount: number | null
-  minLatency: number | null
-  maxLatency: number | null
-  avgLatency: number | null
+  fail_count: number | null
+  min_latency: number | null
+  max_latency: number | null
+  avg_latency: number | null
   rps: number | null
 }
 
 export type MetricWindowMinAggregateOutputType = {
   id: number | null
-  runId: number | null
+  run_id: number | null
   endpoint: string | null
   start: Date | null
   end: Date | null
   count: number | null
-  failCount: number | null
-  minLatency: number | null
-  maxLatency: number | null
-  avgLatency: number | null
+  fail_count: number | null
+  min_latency: number | null
+  max_latency: number | null
+  avg_latency: number | null
   rps: number | null
 }
 
 export type MetricWindowMaxAggregateOutputType = {
   id: number | null
-  runId: number | null
+  run_id: number | null
   endpoint: string | null
   start: Date | null
   end: Date | null
   count: number | null
-  failCount: number | null
-  minLatency: number | null
-  maxLatency: number | null
-  avgLatency: number | null
+  fail_count: number | null
+  min_latency: number | null
+  max_latency: number | null
+  avg_latency: number | null
   rps: number | null
 }
 
 export type MetricWindowCountAggregateOutputType = {
   id: number
-  runId: number
+  run_id: number
   endpoint: number
   start: number
   end: number
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
   _all: number
 }
@@ -94,65 +94,65 @@ export type MetricWindowCountAggregateOutputType = {
 
 export type MetricWindowAvgAggregateInputType = {
   id?: true
-  runId?: true
+  run_id?: true
   count?: true
-  failCount?: true
-  minLatency?: true
-  maxLatency?: true
-  avgLatency?: true
+  fail_count?: true
+  min_latency?: true
+  max_latency?: true
+  avg_latency?: true
   rps?: true
 }
 
 export type MetricWindowSumAggregateInputType = {
   id?: true
-  runId?: true
+  run_id?: true
   count?: true
-  failCount?: true
-  minLatency?: true
-  maxLatency?: true
-  avgLatency?: true
+  fail_count?: true
+  min_latency?: true
+  max_latency?: true
+  avg_latency?: true
   rps?: true
 }
 
 export type MetricWindowMinAggregateInputType = {
   id?: true
-  runId?: true
+  run_id?: true
   endpoint?: true
   start?: true
   end?: true
   count?: true
-  failCount?: true
-  minLatency?: true
-  maxLatency?: true
-  avgLatency?: true
+  fail_count?: true
+  min_latency?: true
+  max_latency?: true
+  avg_latency?: true
   rps?: true
 }
 
 export type MetricWindowMaxAggregateInputType = {
   id?: true
-  runId?: true
+  run_id?: true
   endpoint?: true
   start?: true
   end?: true
   count?: true
-  failCount?: true
-  minLatency?: true
-  maxLatency?: true
-  avgLatency?: true
+  fail_count?: true
+  min_latency?: true
+  max_latency?: true
+  avg_latency?: true
   rps?: true
 }
 
 export type MetricWindowCountAggregateInputType = {
   id?: true
-  runId?: true
+  run_id?: true
   endpoint?: true
   start?: true
   end?: true
   count?: true
-  failCount?: true
-  minLatency?: true
-  maxLatency?: true
-  avgLatency?: true
+  fail_count?: true
+  min_latency?: true
+  max_latency?: true
+  avg_latency?: true
   rps?: true
   _all?: true
 }
@@ -245,15 +245,15 @@ export type MetricWindowGroupByArgs<ExtArgs extends runtime.Types.Extensions.Int
 
 export type MetricWindowGroupByOutputType = {
   id: number
-  runId: number
+  run_id: number
   endpoint: string
   start: Date
   end: Date
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
   _count: MetricWindowCountAggregateOutputType | null
   _avg: MetricWindowAvgAggregateOutputType | null
@@ -282,30 +282,30 @@ export type MetricWindowWhereInput = {
   OR?: Prisma.MetricWindowWhereInput[]
   NOT?: Prisma.MetricWindowWhereInput | Prisma.MetricWindowWhereInput[]
   id?: Prisma.IntFilter<"MetricWindow"> | number
-  runId?: Prisma.IntFilter<"MetricWindow"> | number
+  run_id?: Prisma.IntFilter<"MetricWindow"> | number
   endpoint?: Prisma.StringFilter<"MetricWindow"> | string
   start?: Prisma.DateTimeFilter<"MetricWindow"> | Date | string
   end?: Prisma.DateTimeFilter<"MetricWindow"> | Date | string
   count?: Prisma.IntFilter<"MetricWindow"> | number
-  failCount?: Prisma.IntFilter<"MetricWindow"> | number
-  minLatency?: Prisma.FloatFilter<"MetricWindow"> | number
-  maxLatency?: Prisma.FloatFilter<"MetricWindow"> | number
-  avgLatency?: Prisma.FloatFilter<"MetricWindow"> | number
+  fail_count?: Prisma.IntFilter<"MetricWindow"> | number
+  min_latency?: Prisma.FloatFilter<"MetricWindow"> | number
+  max_latency?: Prisma.FloatFilter<"MetricWindow"> | number
+  avg_latency?: Prisma.FloatFilter<"MetricWindow"> | number
   rps?: Prisma.FloatFilter<"MetricWindow"> | number
   run?: Prisma.XOR<Prisma.RunScalarRelationFilter, Prisma.RunWhereInput>
 }
 
 export type MetricWindowOrderByWithRelationInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   endpoint?: Prisma.SortOrder
   start?: Prisma.SortOrder
   end?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
   run?: Prisma.RunOrderByWithRelationInput
 }
@@ -315,30 +315,30 @@ export type MetricWindowWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.MetricWindowWhereInput | Prisma.MetricWindowWhereInput[]
   OR?: Prisma.MetricWindowWhereInput[]
   NOT?: Prisma.MetricWindowWhereInput | Prisma.MetricWindowWhereInput[]
-  runId?: Prisma.IntFilter<"MetricWindow"> | number
+  run_id?: Prisma.IntFilter<"MetricWindow"> | number
   endpoint?: Prisma.StringFilter<"MetricWindow"> | string
   start?: Prisma.DateTimeFilter<"MetricWindow"> | Date | string
   end?: Prisma.DateTimeFilter<"MetricWindow"> | Date | string
   count?: Prisma.IntFilter<"MetricWindow"> | number
-  failCount?: Prisma.IntFilter<"MetricWindow"> | number
-  minLatency?: Prisma.FloatFilter<"MetricWindow"> | number
-  maxLatency?: Prisma.FloatFilter<"MetricWindow"> | number
-  avgLatency?: Prisma.FloatFilter<"MetricWindow"> | number
+  fail_count?: Prisma.IntFilter<"MetricWindow"> | number
+  min_latency?: Prisma.FloatFilter<"MetricWindow"> | number
+  max_latency?: Prisma.FloatFilter<"MetricWindow"> | number
+  avg_latency?: Prisma.FloatFilter<"MetricWindow"> | number
   rps?: Prisma.FloatFilter<"MetricWindow"> | number
   run?: Prisma.XOR<Prisma.RunScalarRelationFilter, Prisma.RunWhereInput>
 }, "id">
 
 export type MetricWindowOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   endpoint?: Prisma.SortOrder
   start?: Prisma.SortOrder
   end?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
   _count?: Prisma.MetricWindowCountOrderByAggregateInput
   _avg?: Prisma.MetricWindowAvgOrderByAggregateInput
@@ -352,15 +352,15 @@ export type MetricWindowScalarWhereWithAggregatesInput = {
   OR?: Prisma.MetricWindowScalarWhereWithAggregatesInput[]
   NOT?: Prisma.MetricWindowScalarWhereWithAggregatesInput | Prisma.MetricWindowScalarWhereWithAggregatesInput[]
   id?: Prisma.IntWithAggregatesFilter<"MetricWindow"> | number
-  runId?: Prisma.IntWithAggregatesFilter<"MetricWindow"> | number
+  run_id?: Prisma.IntWithAggregatesFilter<"MetricWindow"> | number
   endpoint?: Prisma.StringWithAggregatesFilter<"MetricWindow"> | string
   start?: Prisma.DateTimeWithAggregatesFilter<"MetricWindow"> | Date | string
   end?: Prisma.DateTimeWithAggregatesFilter<"MetricWindow"> | Date | string
   count?: Prisma.IntWithAggregatesFilter<"MetricWindow"> | number
-  failCount?: Prisma.IntWithAggregatesFilter<"MetricWindow"> | number
-  minLatency?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
-  maxLatency?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
-  avgLatency?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
+  fail_count?: Prisma.IntWithAggregatesFilter<"MetricWindow"> | number
+  min_latency?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
+  max_latency?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
+  avg_latency?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
   rps?: Prisma.FloatWithAggregatesFilter<"MetricWindow"> | number
 }
 
@@ -369,25 +369,25 @@ export type MetricWindowCreateInput = {
   start: Date | string
   end: Date | string
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
   run: Prisma.RunCreateNestedOneWithoutMetric_windowsInput
 }
 
 export type MetricWindowUncheckedCreateInput = {
   id?: number
-  runId: number
+  run_id: number
   endpoint: string
   start: Date | string
   end: Date | string
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
 }
 
@@ -396,39 +396,39 @@ export type MetricWindowUpdateInput = {
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
   run?: Prisma.RunUpdateOneRequiredWithoutMetric_windowsNestedInput
 }
 
 export type MetricWindowUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
-  runId?: Prisma.IntFieldUpdateOperationsInput | number
+  run_id?: Prisma.IntFieldUpdateOperationsInput | number
   endpoint?: Prisma.StringFieldUpdateOperationsInput | string
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
 }
 
 export type MetricWindowCreateManyInput = {
   id?: number
-  runId: number
+  run_id: number
   endpoint: string
   start: Date | string
   end: Date | string
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
 }
 
@@ -437,24 +437,24 @@ export type MetricWindowUpdateManyMutationInput = {
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
 }
 
 export type MetricWindowUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
-  runId?: Prisma.IntFieldUpdateOperationsInput | number
+  run_id?: Prisma.IntFieldUpdateOperationsInput | number
   endpoint?: Prisma.StringFieldUpdateOperationsInput | string
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
 }
 
@@ -470,65 +470,65 @@ export type MetricWindowOrderByRelationAggregateInput = {
 
 export type MetricWindowCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   endpoint?: Prisma.SortOrder
   start?: Prisma.SortOrder
   end?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
 }
 
 export type MetricWindowAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
 }
 
 export type MetricWindowMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   endpoint?: Prisma.SortOrder
   start?: Prisma.SortOrder
   end?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
 }
 
 export type MetricWindowMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   endpoint?: Prisma.SortOrder
   start?: Prisma.SortOrder
   end?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
 }
 
 export type MetricWindowSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
-  runId?: Prisma.SortOrder
+  run_id?: Prisma.SortOrder
   count?: Prisma.SortOrder
-  failCount?: Prisma.SortOrder
-  minLatency?: Prisma.SortOrder
-  maxLatency?: Prisma.SortOrder
-  avgLatency?: Prisma.SortOrder
+  fail_count?: Prisma.SortOrder
+  min_latency?: Prisma.SortOrder
+  max_latency?: Prisma.SortOrder
+  avg_latency?: Prisma.SortOrder
   rps?: Prisma.SortOrder
 }
 
@@ -583,10 +583,10 @@ export type MetricWindowCreateWithoutRunInput = {
   start: Date | string
   end: Date | string
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
 }
 
@@ -596,10 +596,10 @@ export type MetricWindowUncheckedCreateWithoutRunInput = {
   start: Date | string
   end: Date | string
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
 }
 
@@ -633,15 +633,15 @@ export type MetricWindowScalarWhereInput = {
   OR?: Prisma.MetricWindowScalarWhereInput[]
   NOT?: Prisma.MetricWindowScalarWhereInput | Prisma.MetricWindowScalarWhereInput[]
   id?: Prisma.IntFilter<"MetricWindow"> | number
-  runId?: Prisma.IntFilter<"MetricWindow"> | number
+  run_id?: Prisma.IntFilter<"MetricWindow"> | number
   endpoint?: Prisma.StringFilter<"MetricWindow"> | string
   start?: Prisma.DateTimeFilter<"MetricWindow"> | Date | string
   end?: Prisma.DateTimeFilter<"MetricWindow"> | Date | string
   count?: Prisma.IntFilter<"MetricWindow"> | number
-  failCount?: Prisma.IntFilter<"MetricWindow"> | number
-  minLatency?: Prisma.FloatFilter<"MetricWindow"> | number
-  maxLatency?: Prisma.FloatFilter<"MetricWindow"> | number
-  avgLatency?: Prisma.FloatFilter<"MetricWindow"> | number
+  fail_count?: Prisma.IntFilter<"MetricWindow"> | number
+  min_latency?: Prisma.FloatFilter<"MetricWindow"> | number
+  max_latency?: Prisma.FloatFilter<"MetricWindow"> | number
+  avg_latency?: Prisma.FloatFilter<"MetricWindow"> | number
   rps?: Prisma.FloatFilter<"MetricWindow"> | number
 }
 
@@ -651,10 +651,10 @@ export type MetricWindowCreateManyRunInput = {
   start: Date | string
   end: Date | string
   count: number
-  failCount: number
-  minLatency: number
-  maxLatency: number
-  avgLatency: number
+  fail_count: number
+  min_latency: number
+  max_latency: number
+  avg_latency: number
   rps: number
 }
 
@@ -663,10 +663,10 @@ export type MetricWindowUpdateWithoutRunInput = {
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
 }
 
@@ -676,10 +676,10 @@ export type MetricWindowUncheckedUpdateWithoutRunInput = {
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
 }
 
@@ -689,10 +689,10 @@ export type MetricWindowUncheckedUpdateManyWithoutRunInput = {
   start?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   end?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
-  failCount?: Prisma.IntFieldUpdateOperationsInput | number
-  minLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  maxLatency?: Prisma.FloatFieldUpdateOperationsInput | number
-  avgLatency?: Prisma.FloatFieldUpdateOperationsInput | number
+  fail_count?: Prisma.IntFieldUpdateOperationsInput | number
+  min_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  max_latency?: Prisma.FloatFieldUpdateOperationsInput | number
+  avg_latency?: Prisma.FloatFieldUpdateOperationsInput | number
   rps?: Prisma.FloatFieldUpdateOperationsInput | number
 }
 
@@ -700,64 +700,64 @@ export type MetricWindowUncheckedUpdateManyWithoutRunInput = {
 
 export type MetricWindowSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
-  runId?: boolean
+  run_id?: boolean
   endpoint?: boolean
   start?: boolean
   end?: boolean
   count?: boolean
-  failCount?: boolean
-  minLatency?: boolean
-  maxLatency?: boolean
-  avgLatency?: boolean
+  fail_count?: boolean
+  min_latency?: boolean
+  max_latency?: boolean
+  avg_latency?: boolean
   rps?: boolean
   run?: boolean | Prisma.RunDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["metricWindow"]>
 
 export type MetricWindowSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
-  runId?: boolean
+  run_id?: boolean
   endpoint?: boolean
   start?: boolean
   end?: boolean
   count?: boolean
-  failCount?: boolean
-  minLatency?: boolean
-  maxLatency?: boolean
-  avgLatency?: boolean
+  fail_count?: boolean
+  min_latency?: boolean
+  max_latency?: boolean
+  avg_latency?: boolean
   rps?: boolean
   run?: boolean | Prisma.RunDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["metricWindow"]>
 
 export type MetricWindowSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
-  runId?: boolean
+  run_id?: boolean
   endpoint?: boolean
   start?: boolean
   end?: boolean
   count?: boolean
-  failCount?: boolean
-  minLatency?: boolean
-  maxLatency?: boolean
-  avgLatency?: boolean
+  fail_count?: boolean
+  min_latency?: boolean
+  max_latency?: boolean
+  avg_latency?: boolean
   rps?: boolean
   run?: boolean | Prisma.RunDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["metricWindow"]>
 
 export type MetricWindowSelectScalar = {
   id?: boolean
-  runId?: boolean
+  run_id?: boolean
   endpoint?: boolean
   start?: boolean
   end?: boolean
   count?: boolean
-  failCount?: boolean
-  minLatency?: boolean
-  maxLatency?: boolean
-  avgLatency?: boolean
+  fail_count?: boolean
+  min_latency?: boolean
+  max_latency?: boolean
+  avg_latency?: boolean
   rps?: boolean
 }
 
-export type MetricWindowOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "runId" | "endpoint" | "start" | "end" | "count" | "failCount" | "minLatency" | "maxLatency" | "avgLatency" | "rps", ExtArgs["result"]["metricWindow"]>
+export type MetricWindowOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "run_id" | "endpoint" | "start" | "end" | "count" | "fail_count" | "min_latency" | "max_latency" | "avg_latency" | "rps", ExtArgs["result"]["metricWindow"]>
 export type MetricWindowInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   run?: boolean | Prisma.RunDefaultArgs<ExtArgs>
 }
@@ -775,15 +775,15 @@ export type $MetricWindowPayload<ExtArgs extends runtime.Types.Extensions.Intern
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
-    runId: number
+    run_id: number
     endpoint: string
     start: Date
     end: Date
     count: number
-    failCount: number
-    minLatency: number
-    maxLatency: number
-    avgLatency: number
+    fail_count: number
+    min_latency: number
+    max_latency: number
+    avg_latency: number
     rps: number
   }, ExtArgs["result"]["metricWindow"]>
   composites: {}
@@ -1210,15 +1210,15 @@ export interface Prisma__MetricWindowClient<T, Null = never, ExtArgs extends run
  */
 export interface MetricWindowFieldRefs {
   readonly id: Prisma.FieldRef<"MetricWindow", 'Int'>
-  readonly runId: Prisma.FieldRef<"MetricWindow", 'Int'>
+  readonly run_id: Prisma.FieldRef<"MetricWindow", 'Int'>
   readonly endpoint: Prisma.FieldRef<"MetricWindow", 'String'>
   readonly start: Prisma.FieldRef<"MetricWindow", 'DateTime'>
   readonly end: Prisma.FieldRef<"MetricWindow", 'DateTime'>
   readonly count: Prisma.FieldRef<"MetricWindow", 'Int'>
-  readonly failCount: Prisma.FieldRef<"MetricWindow", 'Int'>
-  readonly minLatency: Prisma.FieldRef<"MetricWindow", 'Float'>
-  readonly maxLatency: Prisma.FieldRef<"MetricWindow", 'Float'>
-  readonly avgLatency: Prisma.FieldRef<"MetricWindow", 'Float'>
+  readonly fail_count: Prisma.FieldRef<"MetricWindow", 'Int'>
+  readonly min_latency: Prisma.FieldRef<"MetricWindow", 'Float'>
+  readonly max_latency: Prisma.FieldRef<"MetricWindow", 'Float'>
+  readonly avg_latency: Prisma.FieldRef<"MetricWindow", 'Float'>
   readonly rps: Prisma.FieldRef<"MetricWindow", 'Float'>
 }
     

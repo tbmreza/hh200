@@ -105,7 +105,7 @@ model RequestBody {
 
 model MetricWindow {
   id        Int     @id @default(autoincrement())
-  runId    Int
+  run_id    Int
   // id          String   @id @default(cuid())
   // runId       String
   endpoint    String
@@ -113,14 +113,14 @@ model MetricWindow {
   end   DateTime
 
   count       Int
-  failCount   Int
-  minLatency  Float
-  maxLatency  Float
-  avgLatency  Float
+  fail_count   Int
+  min_latency  Float
+  max_latency  Float
+  avg_latency  Float
   rps         Float
 
-  run         Run      @relation(fields: [runId], references: [id])
+  run         Run      @relation(fields: [run_id], references: [id])
 
-  // @@index([runId, endpoint])
+  // @@index([run_id, endpoint])
   @@map("metric_windows")
 }

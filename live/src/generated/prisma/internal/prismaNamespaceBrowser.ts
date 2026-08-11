@@ -128,15 +128,15 @@ export type RequestBodyScalarFieldEnum = (typeof RequestBodyScalarFieldEnum)[key
 
 export const MetricWindowScalarFieldEnum = {
   id: 'id',
-  runId: 'runId',
+  run_id: 'run_id',
   endpoint: 'endpoint',
   start: 'start',
   end: 'end',
   count: 'count',
-  failCount: 'failCount',
-  minLatency: 'minLatency',
-  maxLatency: 'maxLatency',
-  avgLatency: 'avgLatency',
+  fail_count: 'fail_count',
+  min_latency: 'min_latency',
+  max_latency: 'max_latency',
+  avg_latency: 'avg_latency',
   rps: 'rps'
 } as const
 
