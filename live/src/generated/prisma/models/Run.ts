@@ -265,6 +265,7 @@ export type RunWhereInput = {
   rate_limit?: Prisma.FloatFilter<"Run"> | number
   control_socket?: Prisma.StringFilter<"Run"> | string
   requests?: Prisma.RequestListRelationFilter
+  metric_windows?: Prisma.MetricWindowListRelationFilter
 }
 
 export type RunOrderByWithRelationInput = {
@@ -278,6 +279,7 @@ export type RunOrderByWithRelationInput = {
   rate_limit?: Prisma.SortOrder
   control_socket?: Prisma.SortOrder
   requests?: Prisma.RequestOrderByRelationAggregateInput
+  metric_windows?: Prisma.MetricWindowOrderByRelationAggregateInput
 }
 
 export type RunWhereUniqueInput = Prisma.AtLeast<{
@@ -294,6 +296,7 @@ export type RunWhereUniqueInput = Prisma.AtLeast<{
   rate_limit?: Prisma.FloatFilter<"Run"> | number
   control_socket?: Prisma.StringFilter<"Run"> | string
   requests?: Prisma.RequestListRelationFilter
+  metric_windows?: Prisma.MetricWindowListRelationFilter
 }, "id">
 
 export type RunOrderByWithAggregationInput = {
@@ -338,6 +341,7 @@ export type RunCreateInput = {
   rate_limit: number
   control_socket: string
   requests?: Prisma.RequestCreateNestedManyWithoutRunInput
+  metric_windows?: Prisma.MetricWindowCreateNestedManyWithoutRunInput
 }
 
 export type RunUncheckedCreateInput = {
@@ -351,6 +355,7 @@ export type RunUncheckedCreateInput = {
   rate_limit: number
   control_socket: string
   requests?: Prisma.RequestUncheckedCreateNestedManyWithoutRunInput
+  metric_windows?: Prisma.MetricWindowUncheckedCreateNestedManyWithoutRunInput
 }
 
 export type RunUpdateInput = {
@@ -363,6 +368,7 @@ export type RunUpdateInput = {
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
   requests?: Prisma.RequestUpdateManyWithoutRunNestedInput
+  metric_windows?: Prisma.MetricWindowUpdateManyWithoutRunNestedInput
 }
 
 export type RunUncheckedUpdateInput = {
@@ -376,6 +382,7 @@ export type RunUncheckedUpdateInput = {
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
   requests?: Prisma.RequestUncheckedUpdateManyWithoutRunNestedInput
+  metric_windows?: Prisma.MetricWindowUncheckedUpdateManyWithoutRunNestedInput
 }
 
 export type RunCreateManyInput = {
@@ -520,6 +527,20 @@ export type RunUpdateOneRequiredWithoutRequestsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.RunUpdateToOneWithWhereWithoutRequestsInput, Prisma.RunUpdateWithoutRequestsInput>, Prisma.RunUncheckedUpdateWithoutRequestsInput>
 }
 
+export type RunCreateNestedOneWithoutMetric_windowsInput = {
+  create?: Prisma.XOR<Prisma.RunCreateWithoutMetric_windowsInput, Prisma.RunUncheckedCreateWithoutMetric_windowsInput>
+  connectOrCreate?: Prisma.RunCreateOrConnectWithoutMetric_windowsInput
+  connect?: Prisma.RunWhereUniqueInput
+}
+
+export type RunUpdateOneRequiredWithoutMetric_windowsNestedInput = {
+  create?: Prisma.XOR<Prisma.RunCreateWithoutMetric_windowsInput, Prisma.RunUncheckedCreateWithoutMetric_windowsInput>
+  connectOrCreate?: Prisma.RunCreateOrConnectWithoutMetric_windowsInput
+  upsert?: Prisma.RunUpsertWithoutMetric_windowsInput
+  connect?: Prisma.RunWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.RunUpdateToOneWithWhereWithoutMetric_windowsInput, Prisma.RunUpdateWithoutMetric_windowsInput>, Prisma.RunUncheckedUpdateWithoutMetric_windowsInput>
+}
+
 export type RunCreateWithoutRequestsInput = {
   name: string
   script_path: string
@@ -529,6 +550,7 @@ export type RunCreateWithoutRequestsInput = {
   concurrency: number
   rate_limit: number
   control_socket: string
+  metric_windows?: Prisma.MetricWindowCreateNestedManyWithoutRunInput
 }
 
 export type RunUncheckedCreateWithoutRequestsInput = {
@@ -541,6 +563,7 @@ export type RunUncheckedCreateWithoutRequestsInput = {
   concurrency: number
   rate_limit: number
   control_socket: string
+  metric_windows?: Prisma.MetricWindowUncheckedCreateNestedManyWithoutRunInput
 }
 
 export type RunCreateOrConnectWithoutRequestsInput = {
@@ -568,6 +591,7 @@ export type RunUpdateWithoutRequestsInput = {
   concurrency?: Prisma.IntFieldUpdateOperationsInput | number
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
+  metric_windows?: Prisma.MetricWindowUpdateManyWithoutRunNestedInput
 }
 
 export type RunUncheckedUpdateWithoutRequestsInput = {
@@ -580,6 +604,73 @@ export type RunUncheckedUpdateWithoutRequestsInput = {
   concurrency?: Prisma.IntFieldUpdateOperationsInput | number
   rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
   control_socket?: Prisma.StringFieldUpdateOperationsInput | string
+  metric_windows?: Prisma.MetricWindowUncheckedUpdateManyWithoutRunNestedInput
+}
+
+export type RunCreateWithoutMetric_windowsInput = {
+  name: string
+  script_path: string
+  started_at: bigint | number
+  ended_at?: bigint | number | null
+  status: string
+  concurrency: number
+  rate_limit: number
+  control_socket: string
+  requests?: Prisma.RequestCreateNestedManyWithoutRunInput
+}
+
+export type RunUncheckedCreateWithoutMetric_windowsInput = {
+  id?: number
+  name: string
+  script_path: string
+  started_at: bigint | number
+  ended_at?: bigint | number | null
+  status: string
+  concurrency: number
+  rate_limit: number
+  control_socket: string
+  requests?: Prisma.RequestUncheckedCreateNestedManyWithoutRunInput
+}
+
+export type RunCreateOrConnectWithoutMetric_windowsInput = {
+  where: Prisma.RunWhereUniqueInput
+  create: Prisma.XOR<Prisma.RunCreateWithoutMetric_windowsInput, Prisma.RunUncheckedCreateWithoutMetric_windowsInput>
+}
+
+export type RunUpsertWithoutMetric_windowsInput = {
+  update: Prisma.XOR<Prisma.RunUpdateWithoutMetric_windowsInput, Prisma.RunUncheckedUpdateWithoutMetric_windowsInput>
+  create: Prisma.XOR<Prisma.RunCreateWithoutMetric_windowsInput, Prisma.RunUncheckedCreateWithoutMetric_windowsInput>
+  where?: Prisma.RunWhereInput
+}
+
+export type RunUpdateToOneWithWhereWithoutMetric_windowsInput = {
+  where?: Prisma.RunWhereInput
+  data: Prisma.XOR<Prisma.RunUpdateWithoutMetric_windowsInput, Prisma.RunUncheckedUpdateWithoutMetric_windowsInput>
+}
+
+export type RunUpdateWithoutMetric_windowsInput = {
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  script_path?: Prisma.StringFieldUpdateOperationsInput | string
+  started_at?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  ended_at?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  concurrency?: Prisma.IntFieldUpdateOperationsInput | number
+  rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
+  control_socket?: Prisma.StringFieldUpdateOperationsInput | string
+  requests?: Prisma.RequestUpdateManyWithoutRunNestedInput
+}
+
+export type RunUncheckedUpdateWithoutMetric_windowsInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  script_path?: Prisma.StringFieldUpdateOperationsInput | string
+  started_at?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  ended_at?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  concurrency?: Prisma.IntFieldUpdateOperationsInput | number
+  rate_limit?: Prisma.FloatFieldUpdateOperationsInput | number
+  control_socket?: Prisma.StringFieldUpdateOperationsInput | string
+  requests?: Prisma.RequestUncheckedUpdateManyWithoutRunNestedInput
 }
 
 
@@ -589,10 +680,12 @@ export type RunUncheckedUpdateWithoutRequestsInput = {
 
 export type RunCountOutputType = {
   requests: number
+  metric_windows: number
 }
 
 export type RunCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   requests?: boolean | RunCountOutputTypeCountRequestsArgs
+  metric_windows?: boolean | RunCountOutputTypeCountMetric_windowsArgs
 }
 
 /**
@@ -612,6 +705,13 @@ export type RunCountOutputTypeCountRequestsArgs<ExtArgs extends runtime.Types.Ex
   where?: Prisma.RequestWhereInput
 }
 
+/**
+ * RunCountOutputType without action
+ */
+export type RunCountOutputTypeCountMetric_windowsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MetricWindowWhereInput
+}
+
 
 export type RunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -624,6 +724,7 @@ export type RunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = ru
   rate_limit?: boolean
   control_socket?: boolean
   requests?: boolean | Prisma.Run$requestsArgs<ExtArgs>
+  metric_windows?: boolean | Prisma.Run$metric_windowsArgs<ExtArgs>
   _count?: boolean | Prisma.RunCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["run"]>
 
@@ -666,6 +767,7 @@ export type RunSelectScalar = {
 export type RunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "script_path" | "started_at" | "ended_at" | "status" | "concurrency" | "rate_limit" | "control_socket", ExtArgs["result"]["run"]>
 export type RunInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   requests?: boolean | Prisma.Run$requestsArgs<ExtArgs>
+  metric_windows?: boolean | Prisma.Run$metric_windowsArgs<ExtArgs>
   _count?: boolean | Prisma.RunCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type RunIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -675,6 +777,7 @@ export type $RunPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   name: "Run"
   objects: {
     requests: Prisma.$RequestPayload<ExtArgs>[]
+    metric_windows: Prisma.$MetricWindowPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
@@ -1081,6 +1184,7 @@ readonly fields: RunFieldRefs;
 export interface Prisma__RunClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   requests<T extends Prisma.Run$requestsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Run$requestsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  metric_windows<T extends Prisma.Run$metric_windowsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Run$metric_windowsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MetricWindowPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1531,6 +1635,30 @@ export type Run$requestsArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
   take?: number
   skip?: number
   distinct?: Prisma.RequestScalarFieldEnum | Prisma.RequestScalarFieldEnum[]
+}
+
+/**
+ * Run.metric_windows
+ */
+export type Run$metric_windowsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the MetricWindow
+   */
+  select?: Prisma.MetricWindowSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the MetricWindow
+   */
+  omit?: Prisma.MetricWindowOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MetricWindowInclude<ExtArgs> | null
+  where?: Prisma.MetricWindowWhereInput
+  orderBy?: Prisma.MetricWindowOrderByWithRelationInput | Prisma.MetricWindowOrderByWithRelationInput[]
+  cursor?: Prisma.MetricWindowWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MetricWindowScalarFieldEnum | Prisma.MetricWindowScalarFieldEnum[]
 }
 
 /**

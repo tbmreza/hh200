@@ -26,7 +26,8 @@ type HttpException = HC.HttpException
 --     else HC.newManager HC.defaultManagerSettings
 newManager :: Bool -> IO Manager
 newManager useTls = if useTls
-    then HC.newManager HCT.tlsManagerFork
+    -- then HC.newManager HCT.tlsManagerFork
+    then undefined
     else HC.newManager HC.defaultManagerSettings
 
 closeManager :: Manager -> IO ()

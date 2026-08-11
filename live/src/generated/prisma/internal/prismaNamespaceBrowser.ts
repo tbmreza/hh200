@@ -55,7 +55,7 @@ export const ModelName = {
   Request: 'Request',
   RequestHeader: 'RequestHeader',
   RequestBody: 'RequestBody',
-  Metric: 'Metric'
+  MetricWindow: 'MetricWindow'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -126,15 +126,21 @@ export const RequestBodyScalarFieldEnum = {
 export type RequestBodyScalarFieldEnum = (typeof RequestBodyScalarFieldEnum)[keyof typeof RequestBodyScalarFieldEnum]
 
 
-export const MetricScalarFieldEnum = {
+export const MetricWindowScalarFieldEnum = {
   id: 'id',
-  run_id: 'run_id',
-  kind: 'kind',
-  sent_at: 'sent_at',
-  acked_at: 'acked_at'
+  runId: 'runId',
+  endpoint: 'endpoint',
+  start: 'start',
+  end: 'end',
+  count: 'count',
+  failCount: 'failCount',
+  minLatency: 'minLatency',
+  maxLatency: 'maxLatency',
+  avgLatency: 'avgLatency',
+  rps: 'rps'
 } as const
 
-export type MetricScalarFieldEnum = (typeof MetricScalarFieldEnum)[keyof typeof MetricScalarFieldEnum]
+export type MetricWindowScalarFieldEnum = (typeof MetricWindowScalarFieldEnum)[keyof typeof MetricWindowScalarFieldEnum]
 
 
 export const SortOrder = {

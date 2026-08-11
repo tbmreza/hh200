@@ -388,7 +388,7 @@ export const ModelName = {
   Request: 'Request',
   RequestHeader: 'RequestHeader',
   RequestBody: 'RequestBody',
-  Metric: 'Metric'
+  MetricWindow: 'MetricWindow'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -404,7 +404,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "run" | "request" | "requestHeader" | "requestBody" | "metric"
+    modelProps: "run" | "request" | "requestHeader" | "requestBody" | "metricWindow"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -704,77 +704,77 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
-    Metric: {
-      payload: Prisma.$MetricPayload<ExtArgs>
-      fields: Prisma.MetricFieldRefs
+    MetricWindow: {
+      payload: Prisma.$MetricWindowPayload<ExtArgs>
+      fields: Prisma.MetricWindowFieldRefs
       operations: {
         findUnique: {
-          args: Prisma.MetricFindUniqueArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload> | null
+          args: Prisma.MetricWindowFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload> | null
         }
         findUniqueOrThrow: {
-          args: Prisma.MetricFindUniqueOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
+          args: Prisma.MetricWindowFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>
         }
         findFirst: {
-          args: Prisma.MetricFindFirstArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload> | null
+          args: Prisma.MetricWindowFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload> | null
         }
         findFirstOrThrow: {
-          args: Prisma.MetricFindFirstOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
+          args: Prisma.MetricWindowFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>
         }
         findMany: {
-          args: Prisma.MetricFindManyArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>[]
+          args: Prisma.MetricWindowFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>[]
         }
         create: {
-          args: Prisma.MetricCreateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
+          args: Prisma.MetricWindowCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>
         }
         createMany: {
-          args: Prisma.MetricCreateManyArgs<ExtArgs>
+          args: Prisma.MetricWindowCreateManyArgs<ExtArgs>
           result: BatchPayload
         }
         createManyAndReturn: {
-          args: Prisma.MetricCreateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>[]
+          args: Prisma.MetricWindowCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>[]
         }
         delete: {
-          args: Prisma.MetricDeleteArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
+          args: Prisma.MetricWindowDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>
         }
         update: {
-          args: Prisma.MetricUpdateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
+          args: Prisma.MetricWindowUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>
         }
         deleteMany: {
-          args: Prisma.MetricDeleteManyArgs<ExtArgs>
+          args: Prisma.MetricWindowDeleteManyArgs<ExtArgs>
           result: BatchPayload
         }
         updateMany: {
-          args: Prisma.MetricUpdateManyArgs<ExtArgs>
+          args: Prisma.MetricWindowUpdateManyArgs<ExtArgs>
           result: BatchPayload
         }
         updateManyAndReturn: {
-          args: Prisma.MetricUpdateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>[]
+          args: Prisma.MetricWindowUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>[]
         }
         upsert: {
-          args: Prisma.MetricUpsertArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricPayload>
+          args: Prisma.MetricWindowUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MetricWindowPayload>
         }
         aggregate: {
-          args: Prisma.MetricAggregateArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AggregateMetric>
+          args: Prisma.MetricWindowAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMetricWindow>
         }
         groupBy: {
-          args: Prisma.MetricGroupByArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.MetricGroupByOutputType>[]
+          args: Prisma.MetricWindowGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MetricWindowGroupByOutputType>[]
         }
         count: {
-          args: Prisma.MetricCountArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.MetricCountAggregateOutputType> | number
+          args: Prisma.MetricWindowCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MetricWindowCountAggregateOutputType> | number
         }
       }
     }
@@ -869,15 +869,21 @@ export const RequestBodyScalarFieldEnum = {
 export type RequestBodyScalarFieldEnum = (typeof RequestBodyScalarFieldEnum)[keyof typeof RequestBodyScalarFieldEnum]
 
 
-export const MetricScalarFieldEnum = {
+export const MetricWindowScalarFieldEnum = {
   id: 'id',
-  run_id: 'run_id',
-  kind: 'kind',
-  sent_at: 'sent_at',
-  acked_at: 'acked_at'
+  runId: 'runId',
+  endpoint: 'endpoint',
+  start: 'start',
+  end: 'end',
+  count: 'count',
+  failCount: 'failCount',
+  minLatency: 'minLatency',
+  maxLatency: 'maxLatency',
+  avgLatency: 'avgLatency',
+  rps: 'rps'
 } as const
 
-export type MetricScalarFieldEnum = (typeof MetricScalarFieldEnum)[keyof typeof MetricScalarFieldEnum]
+export type MetricWindowScalarFieldEnum = (typeof MetricWindowScalarFieldEnum)[keyof typeof MetricWindowScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -948,6 +954,13 @@ export type BytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, '
  * Reference to a field of type 'Boolean'
  */
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
+ * Reference to a field of type 'DateTime'
+ */
+export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
     
 
 /**
@@ -1064,7 +1077,7 @@ export type GlobalOmitConfig = {
   request?: Prisma.RequestOmit
   requestHeader?: Prisma.RequestHeaderOmit
   requestBody?: Prisma.RequestBodyOmit
-  metric?: Prisma.MetricOmit
+  metricWindow?: Prisma.MetricWindowOmit
 }
 
 /* Types for Logging */

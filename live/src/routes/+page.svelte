@@ -1,13 +1,14 @@
-<script>
+<script lang="ts">
 	import { onMount } from 'svelte';
 	import { Chart } from 'chart.js/auto';
+	import type { Run } from '$lib/types';
 	// import { source } from 'sveltekit-sse';
 
 	// const balue = source('/sse').select('message')
 
-	let { data } = $props();
+	let { data } = $props<{ runs: Run[]; chartData: { year: number; count: number }[] }>();
 	let runs = $derived(data.runs ?? []);
-	let canvas;
+	let canvas: HTMLCanvasElement;
 
 	onMount(() => {
 		new Chart(canvas, {
@@ -23,6 +24,18 @@
 			},
 		});
 	});
+
+	async function downloadCsv(runId: number) {
+		const res = await fetch(`/api/report/${runId}`);
+		if (!res.ok) return;
+		const blob = await res.blob();
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'stats_history.csv';
+		a.click();
+		URL.revokeObjectURL(url);
+	}
 </script>
 
 <section>
@@ -44,6 +57,7 @@
       <th>Script</th>
       <th>Concurrency</th>
       <th>Rate Limit</th>
+      <th>Report</th>
     </tr>
   </thead>
   <tbody>
@@ -54,6 +68,7 @@
         <td>{run.script_path}</td>
         <td>{run.concurrency}</td>
         <td>{run.rate_limit}</td>
+        <td><button onclick={() => downloadCsv(run.id)}>download csv</button></td>
       </tr>
     {/each}
   </tbody>

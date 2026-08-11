@@ -27,6 +27,7 @@ model Run {
   control_socket String
 
   requests Request[]
+  metric_windows   MetricWindow[]
   // signals  Signal[]
 
   @@map("runs")
@@ -80,15 +81,46 @@ model RequestBody {
   @@map("request_bodies")
 }
 
-model Metric {
+// model Metric {
+//   id        Int     @id @default(autoincrement())
+//   run_id    Int
+//   kind      String
+//   sent_at   BigInt
+//   acked_at  BigInt?
+// // 
+//   // run Run @relation(fields: [run_id], references: [id], onDelete: Cascade)
+// // 
+//   // @@index([run_id])
+//   @@map("metrics")
+// }
+
+// model Run {
+//   id        String   @id @default(cuid())
+//   createdAt DateTime @default(now())
+//
+//   metrics   Metric[]
+//
+//   @@map("runs")
+// }
+
+model MetricWindow {
   id        Int     @id @default(autoincrement())
-  run_id    Int
-  kind      String
-  sent_at   BigInt
-  acked_at  BigInt?
-// 
-  // run Run @relation(fields: [run_id], references: [id], onDelete: Cascade)
-// 
-  // @@index([run_id])
-  @@map("metrics")
+  runId    Int
+  // id          String   @id @default(cuid())
+  // runId       String
+  endpoint    String
+  start DateTime
+  end   DateTime
+
+  count       Int
+  failCount   Int
+  minLatency  Float
+  maxLatency  Float
+  avgLatency  Float
+  rps         Float
+
+  run         Run      @relation(fields: [runId], references: [id])
+
+  // @@index([runId, endpoint])
+  @@map("metric_windows")
 }

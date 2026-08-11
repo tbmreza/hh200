@@ -62,7 +62,7 @@ export type RequestHeader = Prisma.RequestHeaderModel
  */
 export type RequestBody = Prisma.RequestBodyModel
 /**
- * Model Metric
+ * Model MetricWindow
  * 
  */
-export type Metric = Prisma.MetricModel
+export type MetricWindow = Prisma.MetricWindowModel

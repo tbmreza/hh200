@@ -13,7 +13,8 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
 import           Data.Aeson (object, encode, (.=))
-import           Data.Text (pack, unpack)
+import           Data.Text (unpack)
+import qualified Data.Text.Lazy as LT
 import           Network.HTTP.Types.Status (status404)
 import           Network.Socket
 import qualified Network.Socket.ByteString as NBS
@@ -61,7 +62,7 @@ startServer portStr = do
 
             results <- liftIO $ queryStatsHistory conn runId
 
-            let downloadName = "stats_history.csv"  -- ??: test curl -o
+            let downloadName = LT.pack ("stats_history_" ++ show runId ++ ".csv")
             case results of
                 Left err -> do
                     Server.status status404

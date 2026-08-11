@@ -32,8 +32,9 @@ data RREndTime =
 
 -- (auto) ebpf field will be added here
 -- ??: plan how metrics will be filtered
-data MetricRow = MetricRow
-  { metricTcpRetransmits :: Int
+data MetricWindowRow = MetricWindowRow
+  { mwRps :: Int
+  -- { metricTcpRetransmits :: Int
   -- { metricRunId       :: Int64
   -- , metricWorkerId    :: Int
   -- , metricTimestampMs :: Int64
@@ -54,11 +55,10 @@ data RunRow = RunRow
   , runControlSocket :: Text
   }
 
--- ??: as prisma call, or if needed at all
-migrateSchema :: Connection -> IO (Either Text ())
-migrateSchema = undefined
+-- migrateSchema :: Connection -> IO (Either Text ())
+-- migrateSchema = undefined
 
-getMetricsForRun :: Connection -> Int64 -> IO [MetricRow]
+getMetricsForRun :: Connection -> Int64 -> IO [MetricWindowRow]
 getMetricsForRun = undefined
 
 instance ToRow RunRow where
@@ -133,7 +133,7 @@ getRunById conn rid = do
             pure $ Right row
 
 
-insertMetric :: Connection -> MetricRow -> IO (Either Text ())
+insertMetric :: Connection -> MetricWindowRow -> IO (Either Text ())
 insertMetric = undefined
 -- insertMetric conn mr = do
 --     result <- try $
@@ -157,22 +157,28 @@ insertMetric = undefined
 
 data RunMetric = RunMetric
   { csvRunName :: Text
-  , csvMetricTcp :: Int
+  -- , csvMetricTcp :: Int
+  , csvMwRps :: Int
   } deriving (Show)
 type StatsHistory = [RunMetric]
 
 instance Csv.ToNamedRecord RunMetric where
-    toNamedRecord (RunMetric rmName rmTcp) =
+    toNamedRecord (RunMetric r0 r1) =
         Csv.namedRecord
-            [ "run_name" Csv..= rmName
-            , "metric_tcp" Csv..= rmTcp
+            -- [ "run_name" Csv..= r0
+            -- , "metric_tcp" Csv..= r1
+            -- ]
+            [ "run_name" Csv..= r0
+            , "metric_window_rps" Csv..= r1
             ]
 
+-- PICKUP insertMetric --> insertMetricWindow
 instance Csv.DefaultOrdered RunMetric where
     headerOrder _ =
         Csv.header
             [ "run_name"
-            , "metric_tcp"
+            -- , "metric_tcp"
+            , "metric_window_rps"
             ]
 
 -- runs-metrics joined to feed to report serializer.

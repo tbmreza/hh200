@@ -10,7 +10,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'stats_history.csv';
+    a.download = `stats_history_${run.id}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
