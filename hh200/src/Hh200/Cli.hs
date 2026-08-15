@@ -157,10 +157,11 @@ go Args { browse = Just port } = startServer (show port)
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
 go Args { source = Just path, debugConfig = True } = do
-    let analyzed = Scanner.analyze path
-    m <- runMaybeT analyzed
-    case m of
-        _ -> undefined
+    undefined
+    -- let analyzed = Scanner.analyze path
+    -- m <- runMaybeT analyzed
+    -- case m of
+    --     _ -> undefined
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -245,7 +246,7 @@ goMode script args = do
         -- starts N couriers at the same instant.
         let argsNvu = nvu args
         drawer <- replicateM argsNvu newEmptyMVar
-        -- forM_ (zip undefined drawer) $ \(_, hole) -> do
+        -- forM_ (zip [] drawer) $ \(_, hole) -> do
         forM_ (drawer) $ \(hole) -> do
             forkIO $ courier script (s, duration args) hole
 

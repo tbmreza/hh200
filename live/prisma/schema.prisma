@@ -28,7 +28,6 @@ model Run {
 
   requests Request[]
   metric_windows   MetricWindow[]
-  // signals  Signal[]
 
   @@map("runs")
 }
@@ -106,8 +105,6 @@ model RequestBody {
 model MetricWindow {
   id        Int     @id @default(autoincrement())
   run_id    Int
-  // id          String   @id @default(cuid())
-  // runId       String
   endpoint    String
   start DateTime
   end   DateTime
