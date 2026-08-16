@@ -6,7 +6,7 @@
 
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
-  ( runScriptM, runScriptWith, CourierCtx(..)
+  ( runScriptM, runScriptMWith, CourierCtx(..)
   , AssertionFailure(..)
 
   , status200
@@ -20,9 +20,11 @@ module Hh200.Execution
   , SubsetResult(..)
   , Side(..)
   , experimentalRequestBodyFile'
+  , buildRequest
   , applyBody
   , HhRequestBody(..)
   , BodyPart(..)
+  , bodyPartToPart
   ) where
 
 import Debug.Trace
@@ -79,6 +81,7 @@ import qualified Network.HTTP.Client as HC ( method
 import qualified Network.HTTP.Client.MultipartFormData as HCMP
 import           Network.HTTP.Client.MultipartFormData (partFileSource, formDataBody)
 import           Network.HTTP.Types.Status
+import           Network.HTTP.Types.URI (urlEncode)
 -- import           Network.HTTP.Types.Header (HeaderName, ResponseHeaders)
 import           Network.HTTP.Types.Header (HeaderName)
 -- import           Network.HTTP.Simple (setRequestBodyFile, setRequestBody, setRequestBodyJSON)
@@ -102,12 +105,10 @@ experimentalRequestBodyFile' path req = do
         Left _err -> req
         Right _  -> setRequestBody (HI.RequestBodyIO (HC.streamFile path)) req
 
--- ??: store file paths in Text for BodyPartFile bpValue
---   BodyPartFile { bpField :: Text }
--- | BodyPartText  { bpField :: Text }
+-- | A single multipart part: either a value to send as a file or as text.
 data BodyPart =
-    BodyPartFile { bpField :: Text, bpPath :: FilePath, bpValue :: Text }
-  | BodyPartText  { bpField :: Text, bpValue :: Text, bpPath :: FilePath     }
+    BodyPartFile { bpField :: Text, bpPath :: FilePath }
+  | BodyPartText { bpField :: Text, bpValue :: Text }
     deriving (Show)
 
 -- | Thrown by 'courseFrom' when a response fails its assertions so callers can
@@ -125,9 +126,8 @@ data HhRequestBody =
   | RBRaw         BS.ByteString Text  -- raw body + content-type
 
 bodyPartToPart :: BodyPart -> HCMP.Part
-bodyPartToPart (BodyPartFile field fp "") = partFileSource field fp
-bodyPartToPart (BodyPartText field val "") = HCMP.partBS field (TE.encodeUtf8 val)
-bodyPartToPart _ = undefined  -- ??: rm after data BodyPart
+bodyPartToPart (BodyPartFile field fp) = partFileSource field fp
+bodyPartToPart (BodyPartText field val) = HCMP.partBS field (TE.encodeUtf8 val)
 
 applyBody :: HhRequestBody -> HI.Request -> IO HI.Request
 applyBody (RBMultipart parts) req =
@@ -267,8 +267,8 @@ data CourierCtx = CourierCtx
   { courierName :: Text
   }
 
-runScriptWith :: CourierCtx -> Script -> Env -> IO ()
-runScriptWith ctx script env = do
+runScriptMWith :: CourierCtx -> Script -> Env -> IO ()
+runScriptMWith ctx script env = do
     let course :: ProcM CallItem = courseFrom (Just ctx) script
     mgr <- Http.newManager True
     _undefined <- Tf.runRWST (runMaybeT course) mgr env
@@ -318,24 +318,23 @@ specAssertionsOrMt ci =
 
 -- goal in order: multipartSq, rqUrl, test braced interpolation
 buildRequest :: Maybe CourierCtx -> Env -> CallItem -> IO Http.Request
--- buildRequest :: Env -> CallItem -> IO Http.Request
 buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
                                                         , rqHeaders = RhsDict dHeaders
                                                         , rqBody
-                                                        , rqSquares = (_configsSq, querySq, formSq, multipartSq, _cookiesSq) } } = do
+                                                        , rqSquares = (_configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
     eHeaders <- renderRqHeaders
     eUrl <- renderRqUrl
 
     initReq :: HI.Request <- HC.parseRequest eUrl
     let req = initReq { HC.method = BS.pack rqMethod }
-    let _ctx = Just $ CourierCtx { courierName = "hh200a" }
-
-    let allHeaders = case mcc of
-            Nothing -> eHeaders
-            Just cc -> (CaseInsensitive.mk "x-hh-vu", TE.encodeUtf8 $ courierName cc) : eHeaders
 
     renderedForm <- renderRequestForm env formSq
+    renderedCookies <- renderRequestCookies env cookiesSq
+
+    let allHeaders = renderedCookies ++ case mcc of
+            Nothing -> eHeaders
+            Just cc -> (CaseInsensitive.mk "x-hh-vu", TE.encodeUtf8 $ courierName cc) : eHeaders
 
     case multipartSq of
         Just (RequestSquareMultipart (RhsDict d)) -> handleMultipart req d allHeaders
@@ -349,9 +348,10 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
             let bsValue = case rendered of
                     Aeson.String t -> TE.encodeUtf8 t
                     v -> BL.toStrict (Aeson.encode v)
-            let fp = BS.unpack bsValue
-            pure $ BodyPartFile { bpField = fieldName, bpPath = fp, bpValue = "" }
-            -- pure $ BodyPartFile { bpField = fieldName, bpValue = fp }
+            pure $ case BS.stripPrefix "file," bsValue of
+                -- hurl-style: `file,<path>` sends the value as a file part.
+                Just fp -> BodyPartFile { bpField = fieldName, bpPath = BS.unpack (BS.dropWhile (== ' ') fp) }
+                Nothing -> BodyPartText  { bpField = fieldName, bpValue = TE.decodeUtf8 bsValue }
         let eMultipart = RBMultipart bodyParts
         got <- applyBody eMultipart req
         let existingHdrs = HC.requestHeaders got
@@ -359,11 +359,7 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     handleBody :: HI.Request -> String -> [(HeaderName, BS.ByteString)] -> IO HI.Request
     handleBody req renderedForm hs = do
-        let bodyContent = case (renderedForm, rqBody) of
-                ("", "") -> BS.pack rqBody
-                ("", _) -> BS.pack rqBody
-                (f, "") -> BS.pack f
-                (f, _) -> BS.pack f
+        let bodyContent = if null renderedForm then BS.pack rqBody else BS.pack renderedForm
             contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
             encoded = BL.fromStrict bodyContent
         pure $ req { HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : hs
@@ -590,7 +586,7 @@ renderRequestQuery env' (Just (RequestSquareQuery (RhsDict qp))) = do
         let bsValue = case rendered of
                 Aeson.String t -> TE.encodeUtf8 t
                 v -> BL.toStrict (Aeson.encode v)
-        pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
+        pure $ BS.unpack (urlEncode True (TE.encodeUtf8 k) <> "=" <> urlEncode True bsValue)
     pure $ intercalate "&" pairs
 renderRequestQuery _ _ = pure ""
 
@@ -602,7 +598,7 @@ renderRequestForm env' (Just (RequestSquareForm (RhsDict formFields))) = do
         let bsValue = case rendered of
                 Aeson.String t -> TE.encodeUtf8 t
                 v -> BL.toStrict (Aeson.encode v)
-        pure (Text.unpack k ++ "=" ++ BS.unpack bsValue)
+        pure $ BS.unpack (urlEncode True (TE.encodeUtf8 k) <> "=" <> urlEncode True bsValue)
     pure $ intercalate "&" pairs
 renderRequestForm _ _ = pure ""
 

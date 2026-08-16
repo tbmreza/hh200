@@ -9,6 +9,7 @@ import           System.IO (hPutStrLn, openTempFile, hClose)
 import           System.Directory (removeFile)
 import qualified Network.HTTP.Client as HC
 import qualified Network.HTTP.Client.Internal as HI
+import qualified Network.HTTP.Client.MultipartFormData as HCMP
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as Text
 import qualified Data.CaseInsensitive as CI
@@ -21,7 +22,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified BEL
 import           Hh200.Execution
-import           Hh200.Types (RhsDict (..), RequestSquare(..))
+import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSpec(..), CallItem(..), mkCallItem)
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -52,12 +53,18 @@ spec = testGroup "Execution"
   , testRenderRequestQueryEmpty
   , testRenderRequestQuerySingle
   , testRenderRequestQueryMultiple
+  , testRenderRequestQueryEncoded
   , testRenderRequestFormEmpty
   , testRenderRequestFormSingle
   , testRenderRequestFormMultiple
+  , testRenderRequestFormEncoded
   , testRenderRequestCookiesEmpty
   , testRenderRequestCookiesSingle
   , testRenderRequestCookiesMultiple
+  , testBodyPartToPartText
+  , testBodyPartToPartFile
+  , testBuildRequestCookiesWired
+  , testBuildRequestMultipartFileVsText
   , testExperimentalRequestBodyFileExists
   , testExperimentalRequestBodyFileNotFound
   , testApplyBodyJson
@@ -235,6 +242,60 @@ testRenderRequestCookiesMultiple = testCase "renderRequestCookies: multiple cook
             ]
     result <- renderRequestCookies testEnv (Just (RequestSquareCookies input))
     assertBool "has cookie header" (case result of [("Cookie", v)] -> ("sid=xyz" `isInfixOf` BS.unpack v) && ("uid=42" `isInfixOf` BS.unpack v); _ -> False)
+
+-- (auto) begins
+testRenderRequestQueryEncoded :: TestTree
+testRenderRequestQueryEncoded = testCase "renderRequestQuery: percent-encodes keys and values" $ do
+    let input = RhsDict $ HM.fromList [("q", [BEL.R "John Doe & =x"])]
+    result <- renderRequestQuery testEnv (Just (RequestSquareQuery input))
+    assertEqual "query encoded" "q=John%20Doe%20%26%20%3Dx" result
+
+testRenderRequestFormEncoded :: TestTree
+testRenderRequestFormEncoded = testCase "renderRequestForm: percent-encodes keys and values" $ do
+    let input = RhsDict $ HM.fromList [("name", [BEL.R "a/b c"])]
+    result <- renderRequestForm testEnv (Just (RequestSquareForm input))
+    assertEqual "form encoded" "name=a%2Fb%20c" result
+
+testBodyPartToPartText :: TestTree
+testBodyPartToPartText = testCase "bodyPartToPart: text part" $ do
+    let part = bodyPartToPart (BodyPartText "note" "hello world")
+    assertEqual "no filename" Nothing (HCMP.partFilename part)
+    body <- HCMP.partGetBody part
+    case body of
+        HI.RequestBodyBS bs -> assertEqual "text body" "hello world" (BS.unpack bs)
+        _ -> assertFailure "expected RequestBodyBS"
+
+testBodyPartToPartFile :: TestTree
+testBodyPartToPartFile = testCase "bodyPartToPart: file part" $ do
+    let part = bodyPartToPart (BodyPartFile "upload" "/tmp/opencode/exists.txt")
+    assertEqual "filename set" (Just "/tmp/opencode/exists.txt") (HCMP.partFilename part)
+
+testBuildRequestCookiesWired :: TestTree
+testBuildRequestCookiesWired = testCase "buildRequest: cookies square adds Cookie header" $ do
+    let ck = RhsDict $ HM.fromList [("session", [BEL.R "abc123"])]
+        rs = (ciRequestSpec mkCallItem) { rqSquares = (Nothing, Nothing, Nothing, Nothing, Just (RequestSquareCookies ck)) }
+        ci = mkCallItem { ciRequestSpec = rs }
+    req <- buildRequest Nothing testEnv ci
+    let hs = HC.requestHeaders req
+        cookieVal = lookup (CI.mk "Cookie") hs
+    assertEqual "Cookie header present" (Just "session=abc123") (BS.unpack <$> cookieVal)
+-- (auto) ends
+
+-- @ is curl's syntax for fs path. does hh200 current accommodate relative paths for free.
+            -- , ("upload", [BEL.R ("file," <> "/tmp/opencode/exists.txt")])
+testBuildRequestMultipartFileVsText :: TestTree
+testBuildRequestMultipartFileVsText = testCase "buildRequest: multipart text and file parts" $ do
+    let d = RhsDict $ HM.fromList
+            [ ("note", [BEL.R "just text"])
+            , ("upload", [BEL.R ("file," <> "Area.xlsx")])
+            ]
+        rs = (ciRequestSpec mkCallItem) { rqSquares = (Nothing, Nothing, Nothing, Just (RequestSquareMultipart d), Nothing) }
+        ci = mkCallItem { ciRequestSpec = rs }
+    req <- buildRequest Nothing testEnv ci
+    let hs = HC.requestHeaders req
+        ct = lookup (CI.mk "Content-Type") hs
+    assertBool "Content-Type contains multipart/form-data" $
+        maybe False ("multipart/form-data" `BS.isInfixOf`) ct
 
 testExperimentalRequestBodyFileExists :: TestTree
 testExperimentalRequestBodyFileExists = testCase "experimentalRequestBodyFile': file exists" $ do

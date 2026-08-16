@@ -1,9 +1,8 @@
-# goal: laravel upload xls http://localhost:9999/api/xls
-
-POST http://localhost:9999/api/xls
+POST http://localhost:9999/api/register
 Content-Type: "application/json"
 [MultipartFormData]
-file: "target-template.xls"
+description: "deskrip si"
+file: "file,Area.xlsx"
 # file: "path/to/value"
 # file: file,examble.xls;
 # {

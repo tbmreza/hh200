@@ -151,7 +151,6 @@ go Args { lspStdio = True } = runStdio
 
 -- Browse/dashboard mode.
 -- hh200 browse
--- PICKUP btn download rows csv
 go Args { browse = Just port } = startServer (show port)
 
 -- Static-check script.
@@ -195,7 +194,8 @@ go args@Args { duration = n, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
-        Just script  -> trace "this goMode!!!!" $ goMode script args
+        -- Just script  -> trace "this goMode!!!!" $ goMode script args
+        Just script  -> goMode script args
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)

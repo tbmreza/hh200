@@ -28,7 +28,7 @@ import           Control.Exception (bracket, try, SomeException)
 import           Control.Monad (forever)
 
 import           Hh200.Types
-import           Hh200.Execution (runScriptM, runScriptWith, CourierCtx(..))
+import           Hh200.Execution (runScriptM, runScriptMWith, CourierCtx(..))
 
 
 data WorkerMode
@@ -105,7 +105,8 @@ courier    script    (cue, dur)              done = do
                 loop
             Running -> do
                 let courierCtx = CourierCtx { courierName = "hh200a" }  -- ??: freshCourierName
-                trace ("courier:runScriptM........") $ (runScriptWith courierCtx) script newEnv
+                -- trace ("courier:" ++ show script) $ (runScriptMWith courierCtx) script newEnv
+                (runScriptMWith courierCtx) script newEnv
                 threadDelay 4000
                 case dur of
                     0 -> pure ()
