@@ -104,11 +104,15 @@ Location of `package.json` manifest isn't set in stone yet, but `releases/README
 
 Whether there's value in using the same manifest for both npm packaging and db development setup is also to be seen.
 
-### Build Dependencies
+### Package Build
 Notable aspects:
 - Uses `bel-expr` expression language
-- Integrates with Language Server Protocol (`lsp`) for IDE support
+- Bundles with Language Server Protocol (`lsp`) for IDE support
+```
+stack build --ghc-options="-O2"
+./package-release.sh <version string>  # ./package-release.sh v0.1.0
 
+```
 
 ### Development
 Developing a rule in the grammar is an activity of conservatively editing `src/L.x` and `src/P.y` at the following sites.
@@ -129,9 +133,8 @@ data Token =
 
 rule : ...
 ```
-``` sh
+```sh
 stack purge  # rm -rf .stack-work
 HH200_SQLITE=$HOME/gh/hh200/live/prisma/app.db stack run -- --call 'POST http://localhost:9999/api/echo \n {"k":9}'
 ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
-stack exec hh200 -- --version +RTS -l -RTS  # generates .eventlog
 ```
