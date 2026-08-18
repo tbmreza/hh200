@@ -1,4 +1,11 @@
 services:
+  php-dev-server:
+    build:
+      context: ../../php-dev-server
+      dockerfile: Dockerfile
+    ports:
+      - "9999:9999"
+
   hh200-debian-instance:
     image: debian:bookworm-slim
     user: root
