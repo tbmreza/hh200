@@ -1,6 +1,6 @@
 ```sh
-# execute install.sh in test-installer
-docker compose run --rm test-installer; echo "Exit Code: $?"
+# docker compose run --rm <service name>; echo "Exit Code: $?"  # basic test
+# docker compose run --rm -it <service name> /bin/sh            # interactive debug shell
 
-# docker compose run --rm --entrypoint /bin/sh test-installer
+docker compose -f glibc-docker-compose.yml up --abort-on-container-exit --exit-code-from hh200-debian-instance
 ```

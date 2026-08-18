@@ -1,0 +1,13 @@
+services:
+  hh200-debian-instance:
+    image: debian:bookworm-slim
+    user: root
+    volumes:
+      - ../../install.sh:/tmp/install.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        apt-get update -qq && apt-get install -y -qq curl ca-certificates > /dev/null
+        /bin/sh -x /tmp/install.sh
+        /root/.local/bin/hh200 --version
