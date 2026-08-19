@@ -11,7 +11,6 @@ module Hh200.Cli
 import Debug.Trace
 
 import           Options.Applicative
--- import           Control.Exception (bracket, finally)
 import           Control.Exception (finally)
 import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
@@ -25,7 +24,6 @@ import           System.Exit (exitWith, ExitCode(ExitFailure))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (doesFileExist)
--- import           System.Directory (removeFile, doesFileExist)
 import           Data.Maybe (fromMaybe)
 import           Data.Text (pack)
 import           Data.Version (showVersion)
@@ -37,18 +35,14 @@ import           Network.Socket
 import qualified Network.Socket.ByteString as NBS
 
 import qualified Paths_hh200 (version)
-import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, WorkerMode(..))
--- import           Hh200.TokenBucketWorkerPool (RunState(..), worker, courier)
+import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), withRateLimiter, WorkerMode(..))
+-- import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, WorkerMode(..))
 import           Hh200.TokenBucketWorkerPool (RunState(..), courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
 import           Hh200.Database (initDb, insertRun, RunRow(..), RREndTime(..))
 import           Hh200.LanguageServer (runTcp, runStdio)
 import           Hh200.Dashboard (startServer)
-
--- import System.Directory   (removePathForcibly)
--- import System.IO          (BufferMode (..), Handle, IOMode (..), hClose,
---                            hSetBuffering)
 
 
 data Args = Args
@@ -65,6 +59,9 @@ data Args = Args
 
 cli :: IO ()
 cli = go =<< execParser optsInfo
+
+-- PICKUP subcommand generate writes latest-report.html
+-- asserts xdg installed sqlite
 
 optsInfo :: ParserInfo Args
 optsInfo = info (helper <*>   modeBrowse <|> modeA)
@@ -333,7 +330,8 @@ testShotgun numWorkers script = do
 
     forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
         let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot, Tbwp.wcRateLimiter = Nothing, Tbwp.wcWorkerId = i }
-        forkIO (Tbwp.worker cfg script shutdownFlag done)
+        -- forkIO (Tbwp.worker cfg script shutdownFlag done)
+        forkIO (undefined cfg script shutdownFlag done)
 
     -- Termination with ctrl+c.
     _ <- installHandler sigINT
@@ -368,7 +366,8 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
                     , Tbwp.wcRateLimiter = Just rl
                     , Tbwp.wcWorkerId = i
                     }
-            _ <- forkIO (Tbwp.worker cfg script shutdownFlag done)
+            -- _ <- forkIO (Tbwp.worker cfg script shutdownFlag done)
+            _ <- forkIO (undefined cfg script shutdownFlag done)
             when (i < concurrency) $ threadDelay rampUpUs
 
         putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency

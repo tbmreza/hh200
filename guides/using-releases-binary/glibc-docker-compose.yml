@@ -1,7 +1,20 @@
 services:
+  # php-dev-server:
+  #   build:
+  #     context: ../../php-dev-server
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "9999:9999"
+  #   volumes:
+  #     - ../../php-dev-server:/app
+  #   working_dir: /app
+  #   command: php artisan serve --host=0.0.0.0 --port=9999
+
   hh200-debian-instance:
     image: debian:bookworm-slim
     user: root
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../../install.sh:/tmp/install.sh:ro
     entrypoint: ["/bin/sh", "-c"]
@@ -11,3 +24,5 @@ services:
         apt-get update -qq && apt-get install -y -qq curl ca-certificates > /dev/null
         /bin/sh -x /tmp/install.sh
         /root/.local/bin/hh200 --version
+        curl http://host.docker.internal:9999/api
+        # curl http://php-dev-server:9999/api

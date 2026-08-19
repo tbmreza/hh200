@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- ??: s/TokenBucketWorkerPool/TokenBucketCourierPool
 -- poison pill stops a worker gracefully
 -- token bucket specifies capacity and refill rate
 
@@ -13,7 +14,7 @@ module Hh200.TokenBucketWorkerPool
   , waitAndConsumeToken
   , WorkerMode(..)
   , WorkerConfig(..)
-  , worker, courier
+  , courier
   , workOptimize
   , RunState(..)
   ) where
@@ -75,10 +76,10 @@ data RunState = Running | Paused | Stopped
 --         then writeTVar tokens (n - 1)
 --         else retry
 
--- worker :: WorkerConfig -> Script -> TVar RunState -> MVar () -> IO ()
-worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
-worker    cfg             script    shutdown     done =
-    undefined
+-- -- worker :: WorkerConfig -> Script -> TVar RunState -> MVar () -> IO ()
+-- worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
+-- worker    cfg             script    shutdown     done =
+--     undefined
 
 -- Terminates after first iteration on duration=0
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
