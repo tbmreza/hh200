@@ -20,7 +20,6 @@ oftenBodyless (UppercaseString s) = elem s ["GET", "HEAD", "OPTIONS", "TRACE"]
 git reset --soft HEAD~<number of commits>  # then commit
 
 @.headers  $.headers  %.params.start
-HH200_SQLITE=/home/tbmreza/gh/hh200/app.db stack run -- ../examples/alpha.hhs
 ```
 Set-Cookie attribute enum, implementing Secure attr "Sends cookie only over HTTPS." https + Secure cookie attr
 http(s) secure

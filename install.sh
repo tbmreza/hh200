@@ -9,25 +9,63 @@
 # Fail loudly and early:
 # -e: exit immediately if any command exits with a non-zero status
 # -u: treat unset variables as an error
-set -eu
 
+# set -eu
+#
+# REPO="tbmreza/hh200"
+# VERSION="${HH200_VERSION:-latest}"
+# BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+# ARCH="linux-x86_64"
+#
+# if [ "$VERSION" = "latest" ]; then
+#   VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+#     | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+# fi
+#
+# ASSET="hh200-${VERSION}-${ARCH}.tar.gz"
+# URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
+#
+# mkdir -p "$BIN_DIR"
+# curl -fsSL "$URL" -o /tmp/${ASSET}
+# tar -xzf /tmp/${ASSET} -C /tmp
+# mv /tmp/hh200-${VERSION}-${ARCH}/hh200 "$BIN_DIR/hh200"
+# chmod +x "$BIN_DIR/hh200"
+#
+# echo "hh200 ${VERSION} installed to $BIN_DIR"
+
+set -eu
+# set -euo pipefail
+ 
 REPO="tbmreza/hh200"
 VERSION="${HH200_VERSION:-latest}"
 BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hh200"
 ARCH="linux-x86_64"
-
+ 
 if [ "$VERSION" = "latest" ]; then
   VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 fi
-
+ 
 ASSET="hh200-${VERSION}-${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
-
+ 
 mkdir -p "$BIN_DIR"
-curl -fsSL "$URL" -o /tmp/${ASSET}
-tar -xzf /tmp/${ASSET} -C /tmp
-mv /tmp/hh200-${VERSION}-${ARCH}/hh200 "$BIN_DIR/hh200"
+mkdir -p "$DATA_DIR"
+ 
+curl -fsSL "$URL" -o "/tmp/${ASSET}"
+tar -xzf "/tmp/${ASSET}" -C /tmp
+mv "/tmp/hh200-${VERSION}-${ARCH}/hh200" "$BIN_DIR/hh200"
 chmod +x "$BIN_DIR/hh200"
-
-echo "hh200 ${VERSION} installed to $BIN_DIR"
+rm -rf "/tmp/${ASSET}" "/tmp/hh200-${VERSION}-${ARCH}"
+ 
+echo "Installed hh200 ${VERSION} to $BIN_DIR/hh200"
+echo "Data directory: $DATA_DIR"
+ 
+case ":$PATH:" in
+  *":$BIN_DIR:"*) ;;
+  *)
+    echo "Note: $BIN_DIR is not on your PATH. Add it, e.g.:"
+    echo "  export PATH=\"$BIN_DIR:\$PATH\""
+    ;;
+esac

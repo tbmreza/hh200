@@ -16,7 +16,7 @@ import qualified Data.Text as Text
 import qualified Data.Csv as Csv
 import           Database.SQLite.Simple (query, Only (..), Connection, ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId)
 import           Network.HTTP.Types.Header (HeaderName)
-import           System.Directory (XdgDirectory (XdgData), getXdgDirectory)
+import           System.Directory (XdgDirectory (XdgData), getXdgDirectory, createDirectoryIfMissing)
 import           System.Environment (lookupEnv)
 import           System.Exit (exitSuccess)
 import           System.FilePath ((<.>), (</>))
@@ -93,12 +93,13 @@ instance ToJSON RunRow where
 initDb :: IO Connection
 initDb = do
     mPath <- lookupEnv "HH200_SQLITE"
-    case mPath of
-        Just fp -> open (trace ("kmPath=" ++ fp) fp)
+    fp <- case mPath of
+        Just fp -> pure fp
         Nothing -> do
             dir <- getXdgDirectory XdgData "hh200"
-            putStrLn dir
-            exitSuccess
+            createDirectoryIfMissing True dir
+            pure (dir </> "hh200.sqlite")
+    open fp
 
 closeDb :: Connection -> IO ()
 closeDb = close
