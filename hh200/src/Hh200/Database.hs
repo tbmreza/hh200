@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Hh200.Database
     where
 
 import Debug.Trace
 
+import           GHC.Generics (Generic)
 import           Control.Exception (try, SomeException, displayException)
 import           Data.Aeson (ToJSON (..), object, (.=))
 import qualified Data.ByteString as BS
@@ -21,6 +23,26 @@ import           System.Environment (lookupEnv)
 import           System.Exit (exitSuccess)
 import           System.FilePath ((<.>), (</>))
 
+
+data HtmlReportData = HtmlReportData
+  { reportId   :: Int
+  , reportHtml :: Text
+  } deriving (Show, Generic)
+
+instance ToJSON HtmlReportData
+
+joinLatestReport :: Connection -> IO (Either Text (Maybe HtmlReportData))
+joinLatestReport conn = do
+    result <- try $
+        execute conn
+            ""
+            ()
+
+    pure $ case result of
+        Left (e :: SomeException) ->
+            Left (Text.pack (displayException e))
+        Right _ ->
+            Right Nothing
 
 newtype RunId = RunId Int
 
@@ -192,6 +214,8 @@ queryStatsHistory conn runId = do
             pure $ Left (Text.pack (displayException e))
         Right rows ->
             pure $ Right [ RunMetric name (fromIntegral mId) | (name, mId) <- rows ]
+
+-- class DbInsert -- ??
 
 insertRun :: Connection -> RunRow -> IO (Either Text Int64)
 insertRun conn rr = do

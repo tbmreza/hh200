@@ -1,3 +1,6 @@
+-- goal: subcommand generate writes latest-report.json
+-- asserts xdg installed sqlite
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -5,7 +8,7 @@
 module Hh200.Cli
   ( cli
   , mkArgs
-  , go, Args(..), optsInfo
+  , go, Args(..)
   ) where
 
 import Debug.Trace
@@ -20,10 +23,12 @@ import           Control.Concurrent
 import           Control.Concurrent.STM
 -- import           Control.Concurrent.STM.TQueue (flushTQueue)
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
-import           System.Exit (exitWith, ExitCode(ExitFailure))
+import           System.Exit (exitWith, ExitCode(ExitFailure, ExitSuccess))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
-import           System.Directory (doesFileExist)
+import           System.Directory (getCurrentDirectory, doesFileExist)
+import           Data.Aeson (ToJSON (..))
+import qualified Data.Aeson as Json (encode)
 import           Data.Maybe (fromMaybe)
 import           Data.Text (pack)
 import           Data.Version (showVersion)
@@ -36,98 +41,215 @@ import qualified Network.Socket.ByteString as NBS
 
 import qualified Paths_hh200 (version)
 import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), withRateLimiter, WorkerMode(..))
--- import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), worker, withRateLimiter, WorkerMode(..))
 import           Hh200.TokenBucketWorkerPool (RunState(..), courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
-import           Hh200.Database (initDb, insertRun, RunRow(..), RREndTime(..))
+import           Hh200.Database (HtmlReportData, initDb, insertRun, RunRow(..), RREndTime(..))
+import qualified Hh200.Database as AppDb
 import           Hh200.LanguageServer (runTcp, runStdio)
 import           Hh200.Dashboard (startServer)
 
 
 data Args = Args
-  { source :: Maybe String  -- used for both FilePath and Snippet sources
-  , version :: Bool
+  { mode ::        MainThread
+  , source ::      Maybe String  -- used for both FilePath and Snippet sources
+  , version ::     Bool
   , debugConfig :: Bool
-  , call :: Bool
-  , nvu :: Int
-  , duration :: Int
-  , lsp :: Maybe Int
-  , lspStdio :: Bool
-  , browse :: Maybe Int -- browse mode port (Nothing = not browse)
+  , call ::        Bool
+  , nvu ::         Int
+  , duration ::    Int
+  , lsp ::         Maybe Int
+  , lspStdio ::    Bool
+  -- , browse ::      Maybe Int -- browse mode port (Nothing = not browse)
   } deriving (Show, Eq)
 
+data MainThread =
+    HttpLoad
+  | Browse { browsePort :: Int }
+  | Generate { generateOut :: Maybe FilePath }
+    deriving (Show, Eq)
+
+
 cli :: IO ()
-cli = go =<< execParser optsInfo
+cli = go =<< execParser inst
 
--- PICKUP subcommand generate writes latest-report.html
--- asserts xdg installed sqlite
-
-optsInfo :: ParserInfo Args
-optsInfo = info (helper <*>   modeBrowse <|> modeA)
-                (fullDesc <>  header "Run hh200 scripts")
+inst :: ParserInfo Args
+inst = info (helper <*> (subcommands <|> mainCommand))
+            (fullDesc <> header "Run hh200 scripts")
     where
-    modeBrowse :: Parser Args
-    modeBrowse = subparser $
-        command "browse" $
-            info (((\p -> mkArgs { browse = Just p }) <$>
-                   option auto ( long "port"
-                              <> short 'p'
-                              <> help "HTTP port for dashboard"
-                              <> value 8089
-                              <> showDefault ))
-                  <**> helper)
-                 (progDesc "Launch the dashboard")
+    subcommands :: Parser Args
+    subcommands = subparser
+      ( command "browse"   (info (helper <*> subBrowse)   (progDesc "Launch the dashboard"))
+     <> command "generate" (info (helper <*> subGenerate) (progDesc "Write an HTML report"))
+      )
 
-    applyMods :: Args -> Maybe (Args -> Args) -> Args
-    applyMods args (Just f) = f args
-    applyMods args Nothing  = args
+    subBrowse :: Parser Args
+    subBrowse = setBrowseMode <$> portOption where
+        setBrowseMode :: Int -> Args
+        setBrowseMode p = mkArgs { mode = Browse { browsePort = p } }
 
-    modeA :: Parser Args
-    modeA = applyMods
-        <$> (Args
-        <$> optional (argument str (metavar "SOURCE"
-                                 <> help "Path of source program"))
+        portOption :: Parser Int
+        portOption = option auto
+          ( long "port"
+         <> short 'p'
+         <> help "HTTP port for dashboard"
+         <> value 8089
+         <> showDefault
+          )
 
-        <*> switch ( long "version"
-                  <> short 'V'
-                  <> help "Print version info and exit" )
+    subGenerate :: Parser Args
+    subGenerate = setGenerateMode <$> outOption where
+        setGenerateMode :: Maybe FilePath -> Args
+        setGenerateMode out = mkArgs { mode = Generate { generateOut = out } }
 
-        <*> switch ( long "debug-config"
-                  <> short 'F'
-                  <> help "Read environment and script header to determine the config values without executing script's side-effects" )
+        outOption :: Parser (Maybe FilePath)
+        outOption = optional $ strOption
+          ( long "out"
+         <> short 'o'
+         <> metavar "PATH"
+         <> help "Where to write the report (default: XDG data dir / latest-report.html)"
+          )
 
-        <*> switch ( long "call"
-                  <> short 'C'
-                  <> help "Execute a script snippet directly" )
+mainCommand :: Parser Args
+mainCommand = build <$> sourceArgument
+                    <*> versionFlag
+                    <*> debugConfigFlag
+                    <*> callFlag
+                    <*> nvuOption
+                    <*> durationOption
+                    <*> lspPortOption
+                    <*> lspStdioFlag
+    where
+    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Args
+    build src ver dbg cl n dur lspP lspS = mkArgs
+      { source      = src
+      , version     = ver
+      , debugConfig = dbg
+      , call        = cl
+      , nvu         = n
+      , duration    = dur
+      , lsp         = lspP
+      , lspStdio    = lspS
+      }
 
-        <*> option auto ( long "nvu"
-                       <> short 'n'
-                       <> help "Number of virtual users"
-                       <> metavar "N"
-                       <> value 1
-                       <> showDefault )
+sourceArgument :: Parser (Maybe String)
+sourceArgument = optional $ argument str
+    (metavar "SOURCE" <> help "Path of source program")
+ 
+versionFlag :: Parser Bool
+versionFlag = switch
+    (long "version" <> short 'V' <> help "Print version info and exit")
 
-        <*> option auto ( long "duration"
-                       <> short 't'
-                       <> help "Set duration of load test execution in seconds"
-                       <> metavar "S"
-                       <> value 0
-                       <> showDefault )
+nvuOption :: Parser Int
+nvuOption = option auto
+  ( long "nvu"
+ <> short 'n'
+ <> metavar "N"
+ <> help "Number of virtual users"
+ <> value 1
+ <> showDefault
+  )
+ 
+debugConfigFlag :: Parser Bool
+debugConfigFlag = switch
+  ( long "debug-config"
+ <> short 'F'
+ <> help "Read environment and script header to determine config values \
+         \without executing the script's side-effects"
+  )
+ 
+callFlag :: Parser Bool
+callFlag = switch
+    (long "call" <> short 'C' <> help "Execute a script snippet directly")
+ 
+durationOption :: Parser Int
+durationOption = option auto
+  ( long "duration"
+ <> short 't'
+ <> metavar "S"
+ <> help "Set duration of load test execution in seconds"
+ <> value 0
+ <> showDefault
+  )
+ 
+lspPortOption :: Parser (Maybe Int)
+lspPortOption = optional $ option auto
+    (long "lsp" <> short 'd' <> metavar "PORT" <> help "Run hh200 language server")
+ 
+lspStdioFlag :: Parser Bool
+lspStdioFlag = switch
+    (long "lsp-stdio" <> help "Run hh200 language server over stdio")
 
-        <*> optional ( option auto ( long "lsp"
-                                   <> short 'd'
-                                   <> help "Run hh200 language server"
-                                   <> metavar "PORT" ) )
 
-        <*> switch ( long "lsp-stdio"
-                  <> help "Run hh200 language server over stdio" )
 
-        <*> pure Nothing)
-        <*> optional ((\n a -> a { nvu = n, duration = 0 }) <$>
-                      option auto ( long "shotgun"
-                                 <> help "Alias for --nvu=N --duration=0"
-                                 <> metavar "N" ))
+-- optsInfo :: ParserInfo Args
+-- optsInfo = info (helper <*>   modeBrowse <|> modeA)
+--                 (fullDesc <>  header "Run hh200 scripts")
+--     where
+--     modeBrowse :: Parser Args
+--     modeBrowse = subparser $
+--         command "browse" $
+--             info (((\p -> mkArgs { browse = Just p }) <$>
+--                    option auto ( long "port"
+--                               <> short 'p'
+--                               <> help "HTTP port for dashboard"
+--                               <> value 8089
+--                               <> showDefault ))
+--                   <**> helper)
+--                  (progDesc "Launch the dashboard")
+--
+--     applyMods :: Args -> Maybe (Args -> Args) -> Args
+--     applyMods args (Just f) = f args
+--     applyMods args Nothing  = args
+--
+--     modeA :: Parser Args
+--     modeA = applyMods
+--         <$> (Args
+--         <$> optional (argument str (metavar "SOURCE"
+--                                  <> help "Path of source program"))
+--
+--         <*> switch ( long "version"
+--                   <> short 'V'
+--                   <> help "Print version info and exit" )
+--
+--         <*> switch ( long "debug-config"
+--                   <> short 'F'
+--                   <> help "Read environment and script header to determine the config values without executing script's side-effects" )
+--
+--         <*> switch ( long "call"
+--                   <> short 'C'
+--                   <> help "Execute a script snippet directly" )
+--
+--         <*> option auto ( long "nvu"
+--                        <> short 'n'
+--                        <> help "Number of virtual users"
+--                        <> metavar "N"
+--                        <> value 1
+--                        <> showDefault )
+--
+--         <*> option auto ( long "duration"
+--                        <> short 't'
+--                        <> help "Set duration of load test execution in seconds"
+--                        <> metavar "S"
+--                        <> value 0
+--                        <> showDefault )
+--
+--         <*> optional ( option auto ( long "lsp"
+--                                    <> short 'd'
+--                                    <> help "Run hh200 language server"
+--                                    <> metavar "PORT" ) )
+--
+--         <*> switch ( long "lsp-stdio"
+--                   <> help "Run hh200 language server over stdio" )
+--
+--         <*> pure Nothing)
+--         <*> optional ((\n a -> a { nvu = n, duration = 0 }) <$>
+--                       option auto ( long "shotgun"
+--                                  <> help "Alias for --nvu=N --duration=0"
+--                                  <> metavar "N" ))
+
+touch :: FilePath -> IO ()
+touch = undefined
 
 -- go and goMode indirection: debug programming directly in Script structs.
 go :: Args -> IO ()
@@ -148,7 +270,27 @@ go Args { lspStdio = True } = runStdio
 
 -- Browse/dashboard mode.
 -- hh200 browse
-go Args { browse = Just port } = startServer (show port)
+go Args { mode = Browse { browsePort } } = startServer (show browsePort)
+
+-- 
+-- hh200 generate
+go Args { mode = Generate { generateOut } } = do
+    conn <- initDb
+    res <- AppDb.joinLatestReport conn
+
+    out <- maybe getCurrentDirectory
+                 pure
+                 generateOut
+
+    case res of
+        Left _ -> do
+            touch out
+            exitWith (ExitFailure 1)
+        Right Nothing ->
+            -- info: paths ok, no data to generate report for
+            touch out
+        Right (Just (lr :: HtmlReportData)) -> do
+            BL.writeFile out (Json.encode lr)
 
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
@@ -394,5 +536,5 @@ mkArgs = Args { source = Nothing
               , duration = 0
               , lsp = Nothing
               , lspStdio = False
-              , browse = Nothing
+              -- , browse = Nothing
               }

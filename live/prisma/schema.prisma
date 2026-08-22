@@ -6,6 +6,12 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+generator markdown {
+  provider = "prisma-markdown"
+  output   = "../../../hh200-docs/docs/contributing/database-schema.md"
+  title    = "Database Schema"
+}
+
 datasource db {
   provider = "sqlite"
 }

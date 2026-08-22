@@ -2,13 +2,13 @@
 
 ```
 nvm use
-bun run upstream  # served via hh200 is first-class for now
+bun run upstream
+bun run dev
 ```
 
 ## Developing schema
 
 ```
-bun run schema
+bun run schema  # also updates ../../hh200-docs/docs/contributing/database-schema.md
 bun run apply
-# bun run   # truncates app.db with realistic dummy data
 ```
