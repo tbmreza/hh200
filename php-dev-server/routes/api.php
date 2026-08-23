@@ -7,6 +7,8 @@ use App\Http\Controllers\SseController;
 use App\Http\Controllers\XlsUploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\SomeResponseBodyController;
+
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::any('/echo', EchoController::class);
@@ -21,3 +23,5 @@ Route::get('/sse', SseController::class);
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:api');
+
+Route::delete('/some-response-body/{toggle}/{status_code}', SomeResponseBodyController::class);

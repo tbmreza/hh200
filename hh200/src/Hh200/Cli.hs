@@ -180,69 +180,6 @@ lspStdioFlag :: Parser Bool
 lspStdioFlag = switch
     (long "lsp-stdio" <> help "Run hh200 language server over stdio")
 
-
-
--- optsInfo :: ParserInfo Args
--- optsInfo = info (helper <*>   modeBrowse <|> modeA)
---                 (fullDesc <>  header "Run hh200 scripts")
---     where
---     modeBrowse :: Parser Args
---     modeBrowse = subparser $
---         command "browse" $
---             info (((\p -> mkArgs { browse = Just p }) <$>
---                    option auto ( long "port"
---                               <> short 'p'
---                               <> help "HTTP port for dashboard"
---                               <> value 8089
---                               <> showDefault ))
---                   <**> helper)
---                  (progDesc "Launch the dashboard")
---
---     applyMods :: Args -> Maybe (Args -> Args) -> Args
---     applyMods args (Just f) = f args
---     applyMods args Nothing  = args
---
---     modeA :: Parser Args
---     modeA = applyMods
---         <$> (Args
---         <$> optional (argument str (metavar "SOURCE"
---                                  <> help "Path of source program"))
---
---         <*> switch ( long "version"
---                   <> short 'V'
---                   <> help "Print version info and exit" )
---
---         <*> switch ( long "debug-config"
---                   <> short 'F'
---                   <> help "Read environment and script header to determine the config values without executing script's side-effects" )
---
---         <*> switch ( long "call"
---                   <> short 'C'
---                   <> help "Execute a script snippet directly" )
---
---         <*> option auto ( long "nvu"
---                        <> short 'n'
---                        <> help "Number of virtual users"
---                        <> metavar "N"
---                        <> value 1
---                        <> showDefault )
---
---         <*> option auto ( long "duration"
---                        <> short 't'
---                        <> help "Set duration of load test execution in seconds"
---                        <> metavar "S"
---                        <> value 0
---                        <> showDefault )
---
---         <*> optional ( option auto ( long "lsp"
---                                    <> short 'd'
---                                    <> help "Run hh200 language server"
---                                    <> metavar "PORT" ) )
---
---         <*> switch ( long "lsp-stdio"
---                   <> help "Run hh200 language server over stdio" )
---
---         <*> pure Nothing)
 --         <*> optional ((\n a -> a { nvu = n, duration = 0 }) <$>
 --                       option auto ( long "shotgun"
 --                                  <> help "Alias for --nvu=N --duration=0"
@@ -527,7 +464,8 @@ testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
         atomically (readTVar shutdownFlag >>= check)
 
 mkArgs :: Args
-mkArgs = Args { source = Nothing
+mkArgs = Args { mode = HttpLoad
+              , source = Nothing
               , version = False
               , debugConfig = False
               , call = False

@@ -1,0 +1,14 @@
+# GET http://localhost:9999/api/echo
+
+# # 204 No Content
+# # DELETE: The action was successful, and no further information needs to be supplied.
+# DELETE http://localhost:9999/api/some-response-body/false/204
+# HTTP 204
+# # implicit [Asserts] that response contains no body
+
+# /some-response-body/{code}/{toggle}
+DELETE http://localhost:9999/api/some-response-body/true/204
+HTTP 204
+
+
+# 304 Not Modified

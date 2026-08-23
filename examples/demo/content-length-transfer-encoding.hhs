@@ -1,0 +1,35 @@
+# Cat1: Content-Length & Transfer-Encoding both present
+
+# Host: example.com\r\n
+POST http://localhost:9999/foo
+Content-Length: 10  # historically "estimated for progress bars"
+Content-Length: 10
+# Content-Length: 23  # historically "estimated for progress bars"
+# Transfer-Encoding: chunked  # overrides CL
+{ "kkk": "vvvv"}
+# 0123456789  # ??: raw one line string, json obj ok
+# HTTP/1.1
+HTTP 200
+
+# laravel handles as Invalid request (Malformed HTTP request)
+
+# ai:
+# §6.1 says a sender MUST NOT send both.
+# A recipient MUST treat this as an error, or MUST remove Content-Length and process as chunked;
+#
+# but crucially, a server MUST reject it if it can't confirm the sender's intent, precisely because this is
+# the classic request-smuggling pattern (front-end trusts CL, back-end trusts TE, or vice versa).
+
+# rfc 9112:
+# Early implementations of Transfer-Encoding would occasionally send both a chunked transfer coding for message
+# framing and an estimated Content-Length header field for use by progress bars. This is why Transfer-Encoding
+# is defined as overriding Content-Length, as opposed to them being mutually incompatible. Unfortunately,
+# forwarding such a message can lead to vulnerabilities regarding request smuggling (Section 11.2) or response
+# splitting (Section 11.1) attacks if any downstream recipient fails to parse the message according to this
+# specification, particularly when a downstream recipient only implements HTTP/1.0.
+#
+# A server MAY reject a request that contains both Content-Length and Transfer-Encoding or process such a request
+# in accordance with the Transfer-Encoding alone. Regardless, the server MUST close the connection after
+# responding to such a request to avoid the potential attacks.
+
+
