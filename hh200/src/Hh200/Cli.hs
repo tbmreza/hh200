@@ -1,5 +1,7 @@
 -- goal: subcommand generate writes latest-report.json
 -- asserts xdg installed sqlite
+{-# LANGUAGE DuplicateRecordFields #-}
+-- {-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -21,7 +23,6 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad (forM_, replicateM, when, forever)
 import           Control.Concurrent
 import           Control.Concurrent.STM
--- import           Control.Concurrent.STM.TQueue (flushTQueue)
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
 import           System.Exit (exitWith, ExitCode(ExitFailure, ExitSuccess))
 import           System.IO (hPutStrLn, stderr, stdout)
@@ -30,7 +31,7 @@ import           System.Directory (getCurrentDirectory, doesFileExist)
 import           Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Json (encode)
 import           Data.Maybe (fromMaybe)
-import           Data.Text (pack)
+import           Data.Text (Text, pack)
 import           Data.Version (showVersion)
 import           Database.SQLite.Simple (Connection)
 import qualified Data.ByteString.Char8 as C8
@@ -60,7 +61,6 @@ data Args = Args
   , duration ::    Int
   , lsp ::         Maybe Int
   , lspStdio ::    Bool
-  -- , browse ::      Maybe Int -- browse mode port (Nothing = not browse)
   } deriving (Show, Eq)
 
 data MainThread =
@@ -232,7 +232,7 @@ go Args { mode = Generate { generateOut } } = do
 -- Static-check script.
 -- hh200 flow.hhs --debug-config
 go Args { source = Just path, debugConfig = True } = do
-    undefined
+    undefined path
     -- let analyzed = Scanner.analyze path
     -- m <- runMaybeT analyzed
     -- case m of
@@ -266,7 +266,7 @@ go args@Args { call = True, source = Just snip } = do
         -- Just script  -> testShotgun n script
 -- Load test mode.
 -- hh200 flow.hhs --duration=30
-go args@Args { duration = n, call = False, source = Just path } = do
+go args@Args { duration = _n, call = False, source = Just path } = do
     mScript <- runMaybeT (Scanner.analyze path)
     case mScript of
         Nothing -> exitWith (ExitFailure 1)
@@ -276,6 +276,7 @@ go args@Args { duration = n, call = False, source = Just path } = do
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
 
+genName :: Text
 genName = "default run name"
 
 goMode :: Script -> Args -> IO ()
@@ -311,7 +312,7 @@ goMode script args = do
 
         rr <- mkRunRow
 
-        mRunId <- insertRun conn rr
+        _mRunId <- insertRun conn rr
 
         -- Control flag.
         s <- newTVarIO Running
@@ -388,15 +389,15 @@ controlSocketListener path handler = do
         pure ()
 
 
--- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()
--- persistMetrics conn e shutdownFlag = loop
-persistMetrics :: Connection -> IO ()
-persistMetrics conn = loop
--- flushTQueue :: TQueue a -> STM [a]
-    where
-    loop = do
-        case True of
-            True -> pure ()
+-- -- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()
+-- -- persistMetrics conn e shutdownFlag = loop
+-- persistMetrics :: Connection -> IO ()
+-- persistMetrics conn = loop
+-- -- flushTQueue :: TQueue a -> STM [a]
+--     where
+--     loop = do
+--         case True of
+--             True -> pure ()
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.

@@ -1,0 +1,5 @@
+target/debug/
+target/flycheck0/
+target/release/
+target/*/release/deps/
+target/*/release/.fingerprint/

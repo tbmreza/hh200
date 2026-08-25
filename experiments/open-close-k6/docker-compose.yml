@@ -1,0 +1,9 @@
+services:
+  ocapi-alpine-inst:
+    image: alpine:edge
+    volumes:
+      - ../ocapi/target/x86_64-unknown-linux-musl/release/ocapi:/ocapi:ro
+    entrypoint: ["/ocapi"]
+    ports:
+      - "8080:8080"
+
