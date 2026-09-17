@@ -1,3 +1,7 @@
+mod arrival_classifier;
+mod control;
+mod routes;
+
 use tracing_subscriber::fmt::init;
 use tracing::info;
 use tokio::net::TcpListener;
@@ -7,7 +11,7 @@ use axum::{
     Router,
     response::IntoResponse,
     http::StatusCode,
-    routing::get,
+    routing::{get, delete},
 };
 
 
@@ -19,7 +23,8 @@ async fn main() -> () {
     info!("ocapi listening on address={addr}");
 
     let app = Router::new().route("/health", get(health))
-                           .route("/fixed", get(health));
+                           .route("/fixed", get(health))
+                           .route("/delay/{delay}", delete(routes::delay));
 
     let listener = TcpListener::bind(addr).await.unwrap();
 
