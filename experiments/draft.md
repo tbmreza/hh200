@@ -23,18 +23,18 @@ Ocapi is, to our knowledge, the first system-under-test designed explicitly to m
 ## List of tables
 
 1. Taxonomy of traffic models (open, closed, bounded-open, adaptive-concurrency, retry-storm)
-1. Experiment matrix summary: traffic model, generator tools, network condition
-1. Confusion matrix (classifier verdict vs. ground-truth label)
-1. Real-world trace characteristics (source, duration, request count, assumed traffic model)
+2. Experiment matrix summary: traffic model, generator tools, network condition
+3. Confusion matrix (classifier verdict vs. ground-truth label)
+4. Real-world trace characteristics (source, duration, request count, assumed traffic model)
 
 
 ## List of figures
 
 1. System architecture diagram of Ocapi (ConnectionRegistry, RequestTimestamper, ProtocolAdapter, ArrivalClassifier pipeline)
-1. Inter-arrival histograms, side-by-side, for open vs. closed vs. bounded-open traffic
-1. Ambiguity spectrum: accuracy/verdict distribution as concurrency limit shifts
-1. Cross-generator consistency: same traffic model, verdict distribution across Locust and k6
-1. Real-world trace result (timeline over the replayed production/public trace)
+2. Inter-arrival histograms, side-by-side, for open vs. closed vs. bounded-open traffic
+3. Ambiguity spectrum: accuracy/verdict distribution as concurrency limit shifts
+4. Cross-generator consistency: same traffic model, verdict distribution across Locust and k6
+5. Real-world trace result (timeline over the replayed production/public trace)
 
 ## Prototype
 Module 1: Control (jitter, latency) on [github.com/tokio-rs/axum](https://github.com/tokio-rs/axum) application
@@ -49,6 +49,16 @@ Module 2: Classifier (decides whether observed traffic is open/closed/unknown)
 
 #### Workload Design Principles
 1. Use open model for public traffic; closed for bounded populations.
-1. Correct for Coordinated Omission using HdrHistogram when using closed model
+2. Closed model induced Coordinated Omission can be corrected using HdrHistogram
 
-#### Prior work (2026) fundamental limitation
+#### Prior work (2026) limitations
+"Closed-loop and distributed load testing of web applications using Kubernetes" [(2026)] was motivated by load-generator resource limits of single machine, hence they
+engineered a Kubernetes cluster of machines.
+This is a real motivation, but only adds urgency to the research question of ours: how can we evaluate whether a workload model is well-characterized or not, in a way that
+isn't obtrusive to how a load generator was engineered?
+
+Furthermore, the Kubernetes cluster is generator-centric (distributes generators -> collect metrics -> adjust traffic).
+The technique is what you reach for when you need _HTTP client side auto-scaling_, but frankly I don't know a scenario where it's useful.
+You are fundamentally further away from understanding "what load" you actually applied, only knowing whether or not "the requests-per-second met the KPI."
+
+[(2026)]: https://www.researchgate.net/publication/413621368_Closed-loop_and_distributed_load_testing_of_web_applications_using_Kubernetes
