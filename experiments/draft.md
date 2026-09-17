@@ -12,8 +12,7 @@ one person's cognitive load, i.e. brainpower for such judgment calls can be inve
 But when traffic is not isolated to one testing session (e.g. other clients, background jobs, or production traffic share the system), accounting for the open/closed distinction becomes impractical, 
 even given a load generator that is a correct implementation of its intended model.
 
-No amount of client-side correctness can recover a distinction that depends on the aggregate behavior of traffic sources.
-Total client-side correctness might be needed to survive aggregate behavior of traffic sources, but such thing is not found in real-world systems.
+Total client-side correctness might be needed to survive aggregate behavior of traffic sources, but such correctness is simply not found in real-world systems.
 
 We propose Ocapi, a controllable, HTTP server system-under-test that **diagnoses open- vs. closed-model traffic directly from observed inter-arrival timing**.
 Ocapi takes inter-arrival timeseries data [and kernel-level retransmission statistics] as inputs to characterize realistic systems exhibiting network jitter and packet loss.
