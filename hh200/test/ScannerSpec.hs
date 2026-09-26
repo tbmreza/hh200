@@ -3,14 +3,10 @@
 
 module ScannerSpec where
 
-import Debug.Trace
-
 import Test.Tasty
 import Test.Tasty.HUnit
-import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Except (runExceptT)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.HashMap.Strict as HM
 
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
@@ -80,6 +76,13 @@ testScanner_lrInvalid = testGroup "Lexer and Parser - Errors"
           Left _ -> pure ()
   ]
 
+assertResponseSquares :: Hh.ResponseSpec -> IO ()
+assertResponseSquares rs = case Hh.rpSquares rs of
+    (Just (Hh.ResponseSquareCaptures (Hh.RhsDict caps)), Just (Hh.ResponseSquareAsserts asserts)) -> do
+        assertBool "Has captures" (not (HM.null caps))
+        assertBool "Has asserts" (not (null asserts))
+    _ -> assertFailure "Expected both Captures and Asserts response squares"
+
 testScanner_lrResponseOrder :: TestTree
 testScanner_lrResponseOrder = testGroup "lexer and parser for response block order"
   [ testCase "Captures before Asserts" $ do
@@ -93,10 +96,7 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
                   Right s -> do
                       let ci = head (Hh.callItems s)
                       case Hh.ciResponseSpec ci of
-                          Just rs -> do
-                              pure ()
-                              -- assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.rpCaptures rs in hm))
-                              -- assertBool "Has asserts" $ not (null (Hh.rpAsserts rs))
+                          Just rs -> assertResponseSquares rs
                           Nothing -> assertFailure "Should have response spec"
                   Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
           Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
@@ -112,10 +112,7 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
                   Right s -> do
                       let ci = head (Hh.callItems s)
                       case Hh.ciResponseSpec ci of
-                          Just rs -> do
-                              pure ()
-                              -- assertBool "Has captures" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.rpCaptures rs in hm))
-                              -- assertBool "Has asserts" $ not (null (Hh.rpAsserts rs))  -- ??:
+                          Just rs -> assertResponseSquares rs
                           Nothing -> assertFailure "Should have response spec"
                   Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
           Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
@@ -133,7 +130,10 @@ testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $
                 Right s -> do
                     let ci = head (Hh.callItems s)
                         rs = Hh.ciRequestSpec ci
-                    -- assertBool "Has configs" $ not (Hh.mtHM == (let Hh.RhsDict hm = Hh.rqConfigs rs in hm))
+                    case Hh.rqSquares rs of
+                        (Just (Hh.RequestSquareConfigs (Hh.RhsDict cfgs)), _, _, _, _) ->
+                            assertBool "Has configs" (not (HM.null cfgs))
+                        _ -> assertFailure "Expected Configs request square"
                     assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.rqBody rs)
                 Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err

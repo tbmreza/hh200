@@ -220,8 +220,8 @@ crlf : {- empty -}  { }
 {
 
 setResponseSquare sq (a, c) = case sq of
-    ResponseSquareAsserts _ ->  (Just sq, c)
-    ResponseSquareCaptures _ -> (a,       Just sq)
+    ResponseSquareCaptures _ -> (Just sq, c)
+    ResponseSquareAsserts _ ->  (a,       Just sq)
     _                      ->   (a,       c)
 
 initResponseSquare sq = case sq of

@@ -121,12 +121,7 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      BlindLsp
-      CliSpec
-      DatabaseSpec
       ExecutionSpec
-      GoldenCli
-      GoldenNetw
       LspSpec
       MustacheSpec
       ScannerSpec
@@ -147,18 +142,10 @@ test-suite hh200-test
     , bytestring
     , case-insensitive
     , directory
-    , filepath
     , hh200
     , http-client
-    , http-types
-    , lsp-test
-    , optparse-applicative
-    , silently
-    , sqlite-simple
     , tasty
-    , tasty-golden
     , tasty-hunit
-    , temporary
     , text
     , transformers
     , unordered-containers

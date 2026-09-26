@@ -120,22 +120,14 @@ tests:
     - transformers
     - tasty
     - tasty-hunit
-    - tasty-golden
-    - silently
     - unordered-containers
     - text
-    - optparse-applicative
     - bytestring
     - aeson
-    - http-types
     - directory
-    - filepath
     - case-insensitive
     - bel-expr
-    - lsp-test
     - http-client
-    - sqlite-simple
-    - temporary
 
 # 🐝 C and C++ sources ahead 🐝
 
