@@ -16,7 +16,7 @@ use axum::{
 
 
 #[main]
-async fn main() -> () {
+async fn main() {
     init();
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
@@ -24,7 +24,9 @@ async fn main() -> () {
 
     let app = Router::new().route("/health", get(health))
                            .route("/fixed", get(health))
-                           .route("/delay/{delay}", delete(routes::delay));
+                           .route("/delay/{delay}", delete(routes::delay))
+                           .route("/status/{code}", get(routes::status))
+                           .route("/bytes/{n}", get(routes::bytes));
 
     let listener = TcpListener::bind(addr).await.unwrap();
 

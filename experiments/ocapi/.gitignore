@@ -3,3 +3,4 @@ target/flycheck0/
 target/release/
 target/*/release/deps/
 target/*/release/.fingerprint/
+target/x86_64-unknown-linux-musl/
