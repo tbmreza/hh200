@@ -10,5 +10,6 @@ routes -> traffic.dump <- arrival_classifier
 
 ```
 cargo t
+cargo r -- --dump-path "$(pwd)/traffic.txt"
 cargo build --release --target x86_64-unknown-linux-musl
 ```
