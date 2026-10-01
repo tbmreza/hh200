@@ -1,4 +1,8 @@
-use axum::{extract::Path, http::StatusCode, response::Json};
+use axum::{
+    extract::{OriginalUri, Path},
+    http::StatusCode,
+    response::Json,
+};
 use rand::Rng;
 use serde_json::json;
 use std::time::Duration;
@@ -36,4 +40,11 @@ pub async fn bytes(Path(n): Path<usize>) -> Result<Vec<u8>, (StatusCode, String)
     let mut buf = vec![0u8; n];
     rand::rng().fill(&mut buf[..]);
     Ok(buf)
+}
+
+pub async fn not_found(uri: OriginalUri) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_FOUND,
+        Json(json!({ "error": "not found", "path": uri.path() })),
+    )
 }

@@ -1,5 +1,6 @@
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -10,7 +11,7 @@ pub struct TrafficLogger {
 }
 
 impl TrafficLogger {
-    pub fn new(path: &str) -> Self {
+    pub fn new(path: &Path) -> Self {
         let file = OpenOptions::new()
             .create(true)
             .append(true)
