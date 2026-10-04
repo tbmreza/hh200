@@ -11,6 +11,11 @@ import qualified Data.HashMap.Strict as HM
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
 
+-- ??: review RhsDict, Content-Type rhs ideally doesn't require ""
+--
+-- GET http://localhost:9999/api/login
+-- Content-Type: "application/json"
+
 spec :: TestTree
 spec = testGroup "Scanner and Parser"
   [ testScanner_lrBasic

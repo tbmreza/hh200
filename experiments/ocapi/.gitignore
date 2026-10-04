@@ -1,4 +1,5 @@
 target/debug/
+target/doc/
 target/flycheck0/
 target/release/
 target/*/release/deps/

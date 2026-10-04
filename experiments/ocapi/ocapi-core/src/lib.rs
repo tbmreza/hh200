@@ -1,177 +1,47 @@
-pub enum Verdict {
-    Open,
-    Close,
-    Unknown,
-}
-// fn classify(inter_arrivals) -> Verdict
-
-// pub type Timestamp = u64;
-//
-// pub type SessionId = u32;
-//
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// pub struct Event {
-//     pub session_id: SessionId,
-//     pub arrival: Timestamp,
-//     pub completion: Option<Timestamp>,
-// }
-//
-// /// The global, session-blind projection: events sorted by arrival, gaps between
-// /// consecutive arrivals taken as Duration. This is projection (1) from the
-// /// discussion — it discards session_id and completion entirely.
-// ///
-// /// Returns the sequence of inter-arrival durations *and* the first arrival
-// /// timestamp, since the first arrival has no predecessor and is otherwise lost.
-// /// Without carrying the origin, reconstruction could only recover *relative*
-// /// arrival times, not the originals.
-// pub fn events_to_inter_arrivals(events: &[Event]) -> (Option<Timestamp>, Vec<Duration>) {
-//     if events.is_empty() {
-//         return (None, Vec::new());
-//     }
-//
-//     let mut arrivals: Vec<Timestamp> = events.iter().map(|e| e.arrival).collect();
-//     arrivals.sort_unstable();
-//
-//     let first = arrivals[0];
-//     let gaps = arrivals
-//         .windows(2)
-//         .map(|w| Duration::from_nanos(w[1] - w[0]))
-//         .collect();
-//
-//     (Some(first), gaps)
-// }
-//
-// /// Reconstructs the sorted sequence of arrival timestamps from the first
-// /// arrival and the inter-arrival gaps. This is the honest inverse of the
-// /// arrival-only half of `events_to_inter_arrivals` -- it does NOT reconstruct
-// /// session_id or completion, because those are genuinely discarded by the
-// /// projection. Roundtripping further than this is not a well-defined property.
-// pub fn inter_arrivals_to_arrivals(
-//     first: Option<Timestamp>,
-//     gaps: &[Duration],
-// ) -> Vec<Timestamp> {
-//     let Some(first) = first else {
-//         debug_assert!(gaps.is_empty(), "gaps present with no first arrival");
-//         return Vec::new();
-//     };
-//
-//     let mut arrivals = Vec::with_capacity(gaps.len() + 1);
-//     let mut current = first;
-//     arrivals.push(current);
-//     for gap in gaps {
-//         current += gap.as_nanos() as u64;
-//         arrivals.push(current);
-//     }
-//     arrivals
-// }
-//
-// /// Convenience: extract just the sorted arrival timestamps from events,
-// /// for comparing against `inter_arrivals_to_arrivals` output.
-// pub fn sorted_arrivals(events: &[Event]) -> Vec<Timestamp> {
-//     let mut arrivals: Vec<Timestamp> = events.iter().map(|e| e.arrival).collect();
-//     arrivals.sort_unstable();
-//     arrivals
-// }
-//
-// #[cfg(test)]
-// mod proptests {
-//     use super::*;
-//     use proptest::prelude::*;
-//
-//     /// Strategy for a single Event. Arrival timestamps are kept in a modest
-//     /// range so that `windows(2)` gap sums can't overflow u64 during the
-//     /// roundtrip, and session_id / completion are generated but (as noted)
-//     /// intentionally NOT checked by the roundtrip property below, since the
-//     /// projection is known to discard them.
-//     fn event_strategy() -> impl Strategy<Value = Event> {
-//         (
-//             any::<SessionId>(),
-//             0u64..1_000_000_000u64,
-//             proptest::option::of(0u64..1_000_000_000u64),
-//         )
-//             .prop_map(|(session_id, arrival, completion)| Event {
-//                 session_id,
-//                 arrival,
-//                 completion,
-//             })
-//     }
-//
-//     fn events_strategy() -> impl Strategy<Value = Vec<Event>> {
-//         proptest::collection::vec(event_strategy(), 0..200)
-//     }
-//
-//     proptest! {
-//         /// The core roundtrip property: projecting events to (first, gaps)
-//         /// and reconstructing arrivals from that must reproduce exactly the
-//         /// sorted arrival timestamps of the original events. This holds
-//         /// regardless of session_id/completion content, and regardless of
-//         /// input order, because the projection sorts internally.
-//         #[test]
-//         fn roundtrip_recovers_sorted_arrivals(events in events_strategy()) {
-//             let (first, gaps) = events_to_inter_arrivals(&events);
-//             let reconstructed = inter_arrivals_to_arrivals(first, &gaps);
-//             let expected = sorted_arrivals(&events);
-//
-//             prop_assert_eq!(reconstructed, expected);
-//         }
-//
-//         /// Sanity check on shape: the number of gaps is always one less than
-//         /// the number of events (or zero gaps for 0 or 1 events).
-//         #[test]
-//         fn gap_count_matches_event_count(events in events_strategy()) {
-//             let (_, gaps) = events_to_inter_arrivals(&events);
-//             let expected_len = events.len().saturating_sub(1);
-//             prop_assert_eq!(gaps.len(), expected_len);
-//         }
-//
-//         /// Permutation invariance: shuffling the input events before
-//         /// projecting must not change the result, since the projection sorts
-//         /// by arrival internally. This is the property that justifies
-//         /// calling this a "global, order-of-occurrence" view rather than an
-//         /// "input-order" view.
-//         #[test]
-//         fn projection_is_permutation_invariant(
-//             events in events_strategy(),
-//             seed in any::<u64>(),
-//         ) {
-//             use std::collections::hash_map::DefaultHasher;
-//             use std::hash::{Hash, Hasher};
-//
-//             let mut shuffled = events.clone();
-//             // Deterministic pseudo-shuffle keyed by `seed`, avoiding a dependency
-//             // on proptest's own shuffle strategy for this cross-check.
-//             shuffled.sort_by_cached_key(|e| {
-//                 let mut h = DefaultHasher::new();
-//                 (e.arrival, e.session_id, seed).hash(&mut h);
-//                 h.finish()
-//             });
-//
-//             let (first_a, gaps_a) = events_to_inter_arrivals(&events);
-//             let (first_b, gaps_b) = events_to_inter_arrivals(&shuffled);
-//
-//             prop_assert_eq!(first_a, first_b);
-//             prop_assert_eq!(gaps_a, gaps_b);
-//         }
-//
-//         /// Regression against the known lossiness: session_id and completion
-//         /// are NOT recoverable from (first, gaps) alone. This test doesn't
-//         /// assert failure (that's not really testable as a proptest), but
-//         /// documents -- by construction -- that reconstruction only ever
-//         /// produces Timestamps, never Events. If someone "fixes" the types
-//         /// so this compiles into producing Events, that's a signal the
-//         /// projection's contract has silently changed.
-//         #[test]
-//         fn reconstruction_type_is_timestamps_only(events in events_strategy()) {
-//             let (first, gaps) = events_to_inter_arrivals(&events);
-//             let reconstructed: Vec<Timestamp> = inter_arrivals_to_arrivals(first, &gaps);
-//             prop_assert_eq!(reconstructed.len(), events.len());
-//         }
-//     }
-// }
+//! `ocapi-core` is the analysis half of ocapi: parse a `traffic.dump` into
+//! events and classify a workload as open- or closed-loop without spinning up
+//! ocapi's builtin HTTP server.
+//!
+//! # Example
+//!
+//! ```rust
+//! use ocapi_core::classify_at_once;
+//!
+//! let log_string = String::new();
+//! println!("Verdict={}", classify_at_once(log_string));
+//! ```
 
 use std::collections::HashMap;
+use std::fmt;
 use std::fmt::Write as _;
 use std::time::Duration;
+
+/// Workload model verdict: whether the observed traffic is more consistent
+/// with an open-loop or closed-loop workload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verdict {
+    Open,
+    Closed,
+    Unknown,
+}
+
+impl fmt::Display for Verdict {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Verdict::Open => write!(f, "Open"),
+            Verdict::Closed => write!(f, "Closed"),
+            Verdict::Unknown => write!(f, "Unknown"),
+        }
+    }
+}
+
+/// Parse a capped traffic dump and classify its workload model.
+///
+/// Implementation pending: currently returns `Verdict::Unknown` unconditionally.
+pub fn classify_at_once(capped_log: String) -> Verdict {
+    let _ = capped_log;
+    Verdict::Unknown
+}
 
 /// A monotonic timestamp, modeled as nanoseconds since an arbitrary trace-local
 /// epoch. Using a plain u64 instead of std::time::Instant/SystemTime so it's
@@ -257,16 +127,6 @@ pub fn sorted_arrivals(events: &[Event]) -> Vec<Timestamp> {
     arrivals
 }
 
-// PICKUP add logging on axum routes for traffic dump textual repr.
-// Line-oriented, append-only, two-phase per event:
-//
-//   # traffic.txt
-//   A <id> <arrival_ns>
-//   C <id> <completion_ns>
-//
-// `A` is written the instant a request arrives, `C` is appended later, once (if) the response is sent
-// future default behavior is writing to xdg compliant path, overridable with cli arg.
-// but for now skip implementing xdg, our first use will be always passing --dump-path arg.
 // ---------------------------------------------------------------------------
 // traffic.dump textual format
 //
@@ -283,8 +143,8 @@ pub fn sorted_arrivals(events: &[Event]) -> Vec<Timestamp> {
 // ends, and becomes `Event { completion: None, .. }` on read -- the same
 // semantics as `Option<Timestamp>` in the in-memory type. This is the
 // meeting-point contract between routes.rs (writer) and
-// arrival_classifier.rs (reader): neither side needs to buffer the whole
-// trace or coordinate beyond "share this file/stream".
+// ocapi-core (reader): neither side needs to buffer the whole trace or
+// coordinate beyond "share this file/stream".
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, PartialEq, Eq)]
@@ -469,7 +329,7 @@ mod proptests {
         /// Blank lines and comment lines anywhere in the file must be
         /// transparently ignored -- a logger may want to emit periodic
         /// human-readable markers (rotation, restart) without corrupting
-        /// the stream for arrival_classifier.rs.
+        /// the stream for ocapi-core.
         #[test]
         fn comments_and_blank_lines_are_ignored(events in events_strategy()) {
             let mut text = write_dump(&events);

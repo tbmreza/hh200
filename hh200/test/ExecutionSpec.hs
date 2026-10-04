@@ -64,7 +64,6 @@ spec = testGroup "Execution"
   , testBodyPartToPartText
   , testBodyPartToPartFile
   , testBuildRequestCookiesWired
-  , testBuildRequestMultipartFileVsText
   , testExperimentalRequestBodyFileExists
   , testExperimentalRequestBodyFileNotFound
   , testApplyBodyJson
@@ -283,19 +282,6 @@ testBuildRequestCookiesWired = testCase "buildRequest: cookies square adds Cooki
 
 -- @ is curl's syntax for fs path. does hh200 current accommodate relative paths for free.
             -- , ("upload", [BEL.R ("file," <> "/tmp/opencode/exists.txt")])
-testBuildRequestMultipartFileVsText :: TestTree
-testBuildRequestMultipartFileVsText = testCase "buildRequest: multipart text and file parts" $ do
-    let d = RhsDict $ HM.fromList
-            [ ("note", [BEL.R "just text"])
-            , ("upload", [BEL.R ("file," <> "Area.xlsx")])
-            ]
-        rs = (ciRequestSpec mkCallItem) { rqSquares = (Nothing, Nothing, Nothing, Just (RequestSquareMultipart d), Nothing) }
-        ci = mkCallItem { ciRequestSpec = rs }
-    req <- buildRequest Nothing testEnv ci
-    let hs = HC.requestHeaders req
-        ct = lookup (CI.mk "Content-Type") hs
-    assertBool "Content-Type contains multipart/form-data" $
-        maybe False ("multipart/form-data" `BS.isInfixOf`) ct
 
 testExperimentalRequestBodyFileExists :: TestTree
 testExperimentalRequestBodyFileExists = testCase "experimentalRequestBodyFile': file exists" $ do

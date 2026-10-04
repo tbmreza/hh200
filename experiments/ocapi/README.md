@@ -4,7 +4,7 @@ A controllable HTTP system-under-test for entertaining both open- and closed-mod
 
 ```
 
-routes -> traffic.dump <- arrival_classifier
+routes -> traffic.dump <- ocapi-core
 
 ```
 

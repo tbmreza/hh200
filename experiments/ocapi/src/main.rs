@@ -1,4 +1,16 @@
-mod arrival_classifier;
+//! Ocapi is a controllable, open/closed-model workload aware, HTTP system-under-test binary. Use
+//! `ocapi-core` lib to analyze workload traffics without spinning Ocapi's builtin HTTP server.
+//!
+//! # Example
+//!
+//! ```rust
+//! use ocapi_core::{classify_at_once};
+//!
+//! fn main() {
+//!     let log_string = String::new();
+//!     println!("Verdict={}", classify_at_once(log_string));
+//! }
+//! ```
 mod control;
 mod logger;
 mod routes;
@@ -19,7 +31,7 @@ use axum::{
 use std::sync::Arc;
 use std::path::PathBuf;
 use crate::logger::TrafficLogger;
-use uuid::Uuid;
+use ocapi_core::{classify_at_once, events_to_inter_arrivals, parse_dump};
 use clap::{Parser, Subcommand};
 use etcetera::BaseStrategy;
 
@@ -66,9 +78,8 @@ async fn traffic_logger_middleware(
     request: Request,
     next: Next,
 ) -> axum::response::Response {
-    let id = Uuid::new_v4();
+    let id = state.logger.log_arrival().await;
     info!(method = %request.method(), uri = %request.uri(), id = %id, "request arrival");
-    state.logger.log_arrival(id).await;
 
     let response = next.run(request).await;
 
@@ -130,10 +141,12 @@ fn analyze(dump_path: PathBuf) {
     let text = std::fs::read_to_string(&dump_path)
         .unwrap_or_else(|e| panic!("failed to read dump {dump_path:?}: {e}"));
 
-    let events = arrival_classifier::parse_dump(&text)
+    println!("Verdict={}", classify_at_once(text.clone()));
+
+    let events = parse_dump(&text)
         .unwrap_or_else(|e| panic!("failed to parse dump {dump_path:?}: {e:?}"));
 
-    let (_, gaps) = arrival_classifier::events_to_inter_arrivals(&events);
+    let (_, gaps) = events_to_inter_arrivals(&events);
 
     let completed = events.iter().filter(|e| e.completion.is_some()).count();
     let dangling = events.len() - completed;
@@ -242,7 +255,7 @@ mod request_harness {
     /// Builds a router backed by a throwaway traffic log, returning both the
     /// state (already consumed by the router) and the log path for cleanup.
     fn temp_state() -> (AppState, PathBuf) {
-        let path = std::env::temp_dir().join(format!("ocapi-test-{}.dump", Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("ocapi-test-{}.dump", uuid::Uuid::new_v4()));
         let state = AppState {
             logger: Arc::new(TrafficLogger::new(&path)),
         };

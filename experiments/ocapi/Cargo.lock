@@ -495,7 +495,7 @@ dependencies = [
  "clap",
  "etcetera",
  "http-body-util",
- "proptest",
+ "ocapi-core",
  "rand",
  "serde_json",
  "tokio",
@@ -503,6 +503,13 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "ocapi-core"
+version = "0.1.0"
+dependencies = [
+ "proptest",
 ]
 
 [[package]]

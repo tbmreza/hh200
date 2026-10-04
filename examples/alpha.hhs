@@ -1,5 +1,4 @@
 ## copy string at jsonpath
-## goal: transmit json body  ??: review RhsDict, Content-Type rhs ideally doesn't require ""
 
 GET http://localhost:9999/api/login
 Content-Type: "application/json"

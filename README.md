@@ -96,7 +96,6 @@ URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters
 ### Development dependencies
 - shelltestrunner (latest github release: 1.11)
 - php (latest debian stable: 8.4)
-- sequelize (latest npm release: 6 stable)
 
 #### Database seeding
 
