@@ -1,19 +1,11 @@
 //! Ocapi is a controllable, open/closed-model workload aware, HTTP system-under-test binary. Use
 //! `ocapi-core` lib to analyze workload traffics without spinning Ocapi's builtin HTTP server.
-//!
-//! # Example
-//!
-//! ```rust
-//! use ocapi_core::{classify_at_once};
-//!
-//! fn main() {
-//!     let log_string = String::new();
-//!     println!("Verdict={}", classify_at_once(log_string));
-//! }
-//! ```
 mod control;
 mod logger;
 mod routes;
+
+use std::sync::Arc;
+use std::path::PathBuf;
 
 use tracing_subscriber::fmt::init;
 use tracing::info;
@@ -28,12 +20,11 @@ use axum::{
     middleware::{Next},
     extract::{Request, State},
 };
-use std::sync::Arc;
-use std::path::PathBuf;
-use crate::logger::TrafficLogger;
-use ocapi_core::{classify_at_once, events_to_inter_arrivals, parse_dump};
 use clap::{Parser, Subcommand};
 use etcetera::BaseStrategy;
+
+use crate::logger::TrafficLogger;
+use ocapi_core::{classify_at_once, events_to_inter_arrivals, parse_dump};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -44,27 +35,21 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Run the controllable HTTP system-under-test.
+    /// HTTP system-under-test.
     Serve {
-        /// Path to append the traffic dump to (written by the server).
-        /// Defaults to an XDG data directory when omitted.
         #[arg(short, long)]
         dump_path: Option<PathBuf>,
-
-        /// Port to listen on.
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
     },
 
-    /// Read a traffic dump and run the arrival classifier.
+    /// Classify traffic dump at path.
     Analyze {
-        /// Path to the traffic dump to read.
-        /// Defaults to the same XDG data directory as `serve` when omitted.
         #[arg(short, long)]
         dump_path: Option<PathBuf>,
     },
 
-    /// Check configuration and environment health.
+    /// Check installation.
     Doctor,
 }
 

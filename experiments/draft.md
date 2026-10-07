@@ -61,3 +61,21 @@ The technique is what you reach for when you need _HTTP client side auto-scaling
 You are fundamentally further away from understanding "what load" you actually applied, only knowing whether or not "the requests-per-second met the KPI."
 
 [(2026)]: https://www.researchgate.net/publication/413621368_Closed-loop_and_distributed_load_testing_of_web_applications_using_Kubernetes
+
+#### Unsorted
+
+[influential queuing model]
+Traffic model and performance evaluation of Web servers
+https://www.sciencedirect.com/science/article/pii/S0166531601000463?via%3Dihub
+
+[cautionary tale]
+Open Versus Closed: A Cautionary Tale
+https://www.semanticscholar.org/paper/Open-Versus-Closed%3A-A-Cautionary-Tale-Schroeder-Wierman/d08855653f9557b633304bb6d5b88d1a5b537302
+
+[locust thesis]
+Implementing dynamic allocation of user load in a distributed load testing framework
+https://www.semanticscholar.org/paper/Implementing-dynamic-allocation-of-user-load-in-a-Heyman/557717207ef3c0815eb91c21e973b288a9c2bc84
+
+[SUT setup]
+SpecWeaver: End-to-End HTTP API Specification Inference across Multi-layer Routing in Production Web Services
+https://www.semanticscholar.org/paper/SpecWeaver%3A-End-to-End-HTTP-API-Specification-in-Hu-Lu/258a40278045897d1aaca01cff06380d5b5b67f9

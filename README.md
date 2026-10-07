@@ -137,3 +137,28 @@ stack purge  # rm -rf .stack-work
 HH200_SQLITE=$HOME/gh/hh200/live/prisma/app.db stack run -- --call 'POST http://localhost:9999/api/echo \n {"k":9}'
 ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
 ```
+## ADR
+
+| Decision                                   | Context / trade-off | Evidence |
+|---|---|---|
+| Haskell + Stack build                      | Implementation language; managed by Stack against a pinned Stackage LTS. | `package.yaml`, `hh200/stack.yaml` |
+| Single-binary distribution                 | Ships as one binary, `npm install -g @mauikut/hh200`. | README, `releases/`, `package.json` |
+| Alex lexer + Happy parser                  | Hand-written lexer/parser specs instead of a recursive-descent parser. | `src/L.x`, `src/P.y` |
+| Grammar derived from hurl's                | Trusts hurl's grammar to match its parser implementation. | `src/P.y`, README "LR grammar" |
+| BEL embedded expression engine             | `bel-expr` provides regex/random/time batteries; compromises binary size. | `package.yaml`, `src/Hh200/Types.hs` |
+| Shared `http-client` Manager               | One Manager threaded as a Reader for connection reuse. | `src/Hh200/Http.hs`, `src/Hh200/Execution.hs` |
+| `ProcM = MaybeT (RWST Manager Log Env IO)` | Reader=manager, Writer=log, State=env; `MaybeT` short-circuits on failure. | `src/Hh200/Execution.hs` |
+| Fail fast, no skip                         | Failing fast, dodging skip-cases; compromises test percentage. | `src/Hh200/Execution.hs`, README |
+| Courier worker pool (`forkIO`)             | One courier per virtual user runs the whole Script. | `src/Hh200/TokenBucketWorkerPool.hs`, `src/Hh200/Cli.hs` |
+| STM token-bucket rate limiter              | Async refill thread spread across sub-second ticks. | `src/Hh200/TokenBucketWorkerPool.hs` |
+| STM `TVar RunState` control                | `Running/Paused/Stopped` flag shared across workers. | `src/Hh200/TokenBucketWorkerPool.hs` |
+| Unix Domain Socket control channel         | Pause/resume/stop via `/tmp/uds_socket`. | `src/Hh200/Cli.hs`, `src/Hh200/Dashboard.hs` |
+| SQLite persistence (`sqlite-simple`)       | Runs/metrics in SQLite; `HH200_SQLITE` or XDG data dir. | `src/Hh200/Database.hs` |
+| Scotty dashboard                           | Serves a SvelteKit SPA from `min/` with a JSON API. | `src/Hh200/Dashboard.hs` |
+| SSE live stream + CSV export               | Server-sent events for live data; CSV download. | `src/Hh200/Dashboard.hs` |
+| LSP server (TCP + stdio)                   | IDE support via the `lsp` package. | `src/Hh200/LanguageServer.hs`, `src/Hh200/Scanner.hs` |
+| eBPF monitoring in C/C++                   | Kernel-extending monitoring linked into the binary; requires sudo. | `packets/`, `hh200.cabal` |
+| JSON structural subset assertion           | Response body asserted as `⊆`, not exact equality. | `src/Hh200/Execution.hs` `jsonSubset` |
+| Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`. | `src/Hh200/Execution.hs` |
+| Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads. | `src/Hh200/Scanner.hs` |
+| Single-machine load (distributed = v2)     | Distributed load generation deferred to a future version 2. | README diagram |

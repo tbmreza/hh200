@@ -1,23 +1,10 @@
-//! `ocapi-core` is the analysis half of ocapi: parse a `traffic.dump` into
-//! events and classify a workload as open- or closed-loop without spinning up
-//! ocapi's builtin HTTP server.
-//!
-//! # Example
-//!
-//! ```rust
-//! use ocapi_core::classify_at_once;
-//!
-//! let log_string = String::new();
-//! println!("Verdict={}", classify_at_once(log_string));
-//! ```
-
+//! `ocapi-core` is the analysis half of ocapi: parse a traffic dump into events and classify a
+//! workload as open- or closed-loop.
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Write as _;
 use std::time::Duration;
 
-/// Workload model verdict: whether the observed traffic is more consistent
-/// with an open-loop or closed-loop workload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     Open,
@@ -35,33 +22,56 @@ impl fmt::Display for Verdict {
     }
 }
 
-/// Parse a capped traffic dump and classify its workload model.
-///
-/// Implementation pending: currently returns `Verdict::Unknown` unconditionally.
+// PICKUP handwrite degenerate traffic cases
+//
+// let's list some degenerate traffic cases (in the future we will actually handwrite them) to
+// validate Ocapi classify_at_once fn. so far I can think of:
+// single arrive-complete pair
+// one and a half pair
+// Too little data
+//
+// Empty trace: no events at all.
+// Lone arrive: A1 with no completion.
+// Single pair: A1 C1. There's no inter-arrival time, so the verdict should be "can't tell", not a guess.
+// One and a half pairs: A1 C1 A2. There's one inter-arrival, and it's consistent with both models.
+//
+// The half pair has a mirror image that's worth its own case: A1 A2 C1. Here A2 arrives before C1 completes, so the client didn't wait. That's evidence for open, or for closed with at least 2 clients, so the classifier needs to know the client count or stay inconclusive.
+//
+// Malformed input
+//
+// Orphan complete: C1 with no matching arrive.
+// Complete before arrive: C1 timestamped earlier than A1 (clock skew or reordering).
+// Duplicate IDs: two arrives with the same request ID.
+// Out-of-order completion: A1 A2 C2 C1, which is legitimate with HTTP/2 or pipelining and must not be read as misbehavior.
+//
+// Zero-width timing
+//
+// Zero service time: C1 at the same timestamp as A1.
+// Zero inter-arrival: A1 and A2 at the same timestamp (a burst).
+// Zero think time: a single closed client with A(n+1) == C(n) exactly, repeated.
+//
+// Genuinely ambiguous (ground truth can't be recovered from timing alone)
+//
+// Constant period, constant service time: an open generator with a fixed period is indistinguishable from a closed client with a fixed think time. The verdict should be "can't tell", or at least low confidence.
+// Lockstep clients: N closed clients all arriving at t0, all completing, all re-arriving at t1. This looks like periodic bursts, which an open generator could also produce.
+//
+// Structural extremes
+//
+// All arrives, then all completes: A1 A2 A3 C1 C2 C3. Overload where the client clearly didn't wait, so a strong open signal.
+// Strictly serial: A1 C1 A2 C2 A3 C3 with irregular gaps. The cleanest closed signal, and a good positive control.
+// Mid-trace idle gap: a long silence between two otherwise regular segments, so the classifier shouldn't treat the gap as think time.
 pub fn classify_at_once(capped_log: String) -> Verdict {
     let _ = capped_log;
     Verdict::Unknown
 }
 
-/// A monotonic timestamp, modeled as nanoseconds since an arbitrary trace-local
-/// epoch. Using a plain u64 instead of std::time::Instant/SystemTime so it's
-/// trivially constructible in tests, serializable as plain text, and
-/// arithmetic-transparent.
 pub type Timestamp = u64;
 
-/// Logger-assigned join key linking an arrival line to its (possible) later
-/// completion line in `traffic.dump`. Not semantically meaningful beyond that
-/// -- NOT a session_id. A black-box logger (routes.rs) has no notion of which
+/// A black-box logger (routes.rs) has no notion of which
 /// client/session a request belongs to; it only knows "this request, when it
-/// arrived, and if/when it completed."
+/// arrived, and if/when it completed." therefore not a session ID.
 pub type EventId = u64;
 
-/// session_id deliberately dropped from this type. Okapi observes a black-box
-/// SUT's traffic; session structure is not something routes.rs can log because
-/// it isn't observable at that vantage point. If/when we want session_id-like
-/// structure, it should be a *derived, uncertainty-flagged* analysis output
-/// (see prior discussion: renewal-gap clustering / concurrency estimation),
-/// never a field that implies it was observed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Event {
     pub arrival: Timestamp,
@@ -72,16 +82,6 @@ pub struct Event {
 // inter_arrivals projection (unchanged in spirit from before, session-free now)
 // ---------------------------------------------------------------------------
 
-/// The global, session-blind projection: events sorted by arrival, gaps
-/// between consecutive arrivals taken as Duration. Discards `completion`
-/// (deliberately -- this view is for arrival-process statistics only; CO /
-/// service-time analyses should read `Event.completion` directly rather than
-/// go through this projection).
-///
-/// Returns the gaps *and* the first arrival timestamp, since the first
-/// arrival has no predecessor and is otherwise lost -- without carrying the
-/// origin, reconstruction could only recover relative arrival times, not the
-/// originals.
 pub fn events_to_inter_arrivals(events: &[Event]) -> (Option<Timestamp>, Vec<Duration>) {
     if events.is_empty() {
         return (None, Vec::new());
@@ -99,10 +99,6 @@ pub fn events_to_inter_arrivals(events: &[Event]) -> (Option<Timestamp>, Vec<Dur
     (Some(first), gaps)
 }
 
-/// Reconstructs the sorted sequence of arrival timestamps from the first
-/// arrival and the inter-arrival gaps. Honest inverse of the arrival-only
-/// half of `events_to_inter_arrivals` -- does NOT reconstruct `completion`,
-/// which is genuinely discarded by the projection.
 pub fn inter_arrivals_to_arrivals(first: Option<Timestamp>, gaps: &[Duration]) -> Vec<Timestamp> {
     let Some(first) = first else {
         debug_assert!(gaps.is_empty(), "gaps present with no first arrival");
@@ -119,8 +115,6 @@ pub fn inter_arrivals_to_arrivals(first: Option<Timestamp>, gaps: &[Duration]) -
     arrivals
 }
 
-/// Convenience: extract just the sorted arrival timestamps from events, for
-/// comparing against `inter_arrivals_to_arrivals` output.
 pub fn sorted_arrivals(events: &[Event]) -> Vec<Timestamp> {
     let mut arrivals: Vec<Timestamp> = events.iter().map(|e| e.arrival).collect();
     arrivals.sort_unstable();
@@ -132,7 +126,7 @@ pub fn sorted_arrivals(events: &[Event]) -> Vec<Timestamp> {
 //
 // Line-oriented, append-only, two-phase per event:
 //
-//   # okapi traffic.dump v1
+//   # ocapi traffic.dump v1
 //   A <id> <arrival_ns>
 //   C <id> <completion_ns>
 //
@@ -159,13 +153,8 @@ pub enum ParseError {
     DuplicateArrival { line_no: usize, id: EventId },
 }
 
-/// Serializes events to the `traffic.dump` text format. Assigns each event a
-/// fresh sequential EventId in slice order (order here is "logger's write
-/// order", not sorted by arrival -- a real logger writes in wall-clock order
-/// as requests actually arrive, which is arrival order by construction, but
-/// we don't assume the caller pre-sorted).
 pub fn write_dump(events: &[Event]) -> String {
-    let mut out = String::from("# okapi traffic.dump v1\n");
+    let mut out = String::from("# ocapi traffic.dump v1\n");
     for (id, event) in events.iter().enumerate() {
         let id = id as EventId;
         let _ = writeln!(out, "A {id} {}", event.arrival);
@@ -176,10 +165,6 @@ pub fn write_dump(events: &[Event]) -> String {
     out
 }
 
-/// Parses a `traffic.dump` text into events. Order of the returned Vec
-/// matches EventId order (i.e., logger write order / arrival order), NOT
-/// sorted -- callers wanting the sorted-by-arrival view should still go
-/// through `events_to_inter_arrivals`, which sorts internally.
 pub fn parse_dump(text: &str) -> Result<Vec<Event>, ParseError> {
     let mut arrivals: HashMap<EventId, Timestamp> = HashMap::new();
     let mut completions: HashMap<EventId, Timestamp> = HashMap::new();
@@ -305,7 +290,7 @@ mod proptests {
         /// the two-phase format exists to support.
         #[test]
         fn dangling_arrival_becomes_none(arrival in 0u64..1_000_000_000u64) {
-            let text = format!("# okapi traffic.dump v1\nA 0 {arrival}\n");
+            let text = format!("# ocapi traffic.dump v1\nA 0 {arrival}\n");
             let parsed = parse_dump(&text).expect("dangling A is valid");
             prop_assert_eq!(parsed, vec![Event { arrival, completion: None }]);
         }
@@ -318,7 +303,7 @@ mod proptests {
             id in any::<EventId>(),
             ts in 0u64..1_000_000_000u64,
         ) {
-            let text = format!("# okapi traffic.dump v1\nC {id} {ts}\n");
+            let text = format!("# ocapi traffic.dump v1\nC {id} {ts}\n");
             let result = parse_dump(&text);
             prop_assert_eq!(
                 result,
@@ -358,7 +343,7 @@ mod proptests {
 
     #[test]
     fn duplicate_arrival_is_rejected() {
-        let text = "# okapi traffic.dump v1\nA 0 100\nA 0 200\n";
+        let text = "# ocapi traffic.dump v1\nA 0 100\nA 0 200\n";
         assert_eq!(
             parse_dump(text),
             Err(ParseError::DuplicateArrival { line_no: 3, id: 0 })
@@ -367,7 +352,7 @@ mod proptests {
 
     #[test]
     fn malformed_line_is_rejected() {
-        let text = "# okapi traffic.dump v1\nX 0 100\n";
+        let text = "# ocapi traffic.dump v1\nX 0 100\n";
         assert_eq!(
             parse_dump(text),
             Err(ParseError::Malformed {
@@ -379,14 +364,14 @@ mod proptests {
 
     #[test]
     fn empty_dump_parses_to_empty_events() {
-        let text = "# okapi traffic.dump v1\n";
+        let text = "# ocapi traffic.dump v1\n";
         assert_eq!(parse_dump(text), Ok(Vec::new()));
     }
 
     #[test]
     fn later_completion_line_overwrites_earlier_one() {
         // Simulates a logger re-emitting a corrected completion record.
-        let text = "# okapi traffic.dump v1\nA 0 100\nC 0 150\nC 0 160\n";
+        let text = "# ocapi traffic.dump v1\nA 0 100\nC 0 150\nC 0 160\n";
         let parsed = parse_dump(text).unwrap();
         assert_eq!(
             parsed,
