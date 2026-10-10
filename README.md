@@ -139,6 +139,9 @@ ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fa
 ```
 ## ADR
 
+- should we facilitate extra known information (e.g. number of clients for DGC-01)
+- `diagnostics` module for DGC-02
+
 | Decision                                   | Context / trade-off | Evidence |
 |---|---|---|
 | Haskell + Stack build                      | Implementation language; managed by Stack against a pinned Stackage LTS. | `package.yaml`, `hh200/stack.yaml` |

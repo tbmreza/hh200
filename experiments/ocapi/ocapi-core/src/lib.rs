@@ -22,7 +22,8 @@ impl fmt::Display for Verdict {
     }
 }
 
-// PICKUP handwrite degenerate traffic cases
+// PICKUP handwrite degenerate traffic cases: load up as-is what's written to rotated.log after
+// listening to hh200 hits
 //
 // let's list some degenerate traffic cases (in the future we will actually handwrite them) to
 // validate Ocapi classify_at_once fn. so far I can think of:
@@ -33,11 +34,11 @@ impl fmt::Display for Verdict {
 // Empty trace: no events at all.
 // Lone arrive: A1 with no completion.
 // Single pair: A1 C1. There's no inter-arrival time, so the verdict should be "can't tell", not a guess.
-// One and a half pairs: A1 C1 A2. There's one inter-arrival, and it's consistent with both models.
+// [DGC-01] One and a half pairs: A1 C1 A2. There's one inter-arrival, and it's consistent with both models.
 //
 // The half pair has a mirror image that's worth its own case: A1 A2 C1. Here A2 arrives before C1 completes, so the client didn't wait. That's evidence for open, or for closed with at least 2 clients, so the classifier needs to know the client count or stay inconclusive.
 //
-// Malformed input
+// [DGC-02] Malformed input
 //
 // Orphan complete: C1 with no matching arrive.
 // Complete before arrive: C1 timestamped earlier than A1 (clock skew or reordering).
@@ -60,8 +61,8 @@ impl fmt::Display for Verdict {
 // All arrives, then all completes: A1 A2 A3 C1 C2 C3. Overload where the client clearly didn't wait, so a strong open signal.
 // Strictly serial: A1 C1 A2 C2 A3 C3 with irregular gaps. The cleanest closed signal, and a good positive control.
 // Mid-trace idle gap: a long silence between two otherwise regular segments, so the classifier shouldn't treat the gap as think time.
-pub fn classify_at_once(capped_log: String) -> Verdict {
-    let _ = capped_log;
+pub fn classify_at_once(capped_logs: String) -> Verdict {
+    let _ = capped_logs;
     Verdict::Unknown
 }
 
@@ -235,6 +236,15 @@ pub fn parse_dump(text: &str) -> Result<Vec<Event>, ParseError> {
 mod proptests {
     use super::*;
     use proptest::prelude::*;
+
+    #[test]
+    fn debug_capped_logs() {
+        // let path = "/home/tbmreza/gh/hh200/experiments/ocapi/rotated.log";
+        let path = "/home/tbmreza/gh/hh200/experiments/ocapi/ocapi-core/fixtures/empty.dump";
+        let capped_logs = std::fs::read_to_string(path).expect("failed to read rotated.log");
+        let verdict = classify_at_once(capped_logs);
+        eprintln!("verdict: {verdict}");
+    }
 
     fn event_strategy() -> impl Strategy<Value = Event> {
         (
