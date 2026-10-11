@@ -137,11 +137,20 @@ stack purge  # rm -rf .stack-work
 HH200_SQLITE=$HOME/gh/hh200/live/prisma/app.db stack run -- --call 'POST http://localhost:9999/api/echo \n {"k":9}'
 ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fast feedback loop!
 ```
+## Experiments
+### Ocapi
+Ocapi argument line is `L1: passive impossibility; L2: witness; T: active identifiability`
+
 ## ADR
+??: use all fixtures as example based unit tests; mod side_information instantiate Count::AtLeast(2)
 
-- should we facilitate extra known information (e.g. number of clients for DGC-01)
-- `diagnostics` module for DGC-02
+### Ocapi
+| Decision                     | Context / trade-off | Evidence |
+|---|---|---|
+| Facilitates side information | What better place to inventorize workload related information than here. | Number of clients for DGC-01. |
+| TUI live verdict             | A problem of streaming/batching once core is done.                       | |
 
+### hh200
 | Decision                                   | Context / trade-off | Evidence |
 |---|---|---|
 | Haskell + Stack build                      | Implementation language; managed by Stack against a pinned Stackage LTS. | `package.yaml`, `hh200/stack.yaml` |
