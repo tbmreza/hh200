@@ -49,12 +49,19 @@ CREATE TABLE "request_bodies" (
 );
 
 -- CreateTable
-CREATE TABLE "Metric" (
+CREATE TABLE "metric_windows" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "run_id" INTEGER NOT NULL,
-    "kind" TEXT NOT NULL,
-    "sent_at" BIGINT NOT NULL,
-    "acked_at" BIGINT
+    "endpoint" TEXT NOT NULL,
+    "start" DATETIME NOT NULL,
+    "end" DATETIME NOT NULL,
+    "count" INTEGER NOT NULL,
+    "fail_count" INTEGER NOT NULL,
+    "min_latency" REAL NOT NULL,
+    "max_latency" REAL NOT NULL,
+    "avg_latency" REAL NOT NULL,
+    "rps" REAL NOT NULL,
+    CONSTRAINT "metric_windows_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "runs" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateIndex

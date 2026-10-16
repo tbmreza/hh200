@@ -1,6 +1,7 @@
 node_modules
-*.db-shm
-*.db-wal
+*.db
+*.db-*
+*.tsbuildinfo
 
 # Output
 .output
@@ -24,4 +25,4 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# /src/generated/prisma
+/src/generated/prisma

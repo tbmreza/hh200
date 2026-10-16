@@ -1,5 +1,8 @@
 # live
 
+> After a fresh clone/checkout, run `bun run schema` once to regenerate the
+> Prisma client (`src/generated/prisma` is gitignored and not committed).
+
 ```
 nvm use
 bun run upstream

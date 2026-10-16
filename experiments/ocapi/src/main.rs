@@ -126,7 +126,7 @@ fn analyze(dump_path: PathBuf) {
     let text = std::fs::read_to_string(&dump_path)
         .unwrap_or_else(|e| panic!("failed to read dump {dump_path:?}: {e}"));
 
-    println!("Verdict={}", classify_at_once(text.clone()));
+    println!("Verdict={:?}", classify_at_once(text.clone()));
 
     let events = parse_dump(&text)
         .unwrap_or_else(|e| panic!("failed to parse dump {dump_path:?}: {e:?}"));
