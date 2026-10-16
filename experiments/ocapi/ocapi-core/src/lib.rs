@@ -1,7 +1,6 @@
 //! `ocapi-core` is the analysis half of ocapi: parse a traffic dump into events and classify a
 //! workload as open- or closed-loop.
 use std::collections::HashMap;
-// use std::fmt;
 use std::fmt::Write as _;
 use std::time::Duration;
 
@@ -190,8 +189,7 @@ impl HasClients for Context<Fact<Count>> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
-    Undetermined, // ⊤ : no information  ??: for ocapi lattice, would Undetermined or would Conflict
-                  // be the top/bottom, which one is which
+    Undetermined, // ⊤ : no information
     Open,
     Closed,
     Conflict, //     ⊥ : sources disagree
@@ -238,7 +236,6 @@ pub struct Verdict {
     pub basis: Basis,
 }
 
-// one half fixture is closed with at least 2 clients
 impl Verdict {
     pub fn undetermined() -> Self {
         Verdict { kind: Kind::Undetermined, basis: Basis::Unconditional }
@@ -427,23 +424,6 @@ fn show(label: &str, v: Verdict) {
     println!("  {label:<46} {:?} / {:?}", v.kind, v.basis);
 }
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum Verdict {
-//     Open,
-//     Closed,
-//     Unknown,
-// }
-//
-// impl fmt::Display for Verdict {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match self {
-//             Verdict::Open => write!(f, "Open"),
-//             Verdict::Closed => write!(f, "Closed"),
-//             Verdict::Unknown => write!(f, "Unknown"),
-//         }
-//     }
-// }
-
 // Too little data
 //
 // Empty trace: no events at all.
@@ -476,25 +456,7 @@ fn show(label: &str, v: Verdict) {
 // All arrives, then all completes: A1 A2 A3 C1 C2 C3. Overload where the client clearly didn't wait, so a strong open signal.
 // Strictly serial: A1 C1 A2 C2 A3 C3 with irregular gaps. The cleanest closed signal, and a good positive control.
 // Mid-trace idle gap: a long silence between two otherwise regular segments, so the classifier shouldn't treat the gap as think time.
-// pub fn classify_at_once(capped_logs: String) -> Verdict {
 pub fn classify_at_once(capped_logs: String) -> () {
-    // let events = match parse_dump(&capped_logs) {
-    //     Ok(events) => events,
-    //     Err(_) => return Verdict::Unknown, // [DGC-02] malformed input, later
-    // };
-
-    // Too little data: fewer than 2 completed pairs leaves no inter-arrival
-    // / think-time observation to compare against service time, so open vs
-    // closed is undecidable. This also covers the mirror case (A1 A2 C1):
-    // its Unknown is a deliberate placeholder that will later bridge to a
-    // Context data structure (client count) to tell "open" apart from
-    // "closed with >=2 clients".
-    // let completed = events.iter().filter(|e| e.completion.is_some()).count();
-    // if completed < 2 {
-    //     return Verdict::Unknown;
-    // }
-    //
-    // Verdict::Unknown // ← statistical analysis slots in here
 }
 
 pub type Timestamp = u64;
@@ -846,116 +808,49 @@ fn events_to_trace(events: &[Event]) -> Trace {
 mod fixture_tests {
     use super::*;
 
-    /// Example-based tests over the golden `fixtures/*.dump` files. Each test
-    /// embeds its fixture at compile time (`include_str!`) so it never depends
-    /// on the process's working directory, and asserts the exact parse result
-    /// described by the fixture's own `#` header. See `fixtures/README.md`.
+    /// One test per golden fixture in `fixtures/*.dump`. Each test embeds its
+    /// file at compile time (`include_str!`), parses it into a `Trace`,
+    /// classifies it, and asserts the verdict recorded in the fixture's own
+    /// `#` header and `fixtures/README.md`.
 
     #[test]
-    fn empty_dump_parses_to_no_events() {
-        let text = include_str!("../fixtures/empty.dump");
-        assert_eq!(parse_dump(text), Ok(vec![]));
+    fn empty_dump_is_undetermined() {
+        let trace = validate_dump(include_str!("../fixtures/empty.dump")).unwrap();
+        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
     }
 
     #[test]
-    fn lone_arrive_parses_to_dangling_arrival() {
-        let text = include_str!("../fixtures/lone_arrive.dump");
+    fn lone_arrive_is_undetermined() {
+        let trace = validate_dump(include_str!("../fixtures/lone_arrive.dump")).unwrap();
+        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+    }
+
+    #[test]
+    fn single_pair_is_undetermined() {
+        let trace = validate_dump(include_str!("../fixtures/single_pair.dump")).unwrap();
+        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+    }
+
+    #[test]
+    fn one_and_a_half_pairs_is_undetermined() {
+        let trace = validate_dump(include_str!("../fixtures/one_and_a_half_pairs.dump")).unwrap();
+        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+    }
+
+    #[test]
+    fn one_and_a_half_pairs_mirror_depends_on_client_count() {
+        let trace =
+            validate_dump(include_str!("../fixtures/one_and_a_half_pairs_mirror.dump")).unwrap();
+
+        // A2 arrives before C1 completes (peak outstanding = 2): a single
+        // client can't be in flight twice, so Open; >=2 clients is Closed.
         assert_eq!(
-            parse_dump(text),
-            Ok(vec![Event {
-                arrival: 1000,
-                completion: None,
-            }])
+            diagnose(&trace, Knowledge::Fact(Fact::known(Count::exactly(1)))).kind,
+            Kind::Open,
+        );
+        assert_eq!(
+            diagnose(&trace, Knowledge::Fact(Fact::known(Count::exactly(2)))).kind,
+            Kind::Closed,
         );
     }
-
-    #[test]
-    fn single_pair_parses_to_one_pair() {
-        let text = include_str!("../fixtures/single_pair.dump");
-        assert_eq!(
-            parse_dump(text),
-            Ok(vec![Event {
-                arrival: 1000,
-                completion: Some(1100),
-            }])
-        );
-    }
-
-    #[test]
-    fn one_and_a_half_pairs_parses_to_pair_plus_dangling() {
-        let text = include_str!("../fixtures/one_and_a_half_pairs.dump");
-        assert_eq!(
-            parse_dump(text),
-            Ok(vec![
-                Event {
-                    arrival: 1000,
-                    completion: Some(1100),
-                },
-                Event {
-                    arrival: 2000,
-                    completion: None,
-                },
-            ])
-        );
-    }
-
-    #[test]
-    fn one_and_a_half_pairs_mirror_parses_with_out_of_order_completion() {
-        let text = include_str!("../fixtures/one_and_a_half_pairs_mirror.dump");
-        let trace = validate_dump(text).expect("fixture must parse");
-
-        // Agree<InterArrival, ConcurrencyBound>
-        let cross = InterArrival { window_ms: 2 }.agree(ConcurrencyBound);
-        let ctx = |f| Context::empty().with_clients(f);
-
-        show("mirror, Known(2)", cross.classify(&trace, &ctx(Fact::known(Count::exactly(2)))));
-        // show("mirror, Assumed(>=4)", cross.classify(&trace, &ctx(Fact::assumed(Count::at_least(4)))));
-        // show("one_half, Assumed(>=2)", cross.classify(&trace, &ctx(Fact::assumed(Count::at_least(2)))));
-    }
-
-    // // Each fixture is "too little data" (< 2 completed pairs), so the
-    // // classifier must stay inconclusive rather than guess. The mirror case
-    // // (A1 A2 C1) is the notable one: an open signal that can't yet be
-    // // separated from "closed with >=2 clients" without a Context.
-    // #[test]
-    // fn empty_dump_classifies_unknown() {
-    //     assert_eq!(
-    //         classify_at_once(include_str!("../fixtures/empty.dump").to_string()),
-    //         Verdict::Unknown
-    //     );
-    // }
-    //
-    // #[test]
-    // fn lone_arrive_classifies_unknown() {
-    //     assert_eq!(
-    //         classify_at_once(include_str!("../fixtures/lone_arrive.dump").to_string()),
-    //         Verdict::Unknown
-    //     );
-    // }
-    //
-    // #[test]
-    // fn single_pair_classifies_unknown() {
-    //     assert_eq!(
-    //         classify_at_once(include_str!("../fixtures/single_pair.dump").to_string()),
-    //         Verdict::Unknown
-    //     );
-    // }
-    //
-    // #[test]
-    // fn one_and_a_half_pairs_classifies_unknown() {
-    //     assert_eq!(
-    //         classify_at_once(include_str!("../fixtures/one_and_a_half_pairs.dump").to_string()),
-    //         Verdict::Unknown
-    //     );
-    // }
-    //
-    // #[test]
-    // fn one_and_a_half_pairs_mirror_classifies_unknown() {
-    //     assert_eq!(
-    //         classify_at_once(
-    //             include_str!("../fixtures/one_and_a_half_pairs_mirror.dump").to_string()
-    //         ),
-    //         Verdict::Unknown
-    //     );
-    // }
 }

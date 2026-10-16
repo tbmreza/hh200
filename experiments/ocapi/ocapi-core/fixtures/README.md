@@ -27,11 +27,11 @@ C <id> <completion_ns>
 
 | File | Case | Reading |
 | --- | --- | --- |
-| `empty.dump` | Empty trace. | |
-| `lone_arrive.dump` | `A1` with no completion. | |
-| `single_pair.dump` | No inter-arrival time, verdict "can't tell". | |
-| `one_and_a_half_pairs.dump` | `A1 C1 A2`. | |
-| `one_and_a_half_pairs_mirror.dump` | One and a half pairs, mirror: `A1 A2 C1`. | Closed with at least 2 clients. |
+| `empty.dump` | Empty trace. | No events, can't tell. |
+| `lone_arrive.dump` | `A1` with no completion. | Too little data, can't tell. |
+| `single_pair.dump` | No inter-arrival time, verdict "can't tell". | Can't tell. |
+| `one_and_a_half_pairs.dump` | `A1 C1 A2`. | One inter-arrival gap is consistent with both an open and a closed workload (intuitively, next arrival A2 arrived after a delay regardless number of clients), can't tell. |
+| `one_and_a_half_pairs_mirror.dump` | One and a half pairs, mirror: `A1 A2 C1`. | Open, or closed with at least 2 clients. |
 
 ## Before adding a new case
 
