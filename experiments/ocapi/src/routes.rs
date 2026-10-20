@@ -7,6 +7,10 @@ use rand::Rng;
 use serde_json::json;
 use std::time::Duration;
 
+pub async fn health() -> StatusCode {
+    StatusCode::OK
+}
+
 // ??: write inter_arrivals data
 pub async fn delay(Path(delay): Path<f64>) -> (StatusCode, Json<serde_json::Value>) {
     let capped = delay.min(10.0);
