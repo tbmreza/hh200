@@ -4,6 +4,7 @@
 mod context;
 mod dump;
 mod lattice;
+mod live;
 mod strategy;
 mod trace;
 mod verdict;
@@ -14,6 +15,7 @@ pub use dump::{
     validate_dump, write_dump, Event, EventId, ParseError, Timestamp,
 };
 pub use lattice::{Contradiction, Count, Fact, Knowledge, Meet, Provenance};
+pub use live::{classify_events, VerdictEngine};
 pub use strategy::{diagnose, Agree, Combine, ConcurrencyBound, InterArrival, OrElse, Strategy};
 pub use trace::{Ev, Trace};
 pub use verdict::{Basis, Kind, Verdict};
@@ -90,7 +92,12 @@ fn show(label: &str, v: Verdict) {
 // All arrives, then all completes: A1 A2 A3 C1 C2 C3. Overload where the client clearly didn't wait, so a strong open signal.
 // Strictly serial: A1 C1 A2 C2 A3 C3 with irregular gaps. The cleanest closed signal, and a good positive control.
 // Mid-trace idle gap: a long silence between two otherwise regular segments, so the classifier shouldn't treat the gap as think time.
-pub fn classify_at_once(capped_logs: String) -> () {
+/// Classify a full `traffic.dump` string in one pass. The headless/replay
+/// frontend calls this over a whole trace; the live frontend drives
+/// [`VerdictEngine`] event-by-event. Both funnel into [`classify_events`].
+pub fn classify_at_once(capped_logs: String) -> Result<Verdict, ParseError> {
+    let events = parse_dump(&capped_logs)?;
+    Ok(classify_events(&events))
 }
 
 #[cfg(test)]

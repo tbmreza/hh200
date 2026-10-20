@@ -4,15 +4,20 @@ mod builtin_server;
 mod control;
 mod logger;
 mod routes;
+mod tui;
+mod tui_logger;
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use tracing_subscriber::fmt::init;
 use tokio::main;
 use clap::{Parser, Subcommand};
 use etcetera::BaseStrategy;
 
 use ocapi_core::{classify_at_once, events_to_inter_arrivals, parse_dump};
+
+use crate::logger::FileLogger;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -29,6 +34,9 @@ enum Commands {
         dump_path: Option<PathBuf>,
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
+        /// Run the live traffic TUI instead of the plain file logger.
+        #[arg(long)]
+        tui: bool,
     },
 
     /// Classify traffic dump at path.
@@ -43,24 +51,72 @@ enum Commands {
 
 #[main]
 async fn main() {
-    init();
-
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Serve { dump_path, port } => {
-            builtin_server::serve(dump_path.unwrap_or_else(default_dump_path), port).await
+        Commands::Serve {
+            dump_path,
+            port,
+            tui,
+        } => {
+            // A TUI owns the terminal, so only run it on a real TTY. Tracing
+            // moves to a file in that case; otherwise it stays on stdout.
+            let tui = tui && std::io::stdout().is_terminal();
+            let _guard = init_tracing(tui);
+
+            let dump_path = dump_path.unwrap_or_else(default_dump_path);
+            if let Some(parent) = dump_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .unwrap_or_else(|e| panic!("failed to create dump dir {parent:?}: {e}"));
+            }
+
+            if tui {
+                let (logger, tui::TuiRuntime { handle, shutdown }) = tui::build(&dump_path);
+                builtin_server::serve(port, logger, Some(shutdown)).await;
+                let _ = handle.join();
+            } else {
+                let logger = Arc::new(FileLogger::new(&dump_path));
+                builtin_server::serve(port, logger, None).await;
+            }
         }
-        Commands::Analyze { dump_path } => analyze(dump_path.unwrap_or_else(default_dump_path)),
-        Commands::Doctor => doctor(),
+        Commands::Analyze { dump_path } => {
+            init_tracing(false);
+            analyze(dump_path.unwrap_or_else(default_dump_path));
+        }
+        Commands::Doctor => {
+            init_tracing(false);
+            doctor();
+        }
     }
+}
+
+/// Route `tracing` output: to stdout by default, or to a fixed file under the
+/// XDG state directory while the TUI owns the terminal. The file is opened in
+/// append mode, which is what makes an external `logrotate` `copytruncate`
+/// rotation safe (O_APPEND re-seeks to EOF after truncation).
+fn init_tracing(to_file: bool) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    if !to_file {
+        tracing_subscriber::fmt::init();
+        return None;
+    }
+
+    let dir = state_dir();
+    std::fs::create_dir_all(&dir)
+        .unwrap_or_else(|e| panic!("failed to create state dir {dir:?}: {e}"));
+
+    let appender = tracing_appender::rolling::never(&dir, "ocapi.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(appender);
+    tracing_subscriber::fmt().with_writer(non_blocking).init();
+    Some(guard)
 }
 
 fn analyze(dump_path: PathBuf) {
     let text = std::fs::read_to_string(&dump_path)
         .unwrap_or_else(|e| panic!("failed to read dump {dump_path:?}: {e}"));
 
-    println!("Verdict={:?}", classify_at_once(text.clone()));
+    let verdict = classify_at_once(text.clone())
+        .unwrap_or_else(|e| panic!("failed to classify dump {dump_path:?}: {e:?}"));
+    println!("Verdict={:?}", verdict);
 
     let events = parse_dump(&text)
         .unwrap_or_else(|e| panic!("failed to parse dump {dump_path:?}: {e:?}"));
@@ -119,6 +175,16 @@ fn data_dir() -> PathBuf {
         .expect("failed to determine platform base directories");
 
     dirs.data_dir().join("ocapi")
+}
+
+/// Directory holding ocapi's per-user state (the TUI tracing log), per XDG.
+fn state_dir() -> PathBuf {
+    let dirs = etcetera::base_strategy::choose_base_strategy()
+        .expect("failed to determine platform base directories");
+
+    dirs.state_dir()
+        .expect("failed to determine state directory")
+        .join("ocapi")
 }
 
 fn default_dump_path() -> PathBuf {

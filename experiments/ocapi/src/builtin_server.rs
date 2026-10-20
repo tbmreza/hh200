@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{
@@ -10,6 +9,7 @@ use axum::{
     Router,
 };
 use tokio::net::TcpListener;
+use tokio::sync::oneshot;
 use tracing::info;
 
 use crate::logger::TrafficLogger;
@@ -17,7 +17,7 @@ use crate::routes;
 
 #[derive(Clone)]
 struct AppState {
-    logger: Arc<TrafficLogger>,
+    logger: Arc<dyn TrafficLogger>,
 }
 
 async fn traffic_logger_middleware(
@@ -35,13 +35,14 @@ async fn traffic_logger_middleware(
     response.into_response()
 }
 
-pub async fn serve(dump_path: PathBuf, port: u16) {
-    if let Some(parent) = dump_path.parent() {
-        std::fs::create_dir_all(parent)
-            .unwrap_or_else(|e| panic!("failed to create dump dir {parent:?}: {e}"));
-    }
-
-    let logger = Arc::new(TrafficLogger::new(&dump_path));
+/// Runs the HTTP SUT. `logger` is either the file-backed logger or the TUI
+/// logger; `shutdown` is `Some` in TUI mode so quitting the TUI stops the
+/// server gracefully.
+pub async fn serve(
+    port: u16,
+    logger: Arc<dyn TrafficLogger>,
+    shutdown: Option<oneshot::Receiver<()>>,
+) {
     let state = AppState { logger };
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
@@ -51,7 +52,16 @@ pub async fn serve(dump_path: PathBuf, port: u16) {
 
     let listener = TcpListener::bind(addr).await.unwrap();
 
-    axum_serve(listener, app).await.unwrap()
+    match shutdown {
+        Some(rx) => axum_serve(listener, app)
+            .with_graceful_shutdown(async move {
+                // Ok(()) on user quit, Err(_) if the TUI thread died first.
+                let _ = rx.await;
+            })
+            .await
+            .unwrap(),
+        None => axum_serve(listener, app).await.unwrap(),
+    }
 }
 
 fn build_router(state: AppState) -> Router {
@@ -72,17 +82,21 @@ fn build_router(state: AppState) -> Router {
 #[cfg(test)]
 mod request_harness {
     use super::*;
+    use std::path::PathBuf;
+
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
+
+    use crate::logger::FileLogger;
 
     /// Builds a router backed by a throwaway traffic log, returning both the
     /// state (already consumed by the router) and the log path for cleanup.
     fn temp_state() -> (AppState, PathBuf) {
         let path = std::env::temp_dir().join(format!("ocapi-test-{}.dump", uuid::Uuid::new_v4()));
         let state = AppState {
-            logger: Arc::new(TrafficLogger::new(&path)),
+            logger: Arc::new(FileLogger::new(&path)),
         };
         (state, path)
     }

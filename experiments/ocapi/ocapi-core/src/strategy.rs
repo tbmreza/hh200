@@ -31,7 +31,6 @@ impl<T> Combine for T {}
 pub struct OrElse<A, B>(A, B);
 impl<Ctx, A: Strategy<Ctx>, B: Strategy<Ctx>> Strategy<Ctx> for OrElse<A, B> {
     fn classify(&self, t: &Trace, c: &Ctx) -> Verdict {
-        println!("here0");
         let v = self.0.classify(t, c);
         if v.kind != Kind::Undetermined { v } else { self.1.classify(t, c) }
     }
@@ -40,7 +39,6 @@ impl<Ctx, A: Strategy<Ctx>, B: Strategy<Ctx>> Strategy<Ctx> for OrElse<A, B> {
 pub struct Agree<A, B>(A, B);
 impl<Ctx, A: Strategy<Ctx>, B: Strategy<Ctx>> Strategy<Ctx> for Agree<A, B> {
     fn classify(&self, t: &Trace, c: &Ctx) -> Verdict {
-        println!("here1");
         self.0.classify(t, c).meet(self.1.classify(t, c))
     }
 }
@@ -76,22 +74,15 @@ pub struct ConcurrencyBound;
 impl<Ctx: HasClients> Strategy<Ctx> for ConcurrencyBound {
     fn classify(&self, t: &Trace, c: &Ctx) -> Verdict {
         let f = c.clients();
-        println!("here3: {:?}", f);
-        println!("Trace: {:?}", t);
         let tpeak = t.peak_outstanding();
-        let fupper = f.value.upper();
-        println!("f.value.upper()={:?}, t.peak_outstanding()={:?}", fupper, tpeak);
         match f.value.upper() {
-            Some(n) if t.peak_outstanding() > n => {
+            Some(n) if tpeak > n => {
                 Verdict { kind: Kind::Open, basis: Basis::of(f, "clients") }
             }
-            Some(n) => {
+            Some(_) => {
                 Verdict { kind: Kind::Closed, basis: Basis::of(f, "clients") }
             }
-            _ => {
-                println!("here3.1");
-                Verdict::undetermined()
-            },
+            _ => Verdict::undetermined(),
         }
     }
 }
