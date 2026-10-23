@@ -3,7 +3,13 @@ services:
     image: alpine:edge
     volumes:
       - ../ocapi/target/x86_64-unknown-linux-musl/release/ocapi:/ocapi:ro
+      - ./logs:/logs
     entrypoint: ["/ocapi"]
+    command: ["serve", "--dump-path", "/logs/ocapi.log"]
     ports:
       - "8080:8080"
-
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

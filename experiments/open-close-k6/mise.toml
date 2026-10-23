@@ -1,2 +1,3 @@
 [tools]
 k6 = "2.2.0"
+# locust = "latest"

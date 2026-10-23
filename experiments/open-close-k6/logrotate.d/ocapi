@@ -1,0 +1,8 @@
+/home/tbmreza/gh/hh200/experiments/open-close-k6/logs/ocapi.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
