@@ -149,4 +149,20 @@ mod fixture_tests {
             Kind::Closed,
         );
     }
+
+    #[test]
+    fn run_closed_dump_classifies_closed() {
+        let text = include_str!("../fixtures/run-closed.dump");
+
+        // Empirical capture: every arrival completed, no dangling A at log end.
+        let events = parse_dump(text).expect("captured closed-loop dump must parse");
+        assert!(
+            events.iter().all(|e| e.completion.is_some()),
+            "closed-loop capture should leave no arrivals dangling"
+        );
+
+        // classify_at_once normalizes epoch-ns → ms; the closed run reads Closed.
+        let verdict = classify_at_once(text.to_string()).expect("captured dump must classify");
+        assert_eq!(verdict.kind, Kind::Closed);
+    }
 }

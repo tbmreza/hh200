@@ -4,7 +4,7 @@ docker compose logs -f ocapi-alpine-inst                       # docker containe
 docker compose exec ocapi-alpine-inst tail -f /logs/ocapi.log  # ocapi traffic log
 
 mise exec -- k6 run hello.js
-mise exec -- k6 run --vus 10 --duration 8s hello.js
+make run-closed  # mise exec -- k6 run --vus 10 --duration 8s hello.js
 mise exec -- k6 run open-model.js
 ```
 
