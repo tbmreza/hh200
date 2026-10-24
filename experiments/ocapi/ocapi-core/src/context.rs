@@ -1,34 +1,31 @@
-//! Typestate context: what a strategy is allowed to observe.
+//! Context: what a strategy is allowed to observe.
 
 use crate::lattice::{Count, Fact};
 
-// ───────────────────────── 5. typed context (typestate) ──────────────────
+// ───────────────────────── 5. context ─────────────────────────────────────
 
-pub struct NoInfo;
-
-/// Defaulted type parameter: `Context` alone means "nothing known".
-pub struct Context<C = NoInfo> {
-    clients: C,
+/// What is known at classification time — currently just an optional client
+/// count. `None` means "unknown", so a strategy that needs the count falls
+/// back to an undetermined verdict.
+///
+/// (If strategies ever need compile-time capability checking again, this can
+/// return to a typestate `Context<C>` with a `HasClients` trait. For now the
+/// extra type parameter hurt readability more than it bought safety.)
+pub struct Context {
+    clients: Option<Fact<Count>>,
 }
 
 impl Context {
     pub fn empty() -> Self {
-        Context { clients: NoInfo }
+        Context { clients: None }
     }
-}
 
-impl<C> Context<C> {
-    pub fn with_clients(self, c: Fact<Count>) -> Context<Fact<Count>> {
-        Context { clients: c }
+    pub fn with_clients(self, c: Fact<Count>) -> Self {
+        Context { clients: Some(c) }
     }
-}
 
-/// Capability trait: strategies state what they need from the context.
-pub trait HasClients {
-    fn clients(&self) -> &Fact<Count>;
-}
-impl HasClients for Context<Fact<Count>> {
-    fn clients(&self) -> &Fact<Count> {
-        &self.clients
+    /// The known client count, if any.
+    pub fn clients(&self) -> Option<&Fact<Count>> {
+        self.clients.as_ref()
     }
 }

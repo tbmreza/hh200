@@ -1,55 +1,51 @@
 //! Strategies and their combinators.
 
-use crate::context::{Context, HasClients};
+use crate::context::Context;
 use crate::lattice::{Count, Knowledge};
 use crate::trace::{Ev, Trace};
 use crate::verdict::{Basis, Kind, Verdict};
 
 // ───────────────────────── 8. strategies and their combinators ───────────
 
-pub trait Strategy<Ctx> {
-    fn classify(&self, trace: &Trace, ctx: &Ctx) -> Verdict;
-}
+pub trait Strategy: Sized {
+    fn classify(&self, trace: &Trace, ctx: &Context) -> Verdict;
 
-/// Builders live in their own trait, with no `Ctx` parameter, so a pipeline
-/// can be assembled before the context type is known. The `HasClients`
-/// requirement is then checked where the pipeline meets a context, at
-/// `.classify(..)`. (Blanket-implemented for all types; a real crate would
-/// seal it or restrict it to strategy types.)
-pub trait Combine: Sized {
     /// Fallback: first determined verdict wins.
-    fn or_else<S>(self, other: S) -> OrElse<Self, S> {
+    fn or_else<S: Strategy>(self, other: S) -> OrElse<Self, S> {
         OrElse(self, other)
     }
     /// Cross-check: both run, verdicts are met (disagreement => Conflict).
-    fn agree<S>(self, other: S) -> Agree<Self, S> {
+    fn agree<S: Strategy>(self, other: S) -> Agree<Self, S> {
         Agree(self, other)
     }
 }
-impl<T> Combine for T {}
+
+// The `A`/`B` parameters are the one remaining generic: composing two concrete
+// strategies without heap allocation. (Could be `Box<dyn Strategy>` for type
+// erasure if the pipeline ever becomes dynamic.)
 
 pub struct OrElse<A, B>(A, B);
-impl<Ctx, A: Strategy<Ctx>, B: Strategy<Ctx>> Strategy<Ctx> for OrElse<A, B> {
-    fn classify(&self, t: &Trace, c: &Ctx) -> Verdict {
+impl<A: Strategy, B: Strategy> Strategy for OrElse<A, B> {
+    fn classify(&self, t: &Trace, c: &Context) -> Verdict {
         let v = self.0.classify(t, c);
         if v.kind != Kind::Undetermined { v } else { self.1.classify(t, c) }
     }
 }
 
 pub struct Agree<A, B>(A, B);
-impl<Ctx, A: Strategy<Ctx>, B: Strategy<Ctx>> Strategy<Ctx> for Agree<A, B> {
-    fn classify(&self, t: &Trace, c: &Ctx) -> Verdict {
+impl<A: Strategy, B: Strategy> Strategy for Agree<A, B> {
+    fn classify(&self, t: &Trace, c: &Context) -> Verdict {
         self.0.classify(t, c).meet(self.1.classify(t, c))
     }
 }
 
-/// Needs nothing from the context, so works for *every* `Context<_>`.
+/// Needs nothing from the context, so ignores it.
 /// Toy heuristic: closed-loop clients fire right after a completion.
 pub struct InterArrival {
     pub window_ms: u64,
 }
-impl<Ctx> Strategy<Ctx> for InterArrival {
-    fn classify(&self, t: &Trace, _: &Ctx) -> Verdict {
+impl Strategy for InterArrival {
+    fn classify(&self, t: &Trace, _: &Context) -> Verdict {
         let (arr, comp) = (t.times(Ev::Arrive), t.times(Ev::Complete));
         if arr.len() < 5 {
             return Verdict::undetermined();
@@ -68,12 +64,15 @@ impl<Ctx> Strategy<Ctx> for InterArrival {
     }
 }
 
-/// Requires `HasClients`: a closed model with ≤ N clients never has more
-/// than N requests outstanding, so exceeding the upper bound ⇒ Open.
+/// A closed model with ≤ N clients never has more than N requests
+/// outstanding, so exceeding the upper bound ⇒ Open. Undetermined when the
+/// client count is unknown.
 pub struct ConcurrencyBound;
-impl<Ctx: HasClients> Strategy<Ctx> for ConcurrencyBound {
-    fn classify(&self, t: &Trace, c: &Ctx) -> Verdict {
-        let f = c.clients();
+impl Strategy for ConcurrencyBound {
+    fn classify(&self, t: &Trace, c: &Context) -> Verdict {
+        let Some(f) = c.clients() else {
+            return Verdict::undetermined();
+        };
         let tpeak = t.peak_outstanding();
         match f.value.upper() {
             Some(n) if tpeak > n => {
@@ -87,9 +86,9 @@ impl<Ctx: HasClients> Strategy<Ctx> for ConcurrencyBound {
     }
 }
 
-// ───────────────────────── 9. the runtime → typed boundary ───────────────
+// ───────────────────────── 9. the runtime → context boundary ──────────────
 
-/// One `match`, once: runtime Knowledge enters the typed world here.
+/// One `match`, once: runtime Knowledge enters the context here.
 pub fn diagnose(trace: &Trace, clients: Knowledge<Count>) -> Verdict {
     let ia = InterArrival { window_ms: 2 };
     match clients {

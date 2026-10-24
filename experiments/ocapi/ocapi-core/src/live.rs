@@ -1,9 +1,8 @@
 //! Live, incremental verdict engine.
 //!
 //! Unlike `dump::parse_dump` (which classifies a whole trace in one go), this
-//! accumulates events as they happen and re-derives the verdict on demand. It
-//! deliberately has no UI dependencies, so both the TUI frontend and a future
-//! headless/replay frontend can drive it from the same type.
+//! accumulates events as they happen and re-derives the verdict on demand.
+//! Doesn't need UI dependencies.
 
 use std::collections::HashMap;
 
@@ -36,8 +35,9 @@ impl VerdictEngine {
     }
 
     pub fn record_arrival(&mut self, id: EventId, ts: Timestamp) {
-        // Duplicate arrivals are ignored: a live monitor must not corrupt its
-        // own state over a re-emitted line.
+        // ??: Duplicate arrivals are ignored: a live monitor must not corrupt its
+        // own state over a re-emitted line. Maybe interesting how often this
+        // happens.
         if self.arrivals.contains_key(&id) {
             return;
         }

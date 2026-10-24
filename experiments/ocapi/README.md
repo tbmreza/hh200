@@ -2,6 +2,8 @@
 
 A controllable HTTP system-under-test for entertaining both open- and closed-model workload traffics.
 
+- "strategy" is our notion of open/closed-model information interpolation: InterArrival and ConcurrencyBound
+
 ```
 
 routes -> traffic.dump <- ocapi-core

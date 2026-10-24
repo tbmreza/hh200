@@ -55,3 +55,17 @@ dependable:
 6. **End the file with a trailing newline**, and use spaces (not tabs) between
    fields, matching the logger's `"A {} {}\n"` format.
 7. **Don't edit existing fixtures.** Do bias towards treating them as golden references.
+
+## Captured traces
+
+`make run-closed` / `make run-open` (from `experiments/Makefile`) snapshot real
+runs into this folder, overwriting on each invocation:
+
+- `<name>.dump` — the `traffic.dump` the server wrote (`A`/`C` records, epoch
+  nanoseconds), i.e. what `ocapi analyze --dump-path` consumes.
+- `<name>.stdout` — the container's `tracing` stdout (`method`/`uri`/`status`
+  per request) from `docker compose logs`.
+
+Unlike the contrived fixtures above, these are *empirical* captures with epoch
+timestamps, not golden references. They are intentionally tracked (not
+gitignored) so each overwrite shows up as a diff.

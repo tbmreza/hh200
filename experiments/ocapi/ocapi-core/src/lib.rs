@@ -9,14 +9,14 @@ mod strategy;
 mod trace;
 mod verdict;
 
-pub use context::{Context, HasClients, NoInfo};
+pub use context::Context;
 pub use dump::{
     events_to_inter_arrivals, inter_arrivals_to_arrivals, parse_dump, sorted_arrivals,
     validate_dump, write_dump, Event, EventId, ParseError, Timestamp,
 };
 pub use lattice::{Contradiction, Count, Fact, Knowledge, Meet, Provenance};
 pub use live::{classify_events, VerdictEngine};
-pub use strategy::{diagnose, Agree, Combine, ConcurrencyBound, InterArrival, OrElse, Strategy};
+pub use strategy::{diagnose, Agree, ConcurrencyBound, InterArrival, OrElse, Strategy};
 pub use trace::{Ev, Trace};
 pub use verdict::{Basis, Kind, Verdict};
 
