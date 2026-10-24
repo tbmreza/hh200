@@ -67,7 +67,7 @@ pub async fn serve(
 fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health))
-        .route("/fixed", get(routes::health))
+        .route("/fixed", get(routes::fixed))
         .route("/delay/{delay}", delete(routes::delay))
         .route("/status/{code}", get(routes::status))
         .route("/bytes/{n}", get(routes::bytes))

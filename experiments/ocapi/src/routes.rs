@@ -11,6 +11,16 @@ pub async fn health() -> StatusCode {
     StatusCode::OK
 }
 
+/// Fixed-latency endpoint. The open/closed fixtures target this so service
+/// time is a stable, known quantity that sits comfortably above the
+/// classifier's 1ms quantization (an instant handler would collapse a
+/// request's own completion onto its own arrival, blurring open vs closed).
+pub async fn fixed() -> StatusCode {
+    const FIXED_LATENCY: Duration = Duration::from_millis(5);
+    tokio::time::sleep(FIXED_LATENCY).await;
+    StatusCode::OK
+}
+
 // ??: write inter_arrivals data
 pub async fn delay(Path(delay): Path<f64>) -> (StatusCode, Json<serde_json::Value>) {
     let capped = delay.min(10.0);

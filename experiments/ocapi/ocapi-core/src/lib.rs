@@ -165,4 +165,21 @@ mod fixture_tests {
         let verdict = classify_at_once(text.to_string()).expect("captured dump must classify");
         assert_eq!(verdict.kind, Kind::Closed);
     }
+
+    #[test]
+    fn run_open_dump_classifies_open() {
+        let text = include_str!("../fixtures/run-open.dump");
+
+        // Empirical capture: every arrival completed, no dangling A at log end.
+        let events = parse_dump(text).expect("captured open-loop dump must parse");
+        assert!(
+            events.iter().all(|e| e.completion.is_some()),
+            "open-loop capture should leave no arrivals dangling"
+        );
+
+        // Arrivals are ~100ms apart (10/s); each completion lands 5ms after its
+        // own arrival, so no arrival trails a completion within the 2ms window.
+        let verdict = classify_at_once(text.to_string()).expect("captured dump must classify");
+        assert_eq!(verdict.kind, Kind::Open);
+    }
 }
