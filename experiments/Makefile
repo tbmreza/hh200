@@ -7,6 +7,8 @@
 #   make clean           truncate traffic dump + remove rotated leftovers
 #   make clean-traffic   truncate the root-owned traffic dump (sudo)
 #   make clean-rotated   remove stale rotated/compressed dump leftovers
+#   make up              (re)create the ocapi container
+#   make wait            wait until ocapi answers /health on :8080
 #   make run-closed      closed-model k6 run -> fixtures/run-closed.{dump,stdout}
 #   make run-open        open-model k6 run   -> fixtures/run-open.{dump,stdout}
 #   make down            stop the ocapi container
@@ -17,10 +19,7 @@ DUMP       := $(OPEN_CLOSE)/logs/ocapi.log
 FIXTURES   := $(HERE)/ocapi/ocapi-core/fixtures
 SUDO       ?= sudo
 
-# Bounded readiness probe: poll :8080 for up to 10s (50 * 0.2s).
-READY = ( for _ in $$(seq 1 50); do curl -fsS http://localhost:8080/ >/dev/null 2>&1 && exit 0; sleep 0.2; done; exit 1 )
-
-.PHONY: help status clean clean-traffic clean-rotated run-closed run-open down
+.PHONY: help status clean clean-traffic clean-rotated up wait run-closed run-open down
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -40,28 +39,53 @@ clean-rotated: ## Remove stale rotated/compressed dump leftovers
 	rm -f $(HERE)/ocapi/rotated.log
 	@find $(OPEN_CLOSE)/logs -type f \( -name 'ocapi.log.*' -o -name 'ocapi.log-*' \) -delete 2>/dev/null || true
 
-# ── run + capture ─────────────────────────────────────────────────────────
-# Each run target brings up a fresh container, waits for :8080, truncates the
-# dump, runs k6, then snapshots both the traffic dump (fixtures/<name>.dump)
-# and the container stdout (fixtures/<name>.stdout). Re-running overwrites.
+# ── run pipeline ──────────────────────────────────────────────────────────
+# `up` and `wait` are separate so they can be debugged in isolation. Each run
+# target then truncates the dump, runs k6, and snapshots the traffic dump
+# (fixtures/<name>.dump) + container stdout (fixtures/<name>.stdout).
+# Re-running overwrites.
 
-run-closed: ## Closed-model k6 (10 VUs / 8s) -> fixtures/run-closed.{dump,stdout}
-	cd $(OPEN_CLOSE) && docker compose up -d --force-recreate ocapi-alpine-inst && \
-	$(READY) && \
-	$(SUDO) truncate -s 0 $(DUMP) && \
-	cd $(OPEN_CLOSE) && mise exec -- k6 run --vus 10 --duration 8s hello.js && \
-	sleep 1 && \
-	cd $(OPEN_CLOSE) && docker compose logs ocapi-alpine-inst > $(FIXTURES)/run-closed.stdout && \
-	cp -f $(DUMP) $(FIXTURES)/run-closed.dump
+up: ## (re)create the ocapi container
+	cd $(OPEN_CLOSE) && docker compose up -d --force-recreate ocapi-alpine-inst
 
-run-open: ## Open-model k6 (10 req/s / 30s) -> fixtures/run-open.{dump,stdout}
-	cd $(OPEN_CLOSE) && docker compose up -d --force-recreate ocapi-alpine-inst && \
-	$(READY) && \
-	$(SUDO) truncate -s 0 $(DUMP) && \
-	cd $(OPEN_CLOSE) && mise exec -- k6 run open-model.js && \
-	sleep 1 && \
-	cd $(OPEN_CLOSE) && docker compose logs ocapi-alpine-inst > $(FIXTURES)/run-open.stdout && \
-	cp -f $(DUMP) $(FIXTURES)/run-open.dump
+wait: ## wait until ocapi answers /health on :8080
+	@echo "→ waiting for ocapi /health on :8080..."
+	@i=0; while [ $$i -lt 50 ]; do \
+		curl -fsS http://localhost:8080/health >/dev/null 2>&1 && { echo "→ ocapi ready"; exit 0; }; \
+		sleep 0.2; i=$$((i+1)); \
+	done; \
+	echo "✗ ocapi did not become ready on :8080 after 10s" >&2; \
+	cd $(OPEN_CLOSE) && docker compose ps >&2; \
+	cd $(OPEN_CLOSE) && docker compose logs --tail 20 ocapi-alpine-inst >&2; \
+	exit 1
+
+run-closed: NAME := run-closed
+run-closed: K6 := --vus 10 --duration 8s hello.js
+run-closed: up wait ## Closed-model k6 (10 VUs / 8s) -> fixtures/run-closed.{dump,stdout}
+	@echo "→ truncating traffic dump"
+	$(SUDO) truncate -s 0 $(DUMP)
+	@echo "→ running: k6 run $(K6)"
+	cd $(OPEN_CLOSE) && mise exec -- k6 run $(K6)
+	@sleep 1
+	@echo "→ capturing docker stdout -> $(NAME).stdout"
+	cd $(OPEN_CLOSE) && docker compose logs ocapi-alpine-inst > $(FIXTURES)/$(NAME).stdout
+	@echo "→ capturing traffic dump -> $(NAME).dump"
+	cp -f $(DUMP) $(FIXTURES)/$(NAME).dump
+	@echo "✓ wrote $(FIXTURES)/$(NAME).{dump,stdout}"
+
+run-open: NAME := run-open
+run-open: K6 := open-model.js
+run-open: up wait ## Open-model k6 (10 req/s / 30s) -> fixtures/run-open.{dump,stdout}
+	@echo "→ truncating traffic dump"
+	$(SUDO) truncate -s 0 $(DUMP)
+	@echo "→ running: k6 run $(K6)"
+	cd $(OPEN_CLOSE) && mise exec -- k6 run $(K6)
+	@sleep 1
+	@echo "→ capturing docker stdout -> $(NAME).stdout"
+	cd $(OPEN_CLOSE) && docker compose logs ocapi-alpine-inst > $(FIXTURES)/$(NAME).stdout
+	@echo "→ capturing traffic dump -> $(NAME).dump"
+	cp -f $(DUMP) $(FIXTURES)/$(NAME).dump
+	@echo "✓ wrote $(FIXTURES)/$(NAME).{dump,stdout}"
 
 down: ## Stop the ocapi container
 	cd $(OPEN_CLOSE) && docker compose down
