@@ -95,10 +95,14 @@ impl VerdictEngine {
 /// client count. Timestamps are interpreted as nanoseconds and normalized to
 /// milliseconds before the strategy sees them.
 pub fn classify_events(events: &[Event]) -> Verdict {
-    diagnose(&events_to_trace_ms(events), Knowledge::Unknown)
+    diagnose(&events_to_trace(events), Knowledge::Unknown)
 }
 
-fn events_to_trace_ms(events: &[Event]) -> Trace {
+/// The single ns→ms normalization point: `Event` timestamps are nanoseconds,
+/// `Trace` timestamps are milliseconds. Everything the classifiers consume
+/// passes through here, so the `/ NS_PER_MS` conversion lives in exactly one
+/// place.
+pub(crate) fn events_to_trace(events: &[Event]) -> Trace {
     let mut ev = Vec::with_capacity(events.len() * 2);
     for e in events {
         ev.push((e.arrival / NS_PER_MS, Ev::Arrive));
@@ -106,7 +110,7 @@ fn events_to_trace_ms(events: &[Event]) -> Trace {
             ev.push((c / NS_PER_MS, Ev::Complete));
         }
     }
-    // completions before arrivals on ties, matching `dump::events_to_trace`.
+    // completions before arrivals on ties.
     ev.sort_by_key(|&(t, e)| (t, e == Ev::Arrive));
     Trace(ev)
 }
@@ -167,5 +171,48 @@ mod tests {
         assert_eq!(recent[0].1.arrival, 70);
         assert_eq!(recent[2].0, 9);
         assert_eq!(recent[2].1.arrival, 90);
+    }
+
+    // -- the single ns→ms normalization point ----------------------------
+
+    fn trace_times(trace: &Trace) -> Vec<u64> {
+        trace.0.iter().map(|&(t, _)| t).collect()
+    }
+
+    #[test]
+    fn events_to_trace_normalizes_ns_to_ms() {
+        // Two arrivals 1ms apart in ns become 1ms apart in the Trace.
+        let events = vec![
+            Event { arrival: 5_000_000, completion: None },
+            Event { arrival: 6_000_000, completion: None },
+        ];
+        assert_eq!(trace_times(&events_to_trace(&events)), vec![5, 6]);
+    }
+
+    #[test]
+    fn events_to_trace_collapses_sub_ms_differences() {
+        // 1_000_000 ns and 1_000_999 ns are both 1 ms: same Trace time.
+        let events = vec![
+            Event { arrival: 1_000_000, completion: None },
+            Event { arrival: 1_000_999, completion: None },
+        ];
+        assert_eq!(trace_times(&events_to_trace(&events)), vec![1, 1]);
+    }
+
+    #[test]
+    fn classify_events_agrees_with_diagnose_over_trace() {
+        // The public batch path is exactly diagnose(events_to_trace(e), Unknown).
+        // If anyone adds a second normalization path, this breaks.
+        let events = vec![
+            Event { arrival: 0, completion: Some(10_000_000) },
+            Event { arrival: 11_000_000, completion: Some(20_000_000) },
+            Event { arrival: 22_000_000, completion: Some(30_000_000) },
+            Event { arrival: 33_000_000, completion: Some(40_000_000) },
+            Event { arrival: 44_000_000, completion: Some(50_000_000) },
+        ];
+        assert_eq!(
+            classify_events(&events),
+            diagnose(&events_to_trace(&events), Knowledge::Unknown)
+        );
     }
 }

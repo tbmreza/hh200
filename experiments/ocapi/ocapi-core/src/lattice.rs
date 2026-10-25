@@ -1,33 +1,25 @@
-//! Provenance-tagged facts and the meet/join lattice they live in.
+//! Provenance-tagged facts and the client-count knowledge they live in.
+//!
+//! The count-aware path (a `Knowledge::Fact` handed to `diagnose`) is currently
+//! exercised only by tests; the `#[cfg(test)]` / `#[allow(dead_code)]` markers
+//! below reflect that until a client count is wired into a public entry point.
 
-use std::fmt;
 use std::num::NonZeroU32;
 
 // ───────────────────────── 1. provenance ─────────────────────────────────
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Where a fact came from: assumed (a default) or known (observed).
+///
+/// `#[allow(dead_code)]`: the variants are *matched* by `Basis::of` in the
+/// library, but only *constructed* in tests until the count-aware API is public.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Provenance {
-    Assumed, // declared order matters: Assumed < Known
+    Assumed,
     Known,
 }
 
-impl Provenance {
-    /// Weakest link: a derived fact is Known only if every input was.
-    pub fn join(self, other: Self) -> Self {
-        self.min(other)
-    }
-}
-
-// ───────────────────────── 2. meet (intersection of knowledge) ───────────
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Contradiction(pub String);
-
-pub trait Meet: Sized {
-    fn meet(self, other: Self) -> Result<Self, Contradiction>;
-}
-
-// ───────────────────────── 3. Count: "how many clients" as an interval ───
+// ───────────────────────── 2. Count: "how many clients" as an interval ───
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Count {
@@ -35,54 +27,23 @@ pub struct Count {
     hi: Option<NonZeroU32>, // None = unbounded above
 }
 
+#[cfg(test)]
 fn nz(n: u32) -> NonZeroU32 {
     NonZeroU32::new(n).expect("client count must be non-zero")
 }
 
 impl Count {
+    #[cfg(test)]
     pub fn exactly(n: u32) -> Self {
         Self { lo: nz(n), hi: Some(nz(n)) }
     }
-    pub fn at_least(n: u32) -> Self {
-        Self { lo: nz(n), hi: None }
-    }
-    pub fn at_most(n: u32) -> Self {
-        Self { lo: nz(1), hi: Some(nz(n)) }
-    }
-    pub fn between(lo: u32, hi: u32) -> Self {
-        assert!(lo <= hi);
-        Self { lo: nz(lo), hi: Some(nz(hi)) }
-    }
+
     pub fn upper(&self) -> Option<u32> {
         self.hi.map(NonZeroU32::get)
     }
 }
 
-impl Meet for Count {
-    fn meet(self, o: Self) -> Result<Self, Contradiction> {
-        let lo = self.lo.max(o.lo);
-        let hi = match (self.hi, o.hi) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
-        match hi {
-            Some(h) if h < lo => Err(Contradiction(format!("{self} ∩ {o} is empty"))),
-            _ => Ok(Count { lo, hi }),
-        }
-    }
-}
-
-impl fmt::Display for Count {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.hi {
-            Some(h) if h == self.lo => write!(f, "{}", self.lo),
-            Some(h) => write!(f, "[{}, {}]", self.lo, h),
-            None => write!(f, "≥{}", self.lo),
-        }
-    }
-}
-
-// ───────────────────────── 4. Fact<T> and Knowledge<T> ───────────────────
+// ───────────────────────── 3. Fact<T> and Knowledge<T> ───────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fact<T> {
@@ -91,31 +52,9 @@ pub struct Fact<T> {
 }
 
 impl<T> Fact<T> {
+    #[cfg(test)]
     pub fn known(value: T) -> Self {
         Self { value, provenance: Provenance::Known }
-    }
-    pub fn assumed(value: T) -> Self {
-        Self { value, provenance: Provenance::Assumed }
-    }
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Fact<U> {
-        Fact { value: f(self.value), provenance: self.provenance }
-    }
-    /// Combine two independent facts; provenance degrades to the weaker one.
-    pub fn zip<U>(self, other: Fact<U>) -> Fact<(T, U)> {
-        Fact {
-            value: (self.value, other.value),
-            provenance: self.provenance.join(other.provenance),
-        }
-    }
-}
-
-impl<T: Meet> Fact<T> {
-    /// Two sources describing the *same* quantity: intersect the values.
-    pub fn meet(self, other: Self) -> Result<Self, Contradiction> {
-        Ok(Fact {
-            value: self.value.meet(other.value)?,
-            provenance: self.provenance.join(other.provenance),
-        })
     }
 }
 
@@ -123,28 +62,7 @@ impl<T: Meet> Fact<T> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Knowledge<T> {
     Unknown,
+    /// Constructed only in tests until the count-aware API is public.
+    #[allow(dead_code)]
     Fact(Fact<T>),
-}
-
-impl<T> Knowledge<T> {
-    /// Prefer the better-provenanced source; ties go to `self`.
-    /// (`cli.or(config)` = "CLI wins unless config is strictly more certain".)
-    pub fn or(self, other: Self) -> Self {
-        match (self, other) {
-            (Knowledge::Unknown, k) | (k, Knowledge::Unknown) => k,
-            (Knowledge::Fact(a), Knowledge::Fact(b)) => {
-                Knowledge::Fact(if b.provenance > a.provenance { b } else { a })
-            }
-        }
-    }
-}
-
-impl<T: Meet> Knowledge<T> {
-    /// Unknown is the identity; two facts intersect.
-    pub fn meet(self, other: Self) -> Result<Self, Contradiction> {
-        match (self, other) {
-            (Knowledge::Unknown, k) | (k, Knowledge::Unknown) => Ok(k),
-            (Knowledge::Fact(a), Knowledge::Fact(b)) => a.meet(b).map(Knowledge::Fact),
-        }
-    }
 }

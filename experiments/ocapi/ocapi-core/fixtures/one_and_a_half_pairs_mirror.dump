@@ -1,6 +1,6 @@
 # one and a half pairs, mirror (A1 A2 C1): the second arrival lands
 # before the first completion, so the client didn't wait.
 # Open signal, or closed with >=2 clients.
-A 0 1000
-A 1 1050
-C 0 1100
+A 0 1000000
+A 1 2000000
+C 0 3000000

@@ -14,8 +14,9 @@ C <id> <completion_ns>
 
 - `<id>` is a 0-based `u64` per file. Each file is a standalone trace, so ids
   start at 0 and a valid trace never reuses an arrival id.
-- `<arrival_ns>` / `<completion_ns>` are nanosecond `u64` timestamps. Only
-  relative deltas matter to the classifier, so fixtures use small readable
+- `<arrival_ns>` / `<completion_ns>` are nanosecond `u64` timestamps. The
+  classifier normalizes these down to milliseconds, so only relative deltas at
+  millisecond resolution matter; fixtures use small readable millisecond-scale
   offsets rather than epoch nanoseconds.
 - A `C` line must be preceded by an `A` line for the same id. A dangling `A`
   with no matching `C` is valid and means "still in flight when the log ends".
@@ -47,8 +48,10 @@ dependable:
 3. **Valid vs malformed is a deliberate choice.** Most fixtures are *valid*
    inputs. A malformed input (orphan `C`, duplicate `A`, `C` before `A`) is
    also a legitimate fixture.
-4. **Keep timing legible.** Prefer small relative nanosecond offsets (e.g. 1000,
-   1100, 2000). Keep `completion >= arrival` within a pair unless the case is
+4. **Keep timing legible.** The classifier normalizes ns → ms, so prefer small
+   millisecond offsets written in nanoseconds (e.g. `1_000_000`, `2_000_000`,
+   `3_000_000`); sub-millisecond deltas would truncate to the same ms and lose
+   their meaning. Keep `completion >= arrival` within a pair unless the case is
    specifically about clock skew or reordering.
 5. **Respect the grammar's invariants.** 0-based ids, no duplicate `A`, no `C`
    without a prior `A` — unless the case exists to violate one of these.

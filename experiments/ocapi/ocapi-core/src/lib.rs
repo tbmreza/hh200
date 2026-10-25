@@ -9,56 +9,9 @@ mod strategy;
 mod trace;
 mod verdict;
 
-pub use context::Context;
-pub use dump::{
-    events_to_inter_arrivals, inter_arrivals_to_arrivals, parse_dump, sorted_arrivals,
-    validate_dump, write_dump, Event, EventId, ParseError, Timestamp,
-};
-pub use lattice::{Contradiction, Count, Fact, Knowledge, Meet, Provenance};
+pub use dump::{events_to_inter_arrivals, parse_dump, Event, EventId, ParseError, Timestamp};
 pub use live::{classify_events, VerdictEngine};
-pub use strategy::{diagnose, Agree, ConcurrencyBound, InterArrival, OrElse, Strategy};
-pub use trace::{Ev, Trace};
 pub use verdict::{Basis, Kind, Verdict};
-
-// ───────────────────────── demo ──────────────────────────────────────────
-
-fn closed_trace() -> Trace {
-    // 2 clients, 10 rounds each: service 10ms, think 1ms, client B offset 3ms.
-    let mut ev = vec![];
-    for off in [0u64, 3] {
-        let mut t = off;
-        for _ in 0..10 {
-            ev.push((t, Ev::Arrive));
-            ev.push((t + 10, Ev::Complete));
-            t += 11;
-        }
-    }
-    ev.sort_by_key(|&(t, e)| (t, e == Ev::Arrive)); // completions before arrivals on ties
-    Trace(ev)
-}
-
-fn open_trace() -> Trace {
-    // arrivals every 7ms regardless of completions; service 50ms.
-    let mut ev = vec![];
-    for k in 0..20u64 {
-        ev.push((7 * k, Ev::Arrive));
-        ev.push((7 * k + 50, Ev::Complete));
-    }
-    ev.sort_by_key(|&(t, e)| (t, e == Ev::Arrive));
-    Trace(ev)
-}
-
-fn short_burst() -> Trace {
-    // too few events for InterArrival to say anything.
-    Trace(vec![
-        (0, Ev::Arrive), (1, Ev::Arrive), (2, Ev::Arrive), (3, Ev::Arrive),
-        (50, Ev::Complete), (51, Ev::Complete), (52, Ev::Complete), (53, Ev::Complete),
-    ])
-}
-
-fn show(label: &str, v: Verdict) {
-    println!("  {label:<46} {:?} / {:?}", v.kind, v.basis);
-}
 
 // Too little data
 //
@@ -92,51 +45,49 @@ fn show(label: &str, v: Verdict) {
 // All arrives, then all completes: A1 A2 A3 C1 C2 C3. Overload where the client clearly didn't wait, so a strong open signal.
 // Strictly serial: A1 C1 A2 C2 A3 C3 with irregular gaps. The cleanest closed signal, and a good positive control.
 // Mid-trace idle gap: a long silence between two otherwise regular segments, so the classifier shouldn't treat the gap as think time.
-/// Classify a full `traffic.dump` string in one pass. The headless/replay
-/// frontend calls this over a whole trace; the live frontend drives
-/// [`VerdictEngine`] event-by-event. Both funnel into [`classify_events`].
-pub fn classify_at_once(capped_logs: String) -> Result<Verdict, ParseError> {
-    let events = parse_dump(&capped_logs)?;
-    Ok(classify_events(&events))
-}
-
 #[cfg(test)]
 mod fixture_tests {
     use super::*;
+    use crate::lattice::{Count, Fact, Knowledge};
+    use crate::live::events_to_trace;
+    use crate::strategy::diagnose;
 
     /// One test per golden fixture in `fixtures/*.dump`. Each test embeds its
-    /// file at compile time (`include_str!`), parses it into a `Trace`,
-    /// classifies it, and asserts the verdict recorded in the fixture's own
-    /// `#` header and `fixtures/README.md`.
+    /// file at compile time (`include_str!`), parses it into events, classifies
+    /// it, and asserts the verdict recorded in the fixture's own `#` header and
+    /// `fixtures/README.md`. Most go through the public batch path
+    /// (`parse_dump` + `classify_events`); the client-count case drives the
+    /// count-aware `diagnose` directly.
 
     #[test]
     fn empty_dump_is_undetermined() {
-        let trace = validate_dump(include_str!("../fixtures/empty.dump")).unwrap();
-        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+        let events = parse_dump(include_str!("../fixtures/empty.dump")).unwrap();
+        assert_eq!(classify_events(&events), Verdict::undetermined());
     }
 
     #[test]
     fn lone_arrive_is_undetermined() {
-        let trace = validate_dump(include_str!("../fixtures/lone_arrive.dump")).unwrap();
-        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+        let events = parse_dump(include_str!("../fixtures/lone_arrive.dump")).unwrap();
+        assert_eq!(classify_events(&events), Verdict::undetermined());
     }
 
     #[test]
     fn single_pair_is_undetermined() {
-        let trace = validate_dump(include_str!("../fixtures/single_pair.dump")).unwrap();
-        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+        let events = parse_dump(include_str!("../fixtures/single_pair.dump")).unwrap();
+        assert_eq!(classify_events(&events), Verdict::undetermined());
     }
 
     #[test]
     fn one_and_a_half_pairs_is_undetermined() {
-        let trace = validate_dump(include_str!("../fixtures/one_and_a_half_pairs.dump")).unwrap();
-        assert_eq!(diagnose(&trace, Knowledge::Unknown), Verdict::undetermined());
+        let events = parse_dump(include_str!("../fixtures/one_and_a_half_pairs.dump")).unwrap();
+        assert_eq!(classify_events(&events), Verdict::undetermined());
     }
 
     #[test]
     fn one_and_a_half_pairs_mirror_depends_on_client_count() {
-        let trace =
-            validate_dump(include_str!("../fixtures/one_and_a_half_pairs_mirror.dump")).unwrap();
+        let events =
+            parse_dump(include_str!("../fixtures/one_and_a_half_pairs_mirror.dump")).unwrap();
+        let trace = events_to_trace(&events);
 
         // A2 arrives before C1 completes (peak outstanding = 2): a single
         // client can't be in flight twice, so Open; >=2 clients is Closed.
@@ -161,9 +112,8 @@ mod fixture_tests {
             "closed-loop capture should leave no arrivals dangling"
         );
 
-        // classify_at_once normalizes epoch-ns → ms; the closed run reads Closed.
-        let verdict = classify_at_once(text.to_string()).expect("captured dump must classify");
-        assert_eq!(verdict.kind, Kind::Closed);
+        // classify_events normalizes epoch-ns → ms; the closed run reads Closed.
+        assert_eq!(classify_events(&events).kind, Kind::Closed);
     }
 
     #[test]
@@ -179,7 +129,6 @@ mod fixture_tests {
 
         // Arrivals are ~100ms apart (10/s); each completion lands 5ms after its
         // own arrival, so no arrival trails a completion within the 2ms window.
-        let verdict = classify_at_once(text.to_string()).expect("captured dump must classify");
-        assert_eq!(verdict.kind, Kind::Open);
+        assert_eq!(classify_events(&events).kind, Kind::Open);
     }
 }

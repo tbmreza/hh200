@@ -1,3 +1,3 @@
 # lone arrive: a single A with no matching C (request still in flight
 # when the log ends). Parses to [Event { arrival, completion: None }].
-A 0 1000
+A 0 1000000

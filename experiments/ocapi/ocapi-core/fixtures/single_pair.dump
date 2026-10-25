@@ -1,4 +1,4 @@
 # single pair: A1 C1 — one arrival and its completion.
 # No inter-arrival time, so open vs closed can't be told apart.
-A 0 1000
-C 0 1100
+A 0 1000000
+C 0 2000000

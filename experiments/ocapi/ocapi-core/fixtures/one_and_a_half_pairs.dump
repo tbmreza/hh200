@@ -1,5 +1,5 @@
 # one and a half pairs (A1 C1 A2): a full pair, then a second arrival
 # with no completion. One inter-arrival gap, consistent with both models.
-A 0 1000
-C 0 1100
-A 1 2000
+A 0 1000000
+C 0 2000000
+A 1 3000000

@@ -15,7 +15,7 @@ use tokio::main;
 use clap::{Parser, Subcommand};
 use etcetera::BaseStrategy;
 
-use ocapi_core::{classify_at_once, events_to_inter_arrivals, parse_dump};
+use ocapi_core::{classify_events, events_to_inter_arrivals, parse_dump};
 
 use crate::logger::FileLogger;
 
@@ -114,12 +114,11 @@ fn analyze(dump_path: PathBuf) {
     let text = std::fs::read_to_string(&dump_path)
         .unwrap_or_else(|e| panic!("failed to read dump {dump_path:?}: {e}"));
 
-    let verdict = classify_at_once(text.clone())
-        .unwrap_or_else(|e| panic!("failed to classify dump {dump_path:?}: {e:?}"));
-    println!("Verdict={:?}", verdict);
-
     let events = parse_dump(&text)
         .unwrap_or_else(|e| panic!("failed to parse dump {dump_path:?}: {e:?}"));
+
+    let verdict = classify_events(&events);
+    println!("Verdict={:?}", verdict);
 
     let (_, gaps) = events_to_inter_arrivals(&events);
 

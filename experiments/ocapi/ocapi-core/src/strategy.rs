@@ -14,10 +14,6 @@ pub trait Strategy: Sized {
     fn or_else<S: Strategy>(self, other: S) -> OrElse<Self, S> {
         OrElse(self, other)
     }
-    /// Cross-check: both run, verdicts are met (disagreement => Conflict).
-    fn agree<S: Strategy>(self, other: S) -> Agree<Self, S> {
-        Agree(self, other)
-    }
 }
 
 // The `A`/`B` parameters are the one remaining generic: composing two concrete
@@ -29,13 +25,6 @@ impl<A: Strategy, B: Strategy> Strategy for OrElse<A, B> {
     fn classify(&self, t: &Trace, c: &Context) -> Verdict {
         let v = self.0.classify(t, c);
         if v.kind != Kind::Undetermined { v } else { self.1.classify(t, c) }
-    }
-}
-
-pub struct Agree<A, B>(A, B);
-impl<A: Strategy, B: Strategy> Strategy for Agree<A, B> {
-    fn classify(&self, t: &Trace, c: &Context) -> Verdict {
-        self.0.classify(t, c).meet(self.1.classify(t, c))
     }
 }
 
