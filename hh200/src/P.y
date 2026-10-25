@@ -4,15 +4,11 @@ module P where
 
 import Debug.Trace
 
-import           Data.List (intercalate, isPrefixOf, inits, isSuffixOf)
+import           Data.List (intercalate, isPrefixOf, tails)
 import qualified Data.Text as Text
-import qualified Data.ByteString.Char8 as BS
 import qualified Data.HashMap.Strict as HM
-import           Control.Exception (try, SomeException)
 import           Control.Monad.Trans.Except
-import           Control.Monad.IO.Class (liftIO)
 import           Network.HTTP.Types.Status (mkStatus)
-import qualified Network.HTTP.Client as HC
 
 import qualified BEL
 import           Hh200.Types
@@ -86,12 +82,12 @@ call_item : deps_clause request response { $2 >>= \r -> returnE CallItem { ciDep
           | request                      { $1 >>= \r -> returnE CallItem { ciDeps = [], ciName = "", ciRequestSpec = r, ciResponseSpec = Nothing } }
 
 deps_clause :: { DepsClause }
-deps_clause : deps "then" s { DepsClause { deps = $1, itemName = $3 } }
-            | s             { DepsClause { deps = [], itemName = $1 } }
+deps_clause : deps "then" s { DepsClause { deps = $1, itemName = trimQuotes $3 } }
+            | s             { DepsClause { deps = [], itemName = trimQuotes $1 } }
 
 deps :: { [String] }
-deps : s      { [$1] }
-     | deps s { $1 ++ [$2] }
+deps : s      { [trimQuotes $1] }
+     | deps s { $1 ++ [trimQuotes $2] }
 
 request :: { E RequestSpec }
 request : method url crlf bindings request_sqrs braced crlf { do
@@ -109,9 +105,6 @@ request : method url crlf bindings request_sqrs braced crlf { do
         | method url crlf          request_sqrs braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,               rqBody = $5 }
                                                                trace "reqD" $ pure r }
-        | method url               request_sqrs        crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $3,               rqBody = "" }
-                                                               trace "reqD1" $ pure r }
         | method url crlf                       braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = $4 }
                                                                trace "reqE" $ pure r }
@@ -180,7 +173,6 @@ response : "HTTP" response_codes crlf bindings response_sqrs braced crlf { trace
          | bindings crlf                                                 { trace "rpM" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1, rpSquares = rpSquaresNothing,               rpBody = "" } }
          | response_sqrs crlf                                            { trace "rpN" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = "" } }
          | braced crlf                                                   { trace "rpO" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $1 } }
-         | crlf                                                          { trace "rpP" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = "" } }
 
 response_sqrs :: { (Maybe ResponseSquare, Maybe ResponseSquare)}
 response_sqrs : response_sqrs response_sqr crlf { setResponseSquare $2 $1 }
@@ -205,12 +197,12 @@ response_codes : d                { [read $1] }
 bindings :: { RhsDict }
 bindings : binding          { RhsDict (HM.fromList [$1]) }
          | bindings binding { let (RhsDict acc) = $1 in
-                              RhsDict (HM.insertWith (++) (fst $2) (snd $2) acc) }
+                              RhsDict (HM.insertWith (flip (++)) (fst $2) (snd $2) acc) }
 
 binding :: { Binding }
 binding : identifier crlf     { (Text.pack $1, []) }
-        | identifier s crlf   { (Text.pack $1, [BEL.R (Text.pack $2)]) }
-        | identifier rhs crlf { (Text.pack $1, [BEL.L (Text.pack (drop 1 $2))]) }
+        | identifier s crlf   { (Text.pack $1, [BEL.R (Text.pack (trimQuotes $2))]) }
+        | identifier rhs crlf { (Text.pack $1, BEL.partitions (Text.pack (stripRhs $2))) }
 
 crlf :: { () }
 crlf : {- empty -}  { }
@@ -244,25 +236,22 @@ initRequestSquare sq = case sq of
     RequestSquareCookies _ ->   (Nothing, Nothing, Nothing, Nothing, Just sq)
 
 hasBalancedMustache :: String -> Bool
-hasBalancedMustache s = countOpen > 0 && countOpen == countClose && countOpen == length (filter isOpenPair allPrefixes)
+hasBalancedMustache s = countOpen > 0 && countOpen == countClose
   where
-    s' = filter (`elem` ['{', '}']) s
-    countOpen = length $ filter isOpenPair allPrefixes
-    countClose = length $ filter isClosePair allPrefixes
-    allPrefixes = take (length s' - 1) (inits s')
-    isOpenPair p = "{{" `isSuffixOf` p
-    isClosePair p = "}}" `isSuffixOf` p
-    inits [] = []
-    inits xs = xs : inits (init xs)
+    braces     = filter (`elem` ['{', '}']) s
+    countOpen  = countSub "{{" braces
+    countClose = countSub "}}" braces
+
+countSub :: String -> String -> Int
+countSub needle = length . filter (isPrefixOf needle) . tails
 
 -- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
 
-stripColon :: String -> String
-stripColon s = dropWhile (\c -> c == ':' || c == ' ') s
-
-mergeRhsDicts :: RhsDict -> RhsDict -> RhsDict
-mergeRhsDicts (RhsDict a) (RhsDict b) = RhsDict (HM.unionWith (++) a b)
+-- Strip a leading ':' plus surrounding whitespace, then optional surrounding
+-- double quotes, leaving the bare header/field value.
+stripRhs :: String -> String
+stripRhs = trimQuotes . reverse . dropWhile (== ' ') . reverse . dropWhile (\c -> c == ':' || c == ' ')
 
 parseError :: [Token] -> E a
 parseError tokens = failE ("Parse error on tokens:\n" ++ prettyTokens tokens) tokens
@@ -318,7 +307,4 @@ returnE = return
 
 failE :: String -> [Token] -> E a
 failE err tokens = throwE (err, tokens)
-
-catchE :: E a -> (String -> [Token] -> E a) -> E a
-catchE m k = Control.Monad.Trans.Except.catchE m (\(e, ts) -> k e ts)
 }

@@ -19,7 +19,6 @@ import           Options.Applicative
 import           Control.Exception (finally)
 import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Trans.Maybe
 import           Control.Monad (forM_, replicateM, when, forever)
 import           Control.Concurrent
 import           Control.Concurrent.STM
@@ -247,19 +246,22 @@ go args@Args { duration = 1, call = False, source = Just path } = do
         hPutStrLn stderr $ "error: file not found: " ++ path
         exitWith (ExitFailure 1)
     else do
-        let analyzed = Scanner.analyze path
-        m <- runMaybeT analyzed
-        case m of
-            Just script -> trace ("goMode path=" ++ show path) $ goMode script args
-            _ -> error "bug in hh200 grammar!"
+        analyzed <- Scanner.analyze path
+        case analyzed of
+            Right script -> trace ("goMode path=" ++ show path) $ goMode script args
+            Left err -> do
+                hPutStrLn stderr ("error: " ++ err)
+                exitWith (ExitFailure 1)
 
 -- Inline program execution.
 -- hh200 --call "GET http://localhost:9999/health"
 go args@Args { call = True, source = Just snip } = do
-    m <- runMaybeT (Scanner.analyze (Snippet (BL.fromStrict (C8.pack snip))))
-    case m of
-        Just script -> goMode script args
-        _ -> error "bug in hh200 grammar!"
+    analyzed <- Scanner.analyze (Snippet (BL.fromStrict (C8.pack snip)))
+    case analyzed of
+        Right script -> goMode script args
+        Left err -> do
+            hPutStrLn stderr ("error: " ++ err)
+            exitWith (ExitFailure 1)
 
 -- Shotgun.
 -- hh200 flow.hhs --nvu=4 --duration=0
@@ -267,11 +269,13 @@ go args@Args { call = True, source = Just snip } = do
 -- Load test mode.
 -- hh200 flow.hhs --duration=30
 go args@Args { duration = _n, call = False, source = Just path } = do
-    mScript <- runMaybeT (Scanner.analyze path)
+    mScript <- Scanner.analyze path
     case mScript of
-        Nothing -> exitWith (ExitFailure 1)
-        -- Just script  -> trace "this goMode!!!!" $ goMode script args
-        Just script  -> goMode script args
+        Left err -> do
+            hPutStrLn stderr ("error: " ++ err)
+            exitWith (ExitFailure 1)
+        -- Right script  -> trace "this goMode!!!!" $ goMode script args
+        Right script  -> goMode script args
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)

@@ -11,15 +11,11 @@ module Hh200.Scanner
     -- , P.hasBalancedMustache
     ) where
 
-import Debug.Trace
-
 import           System.Directory (doesFileExist)
 import           System.Process (readProcess)
 import qualified System.Info as Info
 
-import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Except (runExceptT)
-import           Control.Monad.IO.Class
 import           Control.Exception (try, IOException)
 
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -57,58 +53,48 @@ trim = f . f where
 
 
 class Analyze a where
-    analyze :: a -> MaybeT IO Script
+    analyze :: a -> IO (Either String Script)
 
 instance Analyze Snippet where
-    analyze :: Snippet -> MaybeT IO Script
-    analyze (Snippet s) = do
-        let tokensOrPanic = alexScanTokens (L8.unpack s)
-        res <- liftIO $ runExceptT (parse tokensOrPanic)
-        case res of
-            Left (d, _) -> trace d (MaybeT (pure Nothing))
-            Right itemsAction -> do
-                res2 <- liftIO $ runExceptT itemsAction
-                case res2 of
-                     Left (d, _) -> trace d (MaybeT (pure Nothing))
-                     Right s' -> pure s'
+    analyze :: Snippet -> IO (Either String Script)
+    analyze (Snippet s) =
+        case scanSafe (L8.unpack s) of
+            Left d -> pure (Left d)
+            Right tokens -> do
+                res <- runExceptT (parse tokens)
+                case res of
+                    Left (d, _) -> pure (Left d)
+                    Right itemsAction -> do
+                        res2 <- runExceptT itemsAction
+                        case res2 of
+                             Left (d, _) -> pure (Left d)
+                             Right s' -> pure (Right s')
 
 instance Analyze FilePath where
-    analyze :: FilePath -> MaybeT IO Script
+    analyze :: FilePath -> IO (Either String Script)
     analyze path = do
-        exists <- liftIO $ doesFileExist path
-        MaybeT $ case exists of
-            False -> do
-                -- ??: Analyze is probably dead code
-                -- Proceeding to testOutsideWorld is unnecessary.
-                pure Nothing
-            _ -> do
-                readScript path
+        exists <- doesFileExist path
+        case exists of
+            False -> pure (Left ("file not found: " ++ path))
+            True  -> readScript path
 
-readScript :: FilePath -> IO (Maybe Script)
+readScript :: FilePath -> IO (Either String Script)
 readScript path = do
     loaded <- readFile path
-    let tokensOrPanic = alexScanTokens loaded
-    res <- runExceptT (parse tokensOrPanic)
-    case res of
-        Left (m, _) -> do
-            putStrLn m
-            pure Nothing
-        Right itemsAction -> do
-            res2 <- runExceptT itemsAction
-            case res2 of
-                Left (m, _) -> do
-                    putStrLn m
-                    pure Nothing
-                Right s -> pure (Just s)
+    case scanSafe loaded of
+        Left m -> pure (Left m)
+        Right tokens -> do
+            res <- runExceptT (parse tokens)
+            case res of
+                Left (m, _) -> pure (Left m)
+                Right itemsAction -> do
+                    res2 <- runExceptT itemsAction
+                    case res2 of
+                        Left (m, _) -> pure (Left m)
+                        Right s -> pure (Right s)
 
 scanSafe :: String -> Either String [Token]
-scanSafe str = runAlex str gather
-  where
-    gather = do
-        t <- alexMonadScan
-        case t of 
-            EOF _ -> return []
-            _ -> (t:) <$> gather
+scanSafe = alexScanTokens
 
 complete :: String -> Int -> [String]
 complete input pos = 

@@ -7,7 +7,6 @@ $white = [\ \t]
 $newline = [\n\r]
 $alpha = [a-zA-Z]
 $digit = [0-9]
-$path = [$alpha $digit \\ \/ \- \_ \.]
 
 tokens :-
     $white+   ;
@@ -41,7 +40,6 @@ tokens :-
     FormParams        { tok (\p _ -> KW_FORM p) }
     Form              { tok (\p _ -> KW_FORM p) }
     MultipartFormData { tok (\p _ -> KW_MULTIPART p) }
-    Multipart         { tok (\p _ -> KW_MULTIPART p) }
     Cookies           { tok (\p _ -> KW_COOKIES p) }
 
     Captures          { tok (\p _ -> KW_CAPTURES p) }
@@ -54,7 +52,7 @@ tokens :-
 
     [$alpha \_] [$alpha $digit \- \_]*  { tok (\p s -> IDENTIFIER p s) }
 
-    \" [$printable # \"]+ \"  { tok (\p s -> QUOTED p s) }
+    \" [$printable # \"]* \"  { tok (\p s -> QUOTED p s) }
     \$ $printable+            { tok (\p s -> JSONPATH p s) }
     : $printable+             { tok (\p s -> RHS p s) }
 
@@ -104,10 +102,8 @@ alexEOF = do
     (p, _, _, _) <- alexGetInput
     return (EOF p)
 
-alexScanTokens :: String -> [Token]
-alexScanTokens str = case runAlex str gather of
-    Left err -> error err
-    Right toks -> toks
+alexScanTokens :: String -> Either String [Token]
+alexScanTokens str = runAlex str gather
   where
     gather = do
         t <- alexMonadScan
@@ -159,16 +155,4 @@ data Token =
   | LINE  AlexPosn String
   | EOF   AlexPosn
     deriving (Eq, Show)
-
-tokenPosn (DIGITS p _) = p
-tokenPosn (BRACE_ENCLOSED p _) = p
-tokenPosn t = case t of
-    LN p -> p
-    IDENTIFIER p _ -> p
-    SEP p -> p
-    METHOD p _ -> p
-    URL p _ -> p
-    QUOTED p _ -> p
-    RHS p _ -> p
-    _ -> error "tokenPosn: not implemented for all tokens"
 }

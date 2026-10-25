@@ -16,6 +16,11 @@ import Hh200.Scanner as Hh
 -- GET http://localhost:9999/api/login
 -- Content-Type: "application/json"
 
+scanTokens :: String -> IO [Hh.Token]
+scanTokens input = case Hh.alexScanTokens input of
+    Left e -> assertFailure ("lex error: " ++ e)
+    Right ts -> pure ts
+
 spec :: TestTree
 spec = testGroup "Scanner and Parser"
   [ testScanner_lrBasic
@@ -28,7 +33,7 @@ spec = testGroup "Scanner and Parser"
 testScanner_lrBasic :: TestTree
 testScanner_lrBasic = testGroup "Lexer and Parser - Basic"
   [ testCase "Basic request with headers" $ do
-      let tokens = Hh.alexScanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
+      tokens <- scanTokens "POST http://localhost:9999/echo.php\nAuthorization: Bearer \nTest: $.data.id\nUser-Agent: \"lite\""
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right _ -> pure ()
@@ -36,7 +41,7 @@ testScanner_lrBasic = testGroup "Lexer and Parser - Basic"
 
   , testCase "POST with JSON body" $ do
       let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{ \"foo\": \"bar\", \"baz\": 123 }"
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right _ -> pure ()
@@ -44,7 +49,7 @@ testScanner_lrBasic = testGroup "Lexer and Parser - Basic"
 
   , testCase "POST with multiline JSON" $ do
       let input = "POST http://httpbin.org/post\nContent-Type: application/json\n\n{\n  \"foo\": \"bar\",\n  \"baz\": 123\n}"
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right _ -> pure ()
@@ -55,7 +60,7 @@ testScanner_lrMustache :: TestTree
 testScanner_lrMustache = testGroup "Lexer and Parser - Mustache"
   [ testCase "Template variable renders" $ do
       let input = "POST http://httpbin.org/post&unused={{100}}"
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right _ -> pure ()
@@ -66,7 +71,7 @@ testScanner_lrInvalid :: TestTree
 testScanner_lrInvalid = testGroup "Lexer and Parser - Errors"
   [ testCase "Invalid method fails" $ do
       let input = "INVALID http://httpbin.org/post"
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right _ -> assertFailure "Should have failed to parse"
@@ -74,7 +79,7 @@ testScanner_lrInvalid = testGroup "Lexer and Parser - Errors"
 
   , testCase "Empty input fails" $ do
       let input = ""
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right _ -> assertFailure "Should have failed to parse"
@@ -92,7 +97,7 @@ testScanner_lrResponseOrder :: TestTree
 testScanner_lrResponseOrder = testGroup "lexer and parser for response block order"
   [ testCase "Captures before Asserts" $ do
       let input = "GET http://localhost\n\nHTTP 200\n[Captures]\nfoo: bar\n\n[Asserts]\n> true\n"
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right action -> do
@@ -108,7 +113,7 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
 
   , testCase "Asserts before Captures" $ do
       let input = "GET http://localhost\n\nHTTP 200\n[Asserts]\n> true\n\n[Captures]\nfoo: bar\n"
-      let tokens = Hh.alexScanTokens input
+      tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
           Right action -> do
@@ -126,7 +131,7 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
 testScanner_lrRequestConfigs :: TestTree
 testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $ do
     let input = "GET http://localhost\nAuthorization: Bearer token\n[Configs]\nretry: 3\n\n{ \"body\": \"here\" }\n"
-    let tokens = Hh.alexScanTokens input
+    tokens <- scanTokens input
     res <- runExceptT (Hh.parse tokens)
     case res of
         Right action -> do
