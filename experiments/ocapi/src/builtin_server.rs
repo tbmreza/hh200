@@ -4,13 +4,13 @@ use axum::{
     extract::{Request, State},
     middleware::Next,
     response::IntoResponse,
-    routing::{delete, get},
+    routing::{any, delete, get},
     serve as axum_serve,
     Router,
 };
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::logger::TrafficLogger;
 use crate::routes;
@@ -26,11 +26,25 @@ async fn traffic_logger_middleware(
     next: Next,
 ) -> axum::response::Response {
     let id = state.logger.log_arrival().await;
-    info!(method = %request.method(), uri = %request.uri(), id = %id, "request arrival");
+    let method = request.method().clone();
+    let uri = request.uri().clone();
+    let headers = request.headers().clone();
+    info!(method = %method, uri = %uri, id = %id, "request arrival");
 
     let response = next.run(request).await;
 
-    info!(id = %id, status = %response.status(), "request completion");
+    let status = response.status();
+    info!(id = %id, status = %status, "request completion");
+
+    // Request-dump-on-failure: mirror php-dev-server's "log the full request
+    // when a request fails" debugging aid. Headers + uri are captured above
+    // (the query string rides in the uri); the body is deliberately not
+    // buffered here (consuming it would change request semantics) and is
+    // instead available on demand via the `/echo` reflect route.
+    if !status.is_success() {
+        warn!(id = %id, method = %method, uri = %uri, status = %status, headers = ?headers, "request failed");
+    }
+
     state.logger.log_completion(id).await;
     response.into_response()
 }
@@ -71,6 +85,8 @@ fn build_router(state: AppState) -> Router {
         .route("/delay/{delay}", delete(routes::delay))
         .route("/status/{code}", get(routes::status))
         .route("/bytes/{n}", get(routes::bytes))
+        .route("/echo", any(routes::echo))
+        .route("/sse", get(routes::sse))
         .fallback(routes::not_found)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -118,6 +134,16 @@ mod request_harness {
         serde_json::from_slice(&bytes).expect("body should be json")
     }
 
+    async fn body_text(response: axum::response::Response) -> String {
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body should be collectable")
+            .to_bytes();
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
     #[tokio::test]
     async fn health_returns_ok() {
         let (state, path) = temp_state();
@@ -155,6 +181,70 @@ mod request_harness {
             body_json(response).await,
             serde_json::json!({ "error": "not found", "path": "/does/not/exist" })
         );
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_returns_request_details() {
+        let (state, path) = temp_state();
+        let request = Request::builder()
+            .method("GET")
+            .uri("/echo?x=1")
+            .header("x-test", "hello")
+            .body(Body::empty())
+            .expect("valid request");
+
+        let response = build_router(state)
+            .oneshot(request)
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = body_json(response).await;
+        assert_eq!(body["method"], serde_json::json!("GET"));
+        assert_eq!(body["uri"], serde_json::json!("/echo?x=1"));
+        assert_eq!(body["query"]["x"], serde_json::json!("1"));
+        assert_eq!(body["headers"]["x-test"], serde_json::json!(["hello"]));
+        assert_eq!(body["body"], serde_json::json!(""));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn sse_streams_message_and_done_events() {
+        let (state, path) = temp_state();
+        let response = build_router(state)
+            .oneshot(get("/sse?events=1&interval=1"))
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        assert!(
+            content_type.starts_with("text/event-stream"),
+            "unexpected content-type: {content_type:?}"
+        );
+
+        let text = body_text(response).await;
+        assert!(text.contains("event: message"), "missing message event: {text:?}");
+        assert!(text.contains("event: done"), "missing done event: {text:?}");
+        assert!(text.contains("\"total\":1"), "done event should total 1: {text:?}");
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn non_success_status_flows_through_middleware() {
+        let (state, path) = temp_state();
+        let response = build_router(state)
+            .oneshot(get("/status/500"))
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         std::fs::remove_file(path).ok();
     }
 }

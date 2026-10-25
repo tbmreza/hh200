@@ -7,6 +7,10 @@ use crate::verdict::{Basis, Kind, Verdict};
 
 // ───────────────────────── 8. strategies and their combinators ───────────
 
+// ??: vibe check
+// explain why InterArrival and ConcurrencyBound are the 2 ocapi strategies: InterArrival is
+// inherent in traffic log; ConcurrencyBound is directly controlled by client
+// shall we limit to just 2: no, another can be ThinkTime
 pub trait Strategy: Sized {
     fn classify(&self, trace: &Trace, ctx: &Context) -> Verdict;
 
