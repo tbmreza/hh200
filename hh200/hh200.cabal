@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -121,6 +121,7 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      DashboardSpec
       ExecutionSpec
       LspSpec
       MustacheSpec
@@ -144,9 +145,14 @@ test-suite hh200-test
     , directory
     , hh200
     , http-client
+    , http-types
+    , network
+    , scotty
+    , sqlite-simple
     , tasty
     , tasty-hunit
     , text
     , transformers
     , unordered-containers
+    , warp
   default-language: Haskell2010

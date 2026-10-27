@@ -77,9 +77,6 @@ data RunRow = RunRow
   , runControlSocket :: Text
   }
 
--- migrateSchema :: Connection -> IO (Either Text ())
--- migrateSchema = undefined
-
 getMetricsForRun :: Connection -> Int64 -> IO [MetricWindowRow]
 getMetricsForRun = undefined
 

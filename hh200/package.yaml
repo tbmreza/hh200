@@ -128,6 +128,11 @@ tests:
     - case-insensitive
     - bel-expr
     - http-client
+    - http-types
+    - network
+    - scotty
+    - sqlite-simple
+    - warp
 
 # 🐝 C and C++ sources ahead 🐝
 
