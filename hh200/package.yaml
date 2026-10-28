@@ -132,7 +132,10 @@ tests:
     - network
     - scotty
     - sqlite-simple
+    - stm
     - warp
+    other-modules:
+    - TokenBucketWorkerPoolSpec
 
 # 🐝 C and C++ sources ahead 🐝
 

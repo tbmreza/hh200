@@ -126,6 +126,7 @@ test-suite hh200-test
       LspSpec
       MustacheSpec
       ScannerSpec
+      TokenBucketWorkerPoolSpec
       Paths_hh200
   hs-source-dirs:
       test
@@ -149,6 +150,7 @@ test-suite hh200-test
     , network
     , scotty
     , sqlite-simple
+    , stm
     , tasty
     , tasty-hunit
     , text
