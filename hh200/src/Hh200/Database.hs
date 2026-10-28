@@ -178,7 +178,7 @@ insertMetric = undefined
 data RunMetric = RunMetric
   { csvRunName :: Text
   -- , csvMetricTcp :: Int
-  , csvMwRps :: Int
+  , csvMwRps :: Double
   } deriving (Show)
 type StatsHistory = [RunMetric]
 
@@ -201,16 +201,16 @@ queryStatsHistory :: Connection -> Int -> IO (Either Text StatsHistory)
 queryStatsHistory conn runId = do
     result <- try $
         (query conn
-            "SELECT r.name, m.id \
+            "SELECT r.name, m.rps \
             \FROM metric_windows m JOIN runs r ON r.id = m.run_id \
             \WHERE m.run_id = ? ORDER BY m.id"
-            (Only runId) :: IO [(Text, Int64)])
+            (Only runId) :: IO [(Text, Double)])
 
     case result of
         Left (e :: SomeException) ->
             pure $ Left (Text.pack (displayException e))
         Right rows ->
-            pure $ Right [ RunMetric name (fromIntegral mId) | (name, mId) <- rows ]
+            pure $ Right [ RunMetric name rps | (name, rps) <- rows ]
 
 -- class DbInsert -- ??
 

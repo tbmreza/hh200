@@ -1,0 +1,1 @@
+import{t as e}from"../chunks/DK3Fl9T5.js";import{n as t}from"../chunks/Bin8K3vy.js";var n=e({load:()=>r,prerender:()=>!1});function r(){t(307,`/runs`)}export{n as universal};

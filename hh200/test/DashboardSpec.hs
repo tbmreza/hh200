@@ -72,7 +72,7 @@ schema =
       \status TEXT, concurrency INTEGER, rate_limit REAL, control_socket TEXT)"
 
     , "CREATE TABLE IF NOT EXISTS metric_windows ( \
-      \id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER)"
+      \id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, rps REAL)"
     ]
 
 -- | Point @HH200_SQLITE@ at a fresh temp file, create the schema, optionally
@@ -99,8 +99,8 @@ withTestDb seeded act = do
             , "/tmp/cs" :: String
             )
         Sqlite.execute conn
-            "INSERT INTO metric_windows (run_id) VALUES (?)"
-            (Sqlite.Only (1 :: Int))
+            "INSERT INTO metric_windows (run_id, rps) VALUES (?, ?)"
+            (1 :: Int, 250.5 :: Double)
     Sqlite.close conn
     act `finally` do
         unsetEnv "HH200_SQLITE"
@@ -154,7 +154,7 @@ testReportSeeded = testCase "GET /api/report/:runId returns a CSV download" $ do
             assertBool "attachment disposition" $
                 maybe False (BS.isInfixOf "attachment; filename=\"stats_history_1.csv\"") disp
             assertBodyContains "run_name,metric_window_rps" resp
-            assertBodyContains "my run,1" resp
+            assertBodyContains "my run,250.5" resp
 
 testReportEmpty :: TestTree
 testReportEmpty = testCase "GET /api/report/:runId with no metrics returns header only" $ do
