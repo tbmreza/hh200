@@ -12,6 +12,8 @@ module Hh200.TokenBucketWorkerPool
   , destroyRateLimiter
   , withRateLimiter
   , waitAndConsumeToken
+  , RateLimiterStats(..)
+  , getStats
   , WorkerMode(..)
   , WorkerConfig(..)
   , courier
@@ -183,5 +185,4 @@ getStats rl = do
         , totalConsumed = consumed
         , capacity      = bucketCapacity (rlConfig rl)
         }
-
 
