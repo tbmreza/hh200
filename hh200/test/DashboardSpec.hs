@@ -114,6 +114,10 @@ spec :: TestTree
 spec = testGroup "Dashboard"
   [ testRunsEmpty
   , testRunsSeeded
+  , testLiveRunSeeded
+  , testLiveRunEmpty
+  , testRunDetailSeeded
+  , testRunDetailNotFound
   , testReportSeeded
   , testReportEmpty
   , testSigForwards
@@ -142,6 +146,41 @@ testRunsSeeded = testCase "GET /api/runs returns seeded rows" $ do
             assertBodyContains "\"status\":\"running\"" resp
             assertBodyContains "\"concurrency\":5" resp
             assertBodyContains "\"rate_limit\":10.5" resp
+
+testLiveRunSeeded :: TestTree
+testLiveRunSeeded = testCase "GET /api/runs/live returns the running run" $ do
+    withTestDb True $ do
+        withDashboard False $ \mgr port -> do
+            resp <- getLbs mgr port "/api/runs/live"
+            assertStatus 200 resp
+            assertBodyContains "\"name\":\"my run\"" resp
+            assertBodyContains "\"state\":\"running\"" resp
+
+testLiveRunEmpty :: TestTree
+testLiveRunEmpty = testCase "GET /api/runs/live returns null run when none running" $ do
+    withTestDb False $ do
+        withDashboard False $ \mgr port -> do
+            resp <- getLbs mgr port "/api/runs/live"
+            assertStatus 200 resp
+            assertBodyContains "\"run\":null" resp
+            assertBodyContains "\"state\":\"running\"" resp
+
+testRunDetailSeeded :: TestTree
+testRunDetailSeeded = testCase "GET /api/runs/:id returns the run with empty requests and metrics" $ do
+    withTestDb True $ do
+        withDashboard False $ \mgr port -> do
+            resp <- getLbs mgr port "/api/runs/1"
+            assertStatus 200 resp
+            assertBodyContains "\"name\":\"my run\"" resp
+            assertBodyContains "\"requests\":[]" resp
+            assertBodyContains "\"metric_windows\":[]" resp
+
+testRunDetailNotFound :: TestTree
+testRunDetailNotFound = testCase "GET /api/runs/:id returns 404 for unknown id" $ do
+    withTestDb True $ do
+        withDashboard False $ \mgr port -> do
+            resp <- getLbs mgr port "/api/runs/999"
+            assertStatus 404 resp
 
 testReportSeeded :: TestTree
 testReportSeeded = testCase "GET /api/report/:runId returns a CSV download" $ do

@@ -14,7 +14,7 @@ import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
-import           Data.Aeson (object, encode, (.=))
+import           Data.Aeson (object, encode, (.=), Value(..))
 import           Data.Maybe (fromMaybe)
 import           Data.Text (unpack)
 import qualified Data.Text.Lazy as LT
@@ -26,7 +26,7 @@ import           System.Environment (lookupEnv)
 import           Web.Scotty (ScottyM, scotty, regex, pathParam)
 import qualified Web.Scotty as Server
 
-import           Hh200.Database (initDb, listRuns, queryStatsHistory)
+import           Hh200.Database (initDb, listRuns, queryStatsHistory, getRunById, getLatestRunningRun)
 
 --------------------------------------------------------------------------------
 -- Dashboard server
@@ -63,6 +63,33 @@ dashboardRoutes isDev = do
         conn <- liftIO initDb
         rows <- liftIO $ listRuns conn
         Server.json $ object ["runs" .= rows]
+
+    Server.get "/api/runs/live" $ do
+        conn <- liftIO initDb
+        mLatest <- liftIO $ getLatestRunningRun conn
+        case mLatest of
+            Left err -> do
+                Server.status status404
+                Server.json $ object ["error" .= unpack err]
+            Right Nothing ->
+                Server.json $ object ["run" .= Null, "state" .= ("running" :: String)]
+            Right (Just row) ->
+                Server.json $ object ["run" .= row, "state" .= ("running" :: String)]
+
+    Server.get "/api/runs/:runId" $ do
+        conn <- liftIO initDb
+        runId :: Int <- pathParam "runId"
+        result <- liftIO $ getRunById conn (fromIntegral runId)
+        case result of
+            Left err -> do
+                Server.status status404
+                Server.json $ object ["error" .= unpack err]
+            Right row ->
+                Server.json $ object
+                    [ "run" .= row
+                    , "requests" .= ([] :: [Value])
+                    , "metric_windows" .= ([] :: [Value])
+                    ]
 
     Server.get "/api/report/:runId" $ do
         conn <- liftIO initDb

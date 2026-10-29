@@ -78,7 +78,7 @@ export type RunDetail = {
 };
 
 export type LiveRun = {
-	run: Run;
+	run: Run | null;
 	state: RunControlState;
 };
 

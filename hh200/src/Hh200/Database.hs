@@ -152,6 +152,21 @@ getRunById conn rid = do
         Right (row : _) ->
             pure $ Right row
 
+getLatestRunningRun :: Connection -> IO (Either Text (Maybe RunRow))
+getLatestRunningRun conn = do
+    result <- try $
+        query_ conn
+            "SELECT id, name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket \
+            \FROM runs WHERE status = 'running' ORDER BY started_at DESC LIMIT 1"
+
+    case result of
+        Left (e :: SomeException) ->
+            pure $ Left (Text.pack (displayException e))
+        Right [] ->
+            pure $ Right Nothing
+        Right (row : _) ->
+            pure $ Right (Just row)
+
 
 insertMetric :: Connection -> MetricWindowRow -> IO (Either Text ())
 insertMetric = undefined

@@ -20,7 +20,7 @@ const live = {
 describe('live page load', () => {
 	test('returns the in-progress run and control state', async () => {
 		const data = await load(makeLoad(JSON.stringify(live)));
-		expect(data.live.run.name).toBe('live-run');
+		expect(data.live.run?.name).toBe('live-run');
 		expect(data.live.state).toBe('running');
 	});
 });
