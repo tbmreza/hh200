@@ -57,3 +57,24 @@ consumed by the backend today:
 - `requests`, `request_headers`, `request_bodies` — defined and seeded here but
   not yet exposed by any backend route (`GET /api/runs/:id` and
   `GET /api/runs/live` are still unimplemented).
+
+## Principles for review
+
+- **Preview before fire.** Show a configuration's effective (resolved) values
+  and foreseeable consequences before any action. Mirroring the CLI's
+  `--debug-config`, the Run screen states what will happen (in-flight ceiling,
+  rate cap, request estimates, duration) before the Run button is actionable.
+- **A lens on the CLI, not a replacement.** The `.hhs` script and CLI flags stay
+  the source of truth; the UI previews and observes, it doesn't invent config it
+  can't honour.
+- **Static form factor.** Static SvelteKit build served by the
+  backend; all dynamic data flows through the existing HTTP + SSE surface.
+- **Metrics and monitoring are first-class.** A dashboard showing latency, rps,
+  and failures per window is a goal, not an afterthought. We build the surface
+  now — even where the backend's metric data is still thin — because a visible
+  surface creates pressure for real data.
+<!-- - Not yet: auth, multi-tenancy, alerting — those come after the core observe-and-preview loop. -->
+<!-- - **Honesty about gaps.** Anything not implemented is rendered as not -->
+<!--   implemented — disabled, labelled, with a reason — never as a silently-broken -->
+<!--   control or a blank page. `src/lib/features.ts` is the single source of truth -->
+<!--   for what's available. -->

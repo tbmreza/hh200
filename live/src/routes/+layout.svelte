@@ -11,6 +11,7 @@
 <nav>
 	<a href="/runs">Runs</a>
 	<a href="/runs/live">Live</a>
+	<a href="/run">Run</a>
 </nav>
 
 <main>

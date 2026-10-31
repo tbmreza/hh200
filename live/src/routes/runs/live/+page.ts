@@ -1,9 +1,7 @@
-import type { LoadEvent } from '@sveltejs/kit';
-import { getLiveRun } from '$lib/api';
+import { features } from '$lib/features';
 
 export const prerender = false;
 
-export async function load({ fetch }: LoadEvent) {
-	const live = await getLiveRun(fetch);
-	return { live };
+export function load() {
+  return { implemented: features.liveRun };
 }
