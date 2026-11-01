@@ -1,6 +1,6 @@
 # present full ast (Asserts block)
 # specify "found an unmet expectation" (catch offline exception)
-POST http://localhost:8080/api/echo
+POST http://localhost:8080/echo
 {
   "foo": "bar",
   "baz": 123

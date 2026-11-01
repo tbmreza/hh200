@@ -43,8 +43,8 @@
     starting = true;
     error = null;
     try {
-      await startRun(config);
-      await goto('/runs');
+      const { id } = await startRun(config);
+      await goto(`/runs/${id}`);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {

@@ -1,2 +1,0 @@
-import{E as e,H as t,V as n,g as r,h as i,j as a,k as o,v as s}from"./DCPVkMPI.js";import"./xihTtKlq.js";var c=s(`<section class="not-implemented svelte-1ef1lm9"><h2>Not implemented yet</h2> <p> <code class="svelte-1ef1lm9"> </code>, which
-    the backend does not implement.</p></section>`);function l(s,l){var u=c(),d=a(o(u),2),f=o(d),p=a(f),m=o(p,!0);t(p),n(),t(d),t(u),e(()=>{i(f,`${l.feature??``} is not available yet: it depends on `),i(m,l.endpoint)}),r(s,u)}export{l as t};

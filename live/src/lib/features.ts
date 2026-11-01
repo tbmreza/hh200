@@ -7,7 +7,7 @@ export const features = {
   report: true, // GET /api/report/:id
   signal: true, // POST /api/sig
   sse: true, // GET /api/sse
-  runDetail: false, // GET /api/runs/:id
+  runDetail: true, // GET /api/runs/:id
   liveRun: false, // GET /api/runs/live
   startRun: true, // POST /api/run (+ POST /api/run/plan)
 } as const;

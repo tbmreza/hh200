@@ -1,1 +1,0 @@
-import{t as e}from"../chunks/DK3Fl9T5.js";import{r as t}from"../chunks/BuFlayix.js";function n(e,n){throw new t(e,n.toString())}var r=e({load:()=>i,prerender:()=>!1});function i(){n(307,`/runs`)}export{r as universal};
