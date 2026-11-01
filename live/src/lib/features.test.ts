@@ -12,6 +12,9 @@ describe('features registry', () => {
   test('unimplemented endpoints are disabled', () => {
     expect(features.runDetail).toBe(false);
     expect(features.liveRun).toBe(false);
-    expect(features.startRun).toBe(false);
+  });
+
+  test('start-run endpoint is enabled', () => {
+    expect(features.startRun).toBe(true);
   });
 });

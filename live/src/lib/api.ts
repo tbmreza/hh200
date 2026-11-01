@@ -2,8 +2,11 @@ import type {
 	LiveRun,
 	Run,
 	RunDetail,
+	RunPlan,
+	RunRequest,
 	RunSignal,
 	RunsResponse,
+	StartRunResponse,
 } from '$lib/types';
 
 type FetchLike = typeof fetch;
@@ -44,4 +47,25 @@ export async function sendSignal(signal: RunSignal, fetchImpl: FetchLike = fetch
 		body: signal,
 	});
 	if (!res.ok) throw new Error(`signal ${signal} returned HTTP ${res.status}`);
+}
+
+export async function planRun(req: RunRequest, fetchImpl: FetchLike = fetch): Promise<RunPlan> {
+	const res = await fetchImpl('/api/run/plan', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req),
+	});
+	return asJson<RunPlan>(res);
+}
+
+export async function startRun(
+	req: RunRequest,
+	fetchImpl: FetchLike = fetch
+): Promise<StartRunResponse> {
+	const res = await fetchImpl('/api/run', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(req),
+	});
+	return asJson<StartRunResponse>(res);
 }

@@ -3,18 +3,12 @@
 // Mirrors what the CLI can foresee from its flags (`--nvu`, `--duration`) and
 // flags what it cannot until a `--debug-config`-style backend endpoint exists
 // (e.g. the rate limit, which is resolved from the script header/environment).
+// The authoritative pre-flight now comes from `POST /api/run/plan`; this
+// module is the instant, optimistic fallback.
 
-export type RunConfig = {
-  name: string;
-  script: string;
-  nvu: number; // number of virtual users (CLI: --nvu)
-  duration: number; // seconds; 0 = single-shot (CLI: --duration default)
-};
+import type { Foreseeable, RunRequest } from './types';
 
-// A value we can compute now, or a gap we can't fill yet.
-export type Foreseeable<T> =
-  | { known: true; value: T }
-  | { known: false; reason: string };
+export type RunConfig = RunRequest;
 
 export type RunPreview = {
   inFlightCeiling: number; // == nvu, always foreseeable

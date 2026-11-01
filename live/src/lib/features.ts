@@ -9,7 +9,7 @@ export const features = {
   sse: true, // GET /api/sse
   runDetail: false, // GET /api/runs/:id
   liveRun: false, // GET /api/runs/live
-  startRun: false, // (planned) start a run
+  startRun: true, // POST /api/run (+ POST /api/run/plan)
 } as const;
 
 export type Feature = keyof typeof features;

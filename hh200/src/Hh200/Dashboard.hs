@@ -14,11 +14,11 @@ import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
-import           Data.Aeson (object, encode, (.=), Value(..))
+import           Data.Aeson (object, encode, (.=), Value(..), eitherDecode)
 import           Data.Maybe (fromMaybe)
 import           Data.Text (unpack)
 import qualified Data.Text.Lazy as LT
-import           Network.HTTP.Types.Status (status404)
+import           Network.HTTP.Types.Status (status404, status400, status409, status422)
 import           Network.Socket
 import qualified Network.Socket.ByteString as NBS
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
@@ -27,6 +27,7 @@ import           Web.Scotty (ScottyM, scotty, regex, pathParam)
 import qualified Web.Scotty as Server
 
 import           Hh200.Database (initDb, listRuns, queryStatsHistory, getRunById, getLatestRunningRun)
+import           Hh200.Runner (StartError (..), runPlan, startRun)
 
 --------------------------------------------------------------------------------
 -- Dashboard server
@@ -108,6 +109,32 @@ dashboardRoutes isDev = do
                 Server.setHeader "Content-Type" "text/csv"
                 Server.setHeader "Content-Disposition" ("attachment; filename=\"" <> downloadName <> "\"")
                 Server.raw bs
+
+    Server.post "/api/run/plan" $ do
+        body <- Server.body
+        case eitherDecode body of
+            Left err -> do
+                Server.status status400
+                Server.json $ object ["error" .= (err :: String)]
+            Right req -> Server.json =<< liftIO (runPlan req)
+
+    Server.post "/api/run" $ do
+        body <- Server.body
+        case eitherDecode body of
+            Left err -> do
+                Server.status status400
+                Server.json $ object ["error" .= (err :: String)]
+            Right req -> do
+                result <- liftIO $ startRun req
+                case result of
+                    Left StartConflict -> do
+                        Server.status status409
+                        Server.json $ object ["error" .= ("a run is already in progress" :: String)]
+                    Left (StartRejected e) -> do
+                        Server.status status422
+                        Server.json $ object ["error" .= e]
+                    Right runId ->
+                        Server.json $ object ["id" .= runId]
 
     Server.post "/api/sig" $ do
         body :: BL.ByteString <- Server.body

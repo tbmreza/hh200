@@ -1,2 +1,0 @@
-import{B as e,D as t,g as n,h as r,k as i,v as a,w as o,z as s}from"./BNc0WyOW.js";import"./xihTtKlq.js";var c=a(`<section class="not-implemented svelte-1ef1lm9"><h2>Not implemented yet</h2> <p> <code class="svelte-1ef1lm9"> </code>, which
-    the backend does not implement.</p></section>`);function l(a,l){var u=c(),d=i(t(u),2),f=t(d),p=i(f),m=t(p,!0);e(p),s(),e(d),e(u),o(()=>{r(f,`${l.feature??``} is not available yet: it depends on `),r(m,l.endpoint)}),n(a,u)}export{l as t};

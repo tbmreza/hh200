@@ -5,6 +5,7 @@ module DashboardSpec (spec) where
 import           Control.Concurrent (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception (finally)
 import           Control.Monad (when)
+import           Data.Aeson (encode, object, (.=))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BL
@@ -106,6 +107,29 @@ withTestDb seeded act = do
         unsetEnv "HH200_SQLITE"
         removeFile fp
 
+-- | Write a temp @.hhs@ file and point @HH200_SCRIPT_ROOT@ at its directory.
+-- The full path is handed to the action; the env var is restored afterwards.
+withScript :: String -> (FilePath -> IO a) -> IO a
+withScript content act = do
+    tmp <- getTemporaryDirectory
+    (fp, h) <- openTempFile tmp "hh200-script.hhs"
+    hClose h
+    writeFile fp content
+    setEnv "HH200_SCRIPT_ROOT" tmp
+    act fp `finally` do
+        unsetEnv "HH200_SCRIPT_ROOT"
+        removeFile fp
+
+-- | A @POST \/api\/run{,\/plan}@ request body.
+runReq :: FilePath -> Int -> Int -> BL.ByteString
+runReq script nvu duration =
+    encode $ object
+        [ "name" .= ("my run" :: String)
+        , "script" .= script
+        , "nvu" .= nvu
+        , "duration" .= duration
+        ]
+
 --------------------------------------------------------------------------------
 -- Tests
 --------------------------------------------------------------------------------
@@ -118,6 +142,11 @@ spec = testGroup "Dashboard"
   , testLiveRunEmpty
   , testRunDetailSeeded
   , testRunDetailNotFound
+  , testRunPlanValid
+  , testRunPlanInvalid
+  , testRunStartInserts
+  , testRunStartConflict
+  , testRunStartRejected
   , testReportSeeded
   , testReportEmpty
   , testSigForwards
@@ -181,6 +210,56 @@ testRunDetailNotFound = testCase "GET /api/runs/:id returns 404 for unknown id" 
         withDashboard False $ \mgr port -> do
             resp <- getLbs mgr port "/api/runs/999"
             assertStatus 404 resp
+
+testRunPlanValid :: TestTree
+testRunPlanValid = testCase "POST /api/run/plan returns foresee for a valid script" $ do
+    withScript "GET http://localhost:1/x\nHTTP 200\n" $ \fp ->
+        withTestDb False $ do
+            withDashboard False $ \mgr port -> do
+                resp <- postLbs mgr port "/api/run/plan" (runReq fp 5 0)
+                assertStatus 200 resp
+                assertBodyContains "\"scriptValid\":true" resp
+                assertBodyContains "\"inFlightCeiling\":5" resp
+                assertBodyContains "\"wallClock\":\"single-shot\"" resp
+                assertBodyContains "\"callItems\":1" resp
+                assertBodyContains "\"rateLimitSource\":\"none\"" resp
+
+testRunPlanInvalid :: TestTree
+testRunPlanInvalid = testCase "POST /api/run/plan reports a parse error" $ do
+    withScript "not a script\n" $ \fp ->
+        withTestDb False $ do
+            withDashboard False $ \mgr port -> do
+                resp <- postLbs mgr port "/api/run/plan" (runReq fp 1 0)
+                assertStatus 200 resp
+                assertBodyContains "\"scriptValid\":false" resp
+                assertBodyContains "\"errors\"" resp
+
+testRunStartInserts :: TestTree
+testRunStartInserts = testCase "POST /api/run starts a run that shows in the list" $ do
+    withScript "GET http://localhost:1/x\nHTTP 200\n" $ \fp ->
+        withTestDb False $ do
+            withDashboard False $ \mgr port -> do
+                resp <- postLbs mgr port "/api/run" (runReq fp 1 0)
+                assertStatus 200 resp
+                assertBodyContains "\"id\"" resp
+                list <- getLbs mgr port "/api/runs"
+                assertBodyContains "\"name\":\"my run\"" list
+
+testRunStartConflict :: TestTree
+testRunStartConflict = testCase "POST /api/run rejects when a run is already running" $ do
+    withScript "GET http://localhost:1/x\nHTTP 200\n" $ \fp ->
+        withTestDb True $ do
+            withDashboard False $ \mgr port -> do
+                resp <- postLbs mgr port "/api/run" (runReq fp 1 0)
+                assertStatus 409 resp
+
+testRunStartRejected :: TestTree
+testRunStartRejected = testCase "POST /api/run rejects an escaping script path" $ do
+    withScript "GET http://localhost:1/x\nHTTP 200\n" $ \fp ->
+        withTestDb False $ do
+            withDashboard False $ \mgr port -> do
+                resp <- postLbs mgr port "/api/run" (runReq "/etc/passwd" 1 0)
+                assertStatus 422 resp
 
 testReportSeeded :: TestTree
 testReportSeeded = testCase "GET /api/report/:runId returns a CSV download" $ do

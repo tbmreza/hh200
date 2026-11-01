@@ -1,0 +1,14 @@
+# present full ast (Asserts block)
+# specify "found an unmet expectation" (catch offline exception)
+POST http://localhost:8080/api/echo
+# {
+#   "foo": "bar",
+#   "baz": 123
+# }
+# HTTP 200
+# [Captures]
+# TOK: Bearer ey{{100 * 24}}
+# [Asserts]
+# # >debug 345
+# # >debug "$.method"
+# >debug TOK

@@ -174,3 +174,28 @@ Ocapi argument line is `L1: passive impossibility; L2: witness; T: active identi
 | Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`. | `src/Hh200/Execution.hs` |
 | Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads. | `src/Hh200/Scanner.hs` |
 | Single-machine load (distributed = v2)     | Distributed load generation deferred to a future version 2. | README diagram |
+
+### For review
+
+Open design decisions for the Run screen (start-a-run-from-the-server) vertical slice.
+
+| Decision (open) | Recommended default | Trade-off |
+|---|---|---|
+| Launch mechanism | In-process `forkIO` of couriers, reusing `courier` + a shared `TVar RunState` | Lifecycle/leak risk inside the server vs. subprocess isolation (a subprocess must poll SQLite for status). |
+| Rate-limit source & precedence | `--rate` flag + optional script-header key; precedence `env > flag > header > default (unlimited)` | No rate limit exists today, so the plan endpoint returns "unknown" until this lands. |
+| Script path policy | `HH200_SCRIPT_ROOT` dir + `canonicalizePath`, reject `..`/escape | Usability vs. arbitrary file read / path traversal. |
+| Concurrent runs | One at a time; `409` if a run is already `running` | Prevents parallel load tests but matches the single `RunState` model. |
+| Run name uniqueness | Non-unique; auto-generate when blank | Possible display ambiguity vs. blocking re-runs. |
+| `totalRequests` semantics | `nvu × length (callItems script)` for single-shot | More accurate than `nvu`, but requires counting parsed `CallItem`s. |
+
+Surprises worth recording before implementation:
+
+| Finding | Location | Impact |
+|---|---|---|
+| `features.runDetail`/`liveRun` are `false` though their endpoints exist | `live/src/lib/features.ts:10-11`, `hh200/src/Hh200/Dashboard.hs:67-92` | Runs detail and Live pages show "Not implemented" despite working endpoints. |
+| `--debug-config` is `undefined path` | `hh200/src/Hh200/Cli.hs:232-238` | Flag parses but does nothing. |
+| Top-level grammar hardcodes `config = defaultScriptConfig` | `hh200/src/P.y:72` | No script-header config; `[Configs]` is per-request (`P.y:144`). |
+| `runRateLimit = 0.0`, `runName = "default run name"` hardcoded | `hh200/src/Hh200/Cli.hs:303,283-284` | No `--rate` flag; `RateLimiterConfig` only reachable via `undefined` `testRps`. |
+| `updateRunStatus` never called | `hh200/src/Hh200/Database.hs:126-137` | Runs stay `status='running'` forever. |
+| `/api/sse` streams a hardcoded blob | `hh200/src/Hh200/Dashboard.hs:121-136` | "Live" is cosmetic; `sse.ts` `connectSse`/`setLiveRun` are dead code. |
+| `getMetricsForRun`/`insertMetric`/`testShotgun` are `undefined` | `hh200/src/Hh200/Database.hs:80-81,171-172`, `hh200/src/Hh200/Cli.hs:418` | Consistent with the ideation → committal transition. |
