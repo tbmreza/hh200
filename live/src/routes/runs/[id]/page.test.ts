@@ -16,7 +16,6 @@ const detail: RunDetail = {
     control_socket: '/tmp/a.sock',
   },
   requests: [],
-  metric_windows: [],
 };
 
 describe('run detail page load', () => {
@@ -24,6 +23,5 @@ describe('run detail page load', () => {
     const data = await load(makeLoad(JSON.stringify(detail), { id: '1' }));
     expect(data.detail.run.name).toBe('alpha-run');
     expect(data.detail.requests).toEqual([]);
-    expect(data.detail.metric_windows).toEqual([]);
   });
 });

@@ -15,7 +15,6 @@ import qualified Data.ByteString.Char8 as BSC
 import           Data.Int (Int64)
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Csv as Csv
 import           Database.SQLite.Simple (query, Only (..), Connection, ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId)
 import           Network.HTTP.Types.Header (HeaderName)
 import           System.Directory (XdgDirectory (XdgData), getXdgDirectory, createDirectoryIfMissing)
@@ -52,19 +51,6 @@ data RREndTime =
   | ETHasEnded Int64
     deriving (Show, Eq)
 
--- (auto) ebpf field will be added here
--- ??: plan how metrics will be filtered
-data MetricWindowRow = MetricWindowRow
-  { mwRps :: Int
-  -- { metricTcpRetransmits :: Int
-  -- { metricRunId       :: Int64
-  -- , metricWorkerId    :: Int
-  -- , metricTimestampMs :: Int64
-  -- , metricLatencyMs   :: Double
-  -- , metricStatusCode  :: Int
-  -- , metricError       :: Maybe Text   -- Nothing on success; timeout/conn-refused/etc. on failure
-  } deriving (Show, Eq)
-
 data RunRow = RunRow
   { runId            :: Int64
   , runName          :: Text
@@ -76,9 +62,6 @@ data RunRow = RunRow
   , runRateLimit     :: Double
   , runControlSocket :: Text
   }
-
-getMetricsForRun :: Connection -> Int64 -> IO [MetricWindowRow]
-getMetricsForRun = undefined
 
 instance ToRow RunRow where
     toRow (RunRow rid n sp sa ea s c rl cs) = toRow (rid, n, sp, sa, endedAtVal, s, c, rl, cs)
@@ -167,65 +150,6 @@ getLatestRunningRun conn = do
         Right (row : _) ->
             pure $ Right (Just row)
 
-
-insertMetric :: Connection -> MetricWindowRow -> IO (Either Text ())
-insertMetric = undefined
--- insertMetricWindow conn mr = do
---     result <- try $
---         execute conn
---             "INSERT INTO metrics \
---             \(run_id, worker_id, timestamp_ms, latency_ms, status_code, error) \
---             \VALUES (?, ?, ?, ?, ?, ?)"
---             ( metricRunId mr
---             , metricWorkerId mr
---             , metricTimestampMs mr
---             , metricLatencyMs mr
---             , metricStatusCode mr
---             , metricError mr
---             )
---
---     case result of
---         Left (e :: SomeException) ->
---             pure $ Left (Text.pack (displayException e))
---         Right () ->
---             pure $ Right ()
-
-data RunMetric = RunMetric
-  { csvRunName :: Text
-  -- , csvMetricTcp :: Int
-  , csvMwRps :: Double
-  } deriving (Show)
-type StatsHistory = [RunMetric]
-
-instance Csv.ToNamedRecord RunMetric where
-    toNamedRecord (RunMetric r0 r1) =
-        Csv.namedRecord
-            [ "run_name" Csv..= r0
-            , "metric_window_rps" Csv..= r1
-            ]
-
-instance Csv.DefaultOrdered RunMetric where
-    headerOrder _ =
-        Csv.header
-            [ "run_name"
-            , "metric_window_rps"
-            ]
-
--- runs-metrics joined to feed to report serializer.
-queryStatsHistory :: Connection -> Int -> IO (Either Text StatsHistory)
-queryStatsHistory conn runId = do
-    result <- try $
-        (query conn
-            "SELECT r.name, m.rps \
-            \FROM metric_windows m JOIN runs r ON r.id = m.run_id \
-            \WHERE m.run_id = ? ORDER BY m.id"
-            (Only runId) :: IO [(Text, Double)])
-
-    case result of
-        Left (e :: SomeException) ->
-            pure $ Left (Text.pack (displayException e))
-        Right rows ->
-            pure $ Right [ RunMetric name rps | (name, rps) <- rows ]
 
 -- class DbInsert -- ??
 

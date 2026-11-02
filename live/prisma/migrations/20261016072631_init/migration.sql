@@ -48,22 +48,6 @@ CREATE TABLE "request_bodies" (
     CONSTRAINT "request_bodies_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "requests" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- CreateTable
-CREATE TABLE "metric_windows" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "run_id" INTEGER NOT NULL,
-    "endpoint" TEXT NOT NULL,
-    "start" DATETIME NOT NULL,
-    "end" DATETIME NOT NULL,
-    "count" INTEGER NOT NULL,
-    "fail_count" INTEGER NOT NULL,
-    "min_latency" REAL NOT NULL,
-    "max_latency" REAL NOT NULL,
-    "avg_latency" REAL NOT NULL,
-    "rps" REAL NOT NULL,
-    CONSTRAINT "metric_windows_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "runs" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
 -- CreateIndex
 CREATE INDEX "requests_run_id_idx" ON "requests"("run_id");
 

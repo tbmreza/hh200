@@ -32,14 +32,6 @@ export async function getLiveRun(fetchImpl: FetchLike = fetch): Promise<LiveRun>
 	return asJson<LiveRun>(res);
 }
 
-export function getReportUrl(id: number): string {
-	return `/api/report/${id}`;
-}
-
-export function getReportFilename(id: number): string {
-	return `stats_history_${id}.csv`;
-}
-
 export async function sendSignal(signal: RunSignal, fetchImpl: FetchLike = fetch): Promise<void> {
 	const res = await fetchImpl('/api/sig', {
 		method: 'POST',

@@ -1,17 +1,10 @@
 <script lang="ts">
   import type { RunDetail } from '$lib/types';
-  import { downloadFile } from '$lib/download';
-  import { getReportUrl, getReportFilename } from '$lib/api';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RequestList from '$lib/components/RequestList.svelte';
-  import MetricWindowList from '$lib/components/MetricWindowList.svelte';
 
   let { data } = $props<{ data: { detail: RunDetail } }>();
   const run = $derived(data.detail.run);
-
-  async function downloadCsv() {
-    await downloadFile(getReportUrl(run.id), getReportFilename(run.id));
-  }
 </script>
 
 <h1>{run.name}</h1>
@@ -32,11 +25,6 @@
   <dt>Control socket</dt>
   <dd>{run.control_socket}</dd>
 </dl>
-
-<button onclick={downloadCsv}>download csv</button>
-
-<h2>Metric windows</h2>
-<MetricWindowList metricWindows={data.detail.metric_windows} />
 
 <h2>Requests</h2>
 <RequestList requests={data.detail.requests} />

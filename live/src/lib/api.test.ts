@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Run, RunDetail, RunPlan } from '$lib/types';
-import { listRuns, getRun, getReportUrl, getReportFilename, sendSignal, planRun, startRun } from './api';
+import { listRuns, getRun, sendSignal, planRun, startRun } from './api';
 
 function jsonFetch(body: unknown): typeof fetch {
 	return (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
@@ -25,14 +25,9 @@ describe('api', () => {
 	});
 
 	test('getRun returns the run detail', async () => {
-		const detail: RunDetail = { run, requests: [], metric_windows: [] };
+		const detail: RunDetail = { run, requests: [] };
 		const result = await getRun(1, jsonFetch(detail));
 		expect(result).toEqual(detail);
-	});
-
-	test('report helpers build the CSV url and filename', () => {
-		expect(getReportUrl(42)).toBe('/api/report/42');
-		expect(getReportFilename(42)).toBe('stats_history_42.csv');
 	});
 
 	test('sendSignal posts the raw signal body', async () => {

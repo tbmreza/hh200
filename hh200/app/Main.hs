@@ -4,8 +4,8 @@ module Main (main) where
 -- MAIN THESIS OF HH200 (Handzalah, 2024)
 --------------------------------------------------------------------------------
 --
---                                 Execution.testRps           Graph.connect
---                                 Execution.testShotgun       Graph.plot
+--                                 Execution.testRps
+--                                 Execution.testShotgun
 -- 3-step:        Scanner.analyze  Execution.testOutsideWorld  Cli.present
 -- (deliverable)  (linter hints)   (reality)                   (presentation)
 --

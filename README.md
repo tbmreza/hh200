@@ -5,29 +5,27 @@
 hh200 is distributed as single binary, e.g. `npm install -g @mauikut/hh200`.
 
 ```
-+---------------------------------------------------------------------------+
-| haskell-stack managed binary                                              |
-|                                                                           |
-|  +------------------------------+                                         |
-|  |                              |                                         |
-|  |   +--------------------+     |                                         |
-|  |   |     DSL Grammar    |     |                                         |
-|  |   +--------------------+     |                                         |
-|  |            |                 |                                         |
-|  |            v                 |      +-------------------------------+  |
-|  |  +------------------------+  |      |                               |  |
-|  |  | Concurrent HTTP Client |  |      |    Network Monitoring eBPF    |  |
-|  |  +------------------------+  |      |                               |  |
-|  +---------------+--------------+      +---------------+---------------+  |
-|                  |                                     |                  |
-|                  +------------> [sqlite] <-------------+                  |
-+---------------------------------------------------------------------------+
++--------------------------------------------------+
+| haskell-stack managed binary                     |
+|                                                  |
+|  +------------------------------+                |
+|  |                              |                |
+|  |   +--------------------+     |                |
+|  |   |     DSL Grammar    |     |                |
+|  |   +--------------------+     |                |
+|  |            |                 |                |
+|  |            v                 |                |
+|  |  +------------------------+  |                |
+|  |  | Concurrent HTTP Client |  |                |
+|  |  +------------------------+  |                |
+|  +---------------+--------------+                |
+|                  |                               |
+|                  +------------> [sqlite]         |
++--------------------------------------------------+
 ```
 
-where the right-hand side half is the part that supports a web viewing dashboard and is optional.
 - **DSL Grammar** defines the language HTTP server test designers can use to express test cases.
 - **Concurrent HTTP Client** that's capable of generating large HTTP request load safely in _single_ machine (Sidenote is that distributed load generation warrants a version 2).
-- **Network Monitoring 🐝 eBPF** in safe kernel-extending program. Requires user sudo.
 - **Dashboard Server** with familiar JavaScript.
 
 ## Contributing
@@ -165,11 +163,10 @@ Ocapi argument line is `L1: passive impossibility; L2: witness; T: active identi
 | STM token-bucket rate limiter              | Async refill thread spread across sub-second ticks. | `src/Hh200/TokenBucketWorkerPool.hs` |
 | STM `TVar RunState` control                | `Running/Paused/Stopped` flag shared across workers. | `src/Hh200/TokenBucketWorkerPool.hs` |
 | Unix Domain Socket control channel         | Pause/resume/stop via `/tmp/uds_socket`. | `src/Hh200/Cli.hs`, `src/Hh200/Dashboard.hs` |
-| SQLite persistence (`sqlite-simple`)       | Runs/metrics in SQLite; `HH200_SQLITE` or XDG data dir. | `src/Hh200/Database.hs` |
+| SQLite persistence (`sqlite-simple`)       | Runs in SQLite; `HH200_SQLITE` or XDG data dir. | `src/Hh200/Database.hs` |
 | Scotty dashboard                           | Serves a SvelteKit SPA from `min/` with a JSON API. | `src/Hh200/Dashboard.hs` |
-| SSE live stream + CSV export               | Server-sent events for live data; CSV download. | `src/Hh200/Dashboard.hs` |
+| SSE live stream                            | Server-sent events for live data. | `src/Hh200/Dashboard.hs` |
 | LSP server (TCP + stdio)                   | IDE support via the `lsp` package. | `src/Hh200/LanguageServer.hs`, `src/Hh200/Scanner.hs` |
-| eBPF monitoring in C/C++                   | Kernel-extending monitoring linked into the binary; requires sudo. | `packets/`, `hh200.cabal` |
 | JSON structural subset assertion           | Response body asserted as `⊆`, not exact equality. | `src/Hh200/Execution.hs` `jsonSubset` |
 | Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`. | `src/Hh200/Execution.hs` |
 | Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads. | `src/Hh200/Scanner.hs` |
@@ -198,4 +195,4 @@ Surprises worth recording before implementation:
 | `runRateLimit = 0.0`, `runName = "default run name"` hardcoded | `hh200/src/Hh200/Cli.hs:303,283-284` | No `--rate` flag; `RateLimiterConfig` only reachable via `undefined` `testRps`. |
 | `updateRunStatus` never called | `hh200/src/Hh200/Database.hs:126-137` | Runs stay `status='running'` forever. |
 | `/api/sse` streams a hardcoded blob | `hh200/src/Hh200/Dashboard.hs:121-136` | "Live" is cosmetic; `sse.ts` `connectSse`/`setLiveRun` are dead code. |
-| `getMetricsForRun`/`insertMetric`/`testShotgun` are `undefined` | `hh200/src/Hh200/Database.hs:80-81,171-172`, `hh200/src/Hh200/Cli.hs:418` | Consistent with the ideation → committal transition. |
+| `testShotgun` is `undefined` | `hh200/src/Hh200/Cli.hs:418` | Consistent with the ideation → committal transition. |

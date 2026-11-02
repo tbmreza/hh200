@@ -26,8 +26,6 @@ http(s) secure
     user story: distinct tls https (https://www.stackage.org/package/http-client-tls) and insecure http (https://hackage-content.haskell.org/package/http-client-0.7.19/docs/Network-HTTP-Client.html#g:4).
     in curl, tls connection may be determined by specified url, not headers
 
-tcpretrans.py
-libbpf-bootstrap has a running network example in tc.c
 ~/go/bin/lazysql --version
 
 

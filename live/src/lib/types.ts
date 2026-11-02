@@ -57,24 +57,9 @@ export type Request = {
 	bodies: RequestBody[];
 };
 
-export type MetricWindow = {
-	id: number;
-	run_id: number;
-	endpoint: string;
-	start: string; // ISO 8601 datetime
-	end: string; // ISO 8601 datetime
-	count: number;
-	fail_count: number;
-	min_latency: number;
-	max_latency: number;
-	avg_latency: number;
-	rps: number;
-};
-
 export type RunDetail = {
 	run: Run;
 	requests: Request[];
-	metric_windows: MetricWindow[];
 };
 
 export type LiveRun = {

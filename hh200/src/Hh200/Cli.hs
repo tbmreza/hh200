@@ -48,7 +48,6 @@ import           Hh200.Database (HtmlReportData, initDb, insertRun, RunRow(..), 
 import qualified Hh200.Database as AppDb
 import           Hh200.LanguageServer (runTcp, runStdio)
 import           Hh200.Dashboard (startServer)
--- import           Hh200.Ebpf (startCollector, stopCollector)
 
 
 data Args = Args
@@ -319,9 +318,6 @@ goMode script args = do
 
         _mRunId <- insertRun conn rr
 
-        -- eBPF network monitor (optional; degrades to "disabled").
-        -- mCollector <- startCollector
-
         -- Control flag.
         s <- newTVarIO Running
 
@@ -364,13 +360,6 @@ goMode script args = do
 
         atomically $
             check . (== Stopped) =<< readTVar s
-
-        -- -- Report eBPF-collected retransmit count (best-effort).
-        -- case mCollector of
-        --     Nothing -> pure ()
-        --     Just c -> do
-        --         n <- stopCollector c
-        --         putStrLn $ "tcp retransmits: " ++ show n
 
         -- (auto)
         results <- mapM tryReadMVar drawer

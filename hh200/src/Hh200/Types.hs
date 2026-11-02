@@ -181,7 +181,7 @@ data RequestSpec = RequestSpec
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
   , rqBody ::    String
-  -- , rqDelay ::   Int  -- ??: think time default is 0. here vs at CallItem will be clear if/when implemented. jitter addition can wait until ebpf monitoring data.
+  -- , rqDelay ::   Int  -- ??: think time default is 0. here vs at CallItem will be clear if/when implemented.
                          -- a CallItem that sleeps as a delay statement is also planned
   } deriving (Show)
 

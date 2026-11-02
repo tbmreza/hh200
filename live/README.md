@@ -31,7 +31,7 @@ Create the schema and seed dummy data:
 
 ```
 bun run apply   # apply pending migrations to prisma/app.db
-bun run dummy   # insert fake runs / requests / metric windows
+bun run dummy   # insert fake runs / requests
 ```
 
 ## Developing schema
@@ -52,8 +52,6 @@ The two halves are still converging, so only part of the Prisma schema is
 consumed by the backend today:
 
 - `runs` — fully aligned (served by `GET /api/runs`).
-- `metric_windows` — the backend reads only `id`, `run_id`, and `rps`
-  (for `GET /api/report/:id`).
 - `requests`, `request_headers`, `request_bodies` — defined and seeded here but
   not yet exposed by any backend route (`GET /api/runs/:id` and
   `GET /api/runs/live` are still unimplemented).
@@ -69,10 +67,6 @@ consumed by the backend today:
   can't honour.
 - **Static form factor.** Static SvelteKit build served by the
   backend; all dynamic data flows through the existing HTTP + SSE surface.
-- **Metrics and monitoring are first-class.** A dashboard showing latency, rps,
-  and failures per window is a goal, not an afterthought. We build the surface
-  now — even where the backend's metric data is still thin — because a visible
-  surface creates pressure for real data.
 <!-- - Not yet: auth, multi-tenancy, alerting — those come after the core observe-and-preview loop. -->
 <!-- - **Honesty about gaps.** Anything not implemented is rendered as not -->
 <!--   implemented — disabled, labelled, with a reason — never as a silently-broken -->

@@ -71,13 +71,10 @@ schema =
       \id INTEGER PRIMARY KEY AUTOINCREMENT, \
       \name TEXT, script_path TEXT, started_at INTEGER, ended_at INTEGER, \
       \status TEXT, concurrency INTEGER, rate_limit REAL, control_socket TEXT)"
-
-    , "CREATE TABLE IF NOT EXISTS metric_windows ( \
-      \id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, rps REAL)"
     ]
 
 -- | Point @HH200_SQLITE@ at a fresh temp file, create the schema, optionally
--- seed a run + metric window, run the action, then clean up.
+-- seed a run, run the action, then clean up.
 withTestDb :: Bool -> IO a -> IO a
 withTestDb seeded act = do
     tmp <- getTemporaryDirectory
@@ -99,9 +96,6 @@ withTestDb seeded act = do
             , 10.5 :: Double
             , "/tmp/cs" :: String
             )
-        Sqlite.execute conn
-            "INSERT INTO metric_windows (run_id, rps) VALUES (?, ?)"
-            (1 :: Int, 250.5 :: Double)
     Sqlite.close conn
     act `finally` do
         unsetEnv "HH200_SQLITE"
@@ -147,8 +141,6 @@ spec = testGroup "Dashboard"
   , testRunStartInserts
   , testRunStartConflict
   , testRunStartRejected
-  , testReportSeeded
-  , testReportEmpty
   , testSigForwards
   , testSse
   , testStaticProd
@@ -195,14 +187,13 @@ testLiveRunEmpty = testCase "GET /api/runs/live returns null run when none runni
             assertBodyContains "\"state\":\"running\"" resp
 
 testRunDetailSeeded :: TestTree
-testRunDetailSeeded = testCase "GET /api/runs/:id returns the run with empty requests and metrics" $ do
+testRunDetailSeeded = testCase "GET /api/runs/:id returns the run with empty requests" $ do
     withTestDb True $ do
         withDashboard False $ \mgr port -> do
             resp <- getLbs mgr port "/api/runs/1"
             assertStatus 200 resp
             assertBodyContains "\"name\":\"my run\"" resp
             assertBodyContains "\"requests\":[]" resp
-            assertBodyContains "\"metric_windows\":[]" resp
 
 testRunDetailNotFound :: TestTree
 testRunDetailNotFound = testCase "GET /api/runs/:id returns 404 for unknown id" $ do
@@ -260,29 +251,6 @@ testRunStartRejected = testCase "POST /api/run rejects an escaping script path" 
             withDashboard False $ \mgr port -> do
                 resp <- postLbs mgr port "/api/run" (runReq "/etc/passwd" 1 0)
                 assertStatus 422 resp
-
-testReportSeeded :: TestTree
-testReportSeeded = testCase "GET /api/report/:runId returns a CSV download" $ do
-    withTestDb True $ do
-        withDashboard False $ \mgr port -> do
-            resp <- getLbs mgr port "/api/report/1"
-            assertStatus 200 resp
-            assertEqual "csv content-type" (Just "text/csv") (headerValue "Content-Type" resp)
-            let disp = headerValue "Content-Disposition" resp
-            assertBool "attachment disposition" $
-                maybe False (BS.isInfixOf "attachment; filename=\"stats_history_1.csv\"") disp
-            assertBodyContains "run_name,metric_window_rps" resp
-            assertBodyContains "my run,250.5" resp
-
-testReportEmpty :: TestTree
-testReportEmpty = testCase "GET /api/report/:runId with no metrics returns header only" $ do
-    withTestDb True $ do
-        withDashboard False $ \mgr port -> do
-            resp <- getLbs mgr port "/api/report/999"
-            assertStatus 200 resp
-            assertBodyContains "run_name,metric_window_rps" resp
-            assertBool "no metric rows for unknown id" $
-                not (BS.isInfixOf "my run" (BL.toStrict (HC.responseBody resp)))
 
 testSigForwards :: TestTree
 testSigForwards = testCase "POST /api/sig forwards the body to the control socket" $ do

@@ -15,11 +15,9 @@ import           Control.Monad (forever, unless)
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.Csv as Csv
 import           Data.Aeson (object, encode, (.=), Value(..), eitherDecode)
 import           Data.Maybe (fromMaybe)
 import           Data.Text (unpack)
-import qualified Data.Text.Lazy as LT
 import           Network.HTTP.Types.Status (status404, status400, status409, status422)
 import           Network.Socket
 import qualified Network.Socket.ByteString as NBS
@@ -28,7 +26,7 @@ import           System.Environment (lookupEnv)
 import           Web.Scotty (ScottyM, scotty, regex, pathParam)
 import qualified Web.Scotty as Server
 
-import           Hh200.Database (initDb, listRuns, queryStatsHistory, getRunById, getLatestRunningRun)
+import           Hh200.Database (initDb, listRuns, getRunById, getLatestRunningRun)
 import           Hh200.Runner (StartError (..), runPlan, startRun)
 
 --------------------------------------------------------------------------------
@@ -38,7 +36,6 @@ import           Hh200.Runner (StartError (..), runPlan, startRun)
 -- GET /api/runs           List runs from SQLite
 -- GET /api/runs/live      In-progress run at the time being (not implemented)
 -- GET /api/runs/:runId    Completed run detail (not implemented)
--- GET /api/report/:runId  Download report for a Run in CSV
 --
 -- -- Backend-initiated
 -- GET /sse                SSE stream for live data
@@ -91,26 +88,7 @@ dashboardRoutes isDev = do
                 Server.json $ object
                     [ "run" .= row
                     , "requests" .= ([] :: [Value])
-                    , "metric_windows" .= ([] :: [Value])
                     ]
-
-    Server.get "/api/report/:runId" $ do
-        conn <- liftIO initDb
-        runId :: Int <- pathParam "runId"
-
-        results <- liftIO $ queryStatsHistory conn runId
-
-        let downloadName = LT.pack ("stats_history_" ++ show runId ++ ".csv")
-        case results of
-            Left err -> do
-                Server.status status404
-                Server.json $ object ["error" .= unpack err]
-
-            Right stats -> do
-                let bs = Csv.encodeDefaultOrderedByName stats
-                Server.setHeader "Content-Type" "text/csv"
-                Server.setHeader "Content-Disposition" ("attachment; filename=\"" <> downloadName <> "\"")
-                Server.raw bs
 
     Server.post "/api/run/plan" $ do
         body <- Server.body
