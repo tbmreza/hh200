@@ -40,6 +40,7 @@ library:
   - Hh200.Cli
   - Hh200.Dashboard
   - Hh200.Database
+  # - Hh200.Ebpf
   - Hh200.Execution
   - Hh200.Graph
   - Hh200.Http
@@ -148,3 +149,17 @@ c-sources:
 
 include-dirs:
   - packets
+
+# flags:
+#   ebpf:
+#     description: Build the eBPF network monitor (requires libbpf and clang)
+#     default: false
+#     manual: true
+#
+# when:
+#   - condition: flag(ebpf)
+#     then:
+#       c-sources: [packets/hh_bpf.c]
+#       extra-libraries: [bpf, elf]
+#     else:
+#       c-sources: [packets/hh_bpf_stub.c]
