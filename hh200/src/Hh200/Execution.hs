@@ -438,7 +438,7 @@ courseFrom mcc x = do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
 
                 lift $ Tf.tell [HttpError (show e)]
-                pure ci
+                liftIO $ throwIO e
             Right gotResp -> do
                 let envWithResp = env { BEL.storedResponse = gotResp
                                       , BEL.storedRequest = trace ("reqOrThrow=" ++ show reqOrThrow) reqOrThrow

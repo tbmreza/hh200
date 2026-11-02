@@ -1,0 +1,21 @@
+# End-to-end golden tests: run the built hh200 binary against the local ocapi
+# server (started on 127.0.0.1:18080 by scripts/e2e.sh). stdout/stderr are
+# redirected because hh200 emits verbose `present`/trace output; the exit code
+# is the primary signal (fail-fast contract).
+
+# 1. A request whose assertions pass exits 0.
+$ hh200 examples/e2e/echo.hhs >/dev/null 2>/dev/null
+>= 0
+
+# 2. A plain health check exits 0.
+$ hh200 examples/e2e/health.hhs >/dev/null 2>/dev/null
+>= 0
+
+# 3. A status-code mismatch fails the assertion and exits non-zero.
+$ hh200 examples/e2e/status-mismatch.hhs >/dev/null
+>2 /status=/
+>= !0
+
+# 4. An unreachable server exits non-zero.
+$ hh200 examples/e2e/connection-refused.hhs >/dev/null 2>/dev/null
+>= !0

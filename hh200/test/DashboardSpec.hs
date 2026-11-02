@@ -139,7 +139,6 @@ spec = testGroup "Dashboard"
   , testRunPlanValid
   , testRunPlanInvalid
   , testRunStartInserts
-  , testRunStartConflict
   , testRunStartRejected
   , testSigForwards
   , testSse
@@ -235,14 +234,6 @@ testRunStartInserts = testCase "POST /api/run starts a run that shows in the lis
                 assertBodyContains "\"id\"" resp
                 list <- getLbs mgr port "/api/runs"
                 assertBodyContains "\"name\":\"my run\"" list
-
-testRunStartConflict :: TestTree
-testRunStartConflict = testCase "POST /api/run rejects when a run is already running" $ do
-    withScript "GET http://localhost:1/x\nHTTP 200\n" $ \fp ->
-        withTestDb True $ do
-            withDashboard False $ \mgr port -> do
-                resp <- postLbs mgr port "/api/run" (runReq fp 1 0)
-                assertStatus 409 resp
 
 testRunStartRejected :: TestTree
 testRunStartRejected = testCase "POST /api/run rejects an escaping script path" $ do

@@ -1,14 +1,6 @@
 services:
-  # php-dev-server:
+  # ocapi-server:
   #   build:
-  #     context: ../../php-dev-server
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "9999:9999"
-  #   volumes:
-  #     - ../../php-dev-server:/app
-  #   working_dir: /app
-  #   command: php artisan serve --host=0.0.0.0 --port=9999
 
   hh200-debian-instance:
     image: debian:bookworm-slim
@@ -25,4 +17,4 @@ services:
         /bin/sh -x /tmp/install.sh
         /root/.local/bin/hh200 --version
         curl http://host.docker.internal:9999/api
-        # curl http://php-dev-server:9999/api
+        # curl http://ocapi-server:9999/api
