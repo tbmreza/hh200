@@ -3,11 +3,13 @@
 mod builtin_server;
 mod control;
 mod logger;
+mod replay;
 mod routes;
 mod tui;
 mod tui_logger;
 
 use std::io::IsTerminal;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -37,6 +39,13 @@ enum Commands {
         /// Run the live traffic TUI instead of the plain file logger.
         #[arg(long)]
         tui: bool,
+        /// Enable the raw byte-replay responder (for curl's test <reply> data)
+        /// rooted at this directory.
+        #[arg(long)]
+        replay_dir: Option<PathBuf>,
+        /// Port for the replay responder (defaults to `--port` + 1).
+        #[arg(long)]
+        replay_port: Option<u16>,
     },
 
     /// Classify traffic dump at path.
@@ -58,11 +67,21 @@ async fn main() {
             dump_path,
             port,
             tui,
+            replay_dir,
+            replay_port,
         } => {
             // A TUI owns the terminal, so only run it on a real TTY. Tracing
             // moves to a file in that case; otherwise it stays on stdout.
             let tui = tui && std::io::stdout().is_terminal();
             let _guard = init_tracing(tui);
+
+            // The raw replay responder lives alongside the axum server. It is
+            // used by the curl test-suite adapter to replay <reply> bytes.
+            if let Some(replay_dir) = replay_dir {
+                let replay_port = replay_port.unwrap_or(port.saturating_add(1));
+                let addr = SocketAddr::from(([0, 0, 0, 0], replay_port));
+                tokio::spawn(async move { replay::serve(addr, replay_dir).await });
+            }
 
             let dump_path = dump_path.unwrap_or_else(default_dump_path);
             if let Some(parent) = dump_path.parent() {

@@ -1,0 +1,33 @@
+# curl test-suite skip list.
+#
+# One entry per line: "<test number> <reason>". Lines starting with "#" are
+# comments. This is the *manual* ledger of tests we looked at and deliberately
+# chose not to port; the parser additionally auto-skips tests whose <server>,
+# <features>, or <command> fall outside the supported subset (non-HTTP servers,
+# SSL/proxy/cookies/auth/http2 features, curl-only flags such as -L/--resolve/
+# -c/-b/--tls*/--compressed, and non-curl <tool>).
+#
+# Auto-skip categories are not repeated here; only hand-reviewed exclusions are
+# listed, so coverage stays auditable and can grow one line at a time.
+
+# --- hand-reviewed exclusions -------------------------------------------------
+2   HTTP Basic auth (auth backend out of scope)
+40  followlocation (-L redirect handling not implemented in hh200)
+46  cookie jar (-c/-b and %if large-time)
+52  followlocation (-L)
+53  cookies (-b/-j)
+54  followlocation (-L)
+65  HTTP Digest auth (auth backend out of scope)
+79  FTP over HTTP proxy (proxy)
+87  urlglob [] range (multi-request)
+88  HTTP PUT + Digest auth (auth backend)
+90  (does not exist upstream; kept as a gap marker)
+95  proxytunnel POST (proxy)
+100 FTP PASV LIST (non-HTTP)
+101 FTP PORT LIST (non-HTTP)
+103 FTP RETR PORT (non-HTTP)
+104 FTP --head (non-HTTP)
+107 FTP PASV upload (non-HTTP)
+108 FTP PORT upload (non-HTTP)
+200 FILE protocol (non-HTTP)
+230 compressed Content-Encoding (libz / %hex macro)

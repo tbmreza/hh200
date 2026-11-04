@@ -1,0 +1,10 @@
+# Upstream source for vendored curl test data.
+
+upstream: https://github.com/curl/curl
+tag: curl-8_23_0
+commit: 3163ec065643ba20709f190111f42c3e1fe95273
+license: curl (see COPYING)
+
+# The files under data/ are copied verbatim from curl's tests/data/testNNN
+# at the tag above. Only the tests listed in MANIFEST are vendored; see
+# skiplist.txt for what is deliberately excluded and why.

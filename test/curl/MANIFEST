@@ -1,0 +1,7 @@
+# Test numbers to vendor from curl's tests/data/ (one per line; '#' comments).
+# See skiplist.txt for what is deliberately excluded and why.
+1
+30
+59
+98
+152

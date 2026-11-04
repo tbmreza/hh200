@@ -19,3 +19,6 @@ $ hh200 examples/e2e/status-mismatch.hhs >/dev/null
 # 4. An unreachable server exits non-zero.
 $ hh200 examples/e2e/connection-refused.hhs >/dev/null 2>/dev/null
 >= !0
+
+$ hh200 --version
+0.0.1
