@@ -1,0 +1,11 @@
+# Tests not vendored: curl CLI flags, non-HTTP protocols, TLS/auth/proxy
+# backends, cookies, libcurl-only behavior, and other unsupported surfaces.
+100 FTP directory listing
+101 FTP active mode
+102 FTP retrieval
+200 file:// client behavior
+206 HTTP proxy and digest authentication
+300 TLS backend behavior
+304 multipart form upload
+314 content decoding controlled by curl CLI flag
+

@@ -52,6 +52,37 @@ Well-functioning system-under-test is the only thing that should matter; we're d
 #### 2. Regex, random, time batteries (compromising binary size)
 hh200 comes integrated with a full expression language BEL evaluator.
 
+## Adapting curl's Test Suite
+
+The curl corpus is useful as a byte-level interoperability suite, but hh200
+is a load tester rather than a general curl client. The adapter therefore
+keeps only HTTP cases whose observable behavior is the request bytes hh200
+sends and its response parsing. CLI-only flags, FTP and other non-HTTP
+protocols, TLS and authentication backends, proxies, cookie jars, and
+libcurl-only behavior belong in `test/curl/skiplist.txt`.
+
+`Hh200.CurlTest` parses the supported pseudo-XML subset: `info/keywords`,
+`client/name`, the URL/method/headers/body subset of `client/command`,
+`reply/data`, and `verify/protocol`. `toHhScript` translates that model to a
+normal `.hhs` request. Each vendored case is registered as
+`curl/testNNN <keywords>` in the Haskell test suite.
+
+The ocapi fixture should expose these replay endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /curl/{number}` | Return the selected response bytes exactly, including malformed headers or chunk framing. |
+| `POST /curl/{number}/reset` | Reset the replay cursor for a multi-request case. |
+| `GET /curl/{number}/request` | Return the last raw request bytes received for diagnostics. |
+| `GET /curl/{number}/compare` | Compare the recorded raw request with the translated `verify/protocol` bytes. |
+
+Replay data must be written as bytes, not reconstructed through a framework
+response builder; split responses can be represented as ordered chunks with
+optional per-chunk delays. The request recorder likewise stores the request
+line, headers, and body before parsing so comparisons remain byte-for-byte.
+The sync script pins the upstream tag and refreshes only the selected files;
+the vendored `test/curl/COPYING` notice and `UPSTREAM-TAG` preserve attribution.
+
 ## See also
 
 <details>

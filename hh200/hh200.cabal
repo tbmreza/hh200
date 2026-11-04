@@ -27,6 +27,7 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
+      Hh200.CurlTest
       Hh200.Dashboard
       Hh200.Database
       Hh200.Execution
@@ -109,6 +110,7 @@ test-suite hh200-test
   main-is: Spec.hs
   other-modules:
       TokenBucketWorkerPoolSpec
+      CurlSpec
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
