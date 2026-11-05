@@ -47,7 +47,8 @@ import qualified Hh200.Scanner as Scanner
 import           Hh200.Database (HtmlReportData, initDb, insertRun, RunRow(..), RREndTime(..))
 import qualified Hh200.Database as AppDb
 import           Hh200.LanguageServer (runTcp, runStdio)
-import           Hh200.Dashboard (startServer)
+import           Hh200.McpServer (runMcpStdio)
+import           Hh200.Dashboard (startServer, controlSocketPath)
 
 
 data Args = Args
@@ -60,6 +61,7 @@ data Args = Args
   , duration ::    Int
   , lsp ::         Maybe Int
   , lspStdio ::    Bool
+  , mcpStdio ::    Bool
   } deriving (Show, Eq)
 
 data MainThread =
@@ -118,9 +120,10 @@ mainCommand = build <$> sourceArgument
                     <*> durationOption
                     <*> lspPortOption
                     <*> lspStdioFlag
+                    <*> mcpStdioFlag
     where
-    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Args
-    build src ver dbg cl n dur lspP lspS = mkArgs
+    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Bool -> Args
+    build src ver dbg cl n dur lspP lspS mcpS = mkArgs
       { source      = src
       , version     = ver
       , debugConfig = dbg
@@ -129,6 +132,7 @@ mainCommand = build <$> sourceArgument
       , duration    = dur
       , lsp         = lspP
       , lspStdio    = lspS
+      , mcpStdio    = mcpS
       }
 
 sourceArgument :: Parser (Maybe String)
@@ -179,6 +183,10 @@ lspStdioFlag :: Parser Bool
 lspStdioFlag = switch
     (long "lsp-stdio" <> help "Run hh200 language server over stdio")
 
+mcpStdioFlag :: Parser Bool
+mcpStdioFlag = switch
+    (long "mcp-stdio" <> help "Run hh200 MCP control server over stdio")
+
 --         <*> optional ((\n a -> a { nvu = n, duration = 0 }) <$>
 --                       option auto ( long "shotgun"
 --                                  <> help "Alias for --nvu=N --duration=0"
@@ -203,6 +211,10 @@ go Args { lsp = Just port } = runTcp port
 -- Run language server over stdio.
 -- hh200 --lsp-stdio
 go Args { lspStdio = True } = runStdio
+
+-- Run MCP control server over stdio.
+-- hh200 --mcp-stdio
+go Args { mcpStdio = True } = runMcpStdio
 
 -- Browse/dashboard mode.
 -- hh200 browse
@@ -337,9 +349,10 @@ goMode script args = do
                             Nothing
 
         -- Unix Domain Socket listener
-        _ <- forkIO $
+        _ <- forkIO $ do
+            sockPath <- controlSocketPath
             -- controlSocketListener (runControlSocket rr) $ \msg ->  -- ??: xdg comply
-            controlSocketListener "/tmp/uds_socket" $ \msg ->
+            controlSocketListener sockPath $ \msg ->
                 case msg of
                     "pause" ->  atomically $ writeTVar s Paused
                     "resume" -> atomically $ writeTVar s Running
@@ -479,5 +492,6 @@ mkArgs = Args { mode = HttpLoad
               , duration = 0
               , lsp = Nothing
               , lspStdio = False
+              , mcpStdio = False
               -- , browse = Nothing
               }
