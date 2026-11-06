@@ -19,6 +19,7 @@ build-type:     Simple
 extra-source-files:
     README.md
     CHANGELOG.md
+    src/Hh200/hhs-grammar.md
 
 source-repository head
   type: git
@@ -58,6 +59,7 @@ library
     , co-log-core
     , directory
     , fast-logger
+    , file-embed
     , filepath
     , ghc
     , gitrev
@@ -109,6 +111,17 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      CurlSpec
+      CurlTest.Parse
+      CurlTest.Preprocess
+      CurlTest.Translate
+      CurlTest.Types
+      DashboardSpec
+      ExecutionSpec
+      LspSpec
+      McpResourceSpec
+      MustacheSpec
+      ScannerSpec
       TokenBucketWorkerPoolSpec
   hs-source-dirs:
       test

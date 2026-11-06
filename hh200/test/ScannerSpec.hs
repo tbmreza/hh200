@@ -54,6 +54,20 @@ testScanner_lrBasic = testGroup "Lexer and Parser - Basic"
       case res of
           Right _ -> pure ()
           Left _ -> assertFailure $ "Failed to parse: " ++ show tokens
+
+  , testCase "TRACE is an accepted method" $ do
+      tokens <- scanTokens "TRACE http://localhost:9999/echo\nHTTP 200"
+      res <- runExceptT (Hh.parse tokens)
+      case res of
+          Right _ -> pure ()
+          Left _ -> assertFailure "TRACE failed to parse"
+
+  , testCase "CONNECT is an accepted method" $ do
+      tokens <- scanTokens "CONNECT http://localhost:9999/echo\nHTTP 200"
+      res <- runExceptT (Hh.parse tokens)
+      case res of
+          Right _ -> pure ()
+          Left _ -> assertFailure "CONNECT failed to parse"
   ]
 
 testScanner_lrMustache :: TestTree

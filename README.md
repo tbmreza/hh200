@@ -43,6 +43,73 @@ snapshot:
   url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/26.yaml
 ```
 
+## Adapting curl's Test Suite
+
+hh200 borrows HTTP conformance tests from [curl](https://github.com/curl/curl)'s
+test suite to exercise two observable behaviors: the request bytes hh200 sends,
+and how hh200 parses/handles a server response. Tests are vendored verbatim and
+replayed byte-for-byte by a purpose-built responder in ocapi.
+
+### Layout
+
+```
+test/curl/
+  UPSTREAM          pinned tag + commit + license attribution
+  COPYING           curl's copyright/permission notice (kept intact)
+  MANIFEST          test numbers to vendor (one per line)
+  skiplist.txt      excluded tests: one "NNN <reason>" per line
+  data/             selected tests/data/testNNN, copied verbatim
+scripts/
+  sync-curl-tests.sh   refresh data/ from the pinned upstream tag
+  curl-tests.sh        build hh200+ocapi, start the replay server, run the curl suite
+```
+
+### How it works
+
+1. **Parser** (`hh200/test/CurlTest/`, a test-support library): parses curl's
+   pseudo-XML `<testcase>` files into a reduced model — `<info><keywords>`,
+   `<reply><data>`, `<client><server>/<features>/<command>`, and
+   `<verify><protocol>/<errorcode>` — and implements the HTTP-relevant
+   preprocessor macros (`%TESTNUMBER`, `%HOSTIP`, `%HTTPPORT`, `%CR`/`%SP`/…,
+   and the `crlf` line-ending attribute).
+
+2. **Replay** (`experiments/ocapi/src/replay.rs`): a raw TCP responder started
+   with `ocapi serve --replay-dir … --replay-port …` that replays the rendered
+   `<reply>` bytes byte-for-byte (so empty, malformed, and split responses
+   survive) and records the request it received to
+   `<replay-dir>/requests/<N>.txt`.
+
+3. **Translator** (`CurlTest.Translate`): reduces the supported `<command>`
+   subset (URL, method via `-X`/`-T -`/`-d`, body via `-d`/`--data-binary`/
+   `<stdin>`) to an hh200 request, and derives the expected outcome from the
+   reply status and `<errorcode>`.
+
+4. **Test cases** (`CurlSpec`): each vendored test becomes one tasty case named
+   `curl.testNNNN <keywords>` (`curl/testNNNN` in the plan). It runs the
+   translated script against the replay server, checks the outcome (status
+   assertion / HTTP error), and compares the recorded request to
+   `<verify><protocol>`.
+
+The request comparison is *normalized*: method, request-target, and body are
+compared exactly (after macro expansion); headers are limited to
+`Host`/`Content-Type`/`Content-Length` plus any `-H` the test sets. Headers
+hh200 adds that curl would not (e.g. the unconditional `Content-Type` on GET)
+are surfaced as non-fatal findings rather than failures.
+
+### Scope and skip list
+
+Only single-request HTTP tests are in scope. Everything else — non-HTTP servers
+(FTP/SMTP/IMAP/…), TLS/auth backends, proxies, cookie jars, redirects (`-L`),
+and curl-only flags — is recorded in `skiplist.txt` (manual exclusions) or
+auto-skipped by the parser (unsupported `<server>`/`<features>`/`<command>`).
+
+### Running
+
+```
+make curl-tests          # build hh200+ocapi, start the replay server, run the curl suite
+make sync-curl-tests     # refresh vendored data from the pinned upstream tag
+```
+
 ## Features
 The following defining features sum up hh200 in trade-off terms.
 

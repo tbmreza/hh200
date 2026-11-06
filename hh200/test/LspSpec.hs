@@ -105,6 +105,14 @@ testLSP_complete = testGroup "LSP completion"
         let suggs = Hh.complete "HE" 2
         assertBool "Suggests HEAD" ("HEAD" `elem` suggs)
 
+    , testCase "partial method TR" $ do
+        let suggs = Hh.complete "TR" 2
+        assertBool "Suggests TRACE" ("TRACE" `elem` suggs)
+
+    , testCase "partial method CO" $ do
+        let suggs = Hh.complete "CO" 2
+        assertBool "Suggests CONNECT" ("CONNECT" `elem` suggs)
+
     , testCase "keyword Configs" $ do
         let suggs = Hh.complete "Con" 3
         assertBool "Suggests Configs" ("Configs" `elem` suggs)

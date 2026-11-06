@@ -117,7 +117,7 @@ complete input pos =
 
         candidates = case lastBlock of
             Just (KW_CONFIGS _) -> [ "use-tls" ]
-            _ -> [ "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
+            _ -> [ "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE", "CONNECT"
                  , "HTTP"
                  , "Configs", "Captures", "Asserts"
                  , "then"

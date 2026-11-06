@@ -20,7 +20,9 @@ tokens :-
   | [Dd][Ee][Ll][Ee][Tt][Ee]
   | [Pp][Aa][Tt][Cc][Hh]
   | [Oo][Pp][Tt][Ii][Oo][Nn][Ss]
-  | [Hh][Ee][Aa][Dd]              { tok (\p s -> METHOD p s) }
+  | [Hh][Ee][Aa][Dd]
+  | [Tt][Rr][Aa][Cc][Ee]
+  | [Cc][Oo][Nn][Nn][Ee][Cc][Tt]  { tok (\p s -> METHOD p s) }
 
     \{       { tokBraceEnclosed }
     \}       { tok (\p _ -> BRACE_CLS p) }

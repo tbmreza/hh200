@@ -195,16 +195,18 @@ loadExample port examplesDir n = do
             let rewritten = replaceAll "127.0.0.1:18081"
                                        ("127.0.0.1:" ++ show port)
                                        source
-            case analyze (Snippet (L8.pack rewritten)) of
+            analyzed <- analyze (Snippet (L8.pack rewritten))
+            case analyzed of
                 Left err -> assertFailure ("invalid generated example " ++ path ++ ": " ++ err)
                 Right script -> pure script
 
 replaceAll :: String -> String -> String -> String
-replaceAll from to s =
-    let (before, rest) = breakOnString from s
-    in case rest of
-         [] -> s
-         _  -> before ++ to ++ replaceAll from to (drop (length from) rest)
+replaceAll from to = go
+  where
+    go [] = []
+    go s@(c:cs)
+      | from `isPrefixOf` s = to ++ go (drop (length from) s)
+      | otherwise = c : go cs
 
 runAndClassify :: Script -> IO Outcome
 runAndClassify script = do
