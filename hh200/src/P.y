@@ -2,8 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module P where
 
-import Debug.Trace
-
 import           Data.List (intercalate, isPrefixOf, tails)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HM
@@ -92,49 +90,49 @@ deps : s      { [trimQuotes $1] }
 request :: { E RequestSpec }
 request : method url crlf bindings request_sqrs braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = $5,               rqBody = $6 }
-                                                               trace "reqA" $ pure r }
+                                                               pure r }
         | method url crlf bindings request_sqrs        crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = $5,               rqBody = "" }
-                                                               trace "reqB" $ pure r }
+                                                               pure r }
         | method url crlf          request_sqrs        crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,               rqBody = "" }
-                                                               trace "reqB1" $ pure r }
+                                                               pure r }
         | method url crlf bindings              braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = rqSquaresNothing, rqBody = $5 }
-                                                               trace "reqC" $ pure r }
+                                                               pure r }
         | method url crlf          request_sqrs braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,               rqBody = $5 }
-                                                               trace "reqD" $ pure r }
+                                                               pure r }
         | method url crlf                       braced crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = $4 }
-                                                               trace "reqE" $ pure r }
+                                                               pure r }
         | method url crlf bindings                     crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               trace "reqF" $ pure r }
+                                                               pure r }
         |        url crlf bindings request_sqrs        crlf { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = $3,               rqSquares = $4,               rqBody = "" }
-                                                               trace "reqG" $ pure r }
+                                                               pure r }
         |        url crlf bindings              braced crlf { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = $3,               rqSquares = rqSquaresNothing, rqBody = $4 }
-                                                               trace "reqH" $ pure r }
+                                                               pure r }
         |        url crlf          request_sqrs braced crlf { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = $3,               rqBody = $4 }
-                                                               trace "reqI" $ pure r }
+                                                               pure r }
         | method url                                   crlf { do
                                                                let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               trace "reqJ" $ pure r }
+                                                               pure r }
         |        url crlf bindings                     crlf { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = $3,               rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               trace "reqK" $ pure r }
+                                                               pure r }
         |        url crlf          request_sqrs        crlf { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = $3,               rqBody = "" }
-                                                               trace "reqL" $ pure r }
+                                                               pure r }
         |        url crlf                       braced crlf { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = $3 }
-                                                               trace "reqM" $ pure r }
+                                                               pure r }
         |        url crlf                                   { do
                                                                let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               trace "reqN" $ pure r }
+                                                               pure r }
 
 request_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
 request_sqrs : request_sqrs request_sqr crlf { setRequestSquare $2 $1 }
@@ -155,24 +153,24 @@ url : url_proto { if hasBalancedMustache $1 then
                       LexedUrlFull $1 }
 
 response :: { ResponseSpec }
-response : "HTTP" response_codes crlf bindings response_sqrs braced crlf { trace "rpA" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = $6 } }
+response : "HTTP" response_codes crlf bindings response_sqrs braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = $6 } }
 
-         | "HTTP" response_codes crlf bindings response_sqrs        crlf { trace "rpB" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = "" } }
-         | "HTTP" response_codes crlf bindings               braced crlf { trace "rpC" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = $5 } }
-         | "HTTP" response_codes crlf          response_sqrs braced crlf { trace "rpD" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = $5 } }
-         |                            bindings response_sqrs braced crlf { trace "rpE" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = $3 } }
+         | "HTTP" response_codes crlf bindings response_sqrs        crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = "" } }
+         | "HTTP" response_codes crlf bindings               braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = $5 } }
+         | "HTTP" response_codes crlf          response_sqrs braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = $5 } }
+         |                            bindings response_sqrs braced crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = $3 } }
 
-         | "HTTP" response_codes crlf bindings                           { trace "rpF" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = "" } }
-         | "HTTP" response_codes crlf          response_sqrs        crlf { trace "rpG" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = "" } }
-         | "HTTP" response_codes crlf                        braced crlf { trace "rpH" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $4 } }
-         |                            bindings response_sqrs        crlf { trace "rpI" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = "" } }
-         |                            bindings               braced crlf { trace "rpJ" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = rpSquaresNothing, rpBody = $2 } }
-         |                                     response_sqrs braced crlf { trace "rpK" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = $2 } }
+         | "HTTP" response_codes crlf bindings                           { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = "" } }
+         | "HTTP" response_codes crlf          response_sqrs        crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = "" } }
+         | "HTTP" response_codes crlf                        braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $4 } }
+         |                            bindings response_sqrs        crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = "" } }
+         |                            bindings               braced crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = rpSquaresNothing, rpBody = $2 } }
+         |                                     response_sqrs braced crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = $2 } }
 
-         | "HTTP" response_codes crlf                                    { trace "rpL" $ ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = "" } }
-         | bindings crlf                                                 { trace "rpM" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1, rpSquares = rpSquaresNothing,               rpBody = "" } }
-         | response_sqrs crlf                                            { trace "rpN" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = "" } }
-         | braced crlf                                                   { trace "rpO" $ ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $1 } }
+         | "HTTP" response_codes crlf                                    { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = "" } }
+         | bindings crlf                                                 { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1, rpSquares = rpSquaresNothing,               rpBody = "" } }
+         | response_sqrs crlf                                            { ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = "" } }
+         | braced crlf                                                   { ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $1 } }
 
 response_sqrs :: { (Maybe ResponseSquare, Maybe ResponseSquare)}
 response_sqrs : response_sqrs response_sqr crlf { setResponseSquare $2 $1 }

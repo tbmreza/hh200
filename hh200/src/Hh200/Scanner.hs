@@ -158,6 +158,10 @@ getPos t = case t of
     KW_THEN p -> p
     KW_HTTP p -> p
     KW_CONFIGS p -> p
+    KW_QUERY p -> p
+    KW_FORM p -> p
+    KW_COOKIES p -> p
+    KW_MULTIPART p -> p
     KW_CAPTURES p -> p
     KW_ASSERTS p -> p
     URL p _ -> p

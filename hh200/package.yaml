@@ -49,6 +49,7 @@ library:
   - Hh200.Scanner
   - Hh200.TokenBucketWorkerPool
   - Hh200.Types
+  - Hh200.Validate
   default-extensions:
   - OverloadedStrings
   dependencies:
@@ -149,3 +150,4 @@ tests:
     - MustacheSpec
     - ScannerSpec
     - TokenBucketWorkerPoolSpec
+    - ValidateSpec

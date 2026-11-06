@@ -8,6 +8,7 @@ import qualified MustacheSpec
 import qualified DashboardSpec
 import qualified TokenBucketWorkerPoolSpec
 import qualified McpResourceSpec
+import qualified ValidateSpec
 import qualified CurlSpec
 
 -- Run everything on a single thread: the Dashboard tests mutate process-global
@@ -22,5 +23,6 @@ main = defaultMain $ localOption (NumThreads 1) $ testGroup "Hh200 Tests"
   , DashboardSpec.spec
   , TokenBucketWorkerPoolSpec.spec
   , McpResourceSpec.spec
+  , ValidateSpec.spec
   , CurlSpec.spec
   ]

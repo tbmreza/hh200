@@ -38,6 +38,7 @@ library
       Hh200.Scanner
       Hh200.TokenBucketWorkerPool
       Hh200.Types
+      Hh200.Validate
   other-modules:
       L
       P
@@ -123,6 +124,7 @@ test-suite hh200-test
       MustacheSpec
       ScannerSpec
       TokenBucketWorkerPoolSpec
+      ValidateSpec
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N

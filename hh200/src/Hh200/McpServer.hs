@@ -13,6 +13,7 @@ module Hh200.McpServer
   , grammarResourceText
   , grammarResourceContents
   , readResource
+  , validateScriptResult
   ) where
 
 import           Control.Exception (IOException, try)
@@ -23,9 +24,11 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Data.Text.Encoding (decodeUtf8)
 import           System.IO (BufferMode (LineBuffering), hFlush, hGetLine, hSetBuffering, stdin, stdout)
 
 import           Hh200.Dashboard (controlSocketPath, controlSocketWriter)
+import qualified Hh200.Validate as Validate
 
 -- | Serve MCP (JSON-RPC 2.0) over newline-delimited stdio.
 runMcpStdio :: IO ()
@@ -138,6 +141,7 @@ toolsListResult = object
         [ tool "pause" "Pause the running hh200 load test."
         , tool "resume" "Resume a paused hh200 load test."
         , tool "stop" "Stop the running hh200 load test."
+        , validateScriptTool
         ]
     ]
 
@@ -149,6 +153,23 @@ tool name description = object
         [ "type" .= ("object" :: Text)
         , "properties" .= object []
         , "required" .= ([] :: [Text])
+        ]
+    ]
+
+-- | The @validate_script@ tool advertises an inline @script@ string argument.
+validateScriptTool :: Value
+validateScriptTool = object
+    [ "name" .= ("validate_script" :: Text)
+    , "description" .= ("Validate an inline .hhs script without running it; parse errors are returned as a normal result." :: Text)
+    , "inputSchema" .= object
+        [ "type" .= ("object" :: Text)
+        , "properties" .= object
+            [ "script" .= object
+                [ "type" .= ("string" :: Text)
+                , "description" .= ("The draft .hhs script contents." :: Text)
+                ]
+            ]
+        , "required" .= (["script"] :: [Text])
         ]
     ]
 
@@ -214,6 +235,7 @@ callTool obj =
             "pause" -> exec verb
             "resume" -> exec verb
             "stop" -> exec verb
+            "validate_script" -> validateTool obj
             _ -> pure $ toolError verb ("unknown tool: " ++ verb)
 
     exec verb = do
@@ -245,3 +267,53 @@ toolError verb msg = object
         ]
     , "isError" .= True
     ]
+
+--------------------------------------------------------------------------------
+-- validate_script
+--------------------------------------------------------------------------------
+
+-- | Handle a @validate_script@ tool call. A validation failure is a normal
+-- result (@isError@ stays @False@): the payload distinguishes @ok@/errors.
+validateTool :: Object -> IO Value
+validateTool obj =
+    case KM.lookup "script" (toolArguments obj) of
+        Just (String script) -> do
+            payload <- validateScriptResult script
+            pure $ object
+                [ "content" .=
+                    [ object
+                        [ "type" .= ("text" :: Text)
+                        , "text" .= decodeUtf8 (BL.toStrict (encode payload))
+                        ]
+                    ]
+                , "isError" .= False
+                ]
+        _ -> pure $ toolError "validate_script" "the `script` argument must be a string"
+
+-- | Validate an inline script and shape the result as
+-- @{"ok":true}@ or @{"ok":false,"errors":[{"line","col","code","message","hint"}]}@.
+validateScriptResult :: Text -> IO Value
+validateScriptResult script = do
+    r <- Validate.validateScript script
+    pure $ case r of
+        Right _ -> object [ "ok" .= True ]
+        Left diags -> object
+            [ "ok" .= False
+            , "errors" .= map diagToJson diags
+            ]
+
+diagToJson :: Validate.Diagnostic -> Value
+diagToJson d = object
+    [ "line" .= Validate.diagLine d
+    , "col" .= Validate.diagCol d
+    , "code" .= Validate.diagCodeText (Validate.diagCode d)
+    , "message" .= Validate.diagMessage d
+    , "hint" .= Validate.diagHint d
+    ]
+
+-- | Extract the @arguments@ object from a @tools\/call@ request, if present.
+toolArguments :: Object -> Object
+toolArguments obj =
+    case KM.lookup "arguments" (paramsOf obj) of
+        Just (Object a) -> a
+        _ -> KM.empty
