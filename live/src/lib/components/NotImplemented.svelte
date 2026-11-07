@@ -12,14 +12,40 @@
 
 <style>
   .not-implemented {
-    border: 1px dashed #9ca3af;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    background: #f9fafb;
-    color: #6b7280;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin: 0 0 1.5rem;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid #fed7aa;
+    border-radius: 0.9rem;
+    background: #fffaf5;
+    color: #9a3412;
+  }
+  .not-implemented::before {
+    content: '!';
+    display: grid;
+    flex: 0 0 1.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    place-items: center;
+    border-radius: 50%;
+    background: #ffedd5;
+    color: #c2410c;
+    font-weight: 800;
+  }
+  h2 {
+    margin: 0 0 0.35rem;
+    color: #9a3412;
+    font-size: 0.9rem;
+  }
+  p {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
   }
   code {
-    background: #e5e7eb;
+    background: #ffedd5;
     padding: 0.1rem 0.3rem;
     border-radius: 0.25rem;
   }
