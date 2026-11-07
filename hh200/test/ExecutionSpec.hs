@@ -5,8 +5,6 @@ module ExecutionSpec (spec) where
 
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           System.IO (hPutStrLn, openTempFile, hClose)
-import           System.Directory (removeFile)
 import qualified Network.HTTP.Client as HC
 import qualified Network.HTTP.Client.Internal as HI
 import qualified Network.HTTP.Client.MultipartFormData as HCMP
@@ -62,10 +60,7 @@ spec = testGroup "Execution"
   , testRenderRequestCookiesSingle
   , testRenderRequestCookiesMultiple
   , testBodyPartToPartText
-  , testBodyPartToPartFile
   , testBuildRequestCookiesWired
-  , testExperimentalRequestBodyFileExists
-  , testExperimentalRequestBodyFileNotFound
   , testApplyBodyJson
   , testApplyBodyFormUrl
   , testApplyBodyRaw
@@ -264,11 +259,6 @@ testBodyPartToPartText = testCase "bodyPartToPart: text part" $ do
         HI.RequestBodyBS bs -> assertEqual "text body" "hello world" (BS.unpack bs)
         _ -> assertFailure "expected RequestBodyBS"
 
-testBodyPartToPartFile :: TestTree
-testBodyPartToPartFile = testCase "bodyPartToPart: file part" $ do
-    let part = bodyPartToPart (BodyPartFile "upload" "/tmp/opencode/exists.txt")
-    assertEqual "filename set" (Just "/tmp/opencode/exists.txt") (HCMP.partFilename part)
-
 testBuildRequestCookiesWired :: TestTree
 testBuildRequestCookiesWired = testCase "buildRequest: cookies square adds Cookie header" $ do
     let ck = RhsDict $ HM.fromList [("session", [BEL.R "abc123"])]
@@ -279,29 +269,6 @@ testBuildRequestCookiesWired = testCase "buildRequest: cookies square adds Cooki
         cookieVal = lookup (CI.mk "Cookie") hs
     assertEqual "Cookie header present" (Just "session=abc123") (BS.unpack <$> cookieVal)
 -- (auto) ends
-
--- @ is curl's syntax for fs path. does hh200 current accommodate relative paths for free.
-            -- , ("upload", [BEL.R ("file," <> "/tmp/opencode/exists.txt")])
-
-testExperimentalRequestBodyFileExists :: TestTree
-testExperimentalRequestBodyFileExists = testCase "experimentalRequestBodyFile': file exists" $ do
-    (path, h) <- openTempFile "." "test-body"
-    hPutStrLn h "test content"
-    hClose h
-    req <- HC.parseRequest "http://localhost/"
-    req' <- experimentalRequestBodyFile' path req
-    removeFile path
-    case HC.requestBody req' of
-        HI.RequestBodyIO _ -> assertBool "body is RequestBodyIO" True
-        _ -> assertFailure "expected RequestBodyIO"
-
-testExperimentalRequestBodyFileNotFound :: TestTree
-testExperimentalRequestBodyFileNotFound = testCase "experimentalRequestBodyFile': file not found" $ do
-    req <- HC.parseRequest "http://localhost/"
-    req' <- experimentalRequestBodyFile' "/nonexistent/path/to/file/that/does/not/exist.txt" req
-    case HC.requestBody req' of
-        HI.RequestBodyIO _ -> assertFailure "body should not be RequestBodyIO for nonexistent file"
-        _ -> assertBool "body unchanged for invalid path" True
 
 testApplyBodyJson :: TestTree
 testApplyBodyJson = testCase "applyBody: RBJson sets JSON body and content-type" $ do

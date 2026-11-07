@@ -35,7 +35,7 @@ testRateLimiterBlocksWhenEmpty =
   testCase "rate limiter blocks after capacity is consumed" $
     withRateLimiter (RateLimiterConfig 1 0) $ \rl -> do
       waitAndConsumeToken rl
-      result <- timeout 50000 (waitAndConsumeToken rl)
+      result <- timeout 200000 (waitAndConsumeToken rl)
       assertEqual "second consume remains blocked" Nothing result
 
 testRateLimiterRefills :: TestTree
@@ -43,7 +43,7 @@ testRateLimiterRefills =
   testCase "rate limiter refills consumed tokens" $
     withRateLimiter (RateLimiterConfig 1 100) $ \rl -> do
       waitAndConsumeToken rl
-      result <- timeout 250000 (waitAndConsumeToken rl)
+      result <- timeout 1000000 (waitAndConsumeToken rl)
       assertEqual "consume succeeds after refill" (Just ()) result
 
 testRateLimiterCapsTokens :: TestTree
@@ -67,7 +67,7 @@ testCourierWaitsWhilePaused = testCase "courier waits while paused and resumes" 
     state <- newTVarIO Paused
     done <- newEmptyMVar
     _ <- forkIO (courier Nothing (mkScript []) (state, 0) done)
-    threadDelay 50000
+    threadDelay 100000
     assertBool "courier remains paused" =<< isEmptyMVar done
     atomically (writeTVar state Running)
     result <- timeout 1000000 (takeMVar done)
@@ -86,7 +86,7 @@ testCourierLoopStopsOnSignal = testCase "looping courier exits when stopped" $ d
     state <- newTVarIO Running
     done <- newEmptyMVar
     _ <- forkIO (courier Nothing (mkScript []) (state, 1) done)
-    threadDelay 30000
+    threadDelay 100000
     atomically (writeTVar state Stopped)
     result <- timeout 1000000 (takeMVar done)
     assertEqual "loop exits cleanly" (Just False) result

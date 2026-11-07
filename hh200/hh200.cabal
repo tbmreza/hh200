@@ -118,6 +118,7 @@ test-suite hh200-test
       CurlTest.Preprocess
       CurlTest.Translate
       CurlTest.Types
+      CurlUnitSpec
       DashboardSpec
       ExecutionSpec
       LspSpec

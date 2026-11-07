@@ -66,69 +66,35 @@ testLSP_scanSafe = testGroup "LSP safe scan"
     ]
 
 testLSP_complete :: TestTree
-testLSP_complete = testGroup "LSP completion"
-    [ testCase "empty input" $ do
-        let suggs = Hh.complete "" 0
-        assertBool "Suggests GET" ("GET" `elem` suggs)
-        assertBool "Suggests POST" ("POST" `elem` suggs)
-    
-    , testCase "partial method G" $ do
-        let suggs = Hh.complete "G" 1
-        assertBool "Suggests GET" ("GET" `elem` suggs)
-        assertBool "Does not suggest POST" ("POST" `notElem` suggs)
+testLSP_complete = testGroup "LSP completion" (map completionCase completionTable)
 
-    , testCase "partial method PO" $ do
-        let suggs = Hh.complete "PO" 2
-        assertBool "Suggests POST" ("POST" `elem` suggs)
-        
-    , testCase "partial HTTP keyword" $ do
-        let suggs = Hh.complete "GET / HT" 8
-        assertBool "Suggests HTTP" ("HTTP" `elem` suggs)
-
-    , testCase "partial method D" $ do
-        let suggs = Hh.complete "D" 1
-        assertBool "Suggests DELETE" ("DELETE" `elem` suggs)
-
-    , testCase "lowercase partial method g" $ do
-        let suggs = Hh.complete "g" 1
-        assertBool "Suggests GET" ("GET" `elem` suggs)
-
-    , testCase "lowercase partial method po" $ do
-        let suggs = Hh.complete "po" 2
-        assertBool "Suggests POST" ("POST" `elem` suggs)
-        
-    , testCase "partial method O" $ do
-        let suggs = Hh.complete "O" 1
-        assertBool "Suggests OPTIONS" ("OPTIONS" `elem` suggs)
-        
-    , testCase "partial method HE" $ do
-        let suggs = Hh.complete "HE" 2
-        assertBool "Suggests HEAD" ("HEAD" `elem` suggs)
-
-    , testCase "partial method TR" $ do
-        let suggs = Hh.complete "TR" 2
-        assertBool "Suggests TRACE" ("TRACE" `elem` suggs)
-
-    , testCase "partial method CO" $ do
-        let suggs = Hh.complete "CO" 2
-        assertBool "Suggests CONNECT" ("CONNECT" `elem` suggs)
-
-    , testCase "keyword Configs" $ do
-        let suggs = Hh.complete "Con" 3
-        assertBool "Suggests Configs" ("Configs" `elem` suggs)
-
-    , testCase "keyword Captures" $ do
-        let suggs = Hh.complete "Cap" 3
-        assertBool "Suggests Captures" ("Captures" `elem` suggs)
-
-    , testCase "keyword Asserts" $ do
-        let suggs = Hh.complete "As" 2
-        assertBool "Suggests Asserts" ("Asserts" `elem` suggs)
-
-    , testCase "keyword then" $ do
-        let suggs = Hh.complete "th" 2
-        assertBool "Suggests then" ("then" `elem` suggs)
+-- | (input, cursor position, expected suggestions, unexpected suggestions).
+completionTable :: [(String, Int, [String], [String])]
+completionTable =
+    [ ("", 0, ["GET", "POST"], [])
+    , ("G", 1, ["GET"], ["POST"])
+    , ("PO", 2, ["POST"], [])
+    , ("GET / HT", 8, ["HTTP"], [])
+    , ("D", 1, ["DELETE"], [])
+    , ("g", 1, ["GET"], [])
+    , ("po", 2, ["POST"], [])
+    , ("O", 1, ["OPTIONS"], [])
+    , ("HE", 2, ["HEAD"], [])
+    , ("TR", 2, ["TRACE"], [])
+    , ("CO", 2, ["CONNECT"], [])
+    , ("Con", 3, ["Configs"], [])
+    , ("Cap", 3, ["Captures"], [])
+    , ("As", 2, ["Asserts"], [])
+    , ("th", 2, ["then"], [])
     ]
+
+completionCase :: (String, Int, [String], [String]) -> TestTree
+completionCase (input, pos, yes, no) = testCase label $ do
+    let suggs = Hh.complete input pos
+    mapM_ (\s -> assertBool ("suggests " ++ show s ++ " for " ++ show input) (s `elem` suggs)) yes
+    mapM_ (\s -> assertBool ("does not suggest " ++ show s ++ " for " ++ show input) (s `notElem` suggs)) no
+  where
+    label = "complete " ++ show input
 
 testLSP_context :: TestTree
 testLSP_context = testGroup "LSP context awareness"

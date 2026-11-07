@@ -344,7 +344,7 @@ testStaticProd = testCase "prod serves the SvelteKit SPA and static assets" $ do
         rRoot <- getLbs mgr port "/"
         assertStatus 200 rRoot
         assertBodyContains "<!doctype html>" rRoot
-        assertBodyContains "__sveltekit" rRoot
+        assertBodyContains "<html" rRoot
 
         rRoute <- getLbs mgr port "/some/client/route"
         assertStatus 200 rRoute

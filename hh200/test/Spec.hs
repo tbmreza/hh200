@@ -10,6 +10,7 @@ import qualified TokenBucketWorkerPoolSpec
 import qualified McpResourceSpec
 import qualified ValidateSpec
 import qualified CurlSpec
+import qualified CurlUnitSpec
 
 -- Run everything on a single thread: the Dashboard tests mutate process-global
 -- environment variables (HH200_SQLITE, HH200_CONTROL_SOCKET), so they must not
@@ -25,4 +26,5 @@ main = defaultMain $ localOption (NumThreads 1) $ testGroup "Hh200 Tests"
   , McpResourceSpec.spec
   , ValidateSpec.spec
   , CurlSpec.spec
+  , CurlUnitSpec.spec
   ]

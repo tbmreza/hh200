@@ -9,6 +9,9 @@
 module CurlTest.Translate
     ( translate
     , tokenize
+    , urlToTarget
+    , detectMethod
+    , detectBody
     ) where
 
 import           Data.Char (isSpace)
