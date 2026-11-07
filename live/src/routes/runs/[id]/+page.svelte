@@ -2,12 +2,21 @@
   import type { RunDetail } from '$lib/types';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RequestList from '$lib/components/RequestList.svelte';
+  import { downloadRunDetail } from '$lib/export';
 
   let { data } = $props<{ data: { detail: RunDetail } }>();
   const run = $derived(data.detail.run);
+
+  function download() {
+    const base = (run.name || 'run').trim().replace(/[^\w.-]+/g, '_') || 'run';
+    downloadRunDetail(data.detail, `${base}-${run.id}.html`);
+  }
 </script>
 
-<h1>{run.name}</h1>
+<header class="page-head">
+  <h1>{run.name}</h1>
+  <button type="button" onclick={download}>Download HTML</button>
+</header>
 
 <dl>
   <dt>Status</dt>
@@ -30,3 +39,15 @@
 <RequestList requests={data.detail.requests} />
 
 <a href="/runs">&larr; Back to runs</a>
+
+<style>
+  .page-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .page-head h1 {
+    margin: 0;
+  }
+</style>

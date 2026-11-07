@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Request } from '$lib/types';
+	import { decodeContent } from '$lib/export';
 
 	let { requests }: { requests: Request[] } = $props();
 
@@ -60,7 +61,7 @@
 								<div class="body">
 									<span class="dir">{body.direction} body</span>
 									{#if body.truncated}<em>(truncated)</em>{/if}
-									<pre>{body.content ?? ''}</pre>
+									<pre>{decodeContent(body.content)}</pre>
 								</div>
 							{/each}
 						</td>
