@@ -31,7 +31,7 @@ import           Control.Exception (bracket, try, SomeException)
 import           Control.Monad (forever)
 
 import           Hh200.Types
-import           Hh200.Execution (runScriptM, runScriptMWith, CourierCtx(..))
+import           Hh200.Execution (runScriptMWith, CourierCtx(..), CaptureCtx)
 
 
 data WorkerMode
@@ -86,8 +86,8 @@ data RunState = Running | Paused | Stopped
 -- Terminates after first iteration on duration=0
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
 -- done :: MVar Bool  -- True if the Script failed its assertions
-courier :: Script -> (TVar RunState, Int) -> MVar Bool -> IO ()
-courier    script    (cue, dur)              done = do
+courier :: Maybe CaptureCtx -> Script -> (TVar RunState, Int) -> MVar Bool -> IO ()
+courier    mCapture          script    (cue, dur)              done = do
     -- (auto)
     r <- try loop :: IO (Either SomeException ())
     putMVar done $ case r of
@@ -107,7 +107,7 @@ courier    script    (cue, dur)              done = do
                         _ -> pure ()
                 loop
             Running -> do
-                let courierCtx = CourierCtx { courierName = "hh200a" }  -- ??: freshCourierName
+                let courierCtx = CourierCtx { courierName = "hh200a", courierCapture = mCapture }  -- ??: freshCourierName
                 -- trace ("courier:" ++ show script) $ (runScriptMWith courierCtx) script newEnv
                 (runScriptMWith courierCtx) script newEnv
                 threadDelay 4000

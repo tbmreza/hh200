@@ -9,12 +9,15 @@ import Debug.Trace
 
 import           GHC.Generics (Generic)
 import           Control.Exception (try, SomeException, displayException)
+import           Control.Monad (forM)
 import           Data.Aeson (ToJSON (..), object, (.=))
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as BSC
 import           Data.Int (Int64)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TE
 import           Database.SQLite.Simple (query, Only (..), Connection, ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId)
 import           Network.HTTP.Types.Header (HeaderName)
 import           System.Directory (XdgDirectory (XdgData), getXdgDirectory, createDirectoryIfMissing)
@@ -180,3 +183,179 @@ insertRun conn rr = do
 
 listRuns :: Connection -> IO [RunRow]
 listRuns conn = query_ conn "SELECT id, name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket FROM runs ORDER BY started_at DESC"
+
+--------------------------------------------------------------------------------
+-- Request persistence (requests / request_headers / request_bodies)
+--------------------------------------------------------------------------------
+
+-- | A @requests@ row. @requestId@ is @0@ on insert (the id is auto-assigned)
+-- and the real id when read back.
+data RequestRow = RequestRow
+  { requestId         :: Int64
+  , requestRunId      :: Int64
+  , requestSeq        :: Int
+  , requestSentAt     :: Int64       -- ^ unix epoch seconds, like @runs.started_at@
+  , requestDurationMs :: Maybe Double -- ^ NULL on error
+  , requestMethod     :: Text
+  , requestUrl        :: Text
+  , requestStatus     :: Maybe Int   -- ^ NULL on error
+  , requestError      :: Maybe Text
+  , requestBytesIn    :: Maybe Int
+  , requestBytesOut   :: Maybe Int
+  , requestWorkerId   :: Maybe Int
+  } deriving (Show, Eq)
+
+instance ToRow RequestRow where
+    toRow (RequestRow _id rid sq sa dm m u st e bi bo wi) =
+        toRow (rid, sq, sa, dm, m, u) ++ toRow (st, e, bi, bo, wi)
+
+instance FromRow RequestRow where
+    fromRow = RequestRow <$> field <*> field <*> field <*> field <*> field
+                         <*> field <*> field <*> field <*> field <*> field
+                         <*> field <*> field
+
+-- | A row for INSERT into @request_headers@ (@request_id@ is supplied at insert time).
+data RequestHeaderRow = RequestHeaderRow
+  { requestHeaderDirection :: Text -- ^ "request" | "response"
+  , requestHeaderName      :: Text
+  , requestHeaderValue     :: Text
+  } deriving (Show, Eq)
+
+-- | A row for INSERT into @request_bodies@.
+data RequestBodyRow = RequestBodyRow
+  { requestBodyDirection :: Text             -- ^ "request" | "response"
+  , requestBodyContent   :: Maybe BS.ByteString -- ^ NULL when body unavailable (e.g. streamed)
+  , requestBodyTruncated :: Bool
+  } deriving (Show, Eq)
+
+-- | A complete request to persist: one @requests@ row plus its headers/bodies.
+data CapturedRequest = CapturedRequest
+  { capturedRow     :: RequestRow
+  , capturedHeaders :: [RequestHeaderRow]
+  , capturedBodies  :: [RequestBodyRow]
+  } deriving (Show, Eq)
+
+insertRequest :: Connection -> RequestRow -> IO (Either Text Int64)
+insertRequest conn rr = do
+    result <- try $ do
+        execute conn
+            "INSERT INTO requests (run_id, seq, sent_at, duration_ms, method, url, status_code, error, bytes_in, bytes_out, worker_id) \
+            \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            rr
+        lastInsertRowId conn
+    case result of
+        Left (e :: SomeException) -> pure (Left (Text.pack (displayException e)))
+        Right rid -> pure (Right rid)
+
+insertRequestHeader :: Connection -> Int64 -> RequestHeaderRow -> IO (Either Text ())
+insertRequestHeader conn rid (RequestHeaderRow dir name value) = do
+    result <- (try $ execute conn
+        "INSERT INTO request_headers (request_id, direction, name, value) VALUES (?, ?, ?, ?)"
+        (rid, dir, name, value)) :: IO (Either SomeException ())
+    pure $ either (Left . Text.pack . displayException) (const (Right ())) result
+
+insertRequestBody :: Connection -> Int64 -> RequestBodyRow -> IO (Either Text ())
+insertRequestBody conn rid (RequestBodyRow dir mContent truncated) = do
+    result <- (try $ execute conn
+        "INSERT INTO request_bodies (request_id, direction, content, truncated) VALUES (?, ?, ?, ?)"
+        (rid, dir, mContent, truncated)) :: IO (Either SomeException ())
+    pure $ either (Left . Text.pack . displayException) (const (Right ())) result
+
+-- | Insert a request and all of its headers/bodies under one request id.
+insertCapturedRequest :: Connection -> CapturedRequest -> IO (Either Text ())
+insertCapturedRequest conn (CapturedRequest rr hs bs) = do
+    mRid <- insertRequest conn rr
+    case mRid of
+        Left e -> pure (Left e)
+        Right rid -> do
+            hsResults <- mapM (insertRequestHeader conn rid) hs
+            case sequence hsResults of
+                Left e -> pure (Left e)
+                Right _ -> do
+                    bsResults <- mapM (insertRequestBody conn rid) bs
+                    case sequence bsResults of
+                        Left e -> pure (Left e)
+                        Right _ -> pure (Right ())
+
+--------------------------------------------------------------------------------
+-- Request retrieval (for GET /api/runs/:runId)
+--------------------------------------------------------------------------------
+
+-- | A @request_headers@ row read back from SQLite (with its id).
+data RequestHeaderFull = RequestHeaderFull
+  { requestHeaderFullId        :: Int64
+  , requestHeaderFullDirection :: Text
+  , requestHeaderFullName      :: Text
+  , requestHeaderFullValue     :: Text
+  } deriving (Show, Eq)
+
+instance ToJSON RequestHeaderFull where
+    toJSON (RequestHeaderFull hid dir name value) = object
+        [ "id" .= hid
+        , "direction" .= dir
+        , "name" .= name
+        , "value" .= value
+        ]
+
+-- | A @request_bodies@ row read back from SQLite (with its id).
+data RequestBodyFull = RequestBodyFull
+  { requestBodyFullId        :: Int64
+  , requestBodyFullDirection :: Text
+  , requestBodyFullContent   :: Maybe BS.ByteString
+  , requestBodyFullTruncated :: Bool
+  } deriving (Show, Eq)
+
+instance ToJSON RequestBodyFull where
+    toJSON (RequestBodyFull bid dir mContent truncated) = object
+        [ "id" .= bid
+        , "direction" .= dir
+        , "content" .= fmap (TE.decodeUtf8 . B64.encode) mContent
+        , "truncated" .= truncated
+        ]
+
+-- | A request plus its nested headers/bodies, shaped like the frontend's
+-- @Request@ in @live/src/lib/types.ts@.
+data RequestDetail = RequestDetail
+  { detailRow     :: RequestRow
+  , detailHeaders :: [RequestHeaderFull]
+  , detailBodies  :: [RequestBodyFull]
+  } deriving (Show, Eq)
+
+instance ToJSON RequestDetail where
+    toJSON (RequestDetail rr hs bs) = object
+        [ "id" .= requestId rr
+        , "seq" .= requestSeq rr
+        , "sent_at" .= requestSentAt rr
+        , "duration_ms" .= requestDurationMs rr
+        , "method" .= requestMethod rr
+        , "url" .= requestUrl rr
+        , "status_code" .= requestStatus rr
+        , "error" .= requestError rr
+        , "bytes_in" .= requestBytesIn rr
+        , "bytes_out" .= requestBytesOut rr
+        , "worker_id" .= requestWorkerId rr
+        , "headers" .= hs
+        , "bodies" .= bs
+        ]
+
+-- | All requests for a run, ordered by @seq@, with nested headers/bodies.
+listRequestsByRun :: Connection -> Int64 -> IO (Either Text [RequestDetail])
+listRequestsByRun conn runId = do
+    result <- try $ do
+        rows <- query conn
+            "SELECT id, run_id, seq, sent_at, duration_ms, method, url, status_code, error, bytes_in, bytes_out, worker_id \
+            \FROM requests WHERE run_id = ? ORDER BY seq, id"
+            (Only runId) :: IO [RequestRow]
+        forM rows $ \rr -> do
+            hs <- query conn
+                "SELECT id, direction, name, value FROM request_headers WHERE request_id = ? ORDER BY id"
+                (Only (requestId rr))
+            bs <- query conn
+                "SELECT id, direction, content, truncated FROM request_bodies WHERE request_id = ? ORDER BY id"
+                (Only (requestId rr))
+            pure $ RequestDetail rr
+                [ RequestHeaderFull h d n v | (h, d, n, v) <- hs ]
+                [ RequestBodyFull b d c t | (b, d, c, t) <- bs ]
+    case result of
+        Left (e :: SomeException) -> pure (Left (Text.pack (displayException e)))
+        Right details -> pure (Right details)

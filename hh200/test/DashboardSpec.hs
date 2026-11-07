@@ -71,6 +71,17 @@ schema =
       \id INTEGER PRIMARY KEY AUTOINCREMENT, \
       \name TEXT, script_path TEXT, started_at INTEGER, ended_at INTEGER, \
       \status TEXT, concurrency INTEGER, rate_limit REAL, control_socket TEXT)"
+    , "CREATE TABLE IF NOT EXISTS requests ( \
+      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
+      \run_id INTEGER, seq INTEGER, sent_at INTEGER, duration_ms REAL, \
+      \method TEXT, url TEXT, status_code INTEGER, error TEXT, \
+      \bytes_in INTEGER, bytes_out INTEGER, worker_id INTEGER)"
+    , "CREATE TABLE IF NOT EXISTS request_headers ( \
+      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
+      \request_id INTEGER, direction TEXT, name TEXT, value TEXT)"
+    , "CREATE TABLE IF NOT EXISTS request_bodies ( \
+      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
+      \request_id INTEGER, direction TEXT, content BLOB, truncated INTEGER)"
     ]
 
 -- | Point @HH200_SQLITE@ at a fresh temp file, create the schema, optionally
@@ -96,6 +107,18 @@ withTestDb seeded act = do
             , 10.5 :: Double
             , "/tmp/cs" :: String
             )
+        Sqlite.execute conn
+            "INSERT INTO requests (run_id, seq, sent_at, duration_ms, method, url, status_code, error, bytes_in, bytes_out, worker_id) \
+            \VALUES (1, 0, 1234567890, 12.5, 'GET', 'http://example.com/x', 200, NULL, 100, 50, 0)"
+            ()
+        Sqlite.execute conn
+            "INSERT INTO request_headers (request_id, direction, name, value) \
+            \VALUES (1, 'response', 'Content-Type', 'text/plain')"
+            ()
+        Sqlite.execute conn
+            "INSERT INTO request_bodies (request_id, direction, content, truncated) \
+            \VALUES (1, 'response', X'68656C6C6F', 0)"
+            ()
     Sqlite.close conn
     act `finally` do
         unsetEnv "HH200_SQLITE"
@@ -186,13 +209,18 @@ testLiveRunEmpty = testCase "GET /api/runs/live returns null run when none runni
             assertBodyContains "\"state\":\"running\"" resp
 
 testRunDetailSeeded :: TestTree
-testRunDetailSeeded = testCase "GET /api/runs/:id returns the run with empty requests" $ do
+testRunDetailSeeded = testCase "GET /api/runs/:id returns the run with its requests" $ do
     withTestDb True $ do
         withDashboard False $ \mgr port -> do
             resp <- getLbs mgr port "/api/runs/1"
             assertStatus 200 resp
             assertBodyContains "\"name\":\"my run\"" resp
-            assertBodyContains "\"requests\":[]" resp
+            assertBodyContains "\"seq\":0" resp
+            assertBodyContains "\"method\":\"GET\"" resp
+            assertBodyContains "\"url\":\"http://example.com/x\"" resp
+            assertBodyContains "\"status_code\":200" resp
+            assertBodyContains "\"name\":\"Content-Type\"" resp
+            assertBodyContains "\"content\":\"aGVsbG8=\"" resp
 
 testRunDetailNotFound :: TestTree
 testRunDetailNotFound = testCase "GET /api/runs/:id returns 404 for unknown id" $ do

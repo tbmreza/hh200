@@ -15,10 +15,10 @@ import           Control.Monad (forever, unless)
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
-import           Data.Aeson (object, encode, (.=), Value(..), eitherDecode)
+import           Data.Aeson (object, encode, (.=), eitherDecode, Value(..))
 import           Data.Maybe (fromMaybe)
 import           Data.Text (unpack)
-import           Network.HTTP.Types.Status (status404, status400, status409, status422)
+import           Network.HTTP.Types.Status (status404, status400, status409, status422, status500)
 import           Network.Socket
 import qualified Network.Socket.ByteString as NBS
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
@@ -26,7 +26,7 @@ import           System.Environment (lookupEnv)
 import           Web.Scotty (ScottyM, scotty, regex, pathParam)
 import qualified Web.Scotty as Server
 
-import           Hh200.Database (initDb, listRuns, getRunById, getLatestRunningRun)
+import           Hh200.Database (initDb, listRuns, getRunById, getLatestRunningRun, listRequestsByRun)
 import           Hh200.Runner (StartError (..), runPlan, startRun)
 
 --------------------------------------------------------------------------------
@@ -84,11 +84,17 @@ dashboardRoutes isDev = do
             Left err -> do
                 Server.status status404
                 Server.json $ object ["error" .= unpack err]
-            Right row ->
-                Server.json $ object
-                    [ "run" .= row
-                    , "requests" .= ([] :: [Value])
-                    ]
+            Right row -> do
+                reqs <- liftIO $ listRequestsByRun conn (fromIntegral runId)
+                case reqs of
+                    Left err -> do
+                        Server.status status500
+                        Server.json $ object ["error" .= unpack err]
+                    Right rs ->
+                        Server.json $ object
+                            [ "run" .= row
+                            , "requests" .= rs
+                            ]
 
     Server.post "/api/run/plan" $ do
         body <- Server.body

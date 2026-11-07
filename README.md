@@ -32,10 +32,6 @@ hh200 is distributed as single binary, e.g. `npm install -g @mauikut/hh200`.
 The project is in ideation phase (Update late 2025: slowly transitioning to a hazily more committal phase; expect target release date sooner rather than later!).
 `DRAFT.md` is where I stash my thoughts. `hh200/` works if you want to play with what I got so far.
 
-```sh
-stack test --test-arguments "--pattern Script"
-shelltest easy.test  # https://github.com/simonmichael/shelltestrunner
-```
 ```yaml
 # stack.yaml
 
@@ -106,8 +102,10 @@ auto-skipped by the parser (unsupported `<server>`/`<features>`/`<command>`).
 ### Running
 
 ```
+stack test --test-arguments "--pattern Script"
 make curl-tests          # build hh200+ocapi, start the replay server, run the curl suite
 make sync-curl-tests     # refresh vendored data from the pinned upstream tag
+npx @modelcontextprotocol/inspector /home/tbmreza/gh/hh200/hh200/.stack-work/install/x86_64-linux/fec37efdeab1d21ab9f47f0ea78c1dd062848e3bc32ad42bcd33e4b02a90d6d2/9.10.3/bin/hh200 --mcp-stdio
 ```
 
 ## Features
@@ -159,7 +157,7 @@ URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters
 
 
 ### Development dependencies
-- shelltestrunner (latest github release: 1.11)
+- shelltestrunner (https://github.com/simonmichael/shelltestrunner latest github release: 1.11)
 - php (latest debian stable: 8.4)
 
 #### Database seeding

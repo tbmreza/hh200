@@ -58,7 +58,7 @@ testCourierOneShotCompletes :: TestTree
 testCourierOneShotCompletes = testCase "courier runs one iteration when duration is zero" $ do
     state <- newTVarIO Running
     done <- newEmptyMVar
-    _ <- forkIO (courier (mkScript []) (state, 0) done)
+    _ <- forkIO (courier Nothing (mkScript []) (state, 0) done)
     result <- timeout 1000000 (takeMVar done)
     assertEqual "one-shot courier succeeds" (Just False) result
 
@@ -66,7 +66,7 @@ testCourierWaitsWhilePaused :: TestTree
 testCourierWaitsWhilePaused = testCase "courier waits while paused and resumes" $ do
     state <- newTVarIO Paused
     done <- newEmptyMVar
-    _ <- forkIO (courier (mkScript []) (state, 0) done)
+    _ <- forkIO (courier Nothing (mkScript []) (state, 0) done)
     threadDelay 50000
     assertBool "courier remains paused" =<< isEmptyMVar done
     atomically (writeTVar state Running)
@@ -77,7 +77,7 @@ testCourierStopsBeforeRunning :: TestTree
 testCourierStopsBeforeRunning = testCase "courier does not run after stop" $ do
     state <- newTVarIO Stopped
     done <- newEmptyMVar
-    _ <- forkIO (courier (mkScript []) (state, 0) done)
+    _ <- forkIO (courier Nothing (mkScript []) (state, 0) done)
     result <- timeout 1000000 (takeMVar done)
     assertEqual "stopped courier reports no failure" (Just False) result
 
@@ -85,7 +85,7 @@ testCourierLoopStopsOnSignal :: TestTree
 testCourierLoopStopsOnSignal = testCase "looping courier exits when stopped" $ do
     state <- newTVarIO Running
     done <- newEmptyMVar
-    _ <- forkIO (courier (mkScript []) (state, 1) done)
+    _ <- forkIO (courier Nothing (mkScript []) (state, 1) done)
     threadDelay 30000
     atomically (writeTVar state Stopped)
     result <- timeout 1000000 (takeMVar done)

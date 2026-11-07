@@ -16,8 +16,8 @@ module Hh200.Runner
 
 import Debug.Trace
 
-import           Control.Concurrent (forkIO, threadDelay, newEmptyMVar, takeMVar)
-import           Control.Concurrent.STM (atomically, newTVarIO, writeTVar)
+import           Control.Concurrent (forkIO, threadDelay, newEmptyMVar, takeMVar, putMVar, MVar)
+import           Control.Concurrent.STM (atomically, newTVarIO, writeTVar, newTQueueIO, readTQueue, writeTQueue, TQueue)
 import           Control.Monad (forM_, when, replicateM)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, except, throwE)
@@ -32,7 +32,8 @@ import           System.Directory (canonicalizePath, doesFileExist, makeAbsolute
 import           System.Environment (lookupEnv)
 import           System.FilePath ((</>), isRelative, normalise, splitDirectories)
 
-import           Hh200.Database (initDb, insertRun, updateRunStatus, getLatestRunningRun, RunRow (..), RREndTime (..))
+import           Hh200.Database (initDb, insertRun, updateRunStatus, getLatestRunningRun, RunRow (..), RREndTime (..), insertCapturedRequest, CapturedRequest (..))
+import           Hh200.Execution (CaptureCtx (..))
 import           Hh200.Scanner (analyze, diagnostics)
 import           Hh200.TokenBucketWorkerPool (courier, RunState (..))
 import           Hh200.Types (Script (..))
@@ -200,7 +201,14 @@ launchWorkers :: Connection -> Int64 -> Script -> Int -> Int -> IO ()
 launchWorkers conn runId script nvu duration = do
     cue <- newTVarIO Running
     drawer <- replicateM nvu newEmptyMVar
-    forM_ drawer $ \hole -> forkIO $ courier script (cue, duration) hole
+    queue <- newTQueueIO
+    seqTv <- newTVarIO 0
+    writerDone <- newEmptyMVar
+    _ <- forkIO $ runWriter conn queue writerDone
+    forM_ (zip [0 ..] drawer) $ \(workerId, hole) -> do
+        let capCtx = CaptureCtx { ccQueue = queue, ccRunId = runId, ccWorkerId = workerId, ccSeq = seqTv }
+        _ <- forkIO $ courier (Just capCtx) script (cue, duration) hole
+        pure ()
 
     when (duration > 0) $ do
         _ <- forkIO $ threadDelay (duration * 1000000) >> atomically (writeTVar cue Stopped)
@@ -209,7 +217,22 @@ launchWorkers conn runId script nvu duration = do
     _ <- forkIO $ do
         results <- mapM takeMVar drawer
         let failed = or results
+        atomically $ writeTQueue queue Nothing  -- signal the writer to flush + stop
+        takeMVar writerDone
         _ <- updateRunStatus conn runId (if failed then "failed" else "completed")
         pure ()
 
     pure ()
+
+-- | Drains the capture queue into SQLite on a single thread (a @Connection@ is
+-- not safe to share across threads). Terminates on the @Nothing@ sentinel.
+runWriter :: Connection -> TQueue (Maybe CapturedRequest) -> MVar () -> IO ()
+runWriter conn queue done = loop
+  where
+    loop = do
+        mEv <- atomically (readTQueue queue)
+        case mEv of
+            Nothing -> putMVar done ()
+            Just ev -> do
+                _ <- insertCapturedRequest conn ev
+                loop

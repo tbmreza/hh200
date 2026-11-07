@@ -6,7 +6,7 @@
 
 -- | TokenBucketWorkerPool uses this module to execute Scripts.
 module Hh200.Execution
-  ( runScriptM, runScriptMWith, CourierCtx(..)
+  ( runScriptM, runScriptMWith, CourierCtx(..), CaptureCtx(..)
   , AssertionFailure(..)
 
   , status200
@@ -38,6 +38,7 @@ import           System.IO (hPutStrLn, stderr, hClose, openFile, IOMode(..))
 -- import           Control.Exception        (bracket, bracket_, try, SomeException, IOException)
 import           Control.Exception        (try, throwIO, Exception, IOException)
 -- import           Control.Concurrent.Async (mapConcurrently, replicateConcurrently_)
+import           Control.Concurrent.STM (atomically, TVar, readTVar, writeTVar, TQueue, writeTQueue)
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
@@ -49,7 +50,10 @@ import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import           Data.Traversable (for)
 -- import           Data.Maybe (fromMaybe)
+import           Data.Int (Int64)
+import           Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Text.Encoding as TE
+import           Data.Text.Encoding.Error (lenientDecode)
 -- import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HM
@@ -69,13 +73,18 @@ import qualified Data.Vector as V
 -- import           Control.Lens.At (at)
 
 import qualified Network.HTTP.Client as HC ( method
+                                           , secure
+                                           , host
+                                           , port
+                                           , path
+                                           , queryString
                                            , requestHeaders
                                            , responseHeaders
                                            , responseBody
                                            , Response
                                            , parseRequest
                                            , requestBody
-                                           , RequestBody (RequestBodyBS, RequestBodyLBS)
+                                           , RequestBody (RequestBodyBS, RequestBodyLBS, RequestBodyBuilder, RequestBodyStream)
                                            , streamFile
                                            )
 import qualified Network.HTTP.Client.MultipartFormData as HCMP
@@ -90,6 +99,7 @@ import qualified Network.HTTP.Client.Internal as HI
 
 import qualified BEL
 import qualified Hh200.Http as Http
+import           Hh200.Database (CapturedRequest (..), RequestRow (..), RequestHeaderRow (..), RequestBodyRow (..))
 import           Hh200.Types
 -- import           Hh200.Scanner (gatherHostInfo)
 
@@ -235,7 +245,7 @@ expectHeadersOrMt ci =
 
 -- Procedure "may" fail early, "reads" an execution context,
 -- "writes" log as it runs, modifies environment "states" while doing IO.
-type ProcM = MaybeT (Tf.RWST Http.Manager Log Env IO)
+type ProcM = MaybeT (Tf.RWST RunCtx Log Env IO)
 
 -- -- Mechanically, this is a corollary to http-client's defaultRequest.
 -- --
@@ -264,21 +274,39 @@ asBS (Aeson.String t) = TE.encodeUtf8 t
 asBS v                = BL.toStrict (Aeson.encode v)
 
 data CourierCtx = CourierCtx
-  { courierName :: Text
+  { courierName    :: Text
+  , courierCapture :: Maybe CaptureCtx
+  }
+
+-- | The reader environment threaded through 'ProcM': the shared HTTP manager
+-- plus, optionally, the per-run capture sink that persists requests.
+data RunCtx = RunCtx
+  { rcManager :: Http.Manager
+  , rcCapture :: Maybe CaptureCtx
+  }
+
+-- | Everything a courier needs to record its requests: a shared queue drained
+-- by a single writer thread, the run id, this worker's id, and a shared
+-- sequence counter.
+data CaptureCtx = CaptureCtx
+  { ccQueue    :: TQueue (Maybe CapturedRequest)
+  , ccRunId    :: Int64
+  , ccWorkerId :: Int
+  , ccSeq      :: TVar Int
   }
 
 runScriptMWith :: CourierCtx -> Script -> Env -> IO ()
 runScriptMWith ctx script env = do
     let course :: ProcM CallItem = courseFrom (Just ctx) script
     mgr <- Http.newManager True
-    _undefined <- Tf.runRWST (runMaybeT course) mgr env
+    _undefined <- Tf.runRWST (runMaybeT course) (RunCtx mgr (courierCapture ctx)) env
     pure ()
 
 runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom Nothing script
     mgr <- Http.newManager True
-    _undefined <- Tf.runRWST (runMaybeT course) mgr env
+    _undefined <- Tf.runRWST (runMaybeT course) (RunCtx mgr Nothing) env
     pure ()
 
 specCapturesOrMt :: CallItem -> RhsDict
@@ -416,22 +444,27 @@ courseFrom :: Maybe CourierCtx -> Script -> ProcM CallItem
 -- courseFrom :: Script -> ProcM CallItem
 courseFrom mcc x = do
     lift $ Tf.tell [ScriptStart (length $ callItems x)]
-    mgr <- ask
-    go mgr (callItems x)
+    ctx <- ask
+    go ctx (callItems x)
 
     where  -- goal in order: multipartSq, rqUrl, test braced interpolation
     -- ??: print offline HttpExceptionRequest to user right away (or otherwise).
     -- ??: handle multipart file not found
-    -- go :: Http.Manager -> [CallItem] -> ProcM CallItem
+    -- go :: RunCtx -> [CallItem] -> ProcM CallItem
     go _ [] = mzero
-    go mgr (ci:rest) = do
+    go ctx (ci:rest) = do
     -- go [] = mzero
         lift $ Tf.tell [ItemStart (ciName ci)]
 
         env <- get
         reqOrThrow <- liftIO $ buildRequest mcc env ci
 
-        eitherResp <- liftIO ((try (Http.httpLbs reqOrThrow mgr)) :: IO (Either Http.HttpException Http.Response))
+        eitherResp <- liftIO $ do
+            t0 <- getPOSIXTime
+            r <- (try (Http.httpLbs reqOrThrow (rcManager ctx))) :: IO (Either Http.HttpException Http.Response)
+            t1 <- getPOSIXTime
+            capture ctx reqOrThrow r (realToFrac ((t1 - t0) * 1000) :: Double)
+            pure r
         _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci
         case eitherResp of
             Left e -> do
@@ -453,7 +486,7 @@ courseFrom mcc x = do
                 if not ok then
                     liftIO (throwIO (AssertionFailure (ciName ci)))
                 else
-                    go mgr rest
+                    go ctx rest
 
     -- Status code assertion first, then all other checks (headers, body, and
     -- expressions about the response).
@@ -630,3 +663,98 @@ foldlWithKeyM' :: (Monad m) => (a -> k -> v -> m a)
 foldlWithKeyM' f z0 hm = foldM step z0 (HM.toList hm)
     where
     step !acc (k, v) = f acc k v
+
+--------------------------------------------------------------------------------
+-- Request capture (persists requests for the dashboard run detail)
+--------------------------------------------------------------------------------
+
+-- | Maximum bytes of a request/response body we persist before truncating.
+maxBodyCapture :: Int
+maxBodyCapture = 65536
+
+-- | Record a single request/response exchange on the capture queue (no-op when
+-- this run was not launched with a capture sink).
+capture :: RunCtx -> Http.Request -> Either Http.HttpException Http.Response -> Double -> IO ()
+capture ctx reqOrThrow eitherResp durMs =
+    case rcCapture ctx of
+        Nothing -> pure ()
+        Just cap -> do
+            seqNo <- atomically $ do
+                n <- readTVar (ccSeq cap)
+                writeTVar (ccSeq cap) (n + 1)
+                pure n
+            sentAt <- (round <$> getPOSIXTime) :: IO Int64
+            let (mbBytesOut, mbReqBody) = requestBodyInfo (HC.requestBody reqOrThrow)
+                (status, errMsg, mbBytesIn, respHeaders, respBody) =
+                    case eitherResp of
+                        Left e  -> (Nothing, Just (Text.pack (show e)), Nothing, [], BL.empty)
+                        Right r -> ( Just (statusCode (Http.getStatus r))
+                                   , Nothing
+                                   , Just (fromIntegral (BL.length (HC.responseBody r)))
+                                   , HC.responseHeaders r
+                                   , HC.responseBody r
+                                   )
+                row = RequestRow
+                    { requestId         = 0
+                    , requestRunId      = ccRunId cap
+                    , requestSeq        = seqNo
+                    , requestSentAt     = sentAt
+                    , requestDurationMs = Just durMs
+                    , requestMethod     = TE.decodeUtf8With lenientDecode (HC.method reqOrThrow)
+                    , requestUrl        = renderReqUrl reqOrThrow
+                    , requestStatus     = status
+                    , requestError      = errMsg
+                    , requestBytesIn    = mbBytesIn
+                    , requestBytesOut   = mbBytesOut
+                    , requestWorkerId   = Just (ccWorkerId cap)
+                    }
+                hdrs = map (mkHeaderRow "request") (HC.requestHeaders reqOrThrow)
+                    ++ map (mkHeaderRow "response") respHeaders
+                bodies = requestBodies mbReqBody ++ [responseBodyRow respBody]
+            atomically $ writeTQueue (ccQueue cap) (Just (CapturedRequest row hdrs bodies))
+
+mkHeaderRow :: Text -> (HeaderName, BS.ByteString) -> RequestHeaderRow
+mkHeaderRow dir (name, value) =
+    RequestHeaderRow
+        dir
+        (TE.decodeUtf8With lenientDecode (CaseInsensitive.original name))
+        (TE.decodeUtf8With lenientDecode value)
+
+requestBodies :: Maybe BS.ByteString -> [RequestBodyRow]
+requestBodies Nothing  = []
+requestBodies (Just b) = [mkBodyRow "request" b]
+
+responseBodyRow :: BL.ByteString -> RequestBodyRow
+responseBodyRow = mkBodyRow "response" . BL.toStrict
+
+mkBodyRow :: Text -> BS.ByteString -> RequestBodyRow
+mkBodyRow dir bs =
+    let (content, truncated) = truncateBody bs
+    in RequestBodyRow dir content truncated
+
+truncateBody :: BS.ByteString -> (Maybe BS.ByteString, Bool)
+truncateBody bs
+    | BS.length bs > maxBodyCapture = (Just (BS.take maxBodyCapture bs), True)
+    | otherwise                     = (Just bs, False)
+
+-- | Reconstruct a printable URL from the underlying http-client 'Request'.
+renderReqUrl :: Http.Request -> Text
+renderReqUrl r =
+    let scheme = if HC.secure r then "https" else "http"
+        host' = BS.unpack (HC.host r)
+        port' = if (HC.secure r && HC.port r == 443) || (not (HC.secure r) && HC.port r == 80)
+                then "" else ":" ++ show (HC.port r)
+        path' = BS.unpack (HC.path r)
+        qs    = BS.unpack (HC.queryString r)
+    in Text.pack $ scheme ++ "://" ++ host' ++ port' ++ path'
+        ++ if null qs then "" else "?" ++ qs
+
+-- | Best-effort byte length and raw bytes of a request body. Streamed/IO
+-- bodies (multipart) are counted but their bytes are not captured.
+requestBodyInfo :: HC.RequestBody -> (Maybe Int, Maybe BS.ByteString)
+requestBodyInfo (HC.RequestBodyLBS lbs) =
+    let s = BL.toStrict lbs in (Just (BS.length s), Just s)
+requestBodyInfo (HC.RequestBodyBS bs) = (Just (BS.length bs), Just bs)
+requestBodyInfo (HC.RequestBodyBuilder n _) = (Just (fromIntegral n), Nothing)
+requestBodyInfo (HC.RequestBodyStream n _) = (Just (fromIntegral n), Nothing)
+requestBodyInfo _ = (Nothing, Nothing)

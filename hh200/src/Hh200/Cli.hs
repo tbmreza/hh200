@@ -341,7 +341,7 @@ goMode script args = do
         drawer <- replicateM argsNvu newEmptyMVar
         -- forM_ (zip [] drawer) $ \(_, hole) -> do
         forM_ (drawer) $ \(hole) -> do
-            forkIO $ courier script (s, duration args) hole
+            forkIO $ courier Nothing script (s, duration args) hole
 
         -- Termination with ctrl+c, which is handled foremostly by worker.
         _ <- installHandler sigINT
