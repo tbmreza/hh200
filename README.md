@@ -206,6 +206,9 @@ Ocapi argument line is `L1: passive impossibility; L2: witness; T: active identi
 
 ## ADR
 
+Decided architecture records, split by component. Items still open are listed
+under [For review](#for-review).
+
 ### Ocapi
 | Decision                     | Context / trade-off                                                      | Evidence                      |
 |---|---|---|
@@ -226,8 +229,8 @@ Ocapi argument line is `L1: passive impossibility; L2: witness; T: active identi
 | Unix Domain Socket control channel         | Pause/resume/stop via `/tmp/uds_socket`.                                   | `src/Hh200/Cli.hs`, `src/Hh200/Dashboard.hs`             |
 | SQLite persistence (`sqlite-simple`)       | Runs in SQLite; `HH200_SQLITE` or XDG data dir.                            | `src/Hh200/Database.hs`                                  |
 | Scotty dashboard                           | Serves a SvelteKit SPA from `min/` with a JSON API.                        | `src/Hh200/Dashboard.hs`                                 |
-| SSE live stream                            | Server-sent events for live data.                                          | `src/Hh200/Dashboard.hs`                                 |
-| LSP server (TCP + stdio)                   | IDE support via the `lsp` package.                                         | `src/Hh200/LanguageServer.hs`, `src/Hh200/Scanner.hs`    |
+| SSE stream                                 | Hardcoded placeholder: `/api/sse` streams a static JSON blob; live run events are not wired.                                          | `src/Hh200/Dashboard.hs`                                 |
+| LSP server (TCP + stdio)                   | Scaffolding only: diagnostics (stubbed) + range formatting served; hover/completion/definition/references/rename exist in `Scanner` but aren't wired to the protocol.                                         | `src/Hh200/LanguageServer.hs`, `src/Hh200/Scanner.hs`    |
 | JSON structural subset assertion           | Response body asserted as `⊆`, not exact equality.                         | `src/Hh200/Execution.hs` `jsonSubset`                    |
 | Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`.                      | `src/Hh200/Execution.hs`                                 |
 | Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads.                      | `src/Hh200/Scanner.hs`                                   |

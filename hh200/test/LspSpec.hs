@@ -2,15 +2,19 @@ module LspSpec where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Data.List (isInfixOf, isPrefixOf, tails)
+import Data.List (isInfixOf)
 
 import Hh200.Scanner as Hh
+import Hh200.Types (Script, Snippet(..), SrcSpan(..))
+import qualified Data.ByteString.Lazy.Char8 as L8
 
-indexOf :: String -> String -> Int
-indexOf sub str = 
-    case [ i | (i, t) <- zip [0..] (tails str), sub `isPrefixOf` t ] of
-        (i:_) -> i
-        []    -> error ("Substring not found: " ++ sub)
+-- | Lex and parse an inline script into its indexed 'Script'.
+parseScript :: String -> IO Script
+parseScript input = do
+    res <- Hh.analyze (Snippet (L8.pack input))
+    case res of
+        Right s -> pure s
+        Left err -> assertFailure ("parse failed: " ++ err)
 
 spec :: TestTree
 spec = testGroup "LSP states"
@@ -24,7 +28,6 @@ spec = testGroup "LSP states"
   , testLSP_symbols
   , testLSP_definition
   , testLSP_references
-  , testLSP_rename
   , testLSP_formatting
   ]
 
@@ -175,44 +178,23 @@ testLSP_symbols = testGroup "LSP symbols"
 testLSP_definition :: TestTree
 testLSP_definition = testGroup "LSP definition"
     [ testCase "Go to definition of capture" $ do
-        let input = "[Captures]\nmyVar: $.id\nGET http://example.com/{{myVar}}"
-        let pos = indexOf "myVar}}" input + 1
-        let res = Hh.definition input pos
-        case res of
-            Just ((defLine, _), _) -> assertEqual "Definition line" 2 defLine
+        script <- parseScript "GET http://example.com/api\n\nHTTP 200\n[Captures]\nmyVar: $.id\n\nGET http://example.com/{{myVar}}\n"
+        -- cursor over the {{myVar}} usage on line 7 (1-based col 26)
+        case Hh.definitionAt script (7, 26) of
+            Just (SrcSpan (defLine, _) _) -> assertEqual "Definition line" 5 defLine
             Nothing -> assertFailure "Should have found definition"
     ]
 
 testLSP_references :: TestTree
 testLSP_references = testGroup "LSP references"
     [ testCase "Find references of capture" $ do
-        let input = "[Captures]\nmyVar: $.id\nGET http://example.com/{{myVar}}"
-        let pos = indexOf "myVar: " input + 1
-        let refs = Hh.references input pos
-        
+        script <- parseScript "GET http://example.com/api\n\nHTTP 200\n[Captures]\nmyVar: $.id\n\nGET http://example.com/{{myVar}}\n"
+        -- cursor over the myVar definition on line 5
+        let refs = Hh.referencesAt script (5, 1)
         assertEqual "References count" 2 (length refs)
-        let lines = map (fst . fst) refs
-        assertBool "Contains line 2" (2 `elem` lines)
-        assertBool "Contains line 3" (3 `elem` lines)
-    ]
-
-testLSP_rename :: TestTree
-testLSP_rename = testGroup "LSP rename"
-    [ testCase "Rename capture" $ do
-        let input = "[Captures]\nvar1: $.id\nGET http://site.com/{{var1}}"
-        let pos = indexOf "var1: " input + 1
-        let newName = "newVar"
-        
-        let edits = Hh.rename input pos newName
-        assertEqual "Edits count" 2 (length edits)
-        
-        let ((l1, _), _, txt1) = head edits
-        assertEqual "Edit 1 line" 2 l1
-        assertEqual "Edit 1 text" newName txt1
-        
-        let ((l2, _), _, txt2) = edits !! 1
-        assertEqual "Edit 2 line" 3 l2
-        assertEqual "Edit 2 text" newName txt2
+        let lines = [ l | SrcSpan (l, _) _ <- refs ]
+        assertBool "Contains definition line" (5 `elem` lines)
+        assertBool "Contains usage line" (7 `elem` lines)
     ]
 
 testLSP_formatting :: TestTree

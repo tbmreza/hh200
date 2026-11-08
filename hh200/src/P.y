@@ -67,7 +67,7 @@ import           L
 
 
 script :: { E Script }
-script : crlf call_items { $2 >>= \is -> returnE Script { config = defaultScriptConfig, callItems = is } }
+script : crlf call_items { $2 >>= \is -> returnE Script { config = defaultScriptConfig, callItems = is, index = emptyDocIndex } }
 
 call_items :: { E [CallItem] }
 call_items : call_item crlf            { $1 >>= \i -> returnE [i] }

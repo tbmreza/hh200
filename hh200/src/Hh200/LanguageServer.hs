@@ -8,6 +8,8 @@ module Hh200.LanguageServer (runTcp, runStdio) where
 
 import qualified Hh200.Scanner
 
+import           Hh200.Types (Snippet(..), SrcSpan(..))
+
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import           Language.LSP.Server
 import           Language.LSP.VFS (virtualFileText, VirtualFile)
@@ -32,13 +34,18 @@ import           Language.LSP.Protocol.Types
   , toNormalizedUri
   , TextEdit(..)
   , DocumentRangeFormattingParams(..)
+  , DefinitionParams(..)
+  , ReferenceParams(..)
+  , Location(..)
+  , Definition(..)
+  , Null(..)
   , type (|?)(..)
   )
 
 import           Control.Monad.IO.Class
-import qualified Data.Text.IO as T
 import qualified Data.Text as Text
-import           Data.Aeson hiding (defaultOptions)
+import           Data.Aeson hiding (defaultOptions, Null)
+import qualified Data.ByteString.Lazy.Char8 as L8
 import           Development.GitRev (gitHash)
 
 -- TCP
@@ -63,9 +70,8 @@ validate uri = do
         Nothing -> return []
         Just vf -> do
             let content = Text.unpack (virtualFileText vf)
-            let errs = Hh200.Scanner.diagnostics content
-            -- return $ map toDiagnostic errs  -- ??:
-            return $ map toDiagnostic undefined
+            errs <- liftIO (Hh200.Scanner.diagnostics content)
+            return $ map toDiagnostic errs
 
 toDiagnostic :: ((Int, Int), String) -> Diagnostic
 toDiagnostic ((l, c), msg) =
@@ -79,10 +85,16 @@ validateAndPublish uri = do
     sendNotification SMethod_TextDocumentPublishDiagnostics $
         PublishDiagnosticsParams uri Nothing diags
 
+-- | Convert a 1-based 'SrcSpan' into an LSP 0-based 'Range' under a URI.
+toLocation :: Uri -> SrcSpan -> Location
+toLocation uri (SrcSpan (sl, sc) (el, ec)) =
+    Location uri (Range (Position (fromIntegral (sl - 1)) (fromIntegral (sc - 1)))
+                        (Position (fromIntegral (el - 1)) (fromIntegral (ec - 1))))
+
 handlers :: Handlers (LspM Config)
 handlers = mconcat
-  [ notificationHandler SMethod_Initialized $ \_not -> do
-        liftIO $ T.putStrLn "Server initialized"
+  [ notificationHandler SMethod_Initialized $ \_not ->
+        pure ()
 
   , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
         let TNotificationMessage _ _ (DidSaveTextDocumentParams (TextDocumentIdentifier uri) _) = msg
@@ -96,11 +108,10 @@ handlers = mconcat
         let TNotificationMessage _ _ (DidChangeTextDocumentParams (VersionedTextDocumentIdentifier uri _) _) = msg
         validateAndPublish uri
 
-  , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg -> do
+  , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ \_msg ->
         -- (auto) This handler satisfies the LSP client that the notification is recognized.
         -- The actual configuration update is managed by the library via `onConfigChange`.
-        liftIO $ T.putStrLn "Received workspace/didChangeConfiguration"
-        return ()
+        pure ()
 
   , requestHandler SMethod_TextDocumentRangeFormatting $ \req responder -> do
         let TRequestMessage _ _ _ (DocumentRangeFormattingParams _ (TextDocumentIdentifier uri) range _opts) = req
@@ -115,15 +126,42 @@ handlers = mconcat
                 let updates = Hh200.Scanner.formatRange content (startPos, endPos)
                 let edits = [ TextEdit (Range (Position (fromIntegral r1 - 1) (fromIntegral c1 - 1)) (Position (fromIntegral r2 - 1) (fromIntegral c2 - 1))) (Text.pack txt) | ((r1, c1), (r2, c2), txt) <- updates ]
                 responder (Right (InL edits))
+
+  , requestHandler SMethod_TextDocumentDefinition $ \req responder -> do
+        let TRequestMessage _ _ _ (DefinitionParams (TextDocumentIdentifier uri) (Position sl sc) _ _) = req
+        mdoc <- getVirtualFile (toNormalizedUri uri)
+        case mdoc of
+            Nothing -> responder (Right (InR (InR Null)))
+            Just vf -> do
+                res <- liftIO (Hh200.Scanner.analyze (Snippet (L8.pack (Text.unpack (virtualFileText vf)))))
+                case res of
+                    Left _ -> responder (Right (InR (InR Null)))
+                    Right script ->
+                        let pos = (fromIntegral sl + 1, fromIntegral sc + 1)
+                        in case Hh200.Scanner.definitionAt script pos of
+                            Just span' -> responder (Right (InL (Definition (InL (toLocation uri span')))))
+                            Nothing -> responder (Right (InR (InR Null)))
+
+  , requestHandler SMethod_TextDocumentReferences $ \req responder -> do
+        let TRequestMessage _ _ _ (ReferenceParams (TextDocumentIdentifier uri) (Position sl sc) _ _ _) = req
+        mdoc <- getVirtualFile (toNormalizedUri uri)
+        case mdoc of
+            Nothing -> responder (Right (InL []))
+            Just vf -> do
+                res <- liftIO (Hh200.Scanner.analyze (Snippet (L8.pack (Text.unpack (virtualFileText vf)))))
+                case res of
+                    Left _ -> responder (Right (InL []))
+                    Right script ->
+                        let pos = (fromIntegral sl + 1, fromIntegral sc + 1)
+                            locs = map (toLocation uri) (Hh200.Scanner.referencesAt script pos)
+                        in responder (Right (InL locs))
   ]
 
 -- (auto) This callback is invoked by the library (via `onConfigChange`) when the 
 -- configuration is updated, typically following a `workspace/didChangeConfiguration` 
 -- notification and successful parsing.
 handleConfig :: Config -> LspM Config ()
-handleConfig cfg = do
-    liftIO $ T.putStrLn $ "Config changed: " <> Text.pack (show cfg)
-    pure ()
+handleConfig _cfg = pure ()
 
 sh :: a -> Handlers (LspM Config)
 sh caps = handlers

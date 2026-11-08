@@ -21,9 +21,11 @@ import           Control.Exception (try, IOException)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Data.Char (toLower, isDigit)
 import           Data.List (isPrefixOf)
+import           Data.Text (Text)
+import qualified Data.Text as Text
 
 -- import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
-import Hh200.Types (Script(..), HostInfo(..), Snippet(..), defaultHostInfo)
+import Hh200.Types (Script(..), HostInfo(..), Snippet(..), defaultHostInfo, SrcPos, SrcSpan(..), DocIndex(..))
 import L
 import P
 
@@ -68,7 +70,7 @@ instance Analyze Snippet where
                         res2 <- runExceptT itemsAction
                         case res2 of
                              Left (d, _) -> pure (Left d)
-                             Right s' -> pure (Right s')
+                             Right s' -> pure (Right (s' { index = buildIndex tokens }))
 
 instance Analyze FilePath where
     analyze :: FilePath -> IO (Either String Script)
@@ -91,7 +93,7 @@ readScript path = do
                     res2 <- runExceptT itemsAction
                     case res2 of
                         Left (m, _) -> pure (Left m)
-                        Right s -> pure (Right s)
+                        Right s -> pure (Right (s { index = buildIndex tokens }))
 
 scanSafe :: String -> Either String [Token]
 scanSafe = alexScanTokens
@@ -311,128 +313,90 @@ isBlockStart (KW_HTTP _) = True
 isBlockStart (METHOD _ _) = True
 isBlockStart _ = False
 
-definition :: String -> Int -> Maybe ((Int, Int), (Int, Int))
-definition input pos = 
-    case scanSafe input of
-        Right tokens -> 
-            case findTarget tokens pos of
-                Just name -> resolveDefinition name tokens
-                Nothing -> Nothing
-        Left _ -> Nothing
+-- ---------------------------------------------------------------------------
+-- Semantic index (capture spans), built once at parse time.
+-- ---------------------------------------------------------------------------
 
-references :: String -> Int -> [((Int, Int), (Int, Int))]
-references input pos = 
-    case scanSafe input of
-        Right tokens -> 
-            case findTarget tokens pos of
-                Just name -> findReferences name tokens
-                Nothing -> []
-        Left _ -> []
+-- | Source spans for capture definitions and @{{name}}@ usages, computed once
+-- from the token stream and attached to the parsed 'Script'.
+buildIndex :: [Token] -> DocIndex
+buildIndex tokens = DocIndex
+    { ixCaptures = collectCaptures tokens
+    , ixUsages   = collectUsages tokens
+    }
 
-rename :: String -> Int -> String -> [((Int, Int), (Int, Int), String)]
-rename input pos newName =
-    case scanSafe input of
-        Right tokens -> 
-            case findTarget tokens pos of
-                Just name -> 
-                    let refs = findReferences name tokens
-                    in [ (start, end, newName) | (start, end) <- refs ]
-                Nothing -> []
-        Left _ -> []
+-- | All capture definitions (@[Captures]@ blocks), in source order.
+collectCaptures :: [Token] -> [(Text, SrcSpan)]
+collectCaptures = go
+  where
+    go [] = []
+    go (KW_CAPTURES _ : rest) = collectIds rest
+    go (_ : rest) = go rest
 
--- Shared Helpers
+    collectIds [] = []
+    collectIds (IDENTIFIER p s : ts) =
+        let AlexPn _ l c = p
+        in (Text.pack s, SrcSpan (l, c) (l, c + length s)) : collectIds ts
+    collectIds (t : ts)
+        | isBlockStart t = go (t : ts)
+        | otherwise = collectIds ts
 
-findTarget :: [Token] -> Int -> Maybe String
-findTarget tokens p = 
-    case filter (covering p) tokens of
-        (t:_) -> extractNameFromToken t p
+-- | All @{{name}}@ usages in URLs and quoted strings, in source order.
+collectUsages :: [Token] -> [(Text, SrcSpan)]
+collectUsages = concatMap go
+  where
+    go (URL (AlexPn _ l c) s)    = interpolations (l, c) s
+    go (QUOTED (AlexPn _ l c) s) = interpolations (l, c) s
+    go _ = []
+
+-- | Every @{{name}}@ interpolation in a string that starts at the given
+-- 1-based (line, col), with its span.
+interpolations :: SrcPos -> String -> [(Text, SrcSpan)]
+interpolations (line, col) = go 0
+  where
+    go _ [] = []
+    go i ('{':'{':rest) =
+        let (name, afterName) = span (/= '}') rest
+        in case afterName of
+             '}':'}':after ->
+                 let s = SrcSpan (line, col + i + 2) (line, col + i + 2 + length name)
+                 in (Text.pack name, s) : go (i + 4 + length name) after
+             _ -> go (i + 1) ('{':rest)
+    go i (_ : xs) = go (i + 1) xs
+
+-- ---------------------------------------------------------------------------
+-- LSP semantic queries over the parsed index.
+-- ---------------------------------------------------------------------------
+
+-- | The definition span of the capture at the given 1-based position, if any.
+definitionAt :: Script -> SrcPos -> Maybe SrcSpan
+definitionAt script pos = do
+    name <- captureAt pos (index script)
+    lookup name (ixCaptures (index script))
+
+-- | All definition and usage spans of the capture at the given position.
+referencesAt :: Script -> SrcPos -> [SrcSpan]
+referencesAt script pos =
+    case captureAt pos (index script) of
+        Nothing -> []
+        Just name ->
+            [ s | (n, s) <- ixCaptures (index script), n == name ]
+            ++ [ s | (n, s) <- ixUsages (index script), n == name ]
+
+captureAt :: SrcPos -> DocIndex -> Maybe Text
+captureAt pos (DocIndex caps usages) =
+    case [ n | (n, s) <- caps ++ usages, pos `inSpan` s ] of
+        (n : _) -> Just n
         [] -> Nothing
 
+inSpan :: SrcPos -> SrcSpan -> Bool
+inSpan p (SrcSpan s e) = p >= s && p < e
+
+-- | Does a token span cover a character offset? Used by @hover@.
 covering :: Int -> Token -> Bool
-covering p t = 
+covering p t =
     let (start, len) = tokenSpan t
     in p >= start && p < (start + len)
-
-extractNameFromToken :: Token -> Int -> Maybe String
-extractNameFromToken t p = case t of
-    IDENTIFIER _ s -> Just s
-    URL (AlexPn offset _ _) s -> checkInterpolation s (p - offset)
-    QUOTED (AlexPn offset _ _) s -> checkInterpolation s (p - offset)
-    _ -> Nothing
-
-checkInterpolation :: String -> Int -> Maybe String
-checkInterpolation s relPos = findVar s 0
-    where
-    findVar [] _ = Nothing
-    findVar ('{':'{':rest) i =
-        let (name, remainder) = span (`notElem` ("}" :: String)) rest
-        in if length remainder >= 2 && take 2 remainder == "}}"
-           then 
-               let start = i
-                   end = i + 4 + length name
-               in if relPos >= start && relPos < end
-                  then Just name
-                  else findVar remainder (i + 2 + length name)
-           else findVar rest (i+1)
-    findVar (_:xs) i = findVar xs (i+1)
-
-resolveDefinition :: String -> [Token] -> Maybe ((Int, Int), (Int, Int))
-resolveDefinition name tokens = 
-    let captures = extractCapturesWithPos tokens
-    in case lookup name captures of
-        Just (l, c) -> Just ((l, c), (l, c + length name))
-        Nothing -> Nothing
-
-findReferences :: String -> [Token] -> [((Int, Int), (Int, Int))]
-findReferences name tokens = 
-    let defs = findDefinitionOccurrences name tokens
-        usages = findUsageOccurrences name tokens
-    in defs ++ usages
-
-findDefinitionOccurrences :: String -> [Token] -> [((Int, Int), (Int, Int))]
-findDefinitionOccurrences name tokens = 
-    let captures = extractCapturesWithPos tokens
-    in [ ((l, c), (l, c + length name)) | (n, (l, c)) <- captures, n == name ]
-
-findUsageOccurrences :: String -> [Token] -> [((Int, Int), (Int, Int))]
-findUsageOccurrences _name [] = []
-findUsageOccurrences name (t:ts) = 
-    case t of
-        URL (AlexPn _ line col) s -> 
-            let offsets = findOffsets name s
-            in [ ((line, col + off), (line, col + off + length name)) | off <- offsets ] ++ findUsageOccurrences name ts
-        QUOTED (AlexPn _ line col) s ->
-            let offsets = findOffsets name s
-            in [ ((line, col + off), (line, col + off + length name)) | off <- offsets ] ++ findUsageOccurrences name ts
-        _ -> findUsageOccurrences name ts
-
-findOffsets :: String -> String -> [Int]
-findOffsets name s = scan s 0
-    where
-    scan [] _ = []
-    scan ('{':'{':rest) i =
-        let (n, remainder) = span (`notElem` ("}" :: String)) rest
-        in if length remainder >= 2 && take 2 remainder == "}}"
-           then 
-               if n == name
-               then (i + 2) : scan remainder (i + 4 + length n)
-               else scan remainder (i + 4 + length n)
-           else scan rest (i+1)
-    scan (_:xs) i = scan xs (i+1)
-
-extractCapturesWithPos :: [Token] -> [(String, (Int, Int))]
-extractCapturesWithPos [] = []
-extractCapturesWithPos (KW_CAPTURES _ : rest) = collectIdsForCaps rest
-extractCapturesWithPos (_:rest) = extractCapturesWithPos rest
-
-collectIdsForCaps :: [Token] -> [(String, (Int, Int))]
-collectIdsForCaps (IDENTIFIER p s : ts) = 
-    let (AlexPn _ l c) = p
-    in (s, (l, c)) : collectIdsForCaps ts
-collectIdsForCaps (t:ts)
-    | isBlockStart t = extractCapturesWithPos (t:ts)
-    | otherwise = collectIdsForCaps ts
-collectIdsForCaps [] = []
 
 -- ??: after lsp format on save, implement Text based alternative implementation and bench
 formatRange :: String -> ((Int, Int), (Int, Int)) -> [((Int, Int), (Int, Int), String)]

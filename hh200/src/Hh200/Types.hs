@@ -14,6 +14,8 @@ module Hh200.Types
     , TraceEvent (..)
     , Log
     , Script (..)
+    , DocIndex (..), emptyDocIndex
+    , SrcPos, SrcSpan (..)
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
@@ -96,6 +98,26 @@ type Env = BEL.Env -- = HM.HashMap String Aeson.Value
 newEnv :: Env
 newEnv = BEL.Env { BEL.bindings = HM.empty }
 
+-- | A 1-based source position (line, column), matching Alex's 'AlexPosn'.
+type SrcPos = (Int, Int)
+
+-- | A half-open source span: inclusive start, exclusive end (1-based).
+data SrcSpan = SrcSpan
+  { spanStart :: SrcPos
+  , spanEnd   :: SrcPos
+  } deriving (Show, Eq)
+
+-- | Lightweight semantic index attached to a parsed 'Script': source spans for
+-- capture definitions and @{{name}}@ usages, so LSP features (go-to-definition,
+-- references) don't have to re-lex the text.
+data DocIndex = DocIndex
+  { ixCaptures :: [(Text, SrcSpan)]
+  , ixUsages   :: [(Text, SrcSpan)]
+  } deriving (Show, Eq)
+
+emptyDocIndex :: DocIndex
+emptyDocIndex = DocIndex [] []
+
 data TraceEvent
   = ScriptStart Int
   | ItemStart String
@@ -113,12 +135,14 @@ type Log = [TraceEvent]
 data Script = Script
   { config :: ScriptConfig
   , callItems :: [CallItem]
+  , index :: DocIndex
   } deriving (Show)
 
 mkScript :: [CallItem] -> Script
 mkScript cs = Script
   { config = ScriptConfig { }
   , callItems = cs
+  , index = emptyDocIndex
   }
 
 mkCallItem :: CallItem
