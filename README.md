@@ -205,37 +205,33 @@ ghciwatch --command "stack repl" --watch . --error-file errors.err --clear  # fa
 Ocapi argument line is `L1: passive impossibility; L2: witness; T: active identifiability`
 
 ## ADR
-??: use all fixtures as example based unit tests; mod side_information instantiate Count::AtLeast(2)
 
 ### Ocapi
-| Decision                     | Context / trade-off | Evidence |
+| Decision                     | Context / trade-off                                                      | Evidence                      |
 |---|---|---|
-| Facilitates side information | What better place to inventorize workload related information than here. | Number of clients for DGC-01. |
-| TUI live verdict             | A problem of streaming/batching once core is done.                       | |
+| TUI live verdict             | Simple streaming/batching once core is done.                             |                               |
 
 ### hh200
-| Decision                                   | Context / trade-off | Evidence |
+| Decision                                   | Context / trade-off                                                        | Evidence                                                 |
 |---|---|---|
-| Haskell + Stack build                      | Implementation language; managed by Stack against a pinned Stackage LTS. | `package.yaml`, `hh200/stack.yaml` |
-| Single-binary distribution                 | Ships as one binary, `npm install -g @mauikut/hh200`. | README, `releases/`, `package.json` |
-| Alex lexer + Happy parser                  | Hand-written lexer/parser specs instead of a recursive-descent parser. | `src/L.x`, `src/P.y` |
-| Grammar derived from hurl's                | Trusts hurl's grammar to match its parser implementation. | `src/P.y`, README "LR grammar" |
-| BEL embedded expression engine             | `bel-expr` provides regex/random/time batteries; compromises binary size. | `package.yaml`, `src/Hh200/Types.hs` |
-| Shared `http-client` Manager               | One Manager threaded as a Reader for connection reuse. | `src/Hh200/Http.hs`, `src/Hh200/Execution.hs` |
-| `ProcM = MaybeT (RWST Manager Log Env IO)` | Reader=manager, Writer=log, State=env; `MaybeT` short-circuits on failure. | `src/Hh200/Execution.hs` |
-| Fail fast, no skip                         | Failing fast, dodging skip-cases; compromises test percentage. | `src/Hh200/Execution.hs`, README |
-| Courier worker pool (`forkIO`)             | One courier per virtual user runs the whole Script. | `src/Hh200/TokenBucketWorkerPool.hs`, `src/Hh200/Cli.hs` |
-| STM token-bucket rate limiter              | Async refill thread spread across sub-second ticks. | `src/Hh200/TokenBucketWorkerPool.hs` |
-| STM `TVar RunState` control                | `Running/Paused/Stopped` flag shared across workers. | `src/Hh200/TokenBucketWorkerPool.hs` |
-| Unix Domain Socket control channel         | Pause/resume/stop via `/tmp/uds_socket`. | `src/Hh200/Cli.hs`, `src/Hh200/Dashboard.hs` |
-| SQLite persistence (`sqlite-simple`)       | Runs in SQLite; `HH200_SQLITE` or XDG data dir. | `src/Hh200/Database.hs` |
-| Scotty dashboard                           | Serves a SvelteKit SPA from `min/` with a JSON API. | `src/Hh200/Dashboard.hs` |
-| SSE live stream                            | Server-sent events for live data. | `src/Hh200/Dashboard.hs` |
-| LSP server (TCP + stdio)                   | IDE support via the `lsp` package. | `src/Hh200/LanguageServer.hs`, `src/Hh200/Scanner.hs` |
-| JSON structural subset assertion           | Response body asserted as `⊆`, not exact equality. | `src/Hh200/Execution.hs` `jsonSubset` |
-| Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`. | `src/Hh200/Execution.hs` |
-| Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads. | `src/Hh200/Scanner.hs` |
-| Single-machine load (distributed = v2)     | Distributed load generation deferred to a future version 2. | README diagram |
+| Haskell + Stack build                      | Implementation language; against a pinned Stackage LTS.   | `package.yaml`, `hh200/stack.yaml`                       |
+| Single-binary distribution                 | Ships as one binary, `npm install -g @mauikut/hh200`.                      | README, `releases/`, `package.json`                      |
+| Alex lexer + Happy parser                  | Lexer/parser specs for the main language grammar.     | `src/L.x`, `src/P.y`                                     |
+| BEL embedded expression engine             | `bel-expr` provides regex/random/time batteries; compromises binary size.  | `package.yaml`, `src/Hh200/Types.hs`                     |
+| Grammar derived from hurl's                | Ecosystem story.                  | `src/P.y`, README "LR grammar"                           |
+| Shared `http-client` Manager               | One Manager threaded as a Reader for connection reuse.                     | `src/Hh200/Http.hs`, `src/Hh200/Execution.hs`            |
+| `ProcM = MaybeT (RWST Manager Log Env IO)` | Reader=manager, Writer=log, State=env; `MaybeT` short-circuits on failure. | `src/Hh200/Execution.hs`                                 |
+| Fail fast, no skip                         | Failing fast, dodging skip-cases; compromises test percentage.             | `src/Hh200/Execution.hs`, README                         |
+| Courier worker pool (`forkIO`)             | One courier per virtual user runs the whole Script.                        | `src/Hh200/TokenBucketWorkerPool.hs`, `src/Hh200/Cli.hs` |
+| Unix Domain Socket control channel         | Pause/resume/stop via `/tmp/uds_socket`.                                   | `src/Hh200/Cli.hs`, `src/Hh200/Dashboard.hs`             |
+| SQLite persistence (`sqlite-simple`)       | Runs in SQLite; `HH200_SQLITE` or XDG data dir.                            | `src/Hh200/Database.hs`                                  |
+| Scotty dashboard                           | Serves a SvelteKit SPA from `min/` with a JSON API.                        | `src/Hh200/Dashboard.hs`                                 |
+| SSE live stream                            | Server-sent events for live data.                                          | `src/Hh200/Dashboard.hs`                                 |
+| LSP server (TCP + stdio)                   | IDE support via the `lsp` package.                                         | `src/Hh200/LanguageServer.hs`, `src/Hh200/Scanner.hs`    |
+| JSON structural subset assertion           | Response body asserted as `⊆`, not exact equality.                         | `src/Hh200/Execution.hs` `jsonSubset`                    |
+| Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`.                      | `src/Hh200/Execution.hs`                                 |
+| Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads.                      | `src/Hh200/Scanner.hs`                                   |
+| Single-machine load (distributed = v2)     | Distributed load generation deferred to a future version 2.                | README diagram                                           |
 
 ### For review
 
@@ -249,15 +245,3 @@ Open design decisions for the Run screen (start-a-run-from-the-server) vertical 
 | Concurrent runs | One at a time; `409` if a run is already `running` | Prevents parallel load tests but matches the single `RunState` model. |
 | Run name uniqueness | Non-unique; auto-generate when blank | Possible display ambiguity vs. blocking re-runs. |
 | `totalRequests` semantics | `nvu × length (callItems script)` for single-shot | More accurate than `nvu`, but requires counting parsed `CallItem`s. |
-
-Surprises worth recording before implementation:
-
-| Finding | Location | Impact |
-|---|---|---|
-| `features.runDetail`/`liveRun` are `false` though their endpoints exist | `live/src/lib/features.ts:10-11`, `hh200/src/Hh200/Dashboard.hs:67-92` | Runs detail and Live pages show "Not implemented" despite working endpoints. |
-| `--debug-config` is `undefined path` | `hh200/src/Hh200/Cli.hs:232-238` | Flag parses but does nothing. |
-| Top-level grammar hardcodes `config = defaultScriptConfig` | `hh200/src/P.y:72` | No script-header config; `[Configs]` is per-request (`P.y:144`). |
-| `runRateLimit = 0.0`, `runName = "default run name"` hardcoded | `hh200/src/Hh200/Cli.hs:303,283-284` | No `--rate` flag; `RateLimiterConfig` only reachable via `undefined` `testRps`. |
-| `updateRunStatus` never called | `hh200/src/Hh200/Database.hs:126-137` | Runs stay `status='running'` forever. |
-| `/api/sse` streams a hardcoded blob | `hh200/src/Hh200/Dashboard.hs:121-136` | "Live" is cosmetic; `sse.ts` `connectSse`/`setLiveRun` are dead code. |
-| `testShotgun` is `undefined` | `hh200/src/Hh200/Cli.hs:418` | Consistent with the ideation → committal transition. |

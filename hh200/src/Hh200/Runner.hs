@@ -21,7 +21,7 @@ import           Control.Concurrent.STM (atomically, newTVarIO, writeTVar, newTQ
 import           Control.Monad (forM_, when, replicateM)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, except, throwE)
-import           Data.Aeson (Value, object, (.=), FromJSON (..), withObject, (.:))
+import           Data.Aeson (Value, object, (.=), FromJSON (..), withObject, (.:), (.:?), (.!=))
 import           Data.Int (Int64)
 import           Data.List (isPrefixOf)
 import           Data.Maybe (fromMaybe)
@@ -40,12 +40,14 @@ import           Hh200.Types (Script (..))
 
 -- | A start-run request body. @name@ may be blank; @script@ is a
 -- server-side @.hhs@ path; @nvu@/ @duration@ mirror the CLI's @--nvu@ /
--- @--duration@.
+-- @--duration@; @rampUp@ is the seconds over which VUs come online linearly
+-- (0 = instant, the default).
 data RunRequest = RunRequest
   { reqName     :: Text
   , reqScript   :: Text
   , reqNvu      :: Int
   , reqDuration :: Int
+  , reqRampUp   :: Int
   } deriving (Show)
 
 instance FromJSON RunRequest where
@@ -54,6 +56,7 @@ instance FromJSON RunRequest where
                <*> o .: "script"
                <*> o .: "nvu"
                <*> o .: "duration"
+               <*> o .:? "rampUp" .!= 0
 
 -- | Why a start request was rejected.
 data StartError
@@ -141,6 +144,7 @@ validateRequest req
     | Text.null (reqScript req) = Left (StartRejected "script path is required")
     | reqNvu req <= 0 = Left (StartRejected "nvu must be at least 1")
     | reqDuration req < 0 = Left (StartRejected "duration must be non-negative")
+    | reqRampUp req < 0 = Left (StartRejected "rampUp must be non-negative")
     | otherwise = Right ()
 
 -- | Resolve the script path and parse the script, mapping failures to
@@ -192,13 +196,14 @@ startRun req = runExceptT $ do
     conn <- liftIO initDb
     -- ensureNoActiveRun conn
     rid <- trace "AT:rid" $ insertNewRun conn req path
-    liftIO $ launchWorkers conn rid script (reqNvu req) (reqDuration req)
+    liftIO $ launchWorkers conn rid script (reqNvu req) (reqDuration req) (reqRampUp req)
     pure rid
 
--- | Fork one courier per virtual user, a duration timer (timed runs only),
--- and a completion watcher that marks the run @completed@/ @failed@.
-launchWorkers :: Connection -> Int64 -> Script -> Int -> Int -> IO ()
-launchWorkers conn runId script nvu duration = do
+-- | Fork one courier per virtual user (staggered by @rampUp@), a duration timer
+-- (timed runs only), and a completion watcher that marks the run @completed@/
+-- @failed@.
+launchWorkers :: Connection -> Int64 -> Script -> Int -> Int -> Int -> IO ()
+launchWorkers conn runId script nvu duration rampUp = do
     cue <- newTVarIO Running
     drawer <- replicateM nvu newEmptyMVar
     queue <- newTQueueIO
@@ -207,7 +212,9 @@ launchWorkers conn runId script nvu duration = do
     _ <- forkIO $ runWriter conn queue writerDone
     forM_ (zip [0 ..] drawer) $ \(workerId, hole) -> do
         let capCtx = CaptureCtx { ccQueue = queue, ccRunId = runId, ccWorkerId = workerId, ccSeq = seqTv }
-        _ <- forkIO $ courier (Just capCtx) script (cue, duration) hole
+        _ <- forkIO $ do
+            when (workerId > 0) $ threadDelay (staggerMicros rampUp nvu workerId)
+            courier (Just capCtx) script (cue, duration) hole
         pure ()
 
     when (duration > 0) $ do
@@ -223,6 +230,13 @@ launchWorkers conn runId script nvu duration = do
         pure ()
 
     pure ()
+
+-- | Microseconds to wait before starting worker @i@ (0-based) of @nvu@, given a
+-- total ramp window of @rampUp@ seconds. 0 when there's nothing to ramp.
+staggerMicros :: Int -> Int -> Int -> Int
+staggerMicros rampUp nvu i
+    | rampUp <= 0 || nvu <= 1 = 0
+    | otherwise = (rampUp * 1000000 * i) `div` (nvu - 1)
 
 -- | Drains the capture queue into SQLite on a single thread (a @Connection@ is
 -- not safe to share across threads). Terminates on the @Nothing@ sentinel.

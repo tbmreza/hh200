@@ -40,7 +40,6 @@ import           Network.Socket
 import qualified Network.Socket.ByteString as NBS
 
 import qualified Paths_hh200 (version)
-import qualified Hh200.TokenBucketWorkerPool as Tbwp (wcWorkerId, wcRateLimiter, wcMode, WorkerConfig(..), withRateLimiter, WorkerMode(..))
 import           Hh200.TokenBucketWorkerPool (RunState(..), courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
@@ -418,68 +417,6 @@ controlSocketListener path handler = do
 
 -- Globally interruptible worker(s) running Script.
 -- Worker(s) are dropped after the last CallItem.
-
--- Concurrent one-shot: fire N workers, report how many failed.
-testShotgun :: Int -> Script -> IO ()
-testShotgun numWorkers script = do
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM numWorkers newEmptyMVar
-
-    forM_ (zip [1..numWorkers] doneSignals) $ \(i, done) -> do
-        let cfg = Tbwp.WorkerConfig { Tbwp.wcMode = Tbwp.OneShot, Tbwp.wcRateLimiter = Nothing, Tbwp.wcWorkerId = i }
-        -- forkIO (Tbwp.worker cfg script shutdownFlag done)
-        forkIO (undefined cfg script shutdownFlag done)
-
-    -- Termination with ctrl+c.
-    _ <- installHandler sigINT
-                        (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                        Nothing  -- Other signals to block.
-
-    -- Termination based on timer.
-    _ <- forkIO $ do
-        threadDelay (10 * 1000000)
-        atomically $ writeTVar shutdownFlag True
-
-    -- Wait for all workers to finish.
-    forM_ doneSignals takeMVar
-    putStrLn $ "# testShotgun: " ++ show numWorkers ++ " workers completed."
-
--- Rampup-able pool of virtual users with rate limiting.
--- RPS: rate of individual CallItems.
--- ??: if the name testRps survives, find sibling i.e. as a where clause fn
-testRps :: Int -> Int -> Int -> Int -> Script -> IO ()
-testRps rpsVal concurrency rampUpUs thinkTimeUs script = do
-    -- connect "timeseries.db"
-
-    shutdownFlag <- newTVarIO False
-    doneSignals <- replicateM concurrency newEmptyMVar
-
-    -- Tbwp.withRateLimiter (Tbwp.RateLimiterConfig rpsVal rpsVal) $ \rl -> do
-    Tbwp.withRateLimiter (undefined rpsVal rpsVal) $ \rl -> do
-        -- Ramp-up: fork one VU at a time with delay between each.
-        forM_ (zip [1..concurrency] doneSignals) $ \(i, done) -> do
-            let cfg = Tbwp.WorkerConfig
-                    { Tbwp.wcMode = Tbwp.LoopWithNap thinkTimeUs
-                    , Tbwp.wcRateLimiter = Just rl
-                    , Tbwp.wcWorkerId = i
-                    }
-            -- _ <- forkIO (Tbwp.worker cfg script shutdownFlag done)
-            _ <- forkIO (undefined cfg script shutdownFlag done)
-            when (i < concurrency) $ threadDelay rampUpUs
-
-        putStrLn $ "# testRps: rate=" ++ show rpsVal ++ " reqs/sec, workers=" ++ show concurrency
-
-        -- Termination with ctrl+c.
-        _ <- installHandler sigINT
-                            (CatchOnce (atomically $ writeTVar shutdownFlag True))
-                            Nothing  -- Other signals to block.
-
-        -- Termination based on timer.
-        _ <- forkIO $ do
-            threadDelay (10 * 1000000)
-            atomically $ writeTVar shutdownFlag True
-
-        atomically (readTVar shutdownFlag >>= check)
 
 mkArgs :: Args
 mkArgs = Args { mode = HttpLoad

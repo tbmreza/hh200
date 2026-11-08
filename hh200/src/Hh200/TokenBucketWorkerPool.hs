@@ -14,10 +14,7 @@ module Hh200.TokenBucketWorkerPool
   , waitAndConsumeToken
   , RateLimiterStats(..)
   , getStats
-  , WorkerMode(..)
-  , WorkerConfig(..)
   , courier
-  , workOptimize
   , RunState(..)
   ) where
 
@@ -34,54 +31,8 @@ import           Hh200.Types
 import           Hh200.Execution (runScriptMWith, CourierCtx(..), CaptureCtx)
 
 
-data WorkerMode
-  = OneShot            -- testSimple / testShotgun: run Script once, exit
-  | LoopWithNap Int    -- testRps: loop Script forever, threadDelay n μs between iterations
-    deriving (Show, Eq)
-
-data WorkerConfig = WorkerConfig
-  { wcMode        :: WorkerMode
-  , wcRateLimiter :: Maybe RateLimiter
-  , wcWorkerId    :: Int
-  }
-
--- [CallItem] deps analysis.
-workOptimize :: Script -> [Script]
-workOptimize s = [s, s]  -- ??:
-
--- dummyDuo :: Script -> [Script]
--- -- dummyDuo s = [s, s]
--- dummyDuo s = [s]
-
 data RunState = Running | Paused | Stopped
     deriving (Eq)
-
--- acquireToken :: RateLimiter -> RunState -> STM ()
--- fire :: AppEnv -> RateLimiter -> MVar () -> IO ()
--- fire = loop
-
--- acquireToken :: TVar RunState -> RateLimite -> STM ()
--- acquireToken s Unlimited = do
---   st <- readTVar s
---   case st of
---     Paused  -> retry
---     Stopped -> return ()
---     Running -> return ()
--- acquireToken s (TokenBucket { tbTokens = tokens }) = do
---   st <- readTVar s
---   case st of
---     Paused  -> retry
---     Stopped -> return ()
---     Running -> do
---       n <- readTVar tokens
---       if n > 0
---         then writeTVar tokens (n - 1)
---         else retry
-
--- -- worker :: WorkerConfig -> Script -> TVar RunState -> MVar () -> IO ()
--- worker :: WorkerConfig -> Script -> TVar Bool -> MVar () -> IO ()
--- worker    cfg             script    shutdown     done =
---     undefined
 
 -- Terminates after first iteration on duration=0
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
@@ -120,9 +71,6 @@ data RateLimiterConfig = RateLimiterConfig
   { bucketCapacity :: Int
   , refillRate     :: Int -- ^ Tokens per second
   } deriving (Show, Eq)
-
-data RateLimite =
-    Unlimited  -- network monitoring is probably more interesting here
 
 -- | Token Bucket Rate Limiter
 data RateLimiter = RateLimiter

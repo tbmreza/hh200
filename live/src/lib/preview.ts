@@ -7,6 +7,7 @@
 // module is the instant, optimistic fallback.
 
 import type { Foreseeable, RunRequest } from './types';
+import { rampCurve, type ConcurrencyPoint } from './ramp';
 
 export type RunConfig = RunRequest;
 
@@ -15,6 +16,7 @@ export type RunPreview = {
   wallClock: string; // 'single-shot' or '<n> seconds'
   rateLimit: Foreseeable<number>; // unknown until script/env is resolved
   totalRequests: Foreseeable<number>; // ~nvu for single-shot, else unknown
+  rampCurve: ConcurrencyPoint[]; // planned active VUs over time
 };
 
 export function previewRun(config: RunConfig): RunPreview {
@@ -22,6 +24,7 @@ export function previewRun(config: RunConfig): RunPreview {
   const durationSec = Number.isFinite(config.duration)
     ? Math.max(0, Math.floor(config.duration))
     : 0;
+  const rampUpSec = Number.isFinite(config.rampUp) ? Math.max(0, config.rampUp) : 0;
   const singleShot = durationSec === 0;
 
   const rateLimit: Foreseeable<number> = {
@@ -39,5 +42,6 @@ export function previewRun(config: RunConfig): RunPreview {
     wallClock: singleShot ? 'single-shot' : `${durationSec} seconds`,
     rateLimit,
     totalRequests,
+    rampCurve: rampCurve(nvu, rampUpSec, durationSec),
   };
 }

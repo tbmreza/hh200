@@ -4,12 +4,14 @@
   import { previewRun, type RunConfig } from '$lib/preview';
   import { planRun, startRun } from '$lib/api';
   import type { RunPlan, Foreseeable } from '$lib/types';
+  import ConcurrencyChart from '$lib/components/ConcurrencyChart.svelte';
 
   let config = $state<RunConfig>({
     name: '',
     script: '',
     nvu: 1,
     duration: 0,
+    rampUp: 0,
   });
 
   let plan = $state<RunPlan | null>(null);
@@ -75,6 +77,11 @@
     Duration (seconds, 0 = single-shot)
     <input type="number" min="0" bind:value={config.duration} />
   </label>
+
+  <label>
+    Ramp-up (seconds, 0 = instant)
+    <input type="number" min="0" bind:value={config.rampUp} />
+  </label>
 </form>
 
 {#if plan?.errors?.length}
@@ -99,6 +106,9 @@
   <dt>Rate limit</dt>
   <dd>{describe(plan?.rateLimit ?? preview.rateLimit, (v) => `${v}/s`)}</dd>
 </dl>
+
+<h3>Ramp-up</h3>
+<ConcurrencyChart points={preview.rampCurve} />
 
 <button
   type="button"

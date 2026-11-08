@@ -54,7 +54,7 @@ describe('api', () => {
 			return new Response(JSON.stringify(plan));
 		}) as unknown as typeof fetch;
 
-		const req = { name: 'a', script: '/s.hhs', nvu: 1, duration: 0 };
+		const req = { name: 'a', script: '/s.hhs', nvu: 1, duration: 0, rampUp: 0 };
 		const result = await planRun(req, fetchImpl);
 		expect(result).toEqual(plan);
 		expect(captured).toEqual([
@@ -69,7 +69,7 @@ describe('api', () => {
 			return new Response(JSON.stringify({ id: 7 }));
 		}) as unknown as typeof fetch;
 
-		const req = { name: 'a', script: '/s.hhs', nvu: 1, duration: 0 };
+		const req = { name: 'a', script: '/s.hhs', nvu: 1, duration: 0, rampUp: 0 };
 		const result = await startRun(req, fetchImpl);
 		expect(result).toEqual({ id: 7 });
 		expect(captured).toEqual([{ url: '/api/run', method: 'POST', body: JSON.stringify(req) }]);

@@ -2,10 +2,13 @@
   import type { RunDetail } from '$lib/types';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import RequestList from '$lib/components/RequestList.svelte';
+  import ConcurrencyChart from '$lib/components/ConcurrencyChart.svelte';
   import { downloadRunDetail } from '$lib/export';
+  import { observedConcurrency } from '$lib/ramp';
 
   let { data } = $props<{ data: { detail: RunDetail } }>();
   const run = $derived(data.detail.run);
+  const concurrency = $derived(observedConcurrency(data.detail.requests));
 
   function download() {
     const base = (run.name || 'run').trim().replace(/[^\w.-]+/g, '_') || 'run';
@@ -34,6 +37,9 @@
   <dt>Control socket</dt>
   <dd>{run.control_socket}</dd>
 </dl>
+
+<h2>Concurrency</h2>
+<ConcurrencyChart points={concurrency} />
 
 <h2>Requests</h2>
 <RequestList requests={data.detail.requests} />

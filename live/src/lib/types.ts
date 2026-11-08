@@ -82,6 +82,7 @@ export type RunRequest = {
 	script: string;
 	nvu: number;
 	duration: number;
+	rampUp: number; // seconds to ramp 0 -> nvu; 0 = instant
 };
 
 export type ScriptError = {
