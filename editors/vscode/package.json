@@ -13,7 +13,7 @@
     "languages": [{
       "id": "hh200",
       "aliases": ["hh200", "hh200"],
-      "extensions": [".hh200"],
+      "extensions": [".hhs", ".hh200"],
       "configuration": "./language-configuration.json"
     }],
     "grammars": [{

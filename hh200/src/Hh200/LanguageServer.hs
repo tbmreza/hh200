@@ -39,6 +39,9 @@ import           Language.LSP.Protocol.Types
   , Location(..)
   , Definition(..)
   , Null(..)
+  , TextDocumentSyncOptions(..)
+  , TextDocumentSyncKind(..)
+  , SemanticTokens(..)
   , type (|?)(..)
   )
 
@@ -50,10 +53,8 @@ import           Development.GitRev (gitHash)
 
 -- TCP
 import           Network.Socket
-import           System.Environment (getArgs)
 import           System.IO
 import           Control.Monad (void, forever)
-import           Control.Exception (bracket)
 import           Colog.Core (LogAction (..), WithSeverity (..))
 
 
@@ -155,6 +156,12 @@ handlers = mconcat
                         let pos = (fromIntegral sl + 1, fromIntegral sc + 1)
                             locs = map (toLocation uri) (Hh200.Scanner.referencesAt script pos)
                         in responder (Right (InL locs))
+
+  -- The `lsp` library unconditionally advertises a semantic-tokens provider
+  -- (with a default legend), so we must answer the request or clients log a
+  -- "no handler" error. Real tokenization is future work; return no tokens.
+  , requestHandler SMethod_TextDocumentSemanticTokensFull $ \_req responder ->
+        responder (Right (InL (SemanticTokens Nothing [])))
   ]
 
 -- (auto) This callback is invoked by the library (via `onConfigChange`) when the 
@@ -184,13 +191,6 @@ ioLogger = LogAction $ \_ -> return ()
 lspLogger :: LogAction (LspM Config) (WithSeverity LspServerLog)
 lspLogger = LogAction $ \_ -> return ()
 
-main :: IO ()
-main = do
-    args <- getArgs
-    case args of
-        ["--port", p] -> runTcp (read p)
-        _             -> runStdio
-
 lspServerDef :: ServerDefinition Config
 lspServerDef =
     ServerDefinition
@@ -201,7 +201,16 @@ lspServerDef =
       , doInitialize =     beforeResponse
       , staticHandlers =   sh
       , interpretHandler = ih
-      , options =          defaultOptions {optServerInfo = Just (ServerInfo "hh200d" (Just $(gitHash)))}
+      , options =          defaultOptions
+                             { optServerInfo = Just (ServerInfo "hh200d" (Just $(gitHash)))
+                             , optTextDocumentSync = Just TextDocumentSyncOptions
+                                 { _openClose = Just True
+                                 , _change = Just TextDocumentSyncKind_Full
+                                 , _willSave = Nothing
+                                 , _willSaveWaitUntil = Nothing
+                                 , _save = Just (InL True)
+                                 }
+                             }
       }
 
 runStdio :: IO ()

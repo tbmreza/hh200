@@ -67,7 +67,24 @@ data MainThread =
     HttpLoad
   | Browse { browsePort :: Int }
   | Generate { generateOut :: Maybe FilePath }
+  | Lsp { lspTcp :: Maybe Int }
+  | Analyze { analyzeOpts :: AnalyzeOptions }
     deriving (Show, Eq)
+
+-- | How `hh200 analyze` renders its result. Open to future formats (YAML, ...).
+data OutputFormat =
+    FmtText
+  | FmtJson
+    deriving (Show, Eq)
+
+-- | Options for the analyze (static-check / config-resolution) mode. Kept open
+-- so future use cases (snippet/stdin source, more formats, file output,
+-- selecting config sources) are additive fields rather than new top-level flags.
+data AnalyzeOptions = AnalyzeOptions
+  { analyzeSource :: Maybe String   -- path; future: snippet, stdin
+  , analyzeFormat :: OutputFormat
+  , analyzeOut    :: Maybe FilePath -- where to write; Nothing = stdout
+  } deriving (Show, Eq)
 
 
 cli :: IO ()
@@ -81,6 +98,8 @@ inst = info (helper <*> (subcommands <|> mainCommand))
     subcommands = subparser
       ( command "browse"   (info (helper <*> subBrowse)   (progDesc "Launch the dashboard"))
      <> command "generate" (info (helper <*> subGenerate) (progDesc "Write an HTML report"))
+     <> command "lsp"      (info (helper <*> subLsp)      (progDesc "Run the language server (stdio by default)"))
+     <> command "analyze"  (info (helper <*> subAnalyze)  (progDesc "Resolve config / static-check without running side effects"))
       )
 
     subBrowse :: Parser Args
@@ -108,6 +127,39 @@ inst = info (helper <*> (subcommands <|> mainCommand))
          <> short 'o'
          <> metavar "PATH"
          <> help "Where to write the report (default: XDG data dir / latest-report.html)"
+          )
+
+    subLsp :: Parser Args
+    subLsp = setLspMode <$> tcpOption where
+        setLspMode :: Maybe Int -> Args
+        setLspMode p = mkArgs { mode = Lsp { lspTcp = p } }
+
+        tcpOption :: Parser (Maybe Int)
+        tcpOption = optional $ option auto
+          ( long "tcp"
+         <> metavar "PORT"
+         <> help "Serve the language server over TCP on 127.0.0.1:PORT (default: stdio)"
+          )
+
+    subAnalyze :: Parser Args
+    subAnalyze = setAnalyzeMode <$> sourceArg <*> formatFlag <*> outOption where
+        setAnalyzeMode :: Maybe String -> OutputFormat -> Maybe FilePath -> Args
+        setAnalyzeMode src fmt out = mkArgs { mode = Analyze (AnalyzeOptions src fmt out) }
+
+        sourceArg :: Parser (Maybe String)
+        sourceArg = optional $ argument str
+            (metavar "SOURCE" <> help "Path of source program")
+
+        formatFlag :: Parser OutputFormat
+        formatFlag = flag FmtText FmtJson
+            (long "json" <> help "Emit the resolved config / analysis as JSON")
+
+        outOption :: Parser (Maybe FilePath)
+        outOption = optional $ strOption
+          ( long "out"
+         <> short 'o'
+         <> metavar "PATH"
+         <> help "Write output to PATH (default: stdout)"
           )
 
 mainCommand :: Parser Args
@@ -157,7 +209,7 @@ debugConfigFlag = switch
   ( long "debug-config"
  <> short 'F'
  <> help "Read environment and script header to determine config values \
-         \without executing the script's side-effects"
+         \without executing the script's side-effects (deprecated: use `hh200 analyze`)"
   )
  
 callFlag :: Parser Bool
@@ -176,11 +228,11 @@ durationOption = option auto
  
 lspPortOption :: Parser (Maybe Int)
 lspPortOption = optional $ option auto
-    (long "lsp" <> short 'd' <> metavar "PORT" <> help "Run hh200 language server")
- 
+    (long "lsp" <> short 'd' <> metavar "PORT" <> help "Run hh200 language server over TCP (deprecated: use `hh200 lsp --tcp PORT`)")
+
 lspStdioFlag :: Parser Bool
 lspStdioFlag = switch
-    (long "lsp-stdio" <> help "Run hh200 language server over stdio")
+    (long "lsp-stdio" <> help "Run hh200 language server over stdio (deprecated: use `hh200 lsp`)")
 
 mcpStdioFlag :: Parser Bool
 mcpStdioFlag = switch
@@ -215,6 +267,14 @@ go Args { lspStdio = True } = runStdio
 -- hh200 --mcp-stdio
 go Args { mcpStdio = True } = runMcpStdio
 
+-- Run language server over stdio (the editor-facing default).
+-- hh200 lsp
+go Args { mode = Lsp { lspTcp = Nothing } } = runStdio
+
+-- Run language server over TCP (debug/diagnostic affordance).
+-- hh200 lsp --tcp 3000
+go Args { mode = Lsp { lspTcp = Just port } } = runTcp port
+
 -- Browse/dashboard mode.
 -- hh200 browse
 go Args { mode = Browse { browsePort } } = startServer (show browsePort)
@@ -239,14 +299,13 @@ go Args { mode = Generate { generateOut } } = do
         Right (Just (lr :: HtmlReportData)) -> do
             BL.writeFile out (Json.encode lr)
 
--- Static-check script.
--- hh200 flow.hhs --debug-config
-go Args { source = Just path, debugConfig = True } = do
-    undefined path
-    -- let analyzed = Scanner.analyze path
-    -- m <- runMaybeT analyzed
-    -- case m of
-    --     _ -> undefined
+-- Analyze (static-check / config-resolution) mode.
+-- hh200 analyze flow.hhs [--json] [--out PATH]
+go Args { mode = Analyze { analyzeOpts } } = runAnalyze analyzeOpts
+
+-- Deprecated alias: hh200 flow.hhs --debug-config
+go Args { source = Just path, debugConfig = True } =
+    runAnalyze (AnalyzeOptions (Just path) FmtText Nothing)
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -290,6 +349,17 @@ go args@Args { duration = _n, call = False, source = Just path } = do
 
 -- Verifiable with `echo $?` which prints last exit code in shell.
 go _ = exitWith (ExitFailure 1)
+
+-- | Resolve config / static-check a script without executing its side effects.
+-- Body is intentionally stubbed; the signature is the contract. Future work:
+-- reuse `Scanner.analyze` + `Validate`, then render per 'OutputFormat'.
+runAnalyze :: AnalyzeOptions -> IO ()
+runAnalyze (AnalyzeOptions mSrc _fmt _out) =
+    case mSrc of
+        Nothing -> do
+            hPutStrLn stderr "error: hh200 analyze requires a SOURCE path"
+            exitWith (ExitFailure 1)
+        Just path -> undefined path
 
 genName :: Text
 genName = "default run name"
