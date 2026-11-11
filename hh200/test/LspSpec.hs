@@ -5,7 +5,7 @@ import Test.Tasty.HUnit
 import Data.List (isInfixOf)
 
 import Hh200.Scanner as Hh
-import Hh200.Types (Script, Snippet(..), SrcSpan(..))
+import Hh200.Types (Script, Snippet(..), SrcSpan(..), Diagnostic(..))
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 -- | Lex and parse an inline script into its indexed 'Script'.
@@ -59,13 +59,13 @@ testLSP_scanSafe = testGroup "LSP safe scan"
                 case head toks of
                     Hh.METHOD _ "GET" -> pure ()
                     _ -> assertFailure "First token should be GET"
-            Left err -> assertFailure ("Scan failed: " ++ err)
+            Left err -> assertFailure ("Scan failed: " ++ Hh.lexErrorMsg err)
     
     , testCase "recoverable error" $ do
         let input = "GET / @" -- @ is invalid
         case Hh.scanSafe input of
              Right toks -> assertFailure "Expected lex error but got tokens"
-             Left err -> assertBool "Error message is present" (not (null err))
+             Left err -> assertBool "Error message is present" (not (null (Hh.lexErrorMsg err)))
     ]
 
 testLSP_complete :: TestTree
@@ -149,9 +149,10 @@ testLSP_diagnostics = testGroup "LSP diagnostics"
         let input = "GET"
         diags <- Hh.diagnostics input
         assertBool "Has diagnostics" (not (null diags))
-        let ((line, _), msg) = head diags
+        let d = head diags
+            SrcSpan (line, _) _ = diagSpan d
         assertEqual "Error on line 1" 1 line
-        assertBool "Message indicates parse error" ("Parse error" `isInfixOf` msg)
+        assertBool "Message indicates parse error" ("Parse error" `isInfixOf` diagMessage d)
   ]
 
 testLSP_symbols :: TestTree
@@ -219,4 +220,4 @@ testLSP_scanComplex = testCase "valid complex input" $ do
                 let isPost (Hh.METHOD _ "POST") = True
                     isPost _ = False
                 assertBool "Has POST" (any isPost toks)
-            Left err -> assertFailure ("Scan failed: " ++ err)
+            Left err -> assertFailure ("Scan failed: " ++ Hh.lexErrorMsg err)

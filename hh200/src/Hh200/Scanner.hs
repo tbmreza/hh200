@@ -19,13 +19,13 @@ import           Control.Monad.Trans.Except (runExceptT)
 import           Control.Exception (try, IOException)
 
 import qualified Data.ByteString.Lazy.Char8 as L8
-import           Data.Char (toLower, isDigit)
-import           Data.List (isPrefixOf)
+import           Data.Char (toLower)
+import           Data.List (isInfixOf, isPrefixOf)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 
 -- import Hh200.Types (Script(..), HostInfo(..), Snippet(..), hiHh200Conf, defaultHostInfo)
-import Hh200.Types (Script(..), HostInfo(..), Snippet(..), defaultHostInfo, SrcPos, SrcSpan(..), DocIndex(..))
+import Hh200.Types (Script(..), HostInfo(..), Snippet(..), defaultHostInfo, SrcPos, SrcSpan(..), DocIndex(..), DiagCode(..), Diagnostic(..))
 import L
 import P
 
@@ -61,7 +61,7 @@ instance Analyze Snippet where
     analyze :: Snippet -> IO (Either String Script)
     analyze (Snippet s) =
         case scanSafe (L8.unpack s) of
-            Left d -> pure (Left d)
+            Left e -> pure (Left (lexErrorMsg e))
             Right tokens -> do
                 res <- runExceptT (parse tokens)
                 case res of
@@ -84,7 +84,7 @@ readScript :: FilePath -> IO (Either String Script)
 readScript path = do
     loaded <- readFile path
     case scanSafe loaded of
-        Left m -> pure (Left m)
+        Left e -> pure (Left (lexErrorMsg e))
         Right tokens -> do
             res <- runExceptT (parse tokens)
             case res of
@@ -95,7 +95,7 @@ readScript path = do
                         Left (m, _) -> pure (Left m)
                         Right s -> pure (Right (s { index = buildIndex tokens }))
 
-scanSafe :: String -> Either String [Token]
+scanSafe :: String -> Either LexError [Token]
 scanSafe = alexScanTokens
 
 complete :: String -> Int -> [String]
@@ -173,6 +173,7 @@ getPos t = case t of
     RHS p _ -> p
     JSONPATH p _ -> p
     LINE p _ -> p
+    LEX_ERROR p _ -> p
     EOF p -> p
     _ -> undefined
 
@@ -207,6 +208,7 @@ tokenSpan t = (offset, len)
         RHS _ s -> length s -- includes colon
         JSONPATH _ s -> length s
         LINE _ s -> length s -- includes >
+        LEX_ERROR _ _ -> 1
         EOF _ -> 0
         _ -> undefined
 
@@ -231,39 +233,57 @@ hover input pos =
         IDENTIFIER _ "use-tls" -> Just "Config: Toggle TLS"
         _ -> Nothing
 
-diagnostics :: String -> IO [((Int, Int), String)]
-diagnostics input = 
+-- | Lex and parse, returning structured diagnostics (first failure) or the
+-- parsed 'Script'. This is the single entry point for diagnostics consumers.
+parseWithDiagnostics :: String -> IO (Either [Diagnostic] Script)
+parseWithDiagnostics input =
     case scanSafe input of
-        Left err -> 
-            let pos = extractPos err
-            in pure [(pos, "Lexical error: " ++ err)]
+        Left lexErr -> pure (Left [lexicalDiagnostic lexErr])
         Right tokens -> do
             res <- runExceptT (parse tokens)
             case res of
-                Right _ -> pure []
-                Left (err, errTokens) ->
-                    pure $ case errTokens of
-                        (t:_) ->
-                            let (AlexPn _ line col) = getPos t
-                            in [((line, col), err)]
-                        [] ->
-                            -- Error at EOF or empty tokens list
-                            [((1, 1), err)]
+                Left (err, errTokens) -> pure (Left [parseDiagnostic err errTokens])
+                Right itemsAction -> do
+                    res2 <- runExceptT itemsAction
+                    case res2 of
+                        Left (err, errTokens) -> pure (Left [parseDiagnostic err errTokens])
+                        Right s -> pure (Right (s { index = buildIndex tokens }))
 
-    where
-    extractPos :: String -> (Int, Int)
-    extractPos msg =
-        let p = "lexical error at line "
-        in if p `isPrefixOf` msg
-            then
-                let rest = drop (length p) msg
-                    (l, rest2) = span isDigit rest
-                    rest3 = dropWhile (not . isDigit) rest2
-                    (c, _) = span isDigit rest3
-                in case (reads l, reads c) of
-                    ([(ln, _)], [(cn, _)]) -> (ln, cn)
-                    _ -> (1, 1)
-            else (1, 1)
+-- | Lex and parse, returning diagnostics only (empty when the script is valid).
+diagnostics :: String -> IO [Diagnostic]
+diagnostics input = do
+    r <- parseWithDiagnostics input
+    pure (either id (const []) r)
+
+lexicalDiagnostic :: LexError -> Diagnostic
+lexicalDiagnostic (LexError p msg) =
+    let (l, c) = posToLineCol p
+    in Diagnostic (SrcSpan (l, c) (l, c + 1)) LexicalError msg (lexicalHint msg)
+
+parseDiagnostic :: String -> [Token] -> Diagnostic
+parseDiagnostic err tokens =
+    let (l, c) = case tokens of
+            (t : _) -> posToLineCol (getPos t)
+            [] -> (1, 1)
+    in Diagnostic (SrcSpan (l, c) (l, c + 1)) ParseError (firstLine err) parseHint
+
+posToLineCol :: AlexPosn -> (Int, Int)
+posToLineCol (AlexPn _ l c) = (l, c)
+
+lexicalHint :: String -> String
+lexicalHint msg
+    | "unbalanced braces" `isInfixOf` msg =
+        "Ensure every '{' has a matching '}'."
+    | "escaped EOF" `isInfixOf` msg =
+        "Close the unterminated string with a double quote."
+    | otherwise =
+        "Unexpected character; check the token at this position."
+
+firstLine :: String -> String
+firstLine = takeWhile (/= '\n')
+
+parseHint :: String
+parseHint = "Check the syntax against the hh200 grammar."
 
 documentSymbols :: String -> [(String, (Int, Int))]
 documentSymbols input = 

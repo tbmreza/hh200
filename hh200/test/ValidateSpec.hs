@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
 import Hh200.Validate
+import Hh200.Types (SrcSpan (..))
 import qualified Hh200.McpServer as Mcp
 
 spec :: TestTree
@@ -28,14 +29,18 @@ spec = testGroup "Validate"
       case r of
           Left [d] -> do
               assertEqual "code" ParseError (diagCode d)
-              assertEqual "line" 1 (diagLine d)
+              let SrcSpan (l, _) _ = diagSpan d
+              assertEqual "line" 1 l
               assertBool "message non-empty" (not (null (diagMessage d)))
           _ -> assertFailure "expected exactly one parse diagnostic"
 
-  , testCase "unbalanced braces reports a lexical error" $ do
+  , testCase "unbalanced braces reports a lexical error at the brace" $ do
       r <- validateScript "POST http://localhost:9999/echo\n{\n  \"a\": 1"
       case r of
-          Left [d] -> assertEqual "code" LexicalError (diagCode d)
+          Left [d] -> do
+              assertEqual "code" LexicalError (diagCode d)
+              let SrcSpan (l, _) _ = diagSpan d
+              assertEqual "line" 2 l
           _ -> assertFailure "expected exactly one lexical diagnostic"
 
   , testCase "validateScriptResult shapes a clean script as ok=true" $ do

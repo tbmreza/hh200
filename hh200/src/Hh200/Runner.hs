@@ -36,7 +36,7 @@ import           Hh200.Database (initDb, insertRun, updateRunStatus, getLatestRu
 import           Hh200.Execution (CaptureCtx (..))
 import           Hh200.Scanner (analyze, diagnostics)
 import           Hh200.TokenBucketWorkerPool (courier, RunState (..))
-import           Hh200.Types (Script (..))
+import           Hh200.Types (Script (..), Diagnostic (..), SrcSpan (..))
 
 -- | A start-run request body. @name@ may be blank; @script@ is a
 -- server-side @.hhs@ path; @nvu@/ @duration@ mirror the CLI's @--nvu@ /
@@ -97,7 +97,10 @@ runPlan req
                             Left err -> do
                                 content <- readFile path
                                 diags <- diagnostics content
-                                pure $ planInvalid (if null diags then [((1, 1) :: (Int, Int), err)] else diags)
+                                let errs = if null diags
+                                        then [((1, 1) :: (Int, Int), err)]
+                                        else [ (spanStart (diagSpan d), diagMessage d) | d <- diags ]
+                                pure $ planInvalid errs
                             Right script ->
                                 pure $ planOk (reqNvu req) (reqDuration req) (length (callItems script))
 

@@ -9,6 +9,7 @@ module Hh200.LanguageServer (runTcp, runStdio) where
 import qualified Hh200.Scanner
 
 import           Hh200.Types (Snippet(..), SrcSpan(..))
+import qualified Hh200.Types as Hh
 
 -- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import           Language.LSP.Server
@@ -74,11 +75,12 @@ validate uri = do
             errs <- liftIO (Hh200.Scanner.diagnostics content)
             return $ map toDiagnostic errs
 
-toDiagnostic :: ((Int, Int), String) -> Diagnostic
-toDiagnostic ((l, c), msg) =
-    let pos = Position (fromIntegral (l - 1)) (fromIntegral (c - 1))
-        range = Range pos pos
-    in Diagnostic range (Just DiagnosticSeverity_Error) Nothing Nothing (Just "hh200") (Text.pack msg) Nothing Nothing Nothing
+toDiagnostic :: Hh.Diagnostic -> Diagnostic
+toDiagnostic d =
+    let SrcSpan (sl, sc) (el, ec) = Hh.diagSpan d
+        range = Range (Position (fromIntegral (sl - 1)) (fromIntegral (sc - 1)))
+                      (Position (fromIntegral (el - 1)) (fromIntegral (ec - 1)))
+    in Diagnostic range (Just DiagnosticSeverity_Error) Nothing Nothing (Just "hh200") (Text.pack (Hh.diagMessage d)) Nothing Nothing Nothing
 
 validateAndPublish :: Uri -> LspM Config ()
 validateAndPublish uri = do

@@ -69,19 +69,19 @@ tok f (p, _, _, s) len = return (f p (take len s))
 tokBraceEnclosed :: AlexInput -> Int -> Alex Token
 tokBraceEnclosed (p, _, _, s) _ = do
     case scanBalanced 1 False (drop 1 s) "{" of
-        Left err -> alexError err
+        Left err -> pure (LEX_ERROR p err)
         Right (res, rest) -> do
             alexSetInput (advancePos p res, if null res then ' ' else last res, [], rest)
             pure (BRACE_ENCLOSED p res)
 
 scanBalanced :: Int -> Bool -> String -> String -> Either String (String, String)
 scanBalanced 0 _ s acc = Right (reverse acc, s)
-scanBalanced _ _ [] _ = Left "lexical error: unbalanced braces"
+scanBalanced _ _ [] _ = Left "unbalanced braces"
 scanBalanced n inStr (c:cs) acc
   | inStr = case c of
       '\\' -> case cs of
                 (x:xs) -> scanBalanced n True xs (x:c:acc)
-                []     -> Left "lexical error: escaped EOF"
+                []     -> Left "escaped EOF"
       '"'  -> scanBalanced n False cs (c:acc)
       _    -> scanBalanced n True  cs (c:acc)
   | otherwise = case c of
@@ -104,14 +104,46 @@ alexEOF = do
     (p, _, _, _) <- alexGetInput
     return (EOF p)
 
-alexScanTokens :: String -> Either String [Token]
-alexScanTokens str = runAlex str gather
+-- | A lexer failure with its source position.
+data LexError = LexError AlexPosn String
+    deriving (Eq, Show)
+
+-- | Render a lexer error as @lexical error at line N, column M: <reason>@.
+lexErrorMsg :: LexError -> String
+lexErrorMsg (LexError (AlexPn _ l c) msg) =
+    "lexical error at line " ++ show l ++ ", column " ++ show c ++ ": " ++ msg
+
+-- | Scan one token, reporting a typed 'LexError' (with position) instead of
+-- the Alex-generated string message. Mirrors the generated 'alexMonadScan'.
+scanToken :: Alex (Either LexError Token)
+scanToken = do
+    inp <- alexGetInput
+    sc <- alexGetStartCode
+    case alexScan inp sc of
+        AlexEOF -> Right <$> alexEOF
+        AlexError (pos, _, _, _) -> pure (Left (LexError pos "unexpected character"))
+        AlexSkip inp' _len -> alexSetInput inp' >> scanToken
+        AlexToken inp' len action -> do
+            alexSetInput inp'
+            Right <$> action (ignorePendingBytes inp) len
+
+alexScanTokens :: String -> Either LexError [Token]
+alexScanTokens str =
+    case runAlex str gather of
+        Left msg -> Left (LexError alexStartPos msg)  -- unreachable, kept total
+        Right r -> r
   where
+    gather :: Alex (Either LexError [Token])
     gather = do
-        t <- alexMonadScan
-        case t of 
-            EOF _ -> return []
-            _ -> (t:) <$> gather
+        r <- scanToken
+        case r of
+            Left e -> pure (Left e)
+            Right t -> case t of
+                LEX_ERROR p msg -> pure (Left (LexError p msg))
+                EOF _ -> pure (Right [])
+                _ -> do
+                    rest <- gather
+                    pure (fmap (t :) rest)
 
 data Token =
     LN  AlexPosn  -- (token line terminator)
@@ -154,7 +186,8 @@ data Token =
 
   | JSONPATH    AlexPosn String
 
-  | LINE  AlexPosn String
-  | EOF   AlexPosn
+  | LINE       AlexPosn String
+  | EOF        AlexPosn
+  | LEX_ERROR  AlexPosn String
     deriving (Eq, Show)
 }

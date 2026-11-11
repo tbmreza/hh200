@@ -28,6 +28,7 @@ import           Data.Text.Encoding (decodeUtf8)
 import           System.IO (BufferMode (LineBuffering), hFlush, hGetLine, hSetBuffering, stdin, stdout)
 
 import           Hh200.Dashboard (controlSocketPath, controlSocketWriter)
+import           Hh200.Types (SrcSpan (..))
 import qualified Hh200.Validate as Validate
 
 -- | Serve MCP (JSON-RPC 2.0) over newline-delimited stdio.
@@ -304,8 +305,8 @@ validateScriptResult script = do
 
 diagToJson :: Validate.Diagnostic -> Value
 diagToJson d = object
-    [ "line" .= Validate.diagLine d
-    , "col" .= Validate.diagCol d
+    [ "line" .= fst (spanStart (Validate.diagSpan d))
+    , "col" .= snd (spanStart (Validate.diagSpan d))
     , "code" .= Validate.diagCodeText (Validate.diagCode d)
     , "message" .= Validate.diagMessage d
     , "hint" .= Validate.diagHint d

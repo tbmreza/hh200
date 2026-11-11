@@ -16,6 +16,7 @@ module Hh200.Types
     , Script (..)
     , DocIndex (..), emptyDocIndex
     , SrcPos, SrcSpan (..)
+    , DiagCode (..), Diagnostic (..), diagCodeText
     , ScriptConfig (..)
     , DepsClause (..)
     , CallItem (..)
@@ -117,6 +118,24 @@ data DocIndex = DocIndex
 
 emptyDocIndex :: DocIndex
 emptyDocIndex = DocIndex [] []
+
+-- | Kind of a script diagnostic (lexical or parse failure).
+data DiagCode = LexicalError | ParseError
+  deriving (Eq, Show)
+
+-- | A structured diagnostic with a 1-based source span. Shared by the CLI,
+-- LSP, MCP, and runner error paths so they don't each re-derive positions.
+data Diagnostic = Diagnostic
+  { diagSpan    :: SrcSpan
+  , diagCode    :: DiagCode
+  , diagMessage :: String
+  , diagHint    :: String
+  } deriving (Eq, Show)
+
+-- | Wire-format code name (matches the MCP @validate_script@ output).
+diagCodeText :: DiagCode -> String
+diagCodeText LexicalError = "lexical_error"
+diagCodeText ParseError    = "parse_error"
 
 data TraceEvent
   = ScriptStart Int

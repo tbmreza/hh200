@@ -18,7 +18,7 @@ import Hh200.Scanner as Hh
 
 scanTokens :: String -> IO [Hh.Token]
 scanTokens input = case Hh.alexScanTokens input of
-    Left e -> assertFailure ("lex error: " ++ e)
+    Left e -> assertFailure ("lex error: " ++ Hh.lexErrorMsg e)
     Right ts -> pure ts
 
 spec :: TestTree
