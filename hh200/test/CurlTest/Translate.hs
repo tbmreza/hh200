@@ -21,6 +21,7 @@ import qualified Data.ByteString.Char8 as C8
 
 import           CurlTest.Types
 import           CurlTest.Preprocess (substitute, replyStatus)
+import           CurlTest.Util (breakOnString)
 
 -- | Derive the request plan and expected outcome for a test.
 translate :: Context -> CurlTest -> Either String (RequestPlan, Expected)
@@ -105,18 +106,3 @@ tokenize = go . dropWhile isSpace
     go t =
         let (tok, after) = break isSpace t
         in tok : go (dropWhile isSpace after)
-
-breakOnString :: Eq a => [a] -> [a] -> ([a], [a])
-breakOnString needle hay = go hay
-  where
-    go s
-        | needle `isPrefixOf` s = ([], s)
-        | otherwise =
-            case s of
-                [] -> ([], [])
-                (c:cs) -> let (a, b) = go cs in (c : a, b)
-
-isPrefixOf :: Eq a => [a] -> [a] -> Bool
-isPrefixOf [] _ = True
-isPrefixOf _ [] = False
-isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys

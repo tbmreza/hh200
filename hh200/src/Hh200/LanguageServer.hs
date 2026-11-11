@@ -11,7 +11,6 @@ import qualified Hh200.Scanner
 import           Hh200.Types (Snippet(..), SrcSpan(..))
 import qualified Hh200.Types as Hh
 
--- import Language.LSP.Server (options, interpretHandler, staticHandlers, doInitialize, onConfigChange, parseConfig, configSection, defaultConfig, ServerDefinition(..), LspM, Handlers, defaultOptions, runLspT, Iso(..), (<~>)(Iso), runServer, notificationHandler)
 import           Language.LSP.Server
 import           Language.LSP.VFS (virtualFileText, VirtualFile)
 import           Language.LSP.Protocol.Message
@@ -173,7 +172,7 @@ handleConfig :: Config -> LspM Config ()
 handleConfig _cfg = pure ()
 
 sh :: a -> Handlers (LspM Config)
-sh caps = handlers
+sh _ = handlers
 
 configResult :: Config -> Value -> Either Text.Text Config
 configResult old v =

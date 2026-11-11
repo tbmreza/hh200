@@ -12,7 +12,6 @@ module CurlTest.Parse
     , isOpenTag
     , isCloseTag
     , attrsOf
-    , trim
     ) where
 
 import           Data.Char (isSpace)
@@ -20,6 +19,7 @@ import           Data.List (isPrefixOf)
 import           Data.Maybe (fromMaybe)
 
 import           CurlTest.Types
+import           CurlTest.Util (splitOn, trim)
 
 -- | Parse one vendored test file. @num@ is the test number (from the filename).
 parseCurlTest :: Int -> String -> Either String CurlTest
@@ -164,31 +164,3 @@ isComment :: String -> Bool
 isComment l =
     let t = trim l
     in "#" `isPrefixOf` t || "<!--" `isPrefixOf` t
-
--- ---------------------------------------------------------------------------
--- String helpers (avoid pulling in extra deps).
--- ---------------------------------------------------------------------------
-
-trim :: String -> String
-trim = reverse . dropWhile isSpace . reverse . dropWhile isSpace
-
-splitOn :: Eq a => [a] -> [a] -> [[a]]
-splitOn _ [] = error "splitOn: empty delimiter"
-splitOn delim xs = go xs
-  where
-    go s
-        | null s = []
-        | delim `isPrefixOf` s = [] : go (drop (length delim) s)
-        | otherwise =
-            let (a, b) = breakOnString delim s
-            in a : if null b then [] else go (drop (length delim) b)
-
-breakOnString :: Eq a => [a] -> [a] -> ([a], [a])
-breakOnString needle hay = go hay
-  where
-    go s
-        | needle `isPrefixOf` s = ([], s)
-        | otherwise =
-            case s of
-                [] -> ([], [])
-                (c:cs) -> let (a, b) = go cs in (c : a, b)

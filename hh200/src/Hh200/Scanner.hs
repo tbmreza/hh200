@@ -62,15 +62,7 @@ instance Analyze Snippet where
     analyze (Snippet s) =
         case scanSafe (L8.unpack s) of
             Left e -> pure (Left (lexErrorMsg e))
-            Right tokens -> do
-                res <- runExceptT (parse tokens)
-                case res of
-                    Left (d, _) -> pure (Left d)
-                    Right itemsAction -> do
-                        res2 <- runExceptT itemsAction
-                        case res2 of
-                             Left (d, _) -> pure (Left d)
-                             Right s' -> pure (Right (s' { index = buildIndex tokens }))
+            Right tokens -> fmap (either (Left . fst) Right) (parseTokens tokens)
 
 instance Analyze FilePath where
     analyze :: FilePath -> IO (Either String Script)
@@ -85,15 +77,7 @@ readScript path = do
     loaded <- readFile path
     case scanSafe loaded of
         Left e -> pure (Left (lexErrorMsg e))
-        Right tokens -> do
-            res <- runExceptT (parse tokens)
-            case res of
-                Left (m, _) -> pure (Left m)
-                Right itemsAction -> do
-                    res2 <- runExceptT itemsAction
-                    case res2 of
-                        Left (m, _) -> pure (Left m)
-                        Right s -> pure (Right (s { index = buildIndex tokens }))
+        Right tokens -> fmap (either (Left . fst) Right) (parseTokens tokens)
 
 scanSafe :: String -> Either LexError [Token]
 scanSafe = alexScanTokens
@@ -233,6 +217,20 @@ hover input pos =
         IDENTIFIER _ "use-tls" -> Just "Config: Toggle TLS"
         _ -> Nothing
 
+-- | Parse a token list into a 'Script' (with its semantic index), returning
+-- the raw @(message, tokens)@ on failure. Shared core of 'analyze',
+-- 'readScript', and 'parseWithDiagnostics'.
+parseTokens :: [Token] -> IO (Either (String, [Token]) Script)
+parseTokens tokens = do
+    res <- runExceptT (parse tokens)
+    case res of
+        Left e -> pure (Left e)
+        Right itemsAction -> do
+            res2 <- runExceptT itemsAction
+            case res2 of
+                Left e -> pure (Left e)
+                Right s -> pure (Right (s { index = buildIndex tokens }))
+
 -- | Lex and parse, returning structured diagnostics (first failure) or the
 -- parsed 'Script'. This is the single entry point for diagnostics consumers.
 parseWithDiagnostics :: String -> IO (Either [Diagnostic] Script)
@@ -240,14 +238,10 @@ parseWithDiagnostics input =
     case scanSafe input of
         Left lexErr -> pure (Left [lexicalDiagnostic lexErr])
         Right tokens -> do
-            res <- runExceptT (parse tokens)
-            case res of
-                Left (err, errTokens) -> pure (Left [parseDiagnostic err errTokens])
-                Right itemsAction -> do
-                    res2 <- runExceptT itemsAction
-                    case res2 of
-                        Left (err, errTokens) -> pure (Left [parseDiagnostic err errTokens])
-                        Right s -> pure (Right (s { index = buildIndex tokens }))
+            r <- parseTokens tokens
+            pure $ case r of
+                Left (err, errTokens) -> Left [parseDiagnostic err errTokens]
+                Right s -> Right s
 
 -- | Lex and parse, returning diagnostics only (empty when the script is valid).
 diagnostics :: String -> IO [Diagnostic]

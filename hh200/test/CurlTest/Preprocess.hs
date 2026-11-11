@@ -15,10 +15,11 @@ module CurlTest.Preprocess
     ) where
 
 import           Data.Char (isDigit)
-import           Data.List (isInfixOf, isPrefixOf)
+import           Data.List (isInfixOf)
 import qualified Data.ByteString.Char8 as C8
 
 import           CurlTest.Types
+import           CurlTest.Util (breakOnString, replace, replaceAll)
 
 -- | Replace the documented macros. Unrecognised macros are left untouched.
 substitute :: Context -> String -> String
@@ -34,15 +35,6 @@ substitute ctx = replaceAll
     , ("%GT", ">")
     , ("%LT", "<")
     ]
-
-replaceAll :: [(String, String)] -> String -> String
-replaceAll pairs s0 = foldl (\s (from, to) -> replace from to s) s0 pairs
-
-replace :: String -> String -> String -> String
-replace _ _ [] = []
-replace from to s@(c:cs)
-    | from `isPrefixOf` s = to ++ replace from to (drop (length from) s)
-    | otherwise = c : replace from to cs
 
 -- | Apply a @crlf@ attribute value to newlines.
 applyCrlf :: Maybe String -> String -> String
@@ -83,13 +75,3 @@ replyStatus sec =
 -- | Does the reply body contain the @swsclose@ keyword (close after send)?
 replyHasSwsclose :: Section -> Bool
 replyHasSwsclose sec = "swsclose" `isInfixOf` secBody sec
-
-breakOnString :: Eq a => [a] -> [a] -> ([a], [a])
-breakOnString needle hay = go hay
-  where
-    go s
-        | needle `isPrefixOf` s = ([], s)
-        | otherwise =
-            case s of
-                [] -> ([], [])
-                (c:cs) -> let (a, b) = go cs in (c : a, b)
