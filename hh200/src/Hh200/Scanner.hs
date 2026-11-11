@@ -159,7 +159,6 @@ getPos t = case t of
     LINE p _ -> p
     LEX_ERROR p _ -> p
     EOF p -> p
-    _ -> undefined
 
 tokenSpan :: Token -> (Int, Int)
 tokenSpan t = (offset, len)
@@ -183,6 +182,10 @@ tokenSpan t = (offset, len)
         KW_THEN _ -> 4
         KW_HTTP _ -> 4
         KW_CONFIGS _ -> 7 -- Configs
+        KW_QUERY _ -> 5 -- Query
+        KW_FORM _ -> 4 -- Form (also FormParams)
+        KW_COOKIES _ -> 7 -- Cookies
+        KW_MULTIPART _ -> 18 -- MultipartFormData
         KW_CAPTURES _ -> 8 -- Captures
         KW_ASSERTS _ -> 7 -- Asserts
         URL _ s -> length s
@@ -194,7 +197,6 @@ tokenSpan t = (offset, len)
         LINE _ s -> length s -- includes >
         LEX_ERROR _ _ -> 1
         EOF _ -> 0
-        _ -> undefined
 
 hover :: String -> Int -> Maybe String
 hover input pos = 
@@ -223,13 +225,9 @@ hover input pos =
 parseTokens :: [Token] -> IO (Either (String, [Token]) Script)
 parseTokens tokens = do
     res <- runExceptT (parse tokens)
-    case res of
-        Left e -> pure (Left e)
-        Right itemsAction -> do
-            res2 <- runExceptT itemsAction
-            case res2 of
-                Left e -> pure (Left e)
-                Right s -> pure (Right (s { index = buildIndex tokens }))
+    pure $ case res of
+        Left e -> Left e
+        Right s -> Right (s { index = buildIndex tokens })
 
 -- | Lex and parse, returning structured diagnostics (first failure) or the
 -- parsed 'Script'. This is the single entry point for diagnostics consumers.

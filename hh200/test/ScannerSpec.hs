@@ -114,15 +114,11 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
       tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
-          Right action -> do
-              res2 <- runExceptT action
-              case res2 of
-                  Right s -> do
-                      let ci = head (Hh.callItems s)
-                      case Hh.ciResponseSpec ci of
-                          Just rs -> assertResponseSquares rs
-                          Nothing -> assertFailure "Should have response spec"
-                  Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+          Right s -> do
+              let ci = head (Hh.callItems s)
+              case Hh.ciResponseSpec ci of
+                  Just rs -> assertResponseSquares rs
+                  Nothing -> assertFailure "Should have response spec"
           Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
 
   , testCase "Asserts before Captures" $ do
@@ -130,15 +126,11 @@ testScanner_lrResponseOrder = testGroup "lexer and parser for response block ord
       tokens <- scanTokens input
       res <- runExceptT (Hh.parse tokens)
       case res of
-          Right action -> do
-              res2 <- runExceptT action
-              case res2 of
-                  Right s -> do
-                      let ci = head (Hh.callItems s)
-                      case Hh.ciResponseSpec ci of
-                          Just rs -> assertResponseSquares rs
-                          Nothing -> assertFailure "Should have response spec"
-                  Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+          Right s -> do
+              let ci = head (Hh.callItems s)
+              case Hh.ciResponseSpec ci of
+                  Just rs -> assertResponseSquares rs
+                  Nothing -> assertFailure "Should have response spec"
           Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
   ]
 
@@ -148,16 +140,12 @@ testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $
     tokens <- scanTokens input
     res <- runExceptT (Hh.parse tokens)
     case res of
-        Right action -> do
-            res2 <- runExceptT action
-            case res2 of
-                Right s -> do
-                    let ci = head (Hh.callItems s)
-                        rs = Hh.ciRequestSpec ci
-                    case Hh.rqSquares rs of
-                        (Just (Hh.RequestSquareConfigs (Hh.RhsDict cfgs)), _, _, _, _) ->
-                            assertBool "Has configs" (not (HM.null cfgs))
-                        _ -> assertFailure "Expected Configs request square"
-                    assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.rqBody rs)
-                Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+        Right s -> do
+            let ci = head (Hh.callItems s)
+                rs = Hh.ciRequestSpec ci
+            case Hh.rqSquares rs of
+                (Just (Hh.RequestSquareConfigs (Hh.RhsDict cfgs)), _, _, _, _) ->
+                    assertBool "Has configs" (not (HM.null cfgs))
+                _ -> assertFailure "Expected Configs request square"
+            assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.rqBody rs)
         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err

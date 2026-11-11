@@ -3,10 +3,11 @@
 module P where
 
 import           Data.List (intercalate, isPrefixOf, tails)
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HM
 import           Control.Monad.Trans.Except
-import           Network.HTTP.Types.Status (mkStatus)
+import           Network.HTTP.Types.Status (Status, mkStatus)
 
 import qualified BEL
 import           Hh200.Types
@@ -66,18 +67,18 @@ import           L
 %%
 
 
-script :: { E Script }
-script : crlf call_items { $2 >>= \is -> returnE Script { config = defaultScriptConfig, callItems = is, index = emptyDocIndex } }
+script :: { Script }
+script : crlf call_items { Script { config = defaultScriptConfig, callItems = $2, index = emptyDocIndex } }
 
-call_items :: { E [CallItem] }
-call_items : call_item crlf            { $1 >>= \i -> returnE [i] }
-           | call_items call_item crlf { $1 >>= \is -> $2 >>= \i -> returnE (is ++ [i]) }
+call_items :: { [CallItem] }
+call_items : call_item crlf            { [$1] }
+           | call_items call_item crlf { $1 ++ [$2] }
 
-call_item :: { E CallItem }
-call_item : deps_clause request response { $2 >>= \r -> returnE CallItem { ciDeps = deps $1, ciName = itemName $1, ciRequestSpec = r, ciResponseSpec = Just $3 } }
-          | deps_clause request          { $2 >>= \r -> returnE CallItem { ciDeps = deps $1, ciName = itemName $1, ciRequestSpec = r, ciResponseSpec = Nothing } }
-          | request response             { $1 >>= \r -> returnE CallItem { ciDeps = [], ciName = "", ciRequestSpec = r, ciResponseSpec = Just $2 } }
-          | request                      { $1 >>= \r -> returnE CallItem { ciDeps = [], ciName = "", ciRequestSpec = r, ciResponseSpec = Nothing } }
+call_item :: { CallItem }
+call_item : deps_clause request response { CallItem { ciDeps = deps $1, ciName = itemName $1, ciRequestSpec = $2, ciResponseSpec = Just $3 } }
+          | deps_clause request          { CallItem { ciDeps = deps $1, ciName = itemName $1, ciRequestSpec = $2, ciResponseSpec = Nothing } }
+          | request response             { CallItem { ciDeps = [], ciName = "", ciRequestSpec = $1, ciResponseSpec = Just $2 } }
+          | request                      { CallItem { ciDeps = [], ciName = "", ciRequestSpec = $1, ciResponseSpec = Nothing } }
 
 deps_clause :: { DepsClause }
 deps_clause : deps "then" s { DepsClause { deps = $1, itemName = trimQuotes $3 } }
@@ -87,52 +88,25 @@ deps :: { [String] }
 deps : s      { [trimQuotes $1] }
      | deps s { $1 ++ [trimQuotes $2] }
 
-request :: { E RequestSpec }
-request : method url crlf bindings request_sqrs braced crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = $5,               rqBody = $6 }
-                                                               pure r }
-        | method url crlf bindings request_sqrs        crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = $5,               rqBody = "" }
-                                                               pure r }
-        | method url crlf          request_sqrs        crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,               rqBody = "" }
-                                                               pure r }
-        | method url crlf bindings              braced crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = rqSquaresNothing, rqBody = $5 }
-                                                               pure r }
-        | method url crlf          request_sqrs braced crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = $4,               rqBody = $5 }
-                                                               pure r }
-        | method url crlf                       braced crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = $4 }
-                                                               pure r }
-        | method url crlf bindings                     crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = $4,               rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               pure r }
-        |        url crlf bindings request_sqrs        crlf { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = $3,               rqSquares = $4,               rqBody = "" }
-                                                               pure r }
-        |        url crlf bindings              braced crlf { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = $3,               rqSquares = rqSquaresNothing, rqBody = $4 }
-                                                               pure r }
-        |        url crlf          request_sqrs braced crlf { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = $3,               rqBody = $4 }
-                                                               pure r }
-        | method url                                   crlf { do
-                                                               let r = RequestSpec { rqMethod = $1,    rqUrl = $2, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               pure r }
-        |        url crlf bindings                     crlf { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = $3,               rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               pure r }
-        |        url crlf          request_sqrs        crlf { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = $3,               rqBody = "" }
-                                                               pure r }
-        |        url crlf                       braced crlf { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = $3 }
-                                                               pure r }
-        |        url crlf                                   { do
-                                                               let r = RequestSpec { rqMethod = "GET", rqUrl = $1, rqHeaders = RhsDict HM.empty, rqSquares = rqSquaresNothing, rqBody = "" }
-                                                               pure r }
+-- The @opt_*@ productions make the trailing parts of a request/response
+-- optional. Combined with the empty-matchable 'crlf', this yields shift/reduce
+-- conflicts (Happy resolves them by shifting, which greedily consumes newlines
+-- and parses each optional part correctly); they are benign.
+request :: { RequestSpec }
+request : method url crlf opt_bindings opt_sqrs opt_body crlf { mkRequest $1 $2 $4 $5 $6 }
+        |        url crlf opt_bindings opt_sqrs opt_body crlf { mkRequest "GET" $1 $3 $4 $5 }
+
+opt_bindings :: { Maybe RhsDict }
+opt_bindings : {- empty -} { Nothing }
+             | bindings    { Just $1 }
+
+opt_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
+opt_sqrs : {- empty -}  { rqSquaresNothing }
+         | request_sqrs { $1 }
+
+opt_body :: { Maybe String }
+opt_body : {- empty -} { Nothing }
+         | braced      { Just $1 }
 
 request_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
 request_sqrs : request_sqrs request_sqr crlf { setRequestSquare $2 $1 }
@@ -153,24 +127,17 @@ url : url_proto { if hasBalancedMustache $1 then
                       LexedUrlFull $1 }
 
 response :: { ResponseSpec }
-response : "HTTP" response_codes crlf bindings response_sqrs braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = $6 } }
+response : response_parts crlf { mkResponse $1 }
 
-         | "HTTP" response_codes crlf bindings response_sqrs        crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = $5,               rpBody = "" } }
-         | "HTTP" response_codes crlf bindings               braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = $5 } }
-         | "HTTP" response_codes crlf          response_sqrs braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = $5 } }
-         |                            bindings response_sqrs braced crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = $3 } }
+response_parts :: { ([Status], Maybe RhsDict, (Maybe ResponseSquare, Maybe ResponseSquare), Maybe String) }
+response_parts : "HTTP" response_codes crlf opt_bindings opt_rsqrs opt_body { (map statusFrom $2, $4, $5, $6) }
+               | bindings opt_rsqrs opt_body                              { ([], Just $1, $2, $3) }
+               | response_sqrs opt_body                                   { ([], Nothing, $1, $2) }
+               | braced                                                   { ([], Nothing, rpSquaresNothing, Just $1) }
 
-         | "HTTP" response_codes crlf bindings                           { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = $4,               rpSquares = rpSquaresNothing, rpBody = "" } }
-         | "HTTP" response_codes crlf          response_sqrs        crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = $4,               rpBody = "" } }
-         | "HTTP" response_codes crlf                        braced crlf { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $4 } }
-         |                            bindings response_sqrs        crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = $2,               rpBody = "" } }
-         |                            bindings               braced crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1,               rpSquares = rpSquaresNothing, rpBody = $2 } }
-         |                                     response_sqrs braced crlf { ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = $2 } }
-
-         | "HTTP" response_codes crlf                                    { ResponseSpec { rpStatuses = map statusFrom $2, rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = "" } }
-         | bindings crlf                                                 { ResponseSpec { rpStatuses = [],                rpResponseHeaders = $1, rpSquares = rpSquaresNothing,               rpBody = "" } }
-         | response_sqrs crlf                                            { ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = $1,               rpBody = "" } }
-         | braced crlf                                                   { ResponseSpec { rpStatuses = [],                rpResponseHeaders = RhsDict HM.empty, rpSquares = rpSquaresNothing, rpBody = $1 } }
+opt_rsqrs :: { (Maybe ResponseSquare, Maybe ResponseSquare) }
+opt_rsqrs : {- empty -}   { rpSquaresNothing }
+          | response_sqrs { $1 }
 
 response_sqrs :: { (Maybe ResponseSquare, Maybe ResponseSquare)}
 response_sqrs : response_sqrs response_sqr crlf { setResponseSquare $2 $1 }
@@ -245,6 +212,25 @@ countSub needle = length . filter (isPrefixOf needle) . tails
 
 -- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
+
+mkRequest :: String -> LexedUrl -> Maybe RhsDict -> (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) -> Maybe String -> RequestSpec
+mkRequest method url mHeaders squares mBody =
+    RequestSpec
+        { rqMethod = method
+        , rqUrl = url
+        , rqHeaders = fromMaybe (RhsDict HM.empty) mHeaders
+        , rqSquares = squares
+        , rqBody = fromMaybe "" mBody
+        }
+
+mkResponse :: ([Status], Maybe RhsDict, (Maybe ResponseSquare, Maybe ResponseSquare), Maybe String) -> ResponseSpec
+mkResponse (statuses, mHeaders, squares, mBody) =
+    ResponseSpec
+        { rpStatuses = statuses
+        , rpResponseHeaders = fromMaybe (RhsDict HM.empty) mHeaders
+        , rpSquares = squares
+        , rpBody = fromMaybe "" mBody
+        }
 
 -- Strip a leading ':' plus surrounding whitespace, then optional surrounding
 -- double quotes, leaving the bare header/field value.
