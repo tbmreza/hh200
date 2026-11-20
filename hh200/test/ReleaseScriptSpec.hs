@@ -7,6 +7,7 @@
 module ReleaseScriptSpec (spec) where
 
 import           Control.Exception (bracket)
+import qualified Data.ByteString as BS
 import           Data.List (isInfixOf, isPrefixOf, isSuffixOf)
 import           System.Directory
 import           System.Environment (getEnvironment)
@@ -22,12 +23,14 @@ spec = testGroup "package-release.sh"
   , testVersionFromEnv
   , testPackagesBinaryAndReadme
   , testChecksumVerifies
+  , testShipsLicense
+  , testRefusesWithoutLicense
   ]
 
 -- | A scratch workspace: @work/@ is the cwd the script runs in (with a
 -- README.md), @install/bin/hh200@ is the fake built binary, and @fakebin/stack@
 -- answers @stack path --local-install-root@.
-data Ws = Ws { wsWork :: FilePath, wsEnv :: [(String, String)], wsScript :: FilePath }
+data Ws = Ws { wsRoot :: FilePath, wsWork :: FilePath, wsEnv :: [(String, String)], wsScript :: FilePath }
 
 withWorkspace :: (Ws -> IO a) -> IO a
 withWorkspace act = do
@@ -46,7 +49,7 @@ withWorkspace act = do
         env0 <- getEnvironment
         let path = maybe fakebin (\p -> fakebin ++ ":" ++ p) (lookup "PATH" env0)
             env = ("PATH", path) : filter (\(k, _) -> k /= "PATH" && k /= "HH200_VERSION") env0
-        act (Ws work env script)
+        act (Ws root work env script)
   where
     mkFresh base = go (0 :: Int)
       where
@@ -116,3 +119,34 @@ testChecksumVerifies = testCase "sha256 file sits next to the tarball and verifi
     (vcode, vout, verr) <- readCreateProcessWithExitCode
         (proc "sha256sum" ["-c", sumFile]) { cwd = Just (wsWork ws </> "dist") } ""
     assertEqual ("sha256sum -c: " ++ vout ++ verr) ExitSuccess vcode
+
+-- | Item #1 of the scan: LICENSE lives at the repo root, not in hh200/, and
+-- used to be silently dropped. It must ship, and match the repo's copy.
+testShipsLicense :: TestTree
+testShipsLicense = testCase "tarball ships the repository LICENSE" $ withWorkspace $ \ws -> do
+    (code, _, err) <- runScript ws [] ["v9.9.9"]
+    assertEqual ("exit (stderr: " ++ err ++ ")") ExitSuccess code
+    tarball <- findTarball ws "v9.9.9"
+    listing <- lines <$> readProcess "tar" ["-tzf", tarball] ""
+    case [ e | e <- listing, "/LICENSE" `isSuffixOf` e ] of
+        [entry] -> do
+            -- Compare bytes: LICENSE has non-ASCII characters, so avoid
+            -- locale-dependent String decoding.
+            let out = wsRoot ws </> "extracted"
+            createDirectoryIfMissing True out
+            _ <- readProcess "tar" ["-xzf", tarball, "-C", out, entry] ""
+            shipped <- BS.readFile (out </> entry)
+            expected <- BS.readFile (".." </> "LICENSE")
+            assertEqual "LICENSE content matches the repo root" expected shipped
+        other -> assertFailure ("expected one LICENSE entry, got " ++ show other ++ " in " ++ show listing)
+
+-- | With no LICENSE reachable, packaging must fail rather than ship without it.
+testRefusesWithoutLicense :: TestTree
+testRefusesWithoutLicense = testCase "no LICENSE anywhere: refuses to package" $ withWorkspace $ \ws -> do
+    -- Copy the script into an isolated tree so its repo root has no LICENSE.
+    let isolated = wsRoot ws </> "isolated" </> "hh200"
+    createDirectoryIfMissing True isolated
+    copyFile (wsScript ws) (isolated </> "package-release.sh")
+    (code, _, err) <- runScript ws { wsScript = isolated </> "package-release.sh" } [] ["v9.9.9"]
+    assertBool "non-zero exit" (code /= ExitSuccess)
+    assertBool ("explains why: " ++ err) ("LICENSE" `isInfixOf` err)
