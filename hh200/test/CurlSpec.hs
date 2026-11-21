@@ -309,6 +309,9 @@ parseHeader line =
 coverageTest :: Int -> [TestTree] -> [(Int, String)] -> TestTree
 coverageTest nFiles cases skipped =
     testCase "coverage" $ do
+        assertEqual "every discovered fixture is loaded or skipped"
+            nFiles
+            (length cases + length skipped)
         putStrLn ("[curl] vendored=" ++ show nFiles
             ++ " included=" ++ show (length cases)
             ++ " skipped=" ++ show (length skipped))
