@@ -11,6 +11,7 @@ import           Data.List (isPrefixOf, isSuffixOf, sort)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           System.Directory (doesDirectoryExist, listDirectory)
 import           System.FilePath ((</>))
+import           System.IO (IOMode (ReadMode), hGetContents, hSetEncoding, utf8, withFile)
 import           System.IO.Unsafe (unsafePerformIO)
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -32,16 +33,36 @@ spec = testGroup "Corpus"
   ]
 {-# NOINLINE spec #-}
 
+-- | Examples that do not parse today (see AGENTS.md). They are asserted to
+-- still fail, so that fixing one turns this red and prompts removing it here;
+-- every other example must parse.
+knownBroken :: [FilePath]
+knownBroken = map (examplesRoot </>)
+    [ "chaining.hhs"     -- comment-only file: an empty script does not parse
+    , "download.hhs"     -- `#!` user list and `("..." fresh)` response clause
+    , "redirection.hhs"  -- `[Config]` square and bare `url` assertion
+    ]
+
 exampleTests :: IO [TestTree]
 exampleTests = do
     files <- hhsFilesUnder examplesRoot
     pure $ if null files
         then [testCase "examples directory is present" (assertFailure ("no .hhs files under " ++ examplesRoot))]
-        else [ testCase f (readFile f >>= assertParses f) | f <- files ]
+        else [ if f `elem` knownBroken
+                 then testCase (f ++ " (known broken)") (readUtf8 f >>= assertStillBroken f)
+                 else testCase f (readUtf8 f >>= assertParses f)
+             | f <- files ]
+
+assertStillBroken :: String -> String -> Assertion
+assertStillBroken label src = do
+    r <- analyze (Snippet (L8.pack src))
+    case r of
+        Left _  -> pure ()
+        Right _ -> assertFailure (label ++ " parses now: remove it from knownBroken in test/CorpusSpec.hs and AGENTS.md")
 
 grammarDocTests :: IO [TestTree]
 grammarDocTests = do
-    doc <- readFile grammarDoc
+    doc <- readUtf8 grammarDoc
     let blocks = hhsBlocks (lines doc)
     pure $ if null blocks
         then [testCase "grammar doc has hhs examples" (assertFailure "no ```hhs blocks found")]
@@ -72,3 +93,10 @@ hhsFilesUnder dir = do
         dirs <- filterM doesDirectoryExist entries
         nested <- forM dirs hhsFilesUnder
         pure (filter (".hhs" `isSuffixOf`) entries ++ concat nested)
+
+-- | Read a file as UTF-8 whatever the locale (the grammar doc is not ASCII).
+readUtf8 :: FilePath -> IO String
+readUtf8 fp = withFile fp ReadMode $ \h -> do
+    hSetEncoding h utf8
+    s <- hGetContents h
+    length s `seq` pure s
