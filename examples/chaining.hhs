@@ -1,4 +1,4 @@
-# POST http://httpbin.org/post
+POST http://httpbin.org/post
 # { "token": "secret-token-123" }
 # [Captures]
 # MY_TOKEN = $.json.token

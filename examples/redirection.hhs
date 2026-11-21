@@ -1,6 +1,6 @@
 GET https://fbi.com:9999/ly
-[Config]
+[Configs]
 location: true
 HTTP 200
 [Asserts]
-url == "http://localhost:9999/redirected"
+>url == "http://localhost:9999/redirected"
