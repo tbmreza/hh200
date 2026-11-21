@@ -37,6 +37,7 @@ module Hh200.Types
     , noNews
     , present
     , showHeaders
+    , isSensitiveHeader, redactedValue
     , showPart
     , showResponse
     , Dat (..)
@@ -314,13 +315,13 @@ noNews :: Lead -> Bool
 noNews (Lead { leadKind = Non }) = True
 noNews _ = False
 
--- Pretty-print.
+-- Pretty-print, with credential-bearing request headers redacted.
 present :: CallItem -> String
 present cg =
     let rs = ciRequestSpec cg
     -- in rqMethod rs ++ " " ++ lexedUrl rs  -- ??
     in rqMethod rs ++ " "
-       ++ (showHeaders $ rqHeaders rs)
+       ++ (showHeaders $ redactRhsDict $ rqHeaders rs)
        ++ "\n" ++ (rqBody rs)
        ++ (showResponse $ ciResponseSpec cg) ++ "\n"
 
@@ -328,6 +329,26 @@ showHeaders :: RhsDict -> String
 showHeaders (RhsDict hm) = concatMap fmt $ sortBy (compare `on` fst) $ HM.toList hm
     where
     fmt (k, v) = Text.unpack $ Text.cons '\n' k <> Text.pack (": " ++ unwords (map showPart v))
+
+-- | Header names whose values carry credentials and must not be printed or
+-- persisted. Matched case-insensitively.
+isSensitiveHeader :: Text -> Bool
+isSensitiveHeader name =
+    n `elem` ["authorization", "proxy-authorization", "cookie", "set-cookie"]
+    || any (`Text.isSuffixOf` n) ["api-key", "apikey", "-token", "-secret"]
+  where
+    n = Text.toLower name
+
+-- | What a sensitive header's value is replaced with.
+redactedValue :: Text
+redactedValue = "[REDACTED]"
+
+redactRhsDict :: RhsDict -> RhsDict
+redactRhsDict (RhsDict hm) = RhsDict (HM.mapWithKey redact hm)
+  where
+    redact k v
+        | isSensitiveHeader k = [BEL.R redactedValue]
+        | otherwise           = v
 
 showPart :: BEL.Part -> String
 showPart (BEL.R t) = Text.unpack t

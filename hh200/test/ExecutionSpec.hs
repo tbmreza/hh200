@@ -20,7 +20,8 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified BEL
 import           Hh200.Execution
-import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSpec(..), CallItem(..), mkCallItem)
+import qualified Data.Text.Encoding as TE
+import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSpec(..), CallItem(..), mkCallItem, present)
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -65,7 +66,94 @@ spec = testGroup "Execution"
   , testApplyBodyFormUrl
   , testApplyBodyRaw
   , testApplyBodyMultipartEmpty
+  , phase0Tests
   ]
+
+-- ---------------------------------------------------------------------------
+-- Phase 0 (AGENTS.md findings 20-24): body rendering, Content-Type, redaction.
+-- ---------------------------------------------------------------------------
+
+-- | A string that breaks naive interpolation: quotes, a backslash, a Latin-1
+-- and a non-Latin-1 character.
+tricky :: Text.Text
+tricky = "a \"q\" \\ caf\233 \10003"
+
+bodyEnv :: BEL.Env
+bodyEnv = testEnv
+  { BEL.bindings = HM.fromList
+      [ ("S", Aeson.String tricky)
+      , ("N", Aeson.Number 3)
+      , ("O", Aeson.object ["k" Aeson..= ("v" :: Text.Text)])
+      ]
+  }
+
+renderedField :: Text.Text -> Text.Text -> IO (Maybe Aeson.Value)
+renderedField body key = do
+    out <- renderJsonBody bodyEnv body
+    pure $ case Aeson.decodeStrict (TE.encodeUtf8 out) of
+        Just (Aeson.Object o) -> KeyMap.lookup (Key.fromText key) o
+        _ -> Nothing
+
+phase0Tests :: TestTree
+phase0Tests = testGroup "phase 0"
+  [ testCase "renderJsonBody: string inside a JSON string is escaped" $ do
+      got <- renderedField "{\"s\": \"{{S}}\"}" "s"
+      assertEqual "s" (Just (Aeson.String tricky)) got
+  , testCase "renderJsonBody: value outside a string is spliced as JSON" $ do
+      n <- renderedField "{\"n\": {{N}}}" "n"
+      assertEqual "n" (Just (Aeson.Number 3)) n
+      o <- renderedField "{\"o\": {{O}}}" "o"
+      assertEqual "o" (Just (Aeson.object ["k" Aeson..= ("v" :: Text.Text)])) o
+      s <- renderedField "{\"s\": {{S}}}" "s"
+      assertEqual "string outside quotes gets quoted" (Just (Aeson.String tricky)) s
+  , testCase "renderJsonBody: non-string value inside a string is its JSON text" $ do
+      got <- renderedField "{\"l\": \"x{{N}}y\"}" "l"
+      assertEqual "l" (Just (Aeson.String "x3y")) got
+  , testCase "renderJsonBody: escaped quotes before {{ keep string state" $ do
+      got <- renderedField "{\"e\": \"say \\\"hi\\\" {{S}}\"}" "e"
+      assertEqual "e" (Just (Aeson.String ("say \"hi\" " <> tricky))) got
+  , testCase "renderJsonBody: a body without {{ is unchanged" $ do
+      let body = "{\n  \"a\" :  1 ,\"b\": \"{ not mustache }\"\n}"
+      out <- renderJsonBody bodyEnv body
+      assertEqual "unchanged" body out
+  , testCase "renderJsonBody: an unterminated {{ is left as is" $ do
+      let body = "{\"a\": \"{{S\"}"
+      out <- renderJsonBody bodyEnv body
+      assertEqual "unchanged" body out
+  , testCase "buildRequest: a script Content-Type is not duplicated" $ do
+      let hs = RhsDict (HM.fromList [("Content-Type", [BEL.R "application/vnd.api+json"])])
+          ci = withBody "{\"a\": 1}" hs
+      req <- buildRequest Nothing bodyEnv ci
+      assertEqual "one Content-Type" [BS.pack "application/vnd.api+json"] (contentTypes req)
+  , testCase "buildRequest: a JSON body defaults to application/json" $ do
+      req <- buildRequest Nothing bodyEnv (withBody "{\"a\": 1}" (RhsDict HM.empty))
+      assertEqual "Content-Type" [BS.pack "application/json"] (contentTypes req)
+  , testCase "buildRequest: an empty body keeps text/plain" $ do
+      req <- buildRequest Nothing bodyEnv (withBody "" (RhsDict HM.empty))
+      assertEqual "Content-Type" [BS.pack "text/plain"] (contentTypes req)
+  , testCase "buildRequest: the body is rendered and UTF-8 encoded" $ do
+      req <- buildRequest Nothing bodyEnv (withBody "{\"s\": \"{{S}}\"}" (RhsDict HM.empty))
+      case HC.requestBody req of
+          HC.RequestBodyLBS lbs ->
+              assertEqual "body" (Just (Aeson.object ["s" Aeson..= tricky]))
+                  (Aeson.decode lbs :: Maybe Aeson.Value)
+          _ -> assertFailure "expected a lazy ByteString body"
+  , testCase "redactHeader: credential headers are redacted, others kept" $ do
+      let redacted n = snd (redactHeader (CI.mk n, "secret"))
+      mapM_ (\n -> assertEqual (BS.unpack n) "[REDACTED]" (redacted n))
+          ["Authorization", "authorization", "Proxy-Authorization", "Cookie", "Set-Cookie", "X-Api-Key", "X-Auth-Token"]
+      mapM_ (\n -> assertEqual (BS.unpack n) "secret" (redacted n))
+          ["Content-Type", "Accept", "X-Request-Id"]
+  , testCase "present: Authorization is redacted" $ do
+      let hs = RhsDict (HM.fromList [("Authorization", [BEL.R "Bearer re_live_123"])])
+          out = present (withBody "" hs)
+      assertBool ("leaked: " ++ out) (not ("re_live_123" `isInfixOf` out))
+      assertBool ("not marked: " ++ out) ("[REDACTED]" `isInfixOf` out)
+  ]
+  where
+    withBody b hs = mkCallItem
+        { ciRequestSpec = (ciRequestSpec mkCallItem) { rqBody = b, rqHeaders = hs } }
+    contentTypes req = [ v | (k, v) <- HC.requestHeaders req, k == CI.mk "Content-Type" ]
 
 testRenderHeadersMap :: TestTree
 testRenderHeadersMap = testCase "renderHeadersMap: literal" $ do

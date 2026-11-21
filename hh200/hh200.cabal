@@ -155,5 +155,6 @@ test-suite hh200-test
     , text
     , transformers
     , unordered-containers
+    , wai
     , warp
   default-language: Haskell2010

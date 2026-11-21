@@ -13,7 +13,6 @@ module Hh200.Cli
   , go, Args(..)
   ) where
 
-import Debug.Trace
 
 import           Options.Applicative
 import           Control.Exception (finally)
@@ -318,7 +317,7 @@ go args@Args { duration = 1, call = False, source = Just path } = do
     else do
         analyzed <- Scanner.analyze path
         case analyzed of
-            Right script -> trace ("goMode path=" ++ show path) $ goMode script args
+            Right script -> goMode script args
             Left err -> do
                 hPutStrLn stderr ("error: " ++ err)
                 exitWith (ExitFailure 1)

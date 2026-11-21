@@ -139,6 +139,7 @@ tests:
     - scotty
     - sqlite-simple
     - stm
+    - wai
     - warp
     other-modules:
     - CorpusSpec
