@@ -690,12 +690,9 @@ renderJsonBody env = fmap Text.concat . go False
                                 more <- go inStr' (Text.drop 2 close)
                                 pure (before : spliced : more)
 
+    -- Pure: no printing and no clipboard side effects (bel-expr 'evalText').
     evalExpr :: Text -> IO Aeson.Value
-    evalExpr expr = do
-        results <- BEL.mapEval env [Text.strip expr]
-        pure $ case results of
-            (e : _) -> BEL.finalValue e
-            []      -> Aeson.Null
+    evalExpr expr = pure (BEL.evalText env (Text.strip expr))
 
     jsonText :: Aeson.Value -> Text
     jsonText = TE.decodeUtf8With lenientDecode . BL.toStrict . Aeson.encode

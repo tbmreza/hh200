@@ -44,6 +44,7 @@ fixtureApp = do
         S.status status418
         S.text "short and stout"
     S.get "/empty" $ S.raw ""
+    S.get "/tricky" $ S.json (object ["t" .= trickyText])
     -- Echoes what the request carried, so scripts can assert on it with the
     -- usual JSON-subset body check.
     S.post "/echo" $ do
@@ -54,17 +55,26 @@ fixtureApp = do
             subjectOk = case parsed of
                 Just (Object o) -> KeyMap.lookup "subject" o == Just (String utf8Subject)
                 _ -> False
+            trickyOk = case parsed of
+                Just (Object o) -> KeyMap.lookup "t" o == Just (String trickyText)
+                _ -> False
         S.json $ object
             [ "contentTypeCount" .= length cts
             , "contentType" .= map TE.decodeUtf8 cts
             , "body" .= parsed
             , "subjectOk" .= subjectOk
+            , "trickyOk" .= trickyOk
             ]
 
 -- | A subject with a Latin-1 and a non-Latin-1 character ("cafe" with an
 -- acute e, then a check mark), which a Char8-encoded body would corrupt.
 utf8Subject :: Text.Text
 utf8Subject = "caf\233 \10003"
+
+-- | Quotes, a backslash and non-ASCII: survives a capture and an interpolation
+-- into a JSON body only if neither step escapes it the Haskell way.
+trickyText :: Text.Text
+trickyText = "say \"hi\" \\ caf\233 \10003"
 
 -- | Run a script (with @PORT@ replaced by the fixture's port) and classify it.
 runOn :: String -> IO Outcome
@@ -166,6 +176,8 @@ spec = testGroup "Execution (end-to-end verdicts)"
           "GET http://127.0.0.1:PORT/json\nHTTP 200\n[Captures]\nS: {{jsonpath \"$.s\"}}\n\nPOST http://127.0.0.1:PORT/echo\n{\"got\": \"{{S}}\"}\nHTTP 200\n{\"body\": {\"got\": \"x\"}}\n"
       , expect AssertFail "an interpolated body is checked, not sent literally"
           "GET http://127.0.0.1:PORT/json\nHTTP 200\n[Captures]\nS: {{jsonpath \"$.s\"}}\n\nPOST http://127.0.0.1:PORT/echo\n{\"got\": \"{{S}}\"}\nHTTP 200\n{\"body\": {\"got\": \"{{S}}\"}}\n"
+      , expect Ok "a captured string with quotes, backslash and non-ASCII round-trips into a body"
+          "GET http://127.0.0.1:PORT/tricky\nHTTP 200\n[Captures]\nT: {{jsonpath \"$.t\"}}\n\nPOST http://127.0.0.1:PORT/echo\n{\"t\": \"{{T}}\"}\nHTTP 200\n{\"trickyOk\": true}\n"
       , testCase "a non-Latin-1 body is sent as UTF-8" $ do
           got <- runFileOn $
               "POST http://127.0.0.1:PORT/echo\n{\"subject\": \"" ++ Text.unpack utf8Subject
