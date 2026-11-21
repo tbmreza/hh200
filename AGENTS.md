@@ -189,6 +189,15 @@ Run it with `HH200_VAR_RESEND_API_KEY=re_... hh200 resend.hhs`.
 
 ### Phase 0: fix the blockers
 
+**Status (Nov 2026): done in hh200, BEL bump pending.** Findings 5, 20, 21, 22, and 23 (the hh200
+half) are fixed, with tests in `ExecutionSpec` ("phase 0") and `ExecutionRunSpec` ("request body
+(phase 0 regressions)"). The BEL half is on `tbmreza/bel-expr` branch `claude/hh200-phase0`:
+removing `print`/`trace`, rendering strings raw (finding 24), and a pure `evalText`. After it lands,
+bump the `bel-expr` commit in `hh200/stack.yaml`. Then switch `renderJsonBody`'s `evalExpr` from
+`BEL.mapEval` (which prints) to `BEL.evalText`. Until then, each `{{expr}}` in a body prints a line
+to stdout, and captured strings with quotes, backslashes or non-ASCII text are still
+Haskell-escaped.
+
 Findings 5, 20, 21, 22, 23, and 24, in `src/Hh200/Execution.hs` (plus a `bel-expr` bump for the
 `print` in finding 23):
 
