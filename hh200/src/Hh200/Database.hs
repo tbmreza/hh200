@@ -5,7 +5,6 @@
 module Hh200.Database
     where
 
-import Debug.Trace
 
 import           GHC.Generics (Generic)
 import           Control.Exception (try, SomeException, displayException)

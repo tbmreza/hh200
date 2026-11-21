@@ -9,6 +9,11 @@ Notes for agents (and humans) working in this repository.
 - `stack test` runs in `hh200/`, so tests use paths relative to it (`min/`, `../examples`, `../LICENSE`).
 - The toolchain needs `downloads.haskell.org` (GHC), Hackage, and `github.com` (the `bel-expr`
   extra-dep in `hh200/stack.yaml`). Linking needs the system GMP library (`libgmp-dev`).
+- Use stack 3.x. Ubuntu's apt `haskell-stack` (2.9.3) can't verify Hackage's current root keys
+  ("root.json does not have enough signatures"), and its hpack is older than the one that generated
+  `hh200.cabal`, so it ignores `package.yaml`. In a restricted network, where
+  `get.haskellstack.org` is blocked, the release tarball from `github.com/commercialhaskell/stack`
+  works.
 - Regression guards for the open findings below live in `hh200/test/`: `ReleaseScriptSpec`,
   `ExecutionRunSpec`, `CorpusSpec`, and the regression section of `DashboardSpec`. They pin behaviour
   that a fix must keep. A fix that changes behaviour on purpose should add its own test for the new
@@ -114,6 +119,13 @@ the plan below; phase 0 fixes them.
     JSON body, produces invalid JSON or Haskell escapes like `\1234`. Base64 is safe, but a captured
     or external `subject` is not. Body rendering (finding 20) must JSON-escape values that land
     inside a JSON string.
+
+25. **Two more paths still encode text with `Char8`** (found during phase 0, not fixed yet).
+    `analyze (Snippet ...)` round-trips the script through `L8.pack`/`L8.unpack` (`Scanner.hs`,
+    used by `--call` and tests). Expected response bodies are compared after
+    `L8.pack (specResponseBody ci)` (`Execution.hs`, `userAssertions`). Non-Latin-1 text in a
+    snippet, or in an expected response body, is truncated. Scripts loaded from a file are not
+    affected on the request side.
 
 ## Plan: send email with an image attachment through Resend
 

@@ -25,9 +25,9 @@ module Hh200.Execution
   , HhRequestBody(..)
   , BodyPart(..)
   , bodyPartToPart
+  , renderJsonBody
+  , redactHeader
   ) where
-
-import Debug.Trace
 
 -- import           System.IO (hPutStrLn, stderr, stdout, hClose, openFile, IOMode(..))
 import           System.IO (hPutStrLn, stderr, hClose, openFile, IOMode(..))
@@ -387,12 +387,26 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
 
     handleBody :: HI.Request -> String -> [(HeaderName, BS.ByteString)] -> IO HI.Request
     handleBody req renderedForm hs = do
-        let bodyContent = if null renderedForm then BS.pack rqBody else BS.pack renderedForm
-            contentType = if null renderedForm then "text/plain" else "application/x-www-form-urlencoded"
-            encoded = BL.fromStrict bodyContent
-        pure $ req { HC.requestHeaders = (CaseInsensitive.mk "Content-Type", BS.pack contentType) : hs
-                   , HC.requestBody = HC.RequestBodyLBS encoded
+        bodyContent <- if null renderedForm
+            then TE.encodeUtf8 <$> renderJsonBody env (Text.pack rqBody)
+            else pure (TE.encodeUtf8 (Text.pack renderedForm))
+        let contentType
+                | not (null renderedForm)   = "application/x-www-form-urlencoded"
+                | looksLikeJson rqBody      = "application/json"
+                | otherwise                 = "text/plain"
+            userSetsContentType = any ((== "content-type") . CaseInsensitive.foldedCase . fst) hs
+            headers
+                | userSetsContentType = hs
+                | otherwise           = (CaseInsensitive.mk "Content-Type", contentType) : hs
+        pure $ req { HC.requestHeaders = headers
+                   , HC.requestBody = HC.RequestBodyLBS (BL.fromStrict bodyContent)
                    }
+
+    looksLikeJson :: String -> Bool
+    looksLikeJson b = case dropWhile (`elem` (" \t\r\n" :: String)) b of
+        ('{':_) -> True
+        ('[':_) -> True
+        _       -> False
 
     renderRqUrl :: IO String
     renderRqUrl = do
@@ -465,25 +479,25 @@ courseFrom mcc x = do
             t1 <- getPOSIXTime
             capture ctx reqOrThrow r (realToFrac ((t1 - t0) * 1000) :: Double)
             pure r
-        _ <- liftIO $ putStrLn $ present ci  -- ??: only failing ci
         case eitherResp of
             Left e -> do
                 -- https://hackage-content.haskell.org/package/http-client-0.7.19/docs/src/Network.HTTP.Client.Types.html#HttpException
 
                 lift $ Tf.tell [HttpError (show e)]
+                liftIO $ hPutStrLn stderr (present ci)
                 liftIO $ throwIO e
             Right gotResp -> do
                 let envWithResp = env { BEL.storedResponse = gotResp
-                                      , BEL.storedRequest = trace ("reqOrThrow=" ++ show reqOrThrow) reqOrThrow
+                                      , BEL.storedRequest = reqOrThrow
                                       }
-                    !_ = trace ("reqOrThrow=" ++ show reqOrThrow) ()
                 f <- liftIO (upsertCaptures envWithResp ci)
                 modify f
 
                 env' <- get
 
                 ok <- liftIO (userAssertions env' ci)
-                if not ok then
+                if not ok then do
+                    liftIO $ hPutStrLn stderr (present ci)
                     liftIO (throwIO (AssertionFailure (ciName ci)))
                 else
                     go ctx rest
@@ -529,13 +543,12 @@ courseFrom mcc x = do
             let completeCheckedJsonBody =
                     let expectedBs = BL.toStrict expectRespBody
                         gotBs = BL.toStrict gotRespBody
-                    in case (expectedBs, jsonSubset (trace ("expectedBs=" ++ show expectedBs) expectedBs) gotBs) of
-                        -- ("", _) -> trace "jsonSubset skip" True
-                        ("", _) -> trace ("gotStatus=" ++ show gotStatus ++ ";jsonSubset skip") True
-                        (_v, ASubsetOfB) -> trace "jsonSubset true" True
+                    in case (expectedBs, jsonSubset expectedBs gotBs) of
+                        ("", _) -> True
+                        (_v, ASubsetOfB) -> True
                         -- An expected body identical to the response is a (non-strict) subset.
-                        (_v, Equal) -> trace "jsonSubset equal" True
-                        (_, v) -> trace ("jsonSubset=" ++ show v) False
+                        (_v, Equal) -> True
+                        (_, _) -> False
 
 
             -------------------------------------------------------------------
@@ -650,6 +663,63 @@ renderRequestCookies env' (Just (RequestSquareCookies (RhsDict ck))) = do
     pure [(CaseInsensitive.mk "Cookie", cookieHeader)]
 renderRequestCookies _ _ = pure []
 
+-- | Interpolate @{{expr}}@ in a request body, JSON-aware.
+--
+-- Inside a JSON string literal the value is spliced as escaped string content
+-- (a string as its text, anything else as its JSON encoding), so quotes,
+-- backslashes and non-ASCII text stay valid JSON. Outside a string the value
+-- is spliced as JSON (@{{NAME}}@ bound to @"x"@ becomes @"x"@ with quotes).
+-- An unterminated @{{@ is left as is; a body without @{{@ is unchanged.
+renderJsonBody :: BEL.Env -> Text -> IO Text
+renderJsonBody env = fmap Text.concat . go False
+  where
+    go :: Bool -> Text -> IO [Text]
+    go inStr t
+        | Text.null t = pure []
+        | otherwise =
+            case Text.breakOn "{{" t of
+                (before, rest)
+                    | Text.null rest -> pure [t]
+                    | otherwise ->
+                        case Text.breakOn "}}" (Text.drop 2 rest) of
+                            (_, close) | Text.null close -> pure [t]
+                            (expr, close) -> do
+                                let inStr' = stringStateAfter inStr before
+                                v <- evalExpr expr
+                                let spliced = if inStr' then escapeInString v else jsonText v
+                                more <- go inStr' (Text.drop 2 close)
+                                pure (before : spliced : more)
+
+    evalExpr :: Text -> IO Aeson.Value
+    evalExpr expr = do
+        results <- BEL.mapEval env [Text.strip expr]
+        pure $ case results of
+            (e : _) -> BEL.finalValue e
+            []      -> Aeson.Null
+
+    jsonText :: Aeson.Value -> Text
+    jsonText = TE.decodeUtf8With lenientDecode . BL.toStrict . Aeson.encode
+
+    escapeInString :: Aeson.Value -> Text
+    escapeInString v =
+        let raw = case v of
+                Aeson.String s -> s
+                other          -> jsonText other
+            quoted = jsonText (Aeson.String raw)
+        in Text.drop 1 (Text.dropEnd 1 quoted)
+
+-- | Whether a JSON scanner is inside a string literal after reading @t@,
+-- starting in the given state. Backslash escapes are honoured.
+stringStateAfter :: Bool -> Text -> Bool
+stringStateAfter st t = fst (Text.foldl' step (st, False) t)
+  where
+    step (inStr, escaped) c
+        | not inStr  = (c == '"', False)
+        | escaped    = (True, False)
+        | c == '\\' = (True, True)
+        | c == '"'   = (False, False)
+        | otherwise  = (True, False)
+
 --------------------------------------------------------------------------------
 -- More lib than app code
 --------------------------------------------------------------------------------
@@ -710,10 +780,18 @@ capture ctx reqOrThrow eitherResp durMs =
                     , requestBytesOut   = mbBytesOut
                     , requestWorkerId   = Just (ccWorkerId cap)
                     }
-                hdrs = map (mkHeaderRow "request") (HC.requestHeaders reqOrThrow)
-                    ++ map (mkHeaderRow "response") respHeaders
+                hdrs = map (mkHeaderRow "request" . redactHeader) (HC.requestHeaders reqOrThrow)
+                    ++ map (mkHeaderRow "response" . redactHeader) respHeaders
                 bodies = requestBodies mbReqBody ++ [responseBodyRow respBody]
             atomically $ writeTQueue (ccQueue cap) (Just (CapturedRequest row hdrs bodies))
+
+-- | Replace the value of a credential-bearing header (see 'isSensitiveHeader')
+-- so it never reaches the run database.
+redactHeader :: (HeaderName, BS.ByteString) -> (HeaderName, BS.ByteString)
+redactHeader h@(name, _)
+    | isSensitiveHeader (TE.decodeUtf8With lenientDecode (CaseInsensitive.original name)) =
+        (name, TE.encodeUtf8 redactedValue)
+    | otherwise = h
 
 mkHeaderRow :: Text -> (HeaderName, BS.ByteString) -> RequestHeaderRow
 mkHeaderRow dir (name, value) =

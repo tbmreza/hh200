@@ -8,7 +8,6 @@ module Hh200.Dashboard
   , controlSocketWriter
   ) where
 
-import Debug.Trace
 
 import           Control.Concurrent (threadDelay)
 import           Control.Monad (forever, unless)
@@ -60,7 +59,7 @@ dashboardRoutes isDev = do
         Server.middleware (staticPolicy (addBase "min"))
 
     Server.get "/api/runs" $ do
-        conn <- trace "1st initDb" $ liftIO initDb
+        conn <- liftIO initDb
         rows <- liftIO $ listRuns conn
         Server.json $ object ["runs" .= rows]
 
@@ -77,7 +76,7 @@ dashboardRoutes isDev = do
                 Server.json $ object ["run" .= row, "state" .= ("running" :: String)]
 
     Server.get "/api/runs/:runId" $ do
-        conn <- trace "2nd initDb" $ liftIO initDb
+        conn <- liftIO initDb
         runId :: Int <- pathParam "runId"
         result <- liftIO $ getRunById conn (fromIntegral runId)
         case result of

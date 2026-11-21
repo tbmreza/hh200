@@ -18,7 +18,6 @@ module Hh200.TokenBucketWorkerPool
   , RunState(..)
   ) where
 
-import Debug.Trace
 
 import qualified Data.HashMap.Strict as HM
 import           Control.Concurrent

@@ -14,7 +14,6 @@ module Hh200.Runner
   , startRun
   ) where
 
-import Debug.Trace
 
 import           Control.Concurrent (forkIO, threadDelay, newEmptyMVar, takeMVar, putMVar, MVar)
 import           Control.Concurrent.STM (atomically, newTVarIO, writeTVar, newTQueueIO, readTQueue, writeTQueue, TQueue)
@@ -163,7 +162,7 @@ ensureNoActiveRun :: Connection -> ExceptT StartError IO ()
 ensureNoActiveRun conn = do
     active <- liftEither' StartRejected (getLatestRunningRun conn)
     case active of
-        Just _  -> trace "AT:ensureNoActiveRun" $ throwE StartConflict
+        Just _  -> throwE StartConflict
         Nothing -> pure ()
 
 -- | Insert the @runs@ row and return its id.
@@ -198,7 +197,7 @@ startRun req = runExceptT $ do
     (path, script) <- resolveScript req
     conn <- liftIO initDb
     -- ensureNoActiveRun conn
-    rid <- trace "AT:rid" $ insertNewRun conn req path
+    rid <- insertNewRun conn req path
     liftIO $ launchWorkers conn rid script (reqNvu req) (reqDuration req) (reqRampUp req)
     pure rid
 
