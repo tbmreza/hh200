@@ -129,6 +129,8 @@ tests:
     - bytestring
     - aeson
     - directory
+    - filepath
+    - process
     - case-insensitive
     - bel-expr
     - http-client
@@ -139,6 +141,7 @@ tests:
     - stm
     - warp
     other-modules:
+    - CorpusSpec
     - CurlSpec
     - CurlTest.Parse
     - CurlTest.Preprocess
@@ -147,10 +150,12 @@ tests:
     - CurlTest.Util
     - CurlUnitSpec
     - DashboardSpec
+    - ExecutionRunSpec
     - ExecutionSpec
     - LspSpec
     - McpResourceSpec
     - MustacheSpec
+    - ReleaseScriptSpec
     - ScannerSpec
     - TokenBucketWorkerPoolSpec
     - ValidateSpec

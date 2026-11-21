@@ -11,6 +11,9 @@ import qualified McpResourceSpec
 import qualified ValidateSpec
 import qualified CurlSpec
 import qualified CurlUnitSpec
+import qualified ExecutionRunSpec
+import qualified CorpusSpec
+import qualified ReleaseScriptSpec
 
 -- Run everything on a single thread: the Dashboard tests mutate process-global
 -- environment variables (HH200_SQLITE, HH200_CONTROL_SOCKET), so they must not
@@ -27,4 +30,7 @@ main = defaultMain $ localOption (NumThreads 1) $ testGroup "Hh200 Tests"
   , ValidateSpec.spec
   , CurlSpec.spec
   , CurlUnitSpec.spec
+  , ExecutionRunSpec.spec
+  , CorpusSpec.spec
+  , ReleaseScriptSpec.spec
   ]

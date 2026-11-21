@@ -5,7 +5,7 @@ module DashboardSpec (spec) where
 import           Control.Concurrent (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception (finally)
 import           Control.Monad (when)
-import           Data.Aeson (encode, object, (.=))
+import           Data.Aeson (Value (..), decodeStrict, encode, object, (.=))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BL
@@ -20,11 +20,12 @@ import           Network.Wai.Handler.Warp (testWithApplication)
 import           System.Directory (getTemporaryDirectory, removeFile)
 import           System.Environment (setEnv, unsetEnv)
 import           System.IO (hClose, openTempFile)
+import           System.Timeout (timeout)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Web.Scotty (scottyApp)
 
-import           Hh200.Dashboard (dashboardRoutes)
+import           Hh200.Dashboard (controlSocketPath, dashboardRoutes)
 
 --------------------------------------------------------------------------------
 -- Harness
@@ -164,8 +165,13 @@ spec = testGroup "Dashboard"
   , testRunStartInserts
   , testRunStartRejected
   , testSigForwards
+  , testControlSocketDefault
+  , testControlSocketEnv
+  , testRunRecordsControlSocket
   , testSse
+  , testSseFramesAreJson
   , testStaticProd
+  , testStaticHashedAsset
   , testStaticDev
   ]
 
@@ -360,3 +366,74 @@ testStaticDev = testCase "dev does not serve the SPA file" $ do
         resp <- getLbs mgr port "/"
         assertStatus 200 resp
         assertEqual "empty body in dev" "" (L8.unpack (HC.responseBody resp))
+
+--------------------------------------------------------------------------------
+-- Regression guards
+--------------------------------------------------------------------------------
+
+testControlSocketDefault :: TestTree
+testControlSocketDefault = testCase "control socket defaults to /tmp/uds_socket" $ do
+    unsetEnv "HH200_CONTROL_SOCKET"
+    p <- controlSocketPath
+    assertEqual "default path" "/tmp/uds_socket" p
+
+testControlSocketEnv :: TestTree
+testControlSocketEnv = testCase "HH200_CONTROL_SOCKET overrides the control socket path" $ do
+    setEnv "HH200_CONTROL_SOCKET" "/tmp/hh200-spec-socket"
+    p <- controlSocketPath `finally` unsetEnv "HH200_CONTROL_SOCKET"
+    assertEqual "overridden path" "/tmp/hh200-spec-socket" p
+
+-- | The socket a started run records must be the one @/api/sig@ writes to,
+-- otherwise pause/resume/stop from the dashboard reach nobody.
+testRunRecordsControlSocket :: TestTree
+testRunRecordsControlSocket = testCase "a started run records the dashboard's control socket" $ do
+    unsetEnv "HH200_CONTROL_SOCKET"
+    expected <- controlSocketPath
+    withScript "GET http://localhost:1/x\nHTTP 200\n" $ \fp ->
+        withTestDb False $ do
+            withDashboard False $ \mgr port -> do
+                resp <- postLbs mgr port "/api/run" (runReq fp 1 0)
+                assertStatus 200 resp
+                list <- getLbs mgr port "/api/runs"
+                assertBodyContains ("\"control_socket\":" ++ show expected) list
+
+-- | Every frame on @/api/sse@ is a @data: <json>@ line; check two in a row.
+testSseFramesAreJson :: TestTree
+testSseFramesAreJson = testCase "GET /api/sse frames carry well-formed JSON objects" $ do
+    withDashboard False $ \mgr port -> do
+        req <- HC.parseRequest ("http://127.0.0.1:" ++ show port ++ "/api/sse")
+        HC.withResponse req mgr $ \resp -> do
+            mFrames <- timeout 15000000 (collectFrames (HC.responseBody resp) 2)
+            case mFrames of
+                Nothing -> assertFailure "timed out waiting for two SSE frames"
+                Just frames -> mapM_ checkFrame frames
+  where
+    checkFrame f =
+        case BS.stripPrefix "data: " f of
+            Nothing -> assertFailure ("frame lacks data: prefix: " ++ show f)
+            Just payload -> case decodeStrict payload :: Maybe Value of
+                Just (Object _) -> pure ()
+                other -> assertFailure ("payload is not a JSON object: " ++ show payload ++ " -> " ++ show other)
+
+-- | Collect @n@ complete @\\n\\n@-terminated frames (terminator stripped).
+collectFrames :: HC.BodyReader -> Int -> IO [BS.ByteString]
+collectFrames br n = go BS.empty []
+  where
+    go buf acc
+        | length acc >= n = pure (take n (reverse acc))
+        | otherwise =
+            let (frame, rest) = BS.breakSubstring "\n\n" buf
+            in if not (BS.null rest)
+                then go (BS.drop 2 rest) (frame : acc)
+                else do
+                    chunk <- HC.brRead br
+                    if BS.null chunk
+                        then pure (reverse acc)
+                        else go (buf <> chunk) acc
+
+testStaticHashedAsset :: TestTree
+testStaticHashedAsset = testCase "prod serves SvelteKit build assets under /_app" $ do
+    withDashboard False $ \mgr port -> do
+        resp <- getLbs mgr port "/_app/version.json"
+        assertStatus 200 resp
+        assertBodyContains "\"version\"" resp

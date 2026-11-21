@@ -39,9 +39,35 @@ mkdir -p "${STAGE_DIR}"
 cp "${SRC_BIN}" "${STAGE_DIR}/${BIN_NAME}"
 chmod +x "${STAGE_DIR}/${BIN_NAME}"
 
-for f in README.md LICENSE; do
-  [ -f "${ROOT_DIR}/${f}" ] && cp "${ROOT_DIR}/${f}" "${STAGE_DIR}/${f}"
-done
+# Docs to ship: look in the working directory first, then at the repository
+# root (one level above this script), since LICENSE lives at the repo root
+# while the script is normally run from hh200/.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+find_doc() {
+  for dir in "${ROOT_DIR}" "${REPO_ROOT}"; do
+    if [ -f "${dir}/$1" ]; then
+      echo "${dir}/$1"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if README_SRC="$(find_doc README.md)"; then
+  cp "${README_SRC}" "${STAGE_DIR}/README.md"
+else
+  echo "warning: README.md not found, packaging without it" >&2
+fi
+
+# The MIT license requires the notice to ship with the binary: no LICENSE, no release.
+if LICENSE_SRC="$(find_doc LICENSE)"; then
+  cp "${LICENSE_SRC}" "${STAGE_DIR}/LICENSE"
+else
+  echo "LICENSE not found in ${ROOT_DIR} or ${REPO_ROOT}; refusing to package" >&2
+  exit 1
+fi
 
 # 4. tar.gz it (relative paths only, so extraction doesn't leak absolute dirs)
 echo "==> Creating tarball"

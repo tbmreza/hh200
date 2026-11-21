@@ -113,6 +113,7 @@ test-suite hh200-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      CorpusSpec
       CurlSpec
       CurlTest.Parse
       CurlTest.Preprocess
@@ -121,10 +122,12 @@ test-suite hh200-test
       CurlTest.Util
       CurlUnitSpec
       DashboardSpec
+      ExecutionRunSpec
       ExecutionSpec
       LspSpec
       McpResourceSpec
       MustacheSpec
+      ReleaseScriptSpec
       ScannerSpec
       TokenBucketWorkerPoolSpec
       ValidateSpec
@@ -138,10 +141,12 @@ test-suite hh200-test
     , bytestring
     , case-insensitive
     , directory
+    , filepath
     , hh200
     , http-client
     , http-types
     , network
+    , process
     , scotty
     , sqlite-simple
     , stm
