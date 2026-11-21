@@ -11,6 +11,7 @@ import           Data.List (isPrefixOf, isSuffixOf, sort)
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           System.Directory (doesDirectoryExist, listDirectory)
 import           System.FilePath ((</>))
+import           System.IO (IOMode (ReadMode), hGetContents, hSetEncoding, utf8, withFile)
 import           System.IO.Unsafe (unsafePerformIO)
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -37,11 +38,11 @@ exampleTests = do
     files <- hhsFilesUnder examplesRoot
     pure $ if null files
         then [testCase "examples directory is present" (assertFailure ("no .hhs files under " ++ examplesRoot))]
-        else [ testCase f (readFile f >>= assertParses f) | f <- files ]
+        else [ testCase f (readUtf8 f >>= assertParses f) | f <- files ]
 
 grammarDocTests :: IO [TestTree]
 grammarDocTests = do
-    doc <- readFile grammarDoc
+    doc <- readUtf8 grammarDoc
     let blocks = hhsBlocks (lines doc)
     pure $ if null blocks
         then [testCase "grammar doc has hhs examples" (assertFailure "no ```hhs blocks found")]
@@ -72,3 +73,10 @@ hhsFilesUnder dir = do
         dirs <- filterM doesDirectoryExist entries
         nested <- forM dirs hhsFilesUnder
         pure (filter (".hhs" `isSuffixOf`) entries ++ concat nested)
+
+-- | Read a file as UTF-8 whatever the locale (the grammar doc is not ASCII).
+readUtf8 :: FilePath -> IO String
+readUtf8 fp = withFile fp ReadMode $ \h -> do
+    hSetEncoding h utf8
+    s <- hGetContents h
+    length s `seq` pure s

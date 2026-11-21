@@ -533,6 +533,8 @@ courseFrom mcc x = do
                         -- ("", _) -> trace "jsonSubset skip" True
                         ("", _) -> trace ("gotStatus=" ++ show gotStatus ++ ";jsonSubset skip") True
                         (_v, ASubsetOfB) -> trace "jsonSubset true" True
+                        -- An expected body identical to the response is a (non-strict) subset.
+                        (_v, Equal) -> trace "jsonSubset equal" True
                         (_, v) -> trace ("jsonSubset=" ++ show v) False
 
 
