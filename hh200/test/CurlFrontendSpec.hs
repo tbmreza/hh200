@@ -17,7 +17,7 @@ import           Hh200.Curl
 import           Hh200.Scanner (analyze)
 import           Hh200.Types
 
--- | The snippet from AGENTS.md, as a user would paste it.
+-- | The Resend snippet (email with a base64 image attachment), as a user would paste it.
 resendSnippet :: String -> String
 resendSnippet url = unlines
     [ "IMG_BASE64=$(base64 -w 0 ./photo.png)"

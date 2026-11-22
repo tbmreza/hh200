@@ -73,7 +73,7 @@ spec = testGroup "Execution"
   ]
 
 -- ---------------------------------------------------------------------------
--- Phase 0 (AGENTS.md findings 20-24): body rendering, Content-Type, redaction.
+-- Phase 0: body rendering, Content-Type, redaction.
 -- ---------------------------------------------------------------------------
 
 -- | A string that breaks naive interpolation: quotes, a backslash, a Latin-1
