@@ -4,10 +4,18 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit-tests:
     name: Unit tests (stack test)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,7 +24,7 @@ jobs:
         uses: haskell-actions/setup@v2
         with:
           enable-stack: true
-          stack-version: 'latest'
+          stack-version: '3'
 
       - name: Cache Stack
         uses: actions/cache@v4
@@ -24,14 +32,10 @@ jobs:
           path: |
             ~/.stack
             hh200/.stack-work
-          key: ${{ runner.os }}-stack-${{ hashFiles('hh200/stack.yaml', 'hh200/stack.yaml.lock', 'hh200/package.yaml') }}
+          key: ${{ runner.os }}-stack-${{ hashFiles('hh200/stack.yaml', 'hh200/stack.yaml.lock', 'hh200/package.yaml', 'hh200/hh200.cabal') }}
           restore-keys: |
             ${{ runner.os }}-stack-
 
-      - name: Build
-        working-directory: hh200
-        run: stack build --test --no-run-tests
-
-      - name: Run tests
+      - name: Build and run tests
         working-directory: hh200
         run: stack test

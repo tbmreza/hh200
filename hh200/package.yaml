@@ -81,7 +81,6 @@ library:
   - array
   - hashtables
   - split
-  - ghc
   - http-types
   - http-conduit
   - toml-parser
