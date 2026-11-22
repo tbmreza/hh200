@@ -214,23 +214,6 @@ trip. Add a `DashboardSpec` or `Database` test showing `Authorization` stored as
 
 ### Phase 1: native `.hhs` support
 
-**Status (Nov 2026): done.** Where the code ended up:
-- `src/Hh200/Inputs.hs` holds `RunInputs` (external variables plus a `FilePolicy`), `--var` parsing,
-  `HH200_VAR_*` lookup, `confinedPath` (shared with `Runner.resolveScriptPath`), and the `file,` /
-  `base64-file,` readers.
-- `courier` takes the `RunInputs`. The CLI builds them in `goMode`. Dashboard runs build them in
-  `Runner.dashboardRunInputs`, confined to `HH200_SCRIPT_ROOT`.
-- `Execution.prepareCallItem` evaluates `[Vars]` and refuses unbound names, raising
-  `ScriptInputError`. It runs in `courseFrom` before `buildRequest`, rather than having
-  `buildRequest` return the env as item 3 suggested, so `buildRequest` stays as it was.
-- The unbound check only looks at bare names (`{{NAME}}`). An expression like
-  `{{jsonpath "$.x"}}` may still render `null`. `[Vars]` entries can't use a sibling entry, because
-  a block's entries have no defined order.
-- `MCP` doesn't execute scripts, so it needed no change.
-
-Tests: `ScannerSpec` ("[Vars] square"), `ExecutionSpec` ("phase 1"), and `ExecutionRunSpec`
-("phase 1: [Vars], files, external variables"). The original plan follows.
-
 1. **External variables.** Add `--var NAME=VALUE` (repeatable) to `src/Hh200/Cli.hs` and read
    `HH200_VAR_*` at startup. Seed them into the initial `Env` that is currently `newEnv`. Thread the
    same seed through `Runner.hs` for dashboard runs, and through `McpServer.hs` if it executes

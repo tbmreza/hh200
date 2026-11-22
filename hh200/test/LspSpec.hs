@@ -5,7 +5,7 @@ import Test.Tasty.HUnit
 import Data.List (isInfixOf)
 
 import Hh200.Scanner as Hh
-import Hh200.Types (Script, Snippet(..), SrcSpan(..), Diagnostic(..))
+import Hh200.Types (Script, Snippet(..), SrcSpan(..), Diagnostic(..), CallItem(..), RequestSpec(..), callItems, ciRequestSpec, rqMethod, rqBody)
 import qualified Data.ByteString.Lazy.Char8 as L8
 
 -- | Lex and parse an inline script into its indexed 'Script'.
@@ -213,11 +213,12 @@ testLSP_formatting = testGroup "LSP formatting"
     ]
 
 testLSP_scanComplex :: TestTree
-testLSP_scanComplex = testCase "valid complex input" $ do
-        let input = "POST /foo\n{\"a\": 1}"
-        case Hh.scanSafe input of
-            Right toks -> do
-                let isPost (Hh.METHOD _ "POST") = True
-                    isPost _ = False
-                assertBool "Has POST" (any isPost toks)
-            Left err -> assertFailure ("Scan failed: " ++ Hh.lexErrorMsg err)
+testLSP_scanComplex = testCase "valid complex input parses into a request" $ do
+        let input = "POST http://localhost/foo\n{\"a\": 1}"
+        script <- parseScript input
+        case callItems script of
+            [ci] -> do
+                let rs = ciRequestSpec ci
+                assertEqual "POST method" "POST" (rqMethod rs)
+                assertBool "JSON body is retained" ("\"a\"" `isInfixOf` rqBody rs)
+            items -> assertFailure ("expected one call item, got " ++ show (length items))
