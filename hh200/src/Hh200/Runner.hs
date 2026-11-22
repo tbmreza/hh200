@@ -22,17 +22,17 @@ import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, except, throwE)
 import           Data.Aeson (Value, object, (.=), FromJSON (..), withObject, (.:), (.:?), (.!=))
 import           Data.Int (Int64)
-import           Data.List (isPrefixOf)
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Database.SQLite.Simple (Connection)
 import           System.Directory (canonicalizePath, doesFileExist, makeAbsolute)
-import           System.Environment (lookupEnv)
-import           System.FilePath ((</>), isRelative, normalise, splitDirectories)
+import           System.Environment (getEnvironment, lookupEnv)
+import           System.FilePath (takeDirectory)
 
 import           Hh200.Database (initDb, insertRun, updateRunStatus, getLatestRunningRun, RunRow (..), RREndTime (..), insertCapturedRequest, CapturedRequest (..))
 import           Hh200.Execution (CaptureCtx (..))
+import           Hh200.Inputs (RunInputs (..), FilePolicy (..), confinedPath, externalVars)
 import           Hh200.Scanner (analyze, diagnostics)
 import           Hh200.TokenBucketWorkerPool (courier, RunState (..))
 import           Hh200.Types (Script (..), Diagnostic (..), SrcSpan (..))
@@ -67,16 +67,18 @@ data StartError
 -- Rejects paths that escape the root (path traversal / arbitrary reads).
 resolveScriptPath :: FilePath -> IO (Either Text FilePath)
 resolveScriptPath raw = do
+    rootAbs <- scriptRoot
+    mPath <- confinedPath (Just rootAbs) rootAbs raw
+    pure $ case mPath of
+        Just candAbs -> Right candAbs
+        Nothing -> Left (Text.pack ("script path escapes script root: " ++ raw))
+
+-- | The directory dashboard runs may read scripts (and files those scripts
+-- name) from: @HH200_SCRIPT_ROOT@, or the working directory.
+scriptRoot :: IO FilePath
+scriptRoot = do
     mRoot <- lookupEnv "HH200_SCRIPT_ROOT"
-    rootAbs <- makeAbsolute (fromMaybe "." mRoot) >>= canonicalizePath
-    let joined = if isRelative raw then rootAbs </> raw else raw
-    candAbs <- makeAbsolute joined >>= canonicalizePath
-    let rootDirs = splitDirectories (normalise rootAbs)
-        candDirs = splitDirectories (normalise candAbs)
-    pure $
-        if rootDirs `isPrefixOf` candDirs && length candDirs > length rootDirs
-            then Right candAbs
-            else Left (Text.pack ("script path escapes script root: " ++ raw))
+    makeAbsolute (fromMaybe "." mRoot) >>= canonicalizePath
 
 -- | Pre-flight a run: validate the script and compute what we can foresee.
 runPlan :: RunRequest -> IO Value
@@ -198,14 +200,27 @@ startRun req = runExceptT $ do
     conn <- liftIO initDb
     -- ensureNoActiveRun conn
     rid <- insertNewRun conn req path
-    liftIO $ launchWorkers conn rid script (reqNvu req) (reqDuration req) (reqRampUp req)
+    inputs <- liftIO (dashboardRunInputs path)
+    liftIO $ launchWorkers conn rid inputs script (reqNvu req) (reqDuration req) (reqRampUp req)
     pure rid
 
 -- | Fork one courier per virtual user (staggered by @rampUp@), a duration timer
 -- (timed runs only), and a completion watcher that marks the run @completed@/
 -- @failed@.
-launchWorkers :: Connection -> Int64 -> Script -> Int -> Int -> Int -> IO ()
-launchWorkers conn runId script nvu duration rampUp = do
+-- | Inputs for a dashboard run: @HH200_VAR_*@ variables (there is no @--var@
+-- here), and files resolved against the script's directory but confined to
+-- the script root, so a submitted script can't read files outside it.
+dashboardRunInputs :: FilePath -> IO RunInputs
+dashboardRunInputs path = do
+    environment <- getEnvironment
+    root <- scriptRoot
+    pure RunInputs
+        { riVars = externalVars environment []
+        , riFiles = FilePolicy { fpBaseDir = takeDirectory path, fpRoot = Just root }
+        }
+
+launchWorkers :: Connection -> Int64 -> RunInputs -> Script -> Int -> Int -> Int -> IO ()
+launchWorkers conn runId inputs script nvu duration rampUp = do
     cue <- newTVarIO Running
     drawer <- replicateM nvu newEmptyMVar
     queue <- newTQueueIO
@@ -216,7 +231,7 @@ launchWorkers conn runId script nvu duration rampUp = do
         let capCtx = CaptureCtx { ccQueue = queue, ccRunId = runId, ccWorkerId = workerId, ccSeq = seqTv }
         _ <- forkIO $ do
             when (workerId > 0) $ threadDelay (staggerMicros rampUp nvu workerId)
-            courier (Just capCtx) script (cue, duration) hole
+            courier (Just capCtx) inputs script (cue, duration) hole
         pure ()
 
     when (duration > 0) $ do

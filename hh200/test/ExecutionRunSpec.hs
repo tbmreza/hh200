@@ -25,12 +25,18 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import qualified Web.Scotty as S
 
-import           Hh200.Execution (AssertionFailure (..), runScriptM)
+import           Hh200.Execution (AssertionFailure (..), CourierCtx (..), runScriptM, runScriptMWith)
+import           Hh200.Inputs (FilePolicy (..), RunInputs (..), ScriptInputError (..), seedEnv)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.HashMap.Strict as HM
+import           System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
+import           System.FilePath ((</>))
 import           Hh200.Scanner (analyze)
 import qualified Data.Text as Text
 import           Hh200.Types (Script, Snippet (..), newEnv)
 
-data Outcome = Ok | AssertFail | HttpErr | Other String
+data Outcome = Ok | AssertFail | HttpErr | InputErr | Other String
     deriving (Show, Eq)
 
 -- | A tiny fixed server the scripts run against.
@@ -51,6 +57,7 @@ fixtureApp = do
         wreq <- S.request
         raw <- S.body
         let cts = [ v | (k, v) <- Wai.requestHeaders wreq, k == CI.mk "Content-Type" ]
+            auth = lookup (CI.mk "Authorization") (Wai.requestHeaders wreq)
             parsed = decode raw :: Maybe Value
             subjectOk = case parsed of
                 Just (Object o) -> KeyMap.lookup "subject" o == Just (String utf8Subject)
@@ -64,6 +71,7 @@ fixtureApp = do
             , "body" .= parsed
             , "subjectOk" .= subjectOk
             , "trickyOk" .= trickyOk
+            , "authorization" .= fmap TE.decodeUtf8 auth
             ]
 
 -- | A subject with a Latin-1 and a non-Latin-1 character ("cafe" with an
@@ -90,11 +98,15 @@ runOn src = do
                 classify script
 
 classify :: Script -> IO Outcome
-classify script = do
-    r <- try (runScriptM script newEnv) :: IO (Either SomeException ())
+classify = classifyWith (runScriptM `flip` newEnv)
+
+classifyWith :: (Script -> IO ()) -> Script -> IO Outcome
+classifyWith run script = do
+    r <- try (run script) :: IO (Either SomeException ())
     pure $ case r of
         Right () -> Ok
         Left e
+            | Just (_ :: ScriptInputError) <- fromException e -> InputErr
             | Just (_ :: AssertionFailure) <- fromException e -> AssertFail
             | Just (_ :: HC.HttpException) <- fromException e -> HttpErr
             | otherwise -> Other (show e)
@@ -184,8 +196,106 @@ spec = testGroup "Execution (end-to-end verdicts)"
               ++ "\"}\nHTTP 200\n{\"subjectOk\": true}\n"
           assertEqual "outcome" Ok got
       ]
+  , phase1Tests
   , testGroup "transport"
       [ expect HttpErr "connection refused is an HTTP error, not an assertion failure"
           "GET http://127.0.0.1:1/json\nHTTP 200\n"
       ]
   ]
+
+-- ---------------------------------------------------------------------------
+-- Phase 1: [Vars], file values, external variables, unbound names.
+-- ---------------------------------------------------------------------------
+
+-- | Bytes that are not valid UTF-8 (a PNG signature plus a NUL and 0xFF), so
+-- only a byte-exact base64 path reproduces them.
+photoBytes :: BS.ByteString
+photoBytes = BS.pack [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0xFF, 0x10]
+
+-- | Run with a temp directory holding @photo.png@, @note.txt@ and a @sub/@
+-- directory. The callback gets the directory and builds the inputs.
+withFixtureDir :: (FilePath -> IO a) -> IO a
+withFixtureDir k = do
+    tmp <- getTemporaryDirectory
+    (marker, h) <- openTempFile tmp "hh200-phase1"
+    hClose h
+    removeFile marker
+    let dir = marker ++ ".d"
+    createDirectoryIfMissing True (dir </> "sub")
+    BS.writeFile (dir </> "photo.png") photoBytes
+    BS.writeFile (dir </> "note.txt") "hello from a file"
+    r <- k dir
+    removeDirectoryRecursive dir
+    pure r
+
+runWith :: RunInputs -> String -> IO Outcome
+runWith inputs src = do
+    app <- S.scottyApp fixtureApp
+    testWithApplication (pure app) $ \port -> do
+        let rendered = replace "PORT" (show port) src
+        parsed <- analyze (Snippet (L8.pack rendered))
+        case parsed of
+            Left err -> assertFailure ("fixture script does not parse: " ++ err ++ "\n" ++ rendered)
+                        >> pure (Other "unparsed")
+            Right script ->
+                let ctx = CourierCtx { courierName = "t", courierCapture = Nothing, courierFiles = riFiles inputs }
+                in classifyWith (\s -> runScriptMWith ctx s (seedEnv inputs)) script
+
+inputsAt :: FilePath -> RunInputs
+inputsAt dir = RunInputs { riVars = HM.empty, riFiles = FilePolicy { fpBaseDir = dir, fpRoot = Nothing } }
+
+expectIn :: Outcome -> String -> (FilePath -> RunInputs) -> String -> TestTree
+expectIn want name mkInputs src = testCase name $ do
+    got <- withFixtureDir (\dir -> runWith (mkInputs dir) src)
+    assertEqual ("outcome of:\n" ++ src) want got
+
+phase1Tests :: TestTree
+phase1Tests = testGroup "phase 1: [Vars], files, external variables"
+  [ expectIn Ok "base64-file, sends the file's bytes as base64" inputsAt $
+      "POST http://127.0.0.1:PORT/echo\n[Vars]\nIMG: base64-file,photo.png\n"
+      ++ "{\"attachments\": [{\"filename\": \"photo.png\", \"content\": \"{{IMG}}\"}]}\n"
+      ++ "HTTP 200\n{\"body\": {\"attachments\": [{\"content\": \"" ++ photoBase64 ++ "\"}]}}\n"
+  , expectIn Ok "file, sends the file's text" inputsAt $
+      "POST http://127.0.0.1:PORT/echo\n[Vars]\nNOTE: file,note.txt\n{\"note\": \"{{NOTE}}\"}\n"
+      ++ "HTTP 200\n{\"body\": {\"note\": \"hello from a file\"}}\n"
+  , expectIn Ok "relative paths resolve against the policy's base directory, not the cwd"
+      (\dir -> (inputsAt (dir </> "sub")))
+      "POST http://127.0.0.1:PORT/echo\n[Vars]\nNOTE: file,../note.txt\n{\"note\": \"{{NOTE}}\"}\nHTTP 200\n{\"body\": {\"note\": \"hello from a file\"}}\n"
+  , expectIn Ok "[Vars] values persist into later call items" inputsAt $
+      "POST http://127.0.0.1:PORT/echo\n[Vars]\nX: hello\n{\"a\": 1}\nHTTP 200\n\n"
+      ++ "POST http://127.0.0.1:PORT/echo\n{\"x\": \"{{X}}\"}\nHTTP 200\n{\"body\": {\"x\": \"hello\"}}\n"
+  , expectIn Ok "an external variable reaches a header"
+      (\dir -> (inputsAt dir) { riVars = HM.fromList [("API_KEY", String "re_test_123")] })
+      "POST http://127.0.0.1:PORT/echo\nAuthorization: Bearer {{API_KEY}}\n{\"a\": 1}\nHTTP 200\n{\"authorization\": \"Bearer re_test_123\"}\n"
+  , expectIn Ok "a [Vars] entry can use an external variable"
+      (\dir -> (inputsAt dir) { riVars = HM.fromList [("NAME", String "world")] })
+      "POST http://127.0.0.1:PORT/echo\n[Vars]\nGREETING: hello {{NAME}}\n{\"g\": \"{{GREETING}}\"}\nHTTP 200\n{\"body\": {\"g\": \"hello world\"}}\n"
+    -- The refusals below point at port 1: had a request gone out, the outcome
+    -- would be HttpErr, so InputErr shows nothing was sent.
+  , expectIn InputErr "a path escaping the script root is refused before sending"
+      (\dir -> FilePolicy (dir </> "sub") (Just (dir </> "sub")) `asFilesOf` inputsAt dir)
+      "POST http://127.0.0.1:1/echo\n[Vars]\nIMG: base64-file,../photo.png\n{\"c\": \"{{IMG}}\"}\n"
+  , expectIn InputErr "an absolute path outside the script root is refused"
+      (\dir -> FilePolicy (dir </> "sub") (Just (dir </> "sub")) `asFilesOf` inputsAt dir)
+      "POST http://127.0.0.1:1/echo\n[Vars]\nP: file,/etc/passwd\n{\"c\": \"{{P}}\"}\n"
+  , expectIn Ok "a file under the script root is allowed"
+      (\dir -> FilePolicy dir (Just dir) `asFilesOf` inputsAt dir)
+      "POST http://127.0.0.1:PORT/echo\n[Vars]\nNOTE: file,note.txt\n{\"note\": \"{{NOTE}}\"}\nHTTP 200\n{\"body\": {\"note\": \"hello from a file\"}}\n"
+  , expectIn InputErr "a missing file is refused before sending" inputsAt
+      "POST http://127.0.0.1:1/echo\n[Vars]\nIMG: base64-file,nope.png\n{\"c\": \"{{IMG}}\"}\n"
+  , expectIn InputErr "file, refuses non-UTF-8 bytes" inputsAt
+      "POST http://127.0.0.1:1/echo\n[Vars]\nIMG: file,photo.png\n{\"c\": \"{{IMG}}\"}\n"
+  , expectIn InputErr "an unbound {{NAME}} in a header fails before sending" inputsAt
+      "POST http://127.0.0.1:1/echo\nAuthorization: Bearer {{RESEND_API_KEY}}\n{\"a\": 1}\n"
+  , expectIn InputErr "an unbound {{NAME}} in the body fails before sending" inputsAt
+      "POST http://127.0.0.1:1/echo\n{\"a\": \"{{MISSING}}\"}\n"
+  , expectIn InputErr "an unbound {{NAME}} in the URL fails before sending" inputsAt
+      "GET http://127.0.0.1:1/{{MISSING}}\n"
+  , expectIn InputErr "a [Vars] entry can't use an unbound name" inputsAt
+      "POST http://127.0.0.1:1/echo\n[Vars]\nA: x{{MISSING}}\n{\"a\": \"{{A}}\"}\n"
+  , expectIn HttpErr "expressions aren't treated as unbound names" inputsAt
+      "POST http://127.0.0.1:1/echo\n{\"n\": {{1 + 2}}}\n"
+  ]
+  where
+    photoBase64 = L8.unpack (L8.fromStrict (B64.encode photoBytes))
+    asFilesOf policy inputs = inputs { riFiles = policy }

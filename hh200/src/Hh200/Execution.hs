@@ -27,6 +27,8 @@ module Hh200.Execution
   , bodyPartToPart
   , renderJsonBody
   , redactHeader
+  , prepareCallItem
+  , unboundNames
   ) where
 
 -- import           System.IO (hPutStrLn, stderr, stdout, hClose, openFile, IOMode(..))
@@ -49,6 +51,8 @@ import           Control.Monad (foldM, forM, mzero)
 import qualified Control.Monad.Trans.RWS.Strict as Tf
 
 import           Data.Traversable (for)
+import           Data.Char (isAlphaNum, isDigit)
+import           Data.Either (partitionEithers)
 -- import           Data.Maybe (fromMaybe)
 import           Data.Int (Int64)
 import           Data.Time.Clock.POSIX (getPOSIXTime)
@@ -99,6 +103,7 @@ import qualified Network.HTTP.Client.Internal as HI
 
 import qualified BEL
 import qualified Hh200.Http as Http
+import           Hh200.Inputs (FilePolicy, defaultFilePolicy, ScriptInputError (..), readVarValue)
 import           Hh200.Database (CapturedRequest (..), RequestRow (..), RequestHeaderRow (..), RequestBodyRow (..))
 import           Hh200.Types
 -- import           Hh200.Scanner (gatherHostInfo)
@@ -276,6 +281,7 @@ asBS v                = BL.toStrict (Aeson.encode v)
 data CourierCtx = CourierCtx
   { courierName    :: Text
   , courierCapture :: Maybe CaptureCtx
+  , courierFiles   :: FilePolicy  -- ^ where @file,@/@base64-file,@ paths resolve
   }
 
 -- | The reader environment threaded through 'ProcM': the shared HTTP manager
@@ -283,6 +289,7 @@ data CourierCtx = CourierCtx
 data RunCtx = RunCtx
   { rcManager :: Http.Manager
   , rcCapture :: Maybe CaptureCtx
+  , rcFiles   :: FilePolicy
   }
 
 -- | Everything a courier needs to record its requests: a shared queue drained
@@ -299,14 +306,14 @@ runScriptMWith :: CourierCtx -> Script -> Env -> IO ()
 runScriptMWith ctx script env = do
     let course :: ProcM CallItem = courseFrom (Just ctx) script
     mgr <- Http.newManager True
-    _undefined <- Tf.runRWST (runMaybeT course) (RunCtx mgr (courierCapture ctx)) env
+    _undefined <- Tf.runRWST (runMaybeT course) (RunCtx mgr (courierCapture ctx) (courierFiles ctx)) env
     pure ()
 
 runScriptM :: Script -> Env -> IO ()
 runScriptM script env = do
     let course :: ProcM CallItem = courseFrom Nothing script
     mgr <- Http.newManager True
-    _undefined <- Tf.runRWST (runMaybeT course) (RunCtx mgr Nothing) env
+    _undefined <- Tf.runRWST (runMaybeT course) (RunCtx mgr Nothing defaultFilePolicy) env
     pure ()
 
 specCapturesOrMt :: CallItem -> RhsDict
@@ -350,7 +357,7 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
                                                         , rqHeaders = RhsDict dHeaders
                                                         , rqBody
-                                                        , rqSquares = (_configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
+                                                        , rqSquares = RequestSquares { sqQuery = querySq, sqForm = formSq, sqMultipart = multipartSq, sqCookies = cookiesSq } } } = do
     eHeaders <- renderRqHeaders
     eUrl <- renderRqUrl
 
@@ -470,7 +477,14 @@ courseFrom mcc x = do
     -- go [] = mzero
         lift $ Tf.tell [ItemStart (ciName ci)]
 
-        env <- get
+        -- [Vars] and the unbound-variable check, before anything is sent.
+        envBefore <- get
+        prepared <- liftIO $ prepareCallItem (rcFiles ctx) envBefore ci
+        env <- case prepared of
+            Left msg -> liftIO $ do
+                hPutStrLn stderr ("error: " ++ callItemLabel ci ++ ": " ++ msg)
+                throwIO (ScriptInputError msg)
+            Right e -> put e >> pure e
         reqOrThrow <- liftIO $ buildRequest mcc env ci
 
         eitherResp <- liftIO $ do
@@ -579,6 +593,96 @@ courseFrom mcc x = do
             c
 
         pure (const ext)
+
+-- | Evaluate a call item's @[Vars]@ block into the env, then refuse the call
+-- item if any @{{NAME}}@ it sends refers to an unbound variable.
+--
+-- @[Vars]@ entries are rendered against the env from before the block, so an
+-- entry can use external variables and earlier captures but not a sibling
+-- entry (a block has no defined order). An entry rendering to @file,PATH@ or
+-- @base64-file,PATH@ reads that file under the 'FilePolicy'.
+prepareCallItem :: FilePolicy -> BEL.Env -> CallItem -> IO (Either String BEL.Env)
+prepareCallItem policy env ci = do
+    let varsDict = case sqVars (rqSquares (ciRequestSpec ci)) of
+            Just (RequestSquareVars (RhsDict d)) -> d
+            _ -> HM.empty
+        unboundInVars = unboundIn env (concat (HM.elems varsDict))
+    results <- for (HM.toList varsDict) $ \(name, parts) -> do
+        rendered <- BEL.render env (Aeson.String "") parts
+        value <- case rendered of
+            Aeson.String t -> readVarValue policy t
+            other -> pure (Right other)
+        pure $ either (\e -> Left ("[Vars] " ++ Text.unpack name ++ ": " ++ e)) (\v -> Right (name, v)) value
+    let (errs, bound) = partitionEithers results
+        env' = env { BEL.bindings = HM.union (HM.fromList bound) (BEL.bindings env) }
+        unbound = unboundInVars ++ unboundNames env' ci
+    pure $ case (errs, unbound) of
+        (e : _, _) -> Left e
+        ([], []) -> Right env'
+        ([], names) -> Left $
+            "unbound variable" ++ (if length names > 1 then "s " else " ")
+            ++ intercalate ", " (map (\n -> "{{" ++ Text.unpack n ++ "}}") (dedupe names))
+            ++ "; bind with --var NAME=VALUE, HH200_VAR_NAME, [Vars] or [Captures]"
+  where
+    dedupe = foldr (\x acc -> if x `elem` acc then acc else x : acc) []
+
+-- | Names in @{{NAME}}@ templates that a call item would send (URL, headers,
+-- query, form, multipart, cookies, body) and that the env doesn't bind. Only
+-- bare names count: an expression like @jsonpath "$.id"@ may legitimately be
+-- null.
+unboundNames :: BEL.Env -> CallItem -> [Text]
+unboundNames env CallItem { ciRequestSpec = rs } =
+    unboundIn env (urlParts ++ dictParts (rqHeaders rs) ++ squareParts ++ bodyParts)
+  where
+    urlParts = case rqUrl rs of
+        LexedUrlSegments ps -> ps
+        LexedUrlFull _ -> []
+    sqs = rqSquares rs
+    squareParts = concat
+        [ dictParts d
+        | Just sq <- [sqQuery sqs, sqForm sqs, sqMultipart sqs, sqCookies sqs]
+        , d <- [squareDict sq] ]
+    squareDict sq = case sq of
+        RequestSquareQuery d -> d
+        RequestSquareForm d -> d
+        RequestSquareMultipart d -> d
+        RequestSquareCookies d -> d
+        RequestSquareConfigs d -> d
+        RequestSquareVars d -> d
+    dictParts (RhsDict d) = concat (HM.elems d)
+    bodyParts = map BEL.L (templates (Text.pack (rqBody rs)))
+    templates t = case Text.breakOn "{{" t of
+        (_, rest) | Text.null rest -> []
+        (_, rest) -> case Text.breakOn "}}" (Text.drop 2 rest) of
+            (_, close) | Text.null close -> []
+            (expr, close) -> expr : templates (Text.drop 2 close)
+
+unboundIn :: BEL.Env -> [BEL.Part] -> [Text]
+unboundIn env parts =
+    [ name
+    | BEL.L raw <- parts
+    , let name = Text.strip raw
+    , isBareName name
+    , not (HM.member name (BEL.bindings env)) ]
+  where
+    isBareName n = case Text.uncons n of
+        Just (c, _) -> not (isDigit c)
+                       && Text.all (\x -> isAlphaNum x || x == '_' || x == '.') n
+                       && n `notElem` ["true", "false", "null"]
+        Nothing -> False
+
+-- | A short name for a call item in error messages.
+callItemLabel :: CallItem -> String
+callItemLabel ci
+    | not (null (ciName ci)) = ciName ci
+    | otherwise = rqMethod rs ++ " " ++ url
+  where
+    rs = ciRequestSpec ci
+    url = case rqUrl rs of
+        LexedUrlFull s -> s
+        LexedUrlSegments ps -> concatMap urlPart ps
+    urlPart (BEL.R t) = Text.unpack t
+    urlPart (BEL.L t) = "{{" ++ Text.unpack t ++ "}}"
 
 failWith :: String -> IO Bool
 failWith msg = hPutStrLn stderr msg >> pure False

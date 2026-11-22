@@ -54,12 +54,13 @@ Found by a shallow read of `hh200/` (Nov 2026). Most are unverified beyond readi
 
 7. **The README's feature #2** promises "regex, random, time batteries", but
    `src/Hh200/hhs-grammar.md` lists `randInt`, `matches`, `timestamp`, `today`, and others as
-   "Planned (not yet wired into the evaluator)". The Resend plan adds `base64-file,` and
-   external variables. Fix this wording in the same change so the README doesn't overclaim twice.
+   "Planned (not yet wired into the evaluator)". **Fixed in phase 1:** the README and its ADR row
+   now say the helpers are planned, and describe variables and file values.
 8. **The README's ADR "For review" table lists decisions as open that are already implemented:**
    script path policy (`HH200_SCRIPT_ROOT`, `Runner.hs:71`), one concurrent run (`409` in
-   `Dashboard.hs:117`), and `totalRequests` (`Runner.hs:129`). The Resend plan reuses the script
-   path policy for files a script reads (phase 1), so update the ADR row when that lands.
+   `Dashboard.hs:117`), and `totalRequests` (`Runner.hs:129`). **Partly fixed in phase 1:** the
+   script path policy row moved to the decided table, since it now covers files scripts read too.
+   The other two rows are still listed as open.
 9. **The versions disagree:** `hh200/CHANGELOG.md` has a placeholder `0.1.0.0 - YYYY-MM-DD`,
     `package.yaml` says `0.0.1`, and the README's packaging example uses `v0.1.0`. The CHANGELOG
     also claims to follow the PVP, which uses four-part versions.
@@ -143,7 +144,8 @@ curl -X POST 'https://api.resend.com/emails' \
 EOF
 ```
 
-Nothing is implemented yet. Phases go in order; each phase ends with green `stack test`.
+Phases 0 and 1 are done; phases 2 and 3 are not started. Phases go in order; each phase ends with
+green `stack test`.
 
 ### Design decisions
 
@@ -192,11 +194,10 @@ Run it with `HH200_VAR_RESEND_API_KEY=re_... hh200 resend.hhs`.
 **Status (Nov 2026): done.** Findings 5, 20, 21, 22, 23, and 24 are fixed. Tests are in
 `ExecutionSpec` ("phase 0") and `ExecutionRunSpec` ("request body (phase 0 regressions)"). The BEL
 half (no `print`/`trace`, strings rendered raw, a pure `evalText`) is `tbmreza/bel-expr` commit
-`55d6e46` on branch `claude/hh200-phase0`. `hh200/stack.yaml` pins it, and `renderJsonBody` uses
-`BEL.evalText`. Two follow-ups remain:
-- Merge that branch into bel-expr's default branch, so the pin doesn't depend on an unmerged branch.
-- Commit the regenerated `stack.yaml.lock`. Its `bel-expr` entry was removed because the archive
-  hash couldn't be computed offline, and the next networked `stack build` writes it back.
+`55d6e46`, merged into bel-expr's `main` (tbmreza/bel-expr#9). `hh200/stack.yaml` pins it, and
+`renderJsonBody` uses `BEL.evalText`. One follow-up remains: commit the regenerated
+`stack.yaml.lock`. Its `bel-expr` entry was removed because the archive hash couldn't be computed
+offline, and the next networked `stack build` writes it back.
 
 Findings 5, 20, 21, 22, 23, and 24, in `src/Hh200/Execution.hs` (plus a `bel-expr` bump for the
 `print` in finding 23):

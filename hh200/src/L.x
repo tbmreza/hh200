@@ -43,6 +43,7 @@ tokens :-
     Form              { tok (\p _ -> KW_FORM p) }
     MultipartFormData { tok (\p _ -> KW_MULTIPART p) }
     Cookies           { tok (\p _ -> KW_COOKIES p) }
+    Vars              { tok (\p _ -> KW_VARS p) }
 
     Captures          { tok (\p _ -> KW_CAPTURES p) }
     Asserts           { tok (\p _ -> KW_ASSERTS p) }
@@ -173,6 +174,7 @@ data Token =
   | KW_QUERY     AlexPosn
   | KW_FORM      AlexPosn
   | KW_COOKIES   AlexPosn
+  | KW_VARS      AlexPosn
 
   | KW_CAPTURES   AlexPosn
   | KW_ASSERTS    AlexPosn

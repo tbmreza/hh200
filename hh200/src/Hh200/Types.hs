@@ -44,7 +44,7 @@ module Hh200.Types
     , newEnv
     , LexedUrl (..)
     , ResponseSquare (..), rpSquaresNothing
-    , RequestSquare (..), rqSquaresNothing
+    , RequestSquare (..), RequestSquares (..), rqSquaresNothing, setRequestSquare
     , mkScript, mkCallItem
     ) where
 
@@ -171,7 +171,7 @@ mkCallItem = CallItem
   , ciName = "default"
   , ciRequestSpec = RequestSpec
     { rqMethod = "GET"
-    , rqSquares = (Nothing, Nothing, Nothing, Nothing, Nothing)
+    , rqSquares = rqSquaresNothing
     -- , rqUrl = "http://localhost:80"
     , rqUrl = LexedUrlFull "http://localhost:9999/echo"
     , rqHeaders = RhsDict HM.empty
@@ -211,6 +211,8 @@ data RequestSquare =
   | RequestSquareForm RhsDict
   | RequestSquareMultipart RhsDict
   | RequestSquareCookies RhsDict
+  -- | Bindings evaluated before the request is built (phase 1).
+  | RequestSquareVars RhsDict
     deriving (Show)
 
 data ResponseSquare =
@@ -220,8 +222,8 @@ data ResponseSquare =
 
 data RequestSpec = RequestSpec
   { rqMethod ::  String
-  -- Static array of hh200 square blocks: Configs, Query, Form, MultipartFormData, Cookies
-  , rqSquares :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)
+  -- The request's square blocks, at most one of each kind.
+  , rqSquares :: RequestSquares
   , rqUrl ::     LexedUrl
   , rqHeaders :: RhsDict
   , rqBody ::    String
@@ -229,8 +231,29 @@ data RequestSpec = RequestSpec
                          -- a CallItem that sleeps as a delay statement is also planned
   } deriving (Show)
 
-rqSquaresNothing :: (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare)
-rqSquaresNothing = (Nothing, Nothing, Nothing, Nothing, Nothing)
+-- | A request's square blocks, at most one of each kind. A later block of the
+-- same kind replaces an earlier one.
+data RequestSquares = RequestSquares
+  { sqConfigs   :: Maybe RequestSquare
+  , sqQuery     :: Maybe RequestSquare
+  , sqForm      :: Maybe RequestSquare
+  , sqMultipart :: Maybe RequestSquare
+  , sqCookies   :: Maybe RequestSquare
+  , sqVars      :: Maybe RequestSquare
+  } deriving (Show)
+
+rqSquaresNothing :: RequestSquares
+rqSquaresNothing = RequestSquares Nothing Nothing Nothing Nothing Nothing Nothing
+
+-- | Put a square block into its slot.
+setRequestSquare :: RequestSquare -> RequestSquares -> RequestSquares
+setRequestSquare sq sqs = case sq of
+    RequestSquareConfigs _   -> sqs { sqConfigs   = Just sq }
+    RequestSquareQuery _     -> sqs { sqQuery     = Just sq }
+    RequestSquareForm _      -> sqs { sqForm      = Just sq }
+    RequestSquareMultipart _ -> sqs { sqMultipart = Just sq }
+    RequestSquareCookies _   -> sqs { sqCookies   = Just sq }
+    RequestSquareVars _      -> sqs { sqVars      = Just sq }
 
 rpSquaresNothing :: (Maybe ResponseSquare, Maybe ResponseSquare)
 rpSquaresNothing = (Nothing, Nothing)

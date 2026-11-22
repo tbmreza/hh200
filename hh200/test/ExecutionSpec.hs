@@ -20,8 +20,10 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified BEL
 import           Hh200.Execution
+import           Hh200.Inputs (externalVars, parseVarArg)
+import           Hh200.Types (LexedUrl (..))
 import qualified Data.Text.Encoding as TE
-import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSpec(..), CallItem(..), mkCallItem, present)
+import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSquares(..), rqSquaresNothing, RequestSpec(..), CallItem(..), mkCallItem, present)
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -67,6 +69,7 @@ spec = testGroup "Execution"
   , testApplyBodyRaw
   , testApplyBodyMultipartEmpty
   , phase0Tests
+  , phase1Tests
   ]
 
 -- ---------------------------------------------------------------------------
@@ -350,7 +353,7 @@ testBodyPartToPartText = testCase "bodyPartToPart: text part" $ do
 testBuildRequestCookiesWired :: TestTree
 testBuildRequestCookiesWired = testCase "buildRequest: cookies square adds Cookie header" $ do
     let ck = RhsDict $ HM.fromList [("session", [BEL.R "abc123"])]
-        rs = (ciRequestSpec mkCallItem) { rqSquares = (Nothing, Nothing, Nothing, Nothing, Just (RequestSquareCookies ck)) }
+        rs = (ciRequestSpec mkCallItem) { rqSquares = rqSquaresNothing { sqCookies = Just (RequestSquareCookies ck) } }
         ci = mkCallItem { ciRequestSpec = rs }
     req <- buildRequest Nothing testEnv ci
     let hs = HC.requestHeaders req
@@ -416,3 +419,39 @@ testApplyBodyMultipartEmpty = testCase "applyBody: RBMultipart empty parts" $ do
         HC.RequestBodyLBS bs -> not (L8.null bs)
         HC.RequestBodyBS bs  -> not (BS.null bs)
         _                    -> True
+
+-- ---------------------------------------------------------------------------
+-- Phase 1: external variables and unbound-name detection.
+-- ---------------------------------------------------------------------------
+
+phase1Tests :: TestTree
+phase1Tests = testGroup "phase 1"
+  [ testCase "parseVarArg splits on the first =" $ do
+      assertEqual "plain" (Right ("A", "b")) (parseVarArg "A=b")
+      assertEqual "value with =" (Right ("TOKEN", "a=b=c")) (parseVarArg "TOKEN=a=b=c")
+      assertEqual "empty value" (Right ("E", "")) (parseVarArg "E=")
+  , testCase "parseVarArg rejects bad names" $
+      mapM_ (\a -> assertBool a (isLeft (parseVarArg a))) ["", "=x", "noequals", "1A=x", "A-B=x", "A B=x"]
+  , testCase "externalVars: HH200_VAR_ prefix only, --var wins" $ do
+      let env = [("HH200_VAR_KEY", "from-env"), ("HH200_VAR_ONLY_ENV", "e"), ("KEY", "not-exposed"), ("HOME", "/root"), ("HH200_VAR_", "nameless")]
+          vars = externalVars env [("KEY", "from-cli")]
+      assertEqual "--var wins" (Just (Aeson.String "from-cli")) (HM.lookup "KEY" vars)
+      assertEqual "env var bound without prefix" (Just (Aeson.String "e")) (HM.lookup "ONLY_ENV" vars)
+      assertEqual "unprefixed and nameless ignored" ["KEY", "ONLY_ENV"] (sortTexts (HM.keys vars))
+  , testCase "unboundNames: bare names only, across URL, headers, squares and body" $ do
+      let hs = RhsDict (HM.fromList [("Authorization", [BEL.R "Bearer ", BEL.L "TOKEN"]), ("X-N", [BEL.L " 1 + 2 "])])
+          q = RhsDict (HM.fromList [("q", [BEL.L "Q"])])
+          rs = (ciRequestSpec mkCallItem)
+                { rqUrl = LexedUrlSegments [BEL.R "http://h/", BEL.L "PATH"]
+                , rqHeaders = hs
+                , rqSquares = rqSquaresNothing { sqQuery = Just (RequestSquareQuery q) }
+                , rqBody = "{\"a\": \"{{BODY}}\", \"b\": {{true}}, \"c\": \"{{jsonpath \\\"$.x\\\"}}\", \"d\": \"{{BOUND}}\"}"
+                }
+          env = testEnv { BEL.bindings = HM.fromList [("BOUND", Aeson.String "x")] }
+      assertEqual "unbound" ["BODY", "PATH", "Q", "TOKEN"] (sortTexts (unboundNames env mkCallItem { ciRequestSpec = rs }))
+  ]
+  where
+    isLeft = either (const True) (const False)
+    sortTexts = foldr ins []
+    ins x [] = [x]
+    ins x (y : ys) = if x <= y then x : y : ys else y : ins x ys

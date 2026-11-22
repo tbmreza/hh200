@@ -28,6 +28,7 @@ import           Control.Monad (forever)
 
 import           Hh200.Types
 import           Hh200.Execution (runScriptMWith, CourierCtx(..), CaptureCtx)
+import           Hh200.Inputs (RunInputs (..), seedEnv)
 
 
 data RunState = Running | Paused | Stopped
@@ -36,8 +37,8 @@ data RunState = Running | Paused | Stopped
 -- Terminates after first iteration on duration=0
 -- courier :: CourierCtx -> Script -> (TVar RunState, Int) -> MVar () -> IO ()
 -- done :: MVar Bool  -- True if the Script failed its assertions
-courier :: Maybe CaptureCtx -> Script -> (TVar RunState, Int) -> MVar Bool -> IO ()
-courier    mCapture          script    (cue, dur)              done = do
+courier :: Maybe CaptureCtx -> RunInputs -> Script -> (TVar RunState, Int) -> MVar Bool -> IO ()
+courier    mCapture          inputs       script    (cue, dur)              done = do
     -- (auto)
     r <- try loop :: IO (Either SomeException ())
     putMVar done $ case r of
@@ -57,9 +58,9 @@ courier    mCapture          script    (cue, dur)              done = do
                         _ -> pure ()
                 loop
             Running -> do
-                let courierCtx = CourierCtx { courierName = "hh200a", courierCapture = mCapture }  -- ??: freshCourierName
-                -- trace ("courier:" ++ show script) $ (runScriptMWith courierCtx) script newEnv
-                (runScriptMWith courierCtx) script newEnv
+                let courierCtx = CourierCtx { courierName = "hh200a", courierCapture = mCapture, courierFiles = riFiles inputs }  -- ??: freshCourierName
+                -- Each iteration starts from the external variables only.
+                (runScriptMWith courierCtx) script (seedEnv inputs)
                 threadDelay 4000
                 case dur of
                     0 -> pure ()

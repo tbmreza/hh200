@@ -26,6 +26,9 @@ import           System.Exit (exitWith, ExitCode(ExitFailure, ExitSuccess))
 import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (getCurrentDirectory, doesFileExist)
+import           System.Environment (getEnvironment)
+import           System.FilePath (takeDirectory)
+import           Hh200.Inputs (RunInputs (..), FilePolicy (..), externalVars, parseVarArg)
 import           Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Json (encode)
 import           Data.Maybe (fromMaybe)
@@ -60,6 +63,7 @@ data Args = Args
   , lsp ::         Maybe Int
   , lspStdio ::    Bool
   , mcpStdio ::    Bool
+  , vars ::        [String]  -- ^ raw --var NAME=VALUE arguments
   } deriving (Show, Eq)
 
 data MainThread =
@@ -171,9 +175,10 @@ mainCommand = build <$> sourceArgument
                     <*> lspPortOption
                     <*> lspStdioFlag
                     <*> mcpStdioFlag
+                    <*> varOptions
     where
-    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Bool -> Args
-    build src ver dbg cl n dur lspP lspS mcpS = mkArgs
+    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Bool -> [String] -> Args
+    build src ver dbg cl n dur lspP lspS mcpS vs = mkArgs
       { source      = src
       , version     = ver
       , debugConfig = dbg
@@ -183,6 +188,7 @@ mainCommand = build <$> sourceArgument
       , lsp         = lspP
       , lspStdio    = lspS
       , mcpStdio    = mcpS
+      , vars        = vs
       }
 
 sourceArgument :: Parser (Maybe String)
@@ -232,6 +238,14 @@ lspPortOption = optional $ option auto
 lspStdioFlag :: Parser Bool
 lspStdioFlag = switch
     (long "lsp-stdio" <> help "Run hh200 language server over stdio (deprecated: use `hh200 lsp`)")
+
+varOptions :: Parser [String]
+varOptions = many $ strOption
+  ( long "var"
+ <> metavar "NAME=VALUE"
+ <> help "Bind {{NAME}} for the script (repeatable). Environment variables \
+         \named HH200_VAR_NAME are bound too; --var wins over them."
+  )
 
 mcpStdioFlag :: Parser Bool
 mcpStdioFlag = switch
@@ -366,7 +380,8 @@ genName = "default run name"
 goMode :: Script -> Args -> IO ()
 
 goMode script args = do
-    testSimple
+    inputs <- runInputs
+    testSimple inputs
 
     where
     -- terminate :: Flag -> IO ()
@@ -390,8 +405,25 @@ goMode script args = do
 
     -- Script of single call item, repeatedly fired for duration unless
     -- interrupted.
-    testSimple :: IO ()
-    testSimple = do
+    -- External variables and the file policy. Files named by a script file
+    -- resolve against its directory; a --call snippet's against the working
+    -- directory. The CLI user is trusted, so reads aren't confined to a root.
+    runInputs :: IO RunInputs
+    runInputs = do
+        environment <- getEnvironment
+        cliVars <- case mapM parseVarArg (vars args) of
+            Right vs -> pure vs
+            Left err -> do
+                hPutStrLn stderr ("error: " ++ err)
+                exitWith (ExitFailure 1)
+        let baseDir = if call args then "." else maybe "." takeDirectory (source args)
+        pure RunInputs
+            { riVars = externalVars environment cliVars
+            , riFiles = FilePolicy { fpBaseDir = baseDir, fpRoot = Nothing }
+            }
+
+    testSimple :: RunInputs -> IO ()
+    testSimple inputs = do
         conn <- initDb
 
         rr <- mkRunRow
@@ -409,7 +441,7 @@ goMode script args = do
         drawer <- replicateM argsNvu newEmptyMVar
         -- forM_ (zip [] drawer) $ \(_, hole) -> do
         forM_ (drawer) $ \(hole) -> do
-            forkIO $ courier Nothing script (s, duration args) hole
+            forkIO $ courier Nothing inputs script (s, duration args) hole
 
         -- Termination with ctrl+c, which is handled foremostly by worker.
         _ <- installHandler sigINT
@@ -499,5 +531,6 @@ mkArgs = Args { mode = HttpLoad
               , lsp = Nothing
               , lspStdio = False
               , mcpStdio = False
+              , vars = []
               -- , browse = Nothing
               }

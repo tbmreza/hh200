@@ -32,6 +32,7 @@ library
       Hh200.Database
       Hh200.Execution
       Hh200.Http
+      Hh200.Inputs
       Hh200.LanguageServer
       Hh200.McpServer
       Hh200.Runner
@@ -137,6 +138,7 @@ test-suite hh200-test
   build-depends:
       aeson
     , base >=4.7 && <5
+    , base64-bytestring
     , bel-expr
     , bytestring
     , case-insensitive
