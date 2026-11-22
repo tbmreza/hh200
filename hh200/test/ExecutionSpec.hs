@@ -21,7 +21,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import qualified BEL
 import           Hh200.Execution
 import qualified Data.Text.Encoding as TE
-import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSpec(..), CallItem(..), mkCallItem, present)
+import           Hh200.Types (RhsDict (..), RequestSquare(..), RequestSquares(..), rqSquaresNothing, RequestSpec(..), CallItem(..), mkCallItem, present)
 
 
 -- | Minimal BEL.Env for testing with only literal parts (no evaluation needed).
@@ -350,7 +350,7 @@ testBodyPartToPartText = testCase "bodyPartToPart: text part" $ do
 testBuildRequestCookiesWired :: TestTree
 testBuildRequestCookiesWired = testCase "buildRequest: cookies square adds Cookie header" $ do
     let ck = RhsDict $ HM.fromList [("session", [BEL.R "abc123"])]
-        rs = (ciRequestSpec mkCallItem) { rqSquares = (Nothing, Nothing, Nothing, Nothing, Just (RequestSquareCookies ck)) }
+        rs = (ciRequestSpec mkCallItem) { rqSquares = rqSquaresNothing { sqCookies = Just (RequestSquareCookies ck) } }
         ci = mkCallItem { ciRequestSpec = rs }
     req <- buildRequest Nothing testEnv ci
     let hs = HC.requestHeaders req

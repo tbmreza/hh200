@@ -100,7 +100,7 @@ opt_bindings :: { Maybe RhsDict }
 opt_bindings : {- empty -} { Nothing }
              | bindings    { Just $1 }
 
-opt_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
+opt_sqrs :: { RequestSquares }
 opt_sqrs : {- empty -}  { rqSquaresNothing }
          | request_sqrs { $1 }
 
@@ -108,9 +108,9 @@ opt_body :: { Maybe String }
 opt_body : {- empty -} { Nothing }
          | braced      { Just $1 }
 
-request_sqrs :: { (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) }
+request_sqrs :: { RequestSquares }
 request_sqrs : request_sqrs request_sqr crlf { setRequestSquare $2 $1 }
-             | request_sqr crlf              { initRequestSquare $1 }
+             | request_sqr crlf              { setRequestSquare $1 rqSquaresNothing }
 
 request_sqr :: { RequestSquare }
 request_sqr : "[" "Configs" "]" crlf bindings           { RequestSquareConfigs $5 }
@@ -185,21 +185,6 @@ initResponseSquare sq = case sq of
     ResponseSquareCaptures _ -> (Just sq, Nothing)
     ResponseSquareAsserts _ ->  (Nothing, Just sq)
 
-setRequestSquare sq (c, q, f, m, k) = case sq of
-    RequestSquareConfigs _ ->   (Just sq, q,       f,       m,       k)
-    RequestSquareQuery _ ->     (c,       Just sq, f,       m,       k)
-    RequestSquareForm _ ->      (c,       q,       Just sq, m,       k)
-    RequestSquareMultipart _ -> (c,       q,       f,       Just sq, k)
-    RequestSquareCookies _ ->   (c,       q,       f,       m,       Just sq)
-    _                      ->   (c,       q,       f,       m,       k)
-
-initRequestSquare sq = case sq of
-    RequestSquareConfigs _ ->   (Just sq, Nothing, Nothing, Nothing, Nothing)
-    RequestSquareQuery _ ->     (Nothing, Just sq, Nothing, Nothing, Nothing)
-    RequestSquareForm _ ->      (Nothing, Nothing, Just sq, Nothing, Nothing)
-    RequestSquareMultipart _ -> (Nothing, Nothing, Nothing, Just sq, Nothing)
-    RequestSquareCookies _ ->   (Nothing, Nothing, Nothing, Nothing, Just sq)
-
 hasBalancedMustache :: String -> Bool
 hasBalancedMustache s = countOpen > 0 && countOpen == countClose
   where
@@ -213,7 +198,7 @@ countSub needle = length . filter (isPrefixOf needle) . tails
 -- statusFrom :: Int -> Status
 statusFrom n = mkStatus n ""
 
-mkRequest :: String -> LexedUrl -> Maybe RhsDict -> (Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare, Maybe RequestSquare) -> Maybe String -> RequestSpec
+mkRequest :: String -> LexedUrl -> Maybe RhsDict -> RequestSquares -> Maybe String -> RequestSpec
 mkRequest method url mHeaders squares mBody =
     RequestSpec
         { rqMethod = method

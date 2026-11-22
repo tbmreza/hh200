@@ -192,11 +192,10 @@ Run it with `HH200_VAR_RESEND_API_KEY=re_... hh200 resend.hhs`.
 **Status (Nov 2026): done.** Findings 5, 20, 21, 22, 23, and 24 are fixed. Tests are in
 `ExecutionSpec` ("phase 0") and `ExecutionRunSpec` ("request body (phase 0 regressions)"). The BEL
 half (no `print`/`trace`, strings rendered raw, a pure `evalText`) is `tbmreza/bel-expr` commit
-`55d6e46` on branch `claude/hh200-phase0`. `hh200/stack.yaml` pins it, and `renderJsonBody` uses
-`BEL.evalText`. Two follow-ups remain:
-- Merge that branch into bel-expr's default branch, so the pin doesn't depend on an unmerged branch.
-- Commit the regenerated `stack.yaml.lock`. Its `bel-expr` entry was removed because the archive
-  hash couldn't be computed offline, and the next networked `stack build` writes it back.
+`55d6e46`, merged into bel-expr's `main` (tbmreza/bel-expr#9). `hh200/stack.yaml` pins it, and
+`renderJsonBody` uses `BEL.evalText`. One follow-up remains: commit the regenerated
+`stack.yaml.lock`. Its `bel-expr` entry was removed because the archive hash couldn't be computed
+offline, and the next networked `stack build` writes it back.
 
 Findings 5, 20, 21, 22, 23, and 24, in `src/Hh200/Execution.hs` (plus a `bel-expr` bump for the
 `print` in finding 23):

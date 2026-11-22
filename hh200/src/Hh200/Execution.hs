@@ -350,7 +350,7 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
                                                         , rqUrl
                                                         , rqHeaders = RhsDict dHeaders
                                                         , rqBody
-                                                        , rqSquares = (_configsSq, querySq, formSq, multipartSq, cookiesSq) } } = do
+                                                        , rqSquares = RequestSquares { sqQuery = querySq, sqForm = formSq, sqMultipart = multipartSq, sqCookies = cookiesSq } } } = do
     eHeaders <- renderRqHeaders
     eUrl <- renderRqUrl
 

@@ -143,8 +143,8 @@ testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $
         Right s -> do
             let ci = head (Hh.callItems s)
                 rs = Hh.ciRequestSpec ci
-            case Hh.rqSquares rs of
-                (Just (Hh.RequestSquareConfigs (Hh.RhsDict cfgs)), _, _, _, _) ->
+            case Hh.sqConfigs (Hh.rqSquares rs) of
+                Just (Hh.RequestSquareConfigs (Hh.RhsDict cfgs)) ->
                     assertBool "Has configs" (not (HM.null cfgs))
                 _ -> assertFailure "Expected Configs request square"
             assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.rqBody rs)
