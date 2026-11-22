@@ -11,6 +11,17 @@ packages:
       size: 2009
   original:
     hackage: aeson-jsonpath-0.3.0.2@sha256:765111f324a33a61ae95d0fd91ae7f6bbf01893d1717781e160ec87986f438a3,4203
+- completed:
+    name: bel-expr
+    pantry-tree:
+      sha256: eab86a11692303013accbe6e1a302872abfbd7f20bc18585b6fa9980a996122d
+      size: 797
+    sha256: d5e1b428c3239af5242a4b012c8de5747ac70924aab58453f933968b5681390c
+    size: 19011
+    url: https://github.com/tbmreza/bel-expr/archive/55d6e4660b56cf8c872da9b811d63f6707bf8129.tar.gz
+    version: 0.1.0.0
+  original:
+    url: https://github.com/tbmreza/bel-expr/archive/55d6e4660b56cf8c872da9b811d63f6707bf8129.tar.gz
 snapshots:
 - completed:
     sha256: d90eb1418667a225998b173817300e5ae2e1500ed03c0a9457cc2a0e78a0122a
