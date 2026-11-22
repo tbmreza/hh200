@@ -28,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       Hh200.Cli
+      Hh200.Curl
       Hh200.Dashboard
       Hh200.Database
       Hh200.Execution
@@ -114,6 +115,7 @@ test-suite hh200-test
   main-is: Spec.hs
   other-modules:
       CorpusSpec
+      CurlFrontendSpec
       CurlSpec
       CurlTest.Parse
       CurlTest.Preprocess
