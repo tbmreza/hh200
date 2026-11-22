@@ -27,6 +27,10 @@ import qualified Web.Scotty as S
 
 import           Hh200.Execution (AssertionFailure (..), CourierCtx (..), runScriptM, runScriptMWith)
 import           Hh200.Inputs (FilePolicy (..), RunInputs (..), ScriptInputError (..), seedEnv)
+import           Hh200.Curl (curlToScript)
+import           Hh200.Types (CallItem (..), ResponseSpec (..), callItems, rpSquaresNothing, mtRhsDict)
+import           Network.HTTP.Types.Status (status200)
+import qualified CurlFrontendSpec
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.HashMap.Strict as HM
@@ -72,6 +76,7 @@ fixtureApp = do
             , "subjectOk" .= subjectOk
             , "trickyOk" .= trickyOk
             , "authorization" .= fmap TE.decodeUtf8 auth
+            , "rawBody" .= TE.decodeUtf8 (L8.toStrict raw)
             ]
 
 -- | A subject with a Latin-1 and a non-Latin-1 character ("cafe" with an
@@ -197,6 +202,7 @@ spec = testGroup "Execution (end-to-end verdicts)"
           assertEqual "outcome" Ok got
       ]
   , phase1Tests
+  , phase2Tests
   , testGroup "transport"
       [ expect HttpErr "connection refused is an HTTP error, not an assertion failure"
           "GET http://127.0.0.1:1/json\nHTTP 200\n"
@@ -299,3 +305,53 @@ phase1Tests = testGroup "phase 1: [Vars], files, external variables"
   where
     photoBase64 = L8.unpack (L8.fromStrict (B64.encode photoBytes))
     asFilesOf policy inputs = inputs { riFiles = policy }
+
+-- ---------------------------------------------------------------------------
+-- Phase 2: curl snippets, run without a shell.
+-- ---------------------------------------------------------------------------
+
+-- | Lower a curl snippet (with @PORT@ replaced), expect @expectBody@ as a
+-- JSON subset of the echo, and run it under the given inputs.
+runCurlWith :: (FilePath -> RunInputs) -> String -> String -> IO Outcome
+runCurlWith mkInputs snippet expectBody = withFixtureDir $ \dir -> do
+    app <- S.scottyApp fixtureApp
+    testWithApplication (pure app) $ \port ->
+        case curlToScript (replace "PORT" (show port) snippet) of
+            Left d -> assertFailure ("snippet refused: " ++ show d) >> pure (Other "refused")
+            Right (script, _) -> do
+                let inputs = mkInputs dir
+                    expecting ci = ci { ciResponseSpec = Just ResponseSpec
+                        { rpStatuses = [status200], rpSquares = rpSquaresNothing
+                        , rpResponseHeaders = mtRhsDict, rpBody = expectBody } }
+                    script' = script { callItems = map expecting (callItems script) }
+                    ctx = CourierCtx { courierName = "t", courierCapture = Nothing, courierFiles = riFiles inputs }
+                classifyWith (\s -> runScriptMWith ctx s (seedEnv inputs)) script'
+
+phase2Tests :: TestTree
+phase2Tests = testGroup "phase 2: curl snippets"
+  [ testCase "the Resend snippet sends one Content-Type, its Authorization, and the photo as base64" $ do
+      got <- runCurlWith inputsAt (CurlFrontendSpec.resendSnippet "http://127.0.0.1:PORT/echo") $
+          "{\"contentTypeCount\": 1, \"contentType\": [\"application/json\"]"
+          ++ ", \"authorization\": \"Bearer re_YOUR_API_KEY\""
+          ++ ", \"body\": {\"from\": \"sender@example.com\", \"attachments\": [{\"filename\": \"photo.png\", \"content\": \""
+          ++ L8.unpack (L8.fromStrict (B64.encode photoBytes)) ++ "\"}]}}"
+      assertEqual "outcome" Ok got
+  , testCase "a $NAME credential comes from the external variables" $ do
+      got <- runCurlWith
+          (\dir -> (inputsAt dir) { riVars = HM.fromList [("RESEND_API_KEY", String "re_live_xyz")] })
+          "curl -H \"Authorization: Bearer $RESEND_API_KEY\" --json '{\"a\": 1}' http://127.0.0.1:PORT/echo\n"
+          "{\"authorization\": \"Bearer re_live_xyz\", \"contentType\": [\"application/json\"], \"body\": {\"a\": 1}}"
+      assertEqual "outcome" Ok got
+  , testCase "a missing $NAME stops the snippet before it sends anything" $ do
+      got <- runCurlWith inputsAt "curl -H \"Authorization: Bearer $RESEND_API_KEY\" -d x http://127.0.0.1:1/echo\n" "{}"
+      assertEqual "outcome" InputErr got
+  , testCase "a form body interpolates raw text, not JSON" $ do
+      got <- runCurlWith
+          (\dir -> (inputsAt dir) { riVars = HM.fromList [("WHO", String "hello world")] })
+          "curl -d 'a=1' -d \"b=$WHO\" http://127.0.0.1:PORT/echo\n"
+          "{\"rawBody\": \"a=1&b=hello world\", \"contentType\": [\"application/x-www-form-urlencoded\"]}"
+      assertEqual "outcome" Ok got
+  , expectIn Ok "a {{NAME}} in a URL template renders in place (no extra '/')"
+      (\dir -> (inputsAt dir) { riVars = HM.fromList [("P", String "json")] })
+      "GET http://127.0.0.1:PORT/{{P}}\nHTTP 200\n{\"a\": 1}\n"
+  ]

@@ -26,6 +26,7 @@ module Hh200.Execution
   , BodyPart(..)
   , bodyPartToPart
   , renderJsonBody
+  , renderTextBody
   , redactHeader
   , prepareCallItem
   , unboundNames
@@ -395,7 +396,7 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
     handleBody :: HI.Request -> String -> [(HeaderName, BS.ByteString)] -> IO HI.Request
     handleBody req renderedForm hs = do
         bodyContent <- if null renderedForm
-            then TE.encodeUtf8 <$> renderJsonBody env (Text.pack rqBody)
+            then TE.encodeUtf8 <$> (if looksLikeJson rqBody then renderJsonBody else renderTextBody) env (Text.pack rqBody)
             else pure (TE.encodeUtf8 (Text.pack renderedForm))
         let contentType
                 | not (null renderedForm)   = "application/x-www-form-urlencoded"
@@ -430,7 +431,9 @@ buildRequest mcc env CallItem { ciRequestSpec = RequestSpec { rqMethod
             pure $ case rendered of
                 Aeson.String t -> Text.unpack t
                 v -> BS.unpack (BL.toStrict (Aeson.encode v))
-        let fullUrl = intercalate "/" renderedUrlParts
+        -- The parts are the template's literal and {{ }} pieces in order, not
+        -- path segments, so they join with nothing.
+        let fullUrl = concat renderedUrlParts
         pure $ case renderedQuery of
             "" -> fullUrl
             qs -> fullUrl ++ "?" ++ qs
@@ -775,7 +778,20 @@ renderRequestCookies _ _ = pure []
 -- is spliced as JSON (@{{NAME}}@ bound to @"x"@ becomes @"x"@ with quotes).
 -- An unterminated @{{@ is left as is; a body without @{{@ is unchanged.
 renderJsonBody :: BEL.Env -> Text -> IO Text
-renderJsonBody env = fmap Text.concat . go False
+renderJsonBody = renderBodyWith (\inStr v -> if inStr then escapeInString v else jsonText v)
+
+-- | Interpolate @{{expr}}@ in a body that isn't JSON (e.g. a form body from
+-- curl's @-d a=b@): a string is spliced as its raw text, anything else as its
+-- JSON encoding.
+renderTextBody :: BEL.Env -> Text -> IO Text
+renderTextBody = renderBodyWith (\_ v -> case v of
+    Aeson.String s -> s
+    other -> jsonText other)
+
+-- | Shared scanner for body interpolation. The splice function gets whether
+-- the template sits inside a JSON string literal, and the value.
+renderBodyWith :: (Bool -> Aeson.Value -> Text) -> BEL.Env -> Text -> IO Text
+renderBodyWith splice env = fmap Text.concat . go False
   where
     go :: Bool -> Text -> IO [Text]
     go inStr t
@@ -790,7 +806,7 @@ renderJsonBody env = fmap Text.concat . go False
                             (expr, close) -> do
                                 let inStr' = stringStateAfter inStr before
                                 v <- evalExpr expr
-                                let spliced = if inStr' then escapeInString v else jsonText v
+                                let spliced = splice inStr' v
                                 more <- go inStr' (Text.drop 2 close)
                                 pure (before : spliced : more)
 
@@ -798,16 +814,17 @@ renderJsonBody env = fmap Text.concat . go False
     evalExpr :: Text -> IO Aeson.Value
     evalExpr expr = pure (BEL.evalText env (Text.strip expr))
 
-    jsonText :: Aeson.Value -> Text
-    jsonText = TE.decodeUtf8With lenientDecode . BL.toStrict . Aeson.encode
+jsonText :: Aeson.Value -> Text
+jsonText = TE.decodeUtf8With lenientDecode . BL.toStrict . Aeson.encode
 
-    escapeInString :: Aeson.Value -> Text
-    escapeInString v =
-        let raw = case v of
-                Aeson.String s -> s
-                other          -> jsonText other
-            quoted = jsonText (Aeson.String raw)
-        in Text.drop 1 (Text.dropEnd 1 quoted)
+-- | A value as the content of a JSON string literal (without the quotes).
+escapeInString :: Aeson.Value -> Text
+escapeInString v =
+    let raw = case v of
+            Aeson.String s -> s
+            other          -> jsonText other
+        quoted = jsonText (Aeson.String raw)
+    in Text.drop 1 (Text.dropEnd 1 quoted)
 
 -- | Whether a JSON scanner is inside a string literal after reading @t@,
 -- starting in the given state. Backslash escapes are honoured.

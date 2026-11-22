@@ -45,6 +45,7 @@ import qualified Paths_hh200 (version)
 import           Hh200.TokenBucketWorkerPool (RunState(..), courier)
 import           Hh200.Types
 import qualified Hh200.Scanner as Scanner
+import qualified Hh200.Curl as Curl
 import           Hh200.Database (HtmlReportData, initDb, insertRun, RunRow(..), RREndTime(..))
 import qualified Hh200.Database as AppDb
 import           Hh200.LanguageServer (runTcp, runStdio)
@@ -64,6 +65,8 @@ data Args = Args
   , lspStdio ::    Bool
   , mcpStdio ::    Bool
   , vars ::        [String]  -- ^ raw --var NAME=VALUE arguments
+  , curlSnippet :: Bool      -- ^ --curl: SOURCE is a curl snippet (or - for stdin)
+  , emitHhs ::     Bool      -- ^ --emit-hhs: print the snippet as .hhs instead of running it
   } deriving (Show, Eq)
 
 data MainThread =
@@ -176,9 +179,11 @@ mainCommand = build <$> sourceArgument
                     <*> lspStdioFlag
                     <*> mcpStdioFlag
                     <*> varOptions
+                    <*> curlFlag
+                    <*> emitHhsFlag
     where
-    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Bool -> [String] -> Args
-    build src ver dbg cl n dur lspP lspS mcpS vs = mkArgs
+    build :: Maybe String -> Bool -> Bool -> Bool -> Int -> Int -> Maybe Int -> Bool -> Bool -> [String] -> Bool -> Bool -> Args
+    build src ver dbg cl n dur lspP lspS mcpS vs cu em = mkArgs
       { source      = src
       , version     = ver
       , debugConfig = dbg
@@ -189,6 +194,8 @@ mainCommand = build <$> sourceArgument
       , lspStdio    = lspS
       , mcpStdio    = mcpS
       , vars        = vs
+      , curlSnippet = cu
+      , emitHhs     = em
       }
 
 sourceArgument :: Parser (Maybe String)
@@ -246,6 +253,15 @@ varOptions = many $ strOption
  <> help "Bind {{NAME}} for the script (repeatable). Environment variables \
          \named HH200_VAR_NAME are bound too; --var wins over them."
   )
+
+curlFlag :: Parser Bool
+curlFlag = switch
+    (long "curl" <> help "SOURCE is a curl snippet (- for stdin): NAME=... assignments, \
+                         \NAME=$(base64 -w 0 PATH), and one curl command, run without a shell")
+
+emitHhsFlag :: Parser Bool
+emitHhsFlag = switch
+    (long "emit-hhs" <> help "With --curl: print the equivalent .hhs script instead of running it")
 
 mcpStdioFlag :: Parser Bool
 mcpStdioFlag = switch
@@ -319,6 +335,33 @@ go Args { mode = Analyze { analyzeOpts } } = runAnalyze analyzeOpts
 -- Deprecated alias: hh200 flow.hhs --debug-config
 go Args { source = Just path, debugConfig = True } =
     runAnalyze (AnalyzeOptions (Just path) FmtText Nothing)
+
+-- curl snippet, run without a shell, or printed as .hhs.
+-- hh200 --curl send.sh [--emit-hhs]
+go args@Args { curlSnippet = True, source = Just src } = do
+    text <- if src == "-" then getContents else do
+        exists <- doesFileExist src
+        if exists then readFile src else do
+            hPutStrLn stderr $ "error: file not found: " ++ src
+            exitWith (ExitFailure 1)
+    case Curl.curlToScript text of
+        Left d -> do
+            let (l, c) = spanStart (diagSpan d)
+            hPutStrLn stderr (src ++ ":" ++ show l ++ ":" ++ show c ++ ": error: " ++ diagMessage d)
+            exitWith (ExitFailure 1)
+        Right (script, warnings) -> do
+            mapM_ (\w -> hPutStrLn stderr ("warning: " ++ w)) warnings
+            if emitHhs args
+                then case mapM Curl.emitHhs (callItems script) of
+                    Right outs -> putStr (concat outs)
+                    Left err -> do
+                        hPutStrLn stderr ("error: " ++ err)
+                        exitWith (ExitFailure 1)
+                else goMode script args
+
+go Args { emitHhs = True } = do
+    hPutStrLn stderr "error: --emit-hhs needs --curl SOURCE"
+    exitWith (ExitFailure 1)
 
 -- Script execution.
 -- hh200 flow.hhs
@@ -532,5 +575,7 @@ mkArgs = Args { mode = HttpLoad
               , lspStdio = False
               , mcpStdio = False
               , vars = []
+              , curlSnippet = False
+              , emitHhs = False
               -- , browse = Nothing
               }

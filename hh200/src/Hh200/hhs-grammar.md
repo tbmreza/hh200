@@ -62,6 +62,24 @@ IMG_BASE64: base64-file,photo.png
 HTTP 200
 ```
 
+## curl snippets
+
+`hh200 --curl FILE` (or `-` for stdin) runs a curl command instead of a
+`.hhs` script, without a shell. `--emit-hhs` prints the `.hhs` equivalent.
+The accepted subset:
+
+- `NAME=value` and `export NAME=value` on their own lines, before the curl
+  command. `NAME=$(base64 -w 0 PATH)` (also `-w0`, `-i PATH`, `< PATH`)
+  becomes `[Vars]` `NAME: base64-file,PATH`.
+- One `curl` command, with `\` line continuations, `'...'` and `"..."`
+  quoting, and `$NAME` / `${NAME}`, which become `{{NAME}}`.
+- Flags: the URL, `-X`, `-H`, `-d` / `--data` / `--data-raw` /
+  `--data-binary` / `--json`, and `--url`. `-s -S -v -L -f -i` are ignored.
+- `--data-binary @-` with a heredoc (`<<EOF`, `<<-EOF`, `<<'EOF'`).
+
+Pipes, `;`, `&&`, other command substitutions, redirections and other
+flags are refused with a line and column.
+
 ## Expressions (BEL)
 
 Used in `{{ ... }}` interpolation, `[Captures]` values, and `[Asserts]` lines.

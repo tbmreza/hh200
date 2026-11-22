@@ -16,8 +16,10 @@ module CurlTest.Translate
 
 import           Data.Char (isSpace)
 import           Data.List (isInfixOf)
-import           Data.Maybe (fromMaybe, listToMaybe)
+import           Data.Maybe (listToMaybe)
 import qualified Data.ByteString.Char8 as C8
+
+import qualified Hh200.Curl as Curl
 
 import           CurlTest.Types
 import           CurlTest.Preprocess (substitute, replyStatus)
@@ -58,14 +60,9 @@ urlToTarget url =
          ('?':_)    -> '/' : rest
          _          -> rest
 
+-- | Shared with the library's curl front end ('Curl.curlMethod').
 detectMethod :: String -> String
-detectMethod cmd =
-    let toks = tokenize cmd
-        explicit = firstAfter ["-X", "--request"] toks
-        hasData  = any (`elem` ["-d", "--data", "--data-binary", "--json"]) toks
-        hasPut   = "-T" `elem` toks
-        implied  = if hasPut then "PUT" else if hasData then "POST" else "GET"
-    in fromMaybe implied explicit
+detectMethod = Curl.curlMethod . tokenize
 
 detectBody :: CurlTest -> C8.ByteString
 detectBody ct =
@@ -77,32 +74,12 @@ detectBody ct =
                 Nothing -> C8.pack ""
 
 dataFlag :: String -> Maybe String
-dataFlag cmd =
-    let toks = tokenize cmd
-        flags = ["-d", "--data", "--data-binary"]
-    in firstAfter flags toks
-
--- | First token after the first occurrence of one of the given flags.
-firstAfter :: [String] -> [String] -> Maybe String
-firstAfter flags toks =
-    listToMaybe [ toks !! (i + 1)
-                | (i, t) <- zip [0 ..] toks
-                , t `elem` flags
-                , i + 1 < length toks
-                ]
+dataFlag = Curl.curlDataArg . tokenize
 
 findUrl :: String -> Maybe String
 findUrl cmd =
     listToMaybe [ t | t <- tokenize cmd, "://" `isInfixOf` t ]
 
--- | Split a command line on whitespace, keeping double-quoted spans intact.
+-- | Split a command line into shell words (the library's 'Curl.shellWords').
 tokenize :: String -> [String]
-tokenize = go . dropWhile isSpace
-  where
-    go [] = []
-    go ('"':rest) =
-        let (tok, after) = break (== '"') rest
-        in tok : go (drop 1 after)
-    go t =
-        let (tok, after) = break isSpace t
-        in tok : go (dropWhile isSpace after)
+tokenize = Curl.shellWords

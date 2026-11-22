@@ -11,6 +11,7 @@ import qualified McpResourceSpec
 import qualified ValidateSpec
 import qualified CurlSpec
 import qualified CurlUnitSpec
+import qualified CurlFrontendSpec
 import qualified ExecutionRunSpec
 import qualified CorpusSpec
 import qualified ReleaseScriptSpec
@@ -30,6 +31,7 @@ main = defaultMain $ localOption (NumThreads 1) $ testGroup "Hh200 Tests"
   , ValidateSpec.spec
   , CurlSpec.spec
   , CurlUnitSpec.spec
+  , CurlFrontendSpec.spec
   , ExecutionRunSpec.spec
   , CorpusSpec.spec
   , ReleaseScriptSpec.spec

@@ -123,6 +123,13 @@ Scripts take variables from outside (`--var NAME=VALUE`, `HH200_VAR_NAME`) and c
 into a request (`[Vars]` with `file,` and `base64-file,`), so secrets and attachments stay out of the
 script itself.
 
+#### 3. curl snippets, without a shell
+`hh200 --curl send.sh` runs a pasted curl command, such as
+`IMG=$(base64 -w 0 photo.png)` followed by a `curl ... --data-binary @- <<EOF` heredoc. hh200 reads
+a fixed subset of bash: `NAME=...` assignments, `$(base64 -w 0 PATH)`, one `curl` command, `\`
+continuations and a heredoc. It never runs a shell, and refuses anything else with a line and
+column. `hh200 --curl send.sh --emit-hhs` prints the equivalent `.hhs`.
+
 ## See also
 
 <details>

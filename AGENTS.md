@@ -144,7 +144,7 @@ curl -X POST 'https://api.resend.com/emails' \
 EOF
 ```
 
-Phases 0 and 1 are done; phases 2 and 3 are not started. Phases go in order; each phase ends with
+Phases 0, 1 and 2 are done; phase 3 is not started. Phases go in order; each phase ends with
 green `stack test`.
 
 ### Design decisions
@@ -195,9 +195,7 @@ Run it with `HH200_VAR_RESEND_API_KEY=re_... hh200 resend.hhs`.
 `ExecutionSpec` ("phase 0") and `ExecutionRunSpec` ("request body (phase 0 regressions)"). The BEL
 half (no `print`/`trace`, strings rendered raw, a pure `evalText`) is `tbmreza/bel-expr` commit
 `55d6e46`, merged into bel-expr's `main` (tbmreza/bel-expr#9). `hh200/stack.yaml` pins it, and
-`renderJsonBody` uses `BEL.evalText`. One follow-up remains: commit the regenerated
-`stack.yaml.lock`. Its `bel-expr` entry was removed because the archive hash couldn't be computed
-offline, and the next networked `stack build` writes it back.
+`renderJsonBody` uses `BEL.evalText`, and `stack.yaml.lock` has its regenerated entry.
 
 Findings 5, 20, 21, 22, 23, and 24, in `src/Hh200/Execution.hs` (plus a `bel-expr` bump for the
 `print` in finding 23):
@@ -249,6 +247,17 @@ non-ASCII to a minimum (finding 19). Add `examples/resend_email.hhs` (also cover
 Fix the README feature list (finding 7).
 
 ### Phase 2: curl front end
+
+**Status (Nov 2026): done**, in `src/Hh200/Curl.hs`. Run a snippet with `hh200 --curl FILE` (`-` for
+stdin), or print it as `.hhs` with `--emit-hhs`. Tests are `CurlFrontendSpec` and `ExecutionRunSpec`
+("phase 2: curl snippets"). It differs from the plan below in these ways:
+- `--data* @FILE` is refused with a hint to use a heredoc, rather than supported.
+- The optional MCP `translate_curl` tool isn't done.
+- The harness shares `shellWords`, `curlMethod` and `curlDataArg`. The front end has its own strict,
+  positioned lexer.
+- Two runtime fixes came with it. A `{{NAME}}` in a URL template rendered with an extra `/`
+  (`intercalate "/"`), so `http://h/{{P}}` became `http://h//p`; the parts now join with nothing.
+  Non-JSON bodies, such as curl's `-d a=b`, now interpolate raw text (`renderTextBody`), not JSON.
 
 1. **Promote the translator into the library.** Move `tokenize`/`detectMethod`/`detectBody` from
    `hh200/test/CurlTest/Translate.hs` into a new `src/Hh200/Curl.hs`. Make `CurlTest.Translate` call
