@@ -65,7 +65,6 @@ library
     , fast-logger
     , file-embed
     , filepath
-    , ghc
     , gitrev
     , hashtables
     , http-client
