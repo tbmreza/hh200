@@ -114,8 +114,14 @@ The following defining features sum up hh200 in trade-off terms.
 #### 1. Fail fast (compromising test percentage)
 Well-functioning system-under-test is the only thing that should matter; we're dodging the need for skipping cases in test scripts.
 
-#### 2. Regex, random, time batteries (compromising binary size)
-hh200 comes integrated with a full expression language BEL evaluator.
+#### 2. An embedded expression language (compromising binary size)
+hh200 comes integrated with the BEL expression evaluator, used for `{{ ... }}` interpolation,
+`[Captures]` and `[Asserts]`. Regex, random and time helpers are planned but not wired in yet; see
+`hh200/src/Hh200/hhs-grammar.md`.
+
+Scripts take variables from outside (`--var NAME=VALUE`, `HH200_VAR_NAME`) and can read local files
+into a request (`[Vars]` with `file,` and `base64-file,`), so secrets and attachments stay out of the
+script itself.
 
 ## See also
 
@@ -220,7 +226,7 @@ under [For review](#for-review).
 | Haskell + Stack build                      | Implementation language; against a pinned Stackage LTS.   | `package.yaml`, `hh200/stack.yaml`                       |
 | Single-binary distribution                 | Ships as one binary, `npm install -g @mauikut/hh200`.                      | README, `releases/`, `package.json`                      |
 | Alex lexer + Happy parser                  | Lexer/parser specs for the main language grammar.     | `src/L.x`, `src/P.y`                                     |
-| BEL embedded expression engine             | `bel-expr` provides regex/random/time batteries; compromises binary size.  | `package.yaml`, `src/Hh200/Types.hs`                     |
+| BEL embedded expression engine             | `bel-expr` evaluates `{{ }}`, captures and asserts; regex/random/time helpers are planned. Compromises binary size. | `package.yaml`, `src/Hh200/Types.hs`                     |
 | Grammar derived from hurl's                | Ecosystem story.                  | `src/P.y`, README "LR grammar"                           |
 | Shared `http-client` Manager               | One Manager threaded as a Reader for connection reuse.                     | `src/Hh200/Http.hs`, `src/Hh200/Execution.hs`            |
 | `ProcM = MaybeT (RWST Manager Log Env IO)` | Reader=manager, Writer=log, State=env; `MaybeT` short-circuits on failure. | `src/Hh200/Execution.hs`                                 |
@@ -235,6 +241,7 @@ under [For review](#for-review).
 | Case-insensitive header keys               | Header maps keyed by `CaseInsensitive.CI ByteString`.                      | `src/Hh200/Execution.hs`                                 |
 | Runtime host info collection               | hostname/os/arch/uptime gathered for debugging leads.                      | `src/Hh200/Scanner.hs`                                   |
 | Single-machine load (distributed = v2)     | Distributed load generation deferred to a future version 2.                | README diagram                                           |
+| Script and file path policy                | Dashboard runs only read scripts, and files those scripts name (`file,`/`base64-file,`), under `HH200_SCRIPT_ROOT`, checked after `canonicalizePath`. The CLI isn't confined. | `src/Hh200/Runner.hs`, `src/Hh200/Inputs.hs`             |
 
 ### For review
 
@@ -244,7 +251,6 @@ Open design decisions for the Run screen (start-a-run-from-the-server) vertical 
 |---|---|---|
 | Launch mechanism | In-process `forkIO` of couriers, reusing `courier` + a shared `TVar RunState` | Lifecycle/leak risk inside the server vs. subprocess isolation (a subprocess must poll SQLite for status). |
 | Rate-limit source & precedence | `--rate` flag + optional script-header key; precedence `env > flag > header > default (unlimited)` | No rate limit exists today, so the plan endpoint returns "unknown" until this lands. |
-| Script path policy | `HH200_SCRIPT_ROOT` dir + `canonicalizePath`, reject `..`/escape | Usability vs. arbitrary file read / path traversal. |
 | Concurrent runs | One at a time; `409` if a run is already `running` | Prevents parallel load tests but matches the single `RunState` model. |
 | Run name uniqueness | Non-unique; auto-generate when blank | Possible display ambiguity vs. blocking re-runs. |
 | `totalRequests` semantics | `nvu × length (callItems script)` for single-shot | More accurate than `nvu`, but requires counting parsed `CallItem`s. |

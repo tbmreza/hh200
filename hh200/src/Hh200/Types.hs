@@ -211,6 +211,8 @@ data RequestSquare =
   | RequestSquareForm RhsDict
   | RequestSquareMultipart RhsDict
   | RequestSquareCookies RhsDict
+  -- | Bindings evaluated before the request is built (phase 1).
+  | RequestSquareVars RhsDict
     deriving (Show)
 
 data ResponseSquare =
@@ -237,10 +239,11 @@ data RequestSquares = RequestSquares
   , sqForm      :: Maybe RequestSquare
   , sqMultipart :: Maybe RequestSquare
   , sqCookies   :: Maybe RequestSquare
+  , sqVars      :: Maybe RequestSquare
   } deriving (Show)
 
 rqSquaresNothing :: RequestSquares
-rqSquaresNothing = RequestSquares Nothing Nothing Nothing Nothing Nothing
+rqSquaresNothing = RequestSquares Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Put a square block into its slot.
 setRequestSquare :: RequestSquare -> RequestSquares -> RequestSquares
@@ -250,6 +253,7 @@ setRequestSquare sq sqs = case sq of
     RequestSquareForm _      -> sqs { sqForm      = Just sq }
     RequestSquareMultipart _ -> sqs { sqMultipart = Just sq }
     RequestSquareCookies _   -> sqs { sqCookies   = Just sq }
+    RequestSquareVars _      -> sqs { sqVars      = Just sq }
 
 rpSquaresNothing :: (Maybe ResponseSquare, Maybe ResponseSquare)
 rpSquaresNothing = (Nothing, Nothing)

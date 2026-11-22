@@ -7,6 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Control.Monad.Trans.Except (runExceptT)
 import qualified Data.HashMap.Strict as HM
+import qualified BEL
 
 import Hh200.Types as Hh
 import Hh200.Scanner as Hh
@@ -28,6 +29,7 @@ spec = testGroup "Scanner and Parser"
   , testScanner_lrInvalid
   , testScanner_lrResponseOrder
   , testScanner_lrRequestConfigs
+  , testScanner_vars
   ]
 
 testScanner_lrBasic :: TestTree
@@ -149,3 +151,53 @@ testScanner_lrRequestConfigs = testCase "lexer and parser for request configs" $
                 _ -> assertFailure "Expected Configs request square"
             assertEqual "Payload correct" "{ \"body\": \"here\" }" (Hh.rqBody rs)
         Left (err, _) -> assertFailure $ "Failed to parse: " ++ err
+
+-- | Phase 1: the @[Vars]@ request square.
+testScanner_vars :: TestTree
+testScanner_vars = testGroup "[Vars] square"
+  [ testCase "Vars lexes as a keyword" $ do
+      tokens <- scanTokens "[Vars]"
+      assertBool "KW_VARS token" (any isVars tokens)
+  , testCase "a [Vars] block parses into sqVars" $ do
+      rs <- firstRequest resendLike
+      case Hh.sqVars (Hh.rqSquares rs) of
+          Just (Hh.RequestSquareVars (Hh.RhsDict d)) -> do
+              assertEqual "names" ["IMG", "KIND"] (sortText (HM.keys d))
+              assertEqual "IMG value" [BEL.R "base64-file,photo.png"] (HM.lookupDefault [] "IMG" d)
+          _ -> assertFailure "expected a Vars square"
+      assertBool "body kept" (not (null (Hh.rqBody rs)))
+  , testCase "[Vars] sits beside other request squares" $ do
+      rs <- firstRequest "POST http://localhost/x\n[Query]\nq: 1\n[Vars]\nA: b\n"
+      assertBool "query" (isJustSq (Hh.sqQuery (Hh.rqSquares rs)))
+      assertBool "vars" (isJustSq (Hh.sqVars (Hh.rqSquares rs)))
+  , testCase "[Vars] names are definitions for the LSP index" $ do
+      r <- Hh.analyze (Hh.Snippet "POST http://localhost/x\n[Vars]\nIMG: base64-file,a.png\n")
+      case r of
+          Left err -> assertFailure err
+          Right s -> assertBool "IMG indexed" ("IMG" `elem` map fst (Hh.ixCaptures (Hh.index s)))
+  ]
+  where
+    isVars (Hh.KW_VARS _) = True
+    isVars _ = False
+    isJustSq = maybe False (const True)
+    sortText = foldr insert []
+    insert x [] = [x]
+    insert x (y : ys) = if x <= y then x : y : ys else y : insert x ys
+    resendLike = concat
+        [ "POST https://api.resend.com/emails\n"
+        , "Authorization: Bearer {{RESEND_API_KEY}}\n"
+        , "Content-Type: application/json\n"
+        , "[Vars]\n"
+        , "IMG: base64-file,photo.png\n"
+        , "KIND: image/png\n"
+        , "{ \"attachments\": [ { \"filename\": \"photo.png\", \"content\": \"{{IMG}}\" } ] }\n"
+        , "HTTP 200\n"
+        ]
+    firstRequest src = do
+        tokens <- scanTokens src
+        res <- runExceptT (Hh.parse tokens)
+        case res of
+            Right s -> case Hh.callItems s of
+                (ci : _) -> pure (Hh.ciRequestSpec ci)
+                [] -> assertFailure "no call items" >> fail "unreachable"
+            Left (err, _) -> assertFailure ("Failed to parse: " ++ err) >> fail "unreachable"

@@ -54,12 +54,13 @@ Found by a shallow read of `hh200/` (Nov 2026). Most are unverified beyond readi
 
 7. **The README's feature #2** promises "regex, random, time batteries", but
    `src/Hh200/hhs-grammar.md` lists `randInt`, `matches`, `timestamp`, `today`, and others as
-   "Planned (not yet wired into the evaluator)". The Resend plan adds `base64-file,` and
-   external variables. Fix this wording in the same change so the README doesn't overclaim twice.
+   "Planned (not yet wired into the evaluator)". **Fixed in phase 1:** the README and its ADR row
+   now say the helpers are planned, and describe variables and file values.
 8. **The README's ADR "For review" table lists decisions as open that are already implemented:**
    script path policy (`HH200_SCRIPT_ROOT`, `Runner.hs:71`), one concurrent run (`409` in
-   `Dashboard.hs:117`), and `totalRequests` (`Runner.hs:129`). The Resend plan reuses the script
-   path policy for files a script reads (phase 1), so update the ADR row when that lands.
+   `Dashboard.hs:117`), and `totalRequests` (`Runner.hs:129`). **Partly fixed in phase 1:** the
+   script path policy row moved to the decided table, since it now covers files scripts read too.
+   The other two rows are still listed as open.
 9. **The versions disagree:** `hh200/CHANGELOG.md` has a placeholder `0.1.0.0 - YYYY-MM-DD`,
     `package.yaml` says `0.0.1`, and the README's packaging example uses `v0.1.0`. The CHANGELOG
     also claims to follow the PVP, which uses four-part versions.
@@ -143,7 +144,8 @@ curl -X POST 'https://api.resend.com/emails' \
 EOF
 ```
 
-Nothing is implemented yet. Phases go in order; each phase ends with green `stack test`.
+Phases 0 and 1 are done; phases 2 and 3 are not started. Phases go in order; each phase ends with
+green `stack test`.
 
 ### Design decisions
 
@@ -211,6 +213,23 @@ Tests: extend `ExecutionRunSpec` with a scotty fixture that echoes what it recei
 trip. Add a `DashboardSpec` or `Database` test showing `Authorization` stored as redacted.
 
 ### Phase 1: native `.hhs` support
+
+**Status (Nov 2026): done.** Where the code ended up:
+- `src/Hh200/Inputs.hs` holds `RunInputs` (external variables plus a `FilePolicy`), `--var` parsing,
+  `HH200_VAR_*` lookup, `confinedPath` (shared with `Runner.resolveScriptPath`), and the `file,` /
+  `base64-file,` readers.
+- `courier` takes the `RunInputs`. The CLI builds them in `goMode`. Dashboard runs build them in
+  `Runner.dashboardRunInputs`, confined to `HH200_SCRIPT_ROOT`.
+- `Execution.prepareCallItem` evaluates `[Vars]` and refuses unbound names, raising
+  `ScriptInputError`. It runs in `courseFrom` before `buildRequest`, rather than having
+  `buildRequest` return the env as item 3 suggested, so `buildRequest` stays as it was.
+- The unbound check only looks at bare names (`{{NAME}}`). An expression like
+  `{{jsonpath "$.x"}}` may still render `null`. `[Vars]` entries can't use a sibling entry, because
+  a block's entries have no defined order.
+- `MCP` doesn't execute scripts, so it needed no change.
+
+Tests: `ScannerSpec` ("[Vars] square"), `ExecutionSpec` ("phase 1"), and `ExecutionRunSpec`
+("phase 1: [Vars], files, external variables"). The original plan follows.
 
 1. **External variables.** Add `--var NAME=VALUE` (repeatable) to `src/Hh200/Cli.hs` and read
    `HH200_VAR_*` at startup. Seed them into the initial `Env` that is currently `newEnv`. Thread the

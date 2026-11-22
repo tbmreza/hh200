@@ -99,13 +99,14 @@ complete input pos =
         isBlockHeader (KW_CONFIGS _) = True
         isBlockHeader (KW_CAPTURES _) = True
         isBlockHeader (KW_ASSERTS _) = True
+        isBlockHeader (KW_VARS _) = True
         isBlockHeader _ = False
 
         candidates = case lastBlock of
             Just (KW_CONFIGS _) -> [ "use-tls" ]
             _ -> [ "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE", "CONNECT"
                  , "HTTP"
-                 , "Configs", "Captures", "Asserts"
+                 , "Configs", "Captures", "Asserts", "Vars"
                  , "then"
                  ] ++ extractCaptures tokens
 
@@ -114,6 +115,7 @@ complete input pos =
 
 extractCaptures :: [Token] -> [String]
 extractCaptures [] = []
+extractCaptures (KW_VARS p : rest) = extractCaptures (KW_CAPTURES p : rest)
 extractCaptures (KW_CAPTURES _ : rest) = collectIds rest
     where
     collectIds (IDENTIFIER _ s : ts) = s : collectIds ts
@@ -147,6 +149,7 @@ getPos t = case t of
     KW_QUERY p -> p
     KW_FORM p -> p
     KW_COOKIES p -> p
+    KW_VARS p -> p
     KW_MULTIPART p -> p
     KW_CAPTURES p -> p
     KW_ASSERTS p -> p
@@ -185,6 +188,7 @@ tokenSpan t = (offset, len)
         KW_QUERY _ -> 5 -- Query
         KW_FORM _ -> 4 -- Form (also FormParams)
         KW_COOKIES _ -> 7 -- Cookies
+        KW_VARS _ -> 4 -- Vars
         KW_MULTIPART _ -> 18 -- MultipartFormData
         KW_CAPTURES _ -> 8 -- Captures
         KW_ASSERTS _ -> 7 -- Asserts
@@ -296,6 +300,9 @@ documentSymbols input =
             KW_CAPTURES _ -> 
                 let (caps, rest) = extractCaps ts
                 in caps ++ findSymbols rest
+            KW_VARS _ ->
+                let (vars, rest) = extractCaps ts
+                in vars ++ findSymbols rest
             _ -> findSymbols ts
 
     extractCaps :: [Token] -> ([(String, (Int, Int))], [Token])
@@ -321,6 +328,7 @@ isBlockStart :: Token -> Bool
 isBlockStart (KW_CONFIGS _) = True
 isBlockStart (KW_CAPTURES _) = True
 isBlockStart (KW_ASSERTS _) = True
+isBlockStart (KW_VARS _) = True
 isBlockStart (KW_HTTP _) = True
 isBlockStart (METHOD _ _) = True
 isBlockStart _ = False
@@ -343,6 +351,7 @@ collectCaptures = go
   where
     go [] = []
     go (KW_CAPTURES _ : rest) = collectIds rest
+    go (KW_VARS _ : rest) = collectIds rest
     go (_ : rest) = go rest
 
     collectIds [] = []

@@ -47,6 +47,7 @@ import           L
     "Form"              { KW_FORM _ }
     "MultipartFormData" { KW_MULTIPART _ }
     "Cookies"           { KW_COOKIES _ }
+    "Vars"              { KW_VARS _ }
 
     "Captures"  { KW_CAPTURES _ }
     "Asserts"   { KW_ASSERTS _ }
@@ -119,6 +120,7 @@ request_sqr : "[" "Configs" "]" crlf bindings           { RequestSquareConfigs $
             | "[" "Form" "]" crlf bindings              { RequestSquareForm $5 }
             | "[" "MultipartFormData" "]" crlf bindings { RequestSquareMultipart $5 }
             | "[" "Cookies" "]" crlf bindings           { RequestSquareCookies $5 }
+            | "[" "Vars" "]" crlf bindings              { RequestSquareVars $5 }
 
 url :: { LexedUrl }
 url : url_proto { if hasBalancedMustache $1 then
@@ -257,6 +259,7 @@ prettyToken t = case t of
     JSONPATH p s   -> "JSONPATH " ++ showPos p ++ " " ++ show s
     LINE p s       -> "LINE " ++ showPos p ++ " " ++ show s
     KW_COOKIES p -> "KW_COOKIES " ++ showPos p
+    KW_VARS p -> "KW_VARS " ++ showPos p
     KW_QUERY p -> "KW_QUERY " ++ showPos p
     KW_FORM p -> "KW_FORM " ++ showPos p
     KW_MULTIPART p -> "KW_MULTIPART " ++ showPos p

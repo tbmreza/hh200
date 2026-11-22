@@ -43,6 +43,7 @@ library:
   - Hh200.Database
   - Hh200.Execution
   - Hh200.Http
+  - Hh200.Inputs
   - Hh200.LanguageServer
   - Hh200.McpServer
   - Hh200.Runner
@@ -128,6 +129,7 @@ tests:
     - text
     - bytestring
     - aeson
+    - base64-bytestring
     - directory
     - filepath
     - process
