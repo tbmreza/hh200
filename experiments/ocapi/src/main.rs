@@ -2,6 +2,7 @@
 //! `ocapi-core` lib to analyze workload traffics without spinning Ocapi's builtin HTTP server.
 mod builtin_server;
 mod control;
+mod echo;
 mod logger;
 mod replay;
 mod routes;
@@ -46,6 +47,9 @@ enum Commands {
         /// Port for the replay responder (defaults to `--port` + 1).
         #[arg(long)]
         replay_port: Option<u16>,
+        /// Largest request body `/echo` accepts, in bytes (default 25 MiB).
+        #[arg(long, default_value_t = echo::DEFAULT_MAX_BYTES)]
+        echo_max_bytes: usize,
     },
 
     /// Classify traffic dump at path.
@@ -69,6 +73,7 @@ async fn main() {
             tui,
             replay_dir,
             replay_port,
+            echo_max_bytes,
         } => {
             // A TUI owns the terminal, so only run it on a real TTY. Tracing
             // moves to a file in that case; otherwise it stays on stdout.
@@ -91,11 +96,11 @@ async fn main() {
 
             if tui {
                 let (logger, tui::TuiRuntime { handle, shutdown }) = tui::build(&dump_path);
-                builtin_server::serve(port, logger, Some(shutdown)).await;
+                builtin_server::serve(port, logger, echo_max_bytes, Some(shutdown)).await;
                 let _ = handle.join();
             } else {
                 let logger = Arc::new(FileLogger::new(&dump_path));
-                builtin_server::serve(port, logger, None).await;
+                builtin_server::serve(port, logger, echo_max_bytes, None).await;
             }
         }
         Commands::Analyze { dump_path } => {
