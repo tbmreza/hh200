@@ -1,7 +1,6 @@
 use axum::{
-    body::Bytes,
     extract::{OriginalUri, Path, Query},
-    http::{HeaderMap, Method, StatusCode},
+    http::StatusCode,
     response::{
         sse::{Event, KeepAlive, Sse},
         Json,
@@ -68,46 +67,6 @@ pub async fn not_found(uri: OriginalUri) -> (StatusCode, Json<serde_json::Value>
         StatusCode::NOT_FOUND,
         Json(json!({ "error": "not found", "path": uri.path() })),
     )
-}
-
-/// Reflect the request back as JSON: method, uri, headers, query, and raw
-/// body. Mirrors php-dev-server's `EchoController` (`ANY /api/echo`): a
-/// "reflect everything" fixture whose body lets a client distinguish its own
-/// response without session identity.
-pub async fn echo(
-    method: Method,
-    uri: OriginalUri,
-    headers: HeaderMap,
-    query: Query<HashMap<String, String>>,
-    body: Bytes,
-) -> Json<serde_json::Value> {
-    Json(json!({
-        "method": method.as_str(),
-        "uri": uri.to_string(),
-        "headers": headers_to_json(&headers),
-        "query": query.0,
-        "body": String::from_utf8_lossy(&body).into_owned(),
-    }))
-}
-
-/// Collapse a `HeaderMap` into `name -> [values]`, matching php-dev-server's
-/// `$request->headers->all()` shape (multi-value headers become arrays).
-fn headers_to_json(headers: &HeaderMap) -> serde_json::Value {
-    let mut map = serde_json::Map::new();
-    for name in headers.keys() {
-        let values: Vec<String> = headers
-            .get_all(name)
-            .iter()
-            .map(|v| v.to_str().unwrap_or_default().to_string())
-            .collect();
-        map.insert(
-            name.as_str().to_string(),
-            serde_json::Value::Array(
-                values.into_iter().map(serde_json::Value::String).collect(),
-            ),
-        );
-    }
-    serde_json::Value::Object(map)
 }
 
 /// Controllable SSE stream. `?events=N` caps the message count (`0` =

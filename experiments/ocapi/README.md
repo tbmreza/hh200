@@ -20,12 +20,40 @@ cargo build --release --target x86_64-unknown-linux-musl
 
 ## Subcommands
 
-- `serve [--dump-path PATH] [--port N] [--tui]` runs the controllable HTTP SUT.
+- `serve [--dump-path PATH] [--port N] [--tui] [--echo-max-bytes N]` runs the controllable HTTP SUT.
   When `--dump-path` is omitted, the dump is appended to an XDG data directory.
 - `analyze [--dump-path PATH]` reads a `traffic.dump` and report arrival
   statistics.
 - `doctor` reports where config and dump paths resolve, and whether they are
   usable.
+
+## `/echo`
+
+`ANY /echo` (also `/api/echo`, php-dev-server's path) reflects the request as
+JSON. Besides `method`, `uri`, `headers`, `query` and a lossily decoded `body`,
+it reports:
+
+- `body_len`, `body_base64`, `body_sha256`, `body_utf8`: the body exactly as
+  received, so binary payloads survive. Compare `body_sha256` with `sha256sum`.
+- `json`: the parsed body when the content type is JSON.
+- `multipart`: for `multipart/form-data`, each part's name, filename, content
+  type, length, SHA-256, sniffed type, and text when it is UTF-8.
+- `query_all`: every value of every query key (`query` keeps the last).
+- `base64`, when `?b64=` is given: a report on one base64 value. `?b64=` alone
+  checks the body, `?b64=/image` a JSON Pointer into a JSON body, and
+  `?b64=part:NAME` a multipart part. It covers a `data:` URI prefix,
+  standard vs URL-safe alphabet, padding, line breaks and other whitespace,
+  the first invalid character, whether a strict decoder accepts the value as
+  sent (`strict_valid`), and the leniently decoded length, SHA-256 and sniffed
+  type (PNG, JPEG, GIF, WebP, PDF), with a plain-language `warnings` list.
+
+```
+curl -s 'localhost:8080/echo?b64=/image' -H 'content-type: application/json' \
+  -d "{\"image\": \"$(base64 -w0 cat.png)\"}" | jq .base64
+```
+
+`/echo` accepts bodies up to 25 MiB (`serve --echo-max-bytes N` to change); a
+larger body gets a JSON `413`. Other routes keep axum's 2 MB default.
 
 ## Live traffic TUI
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Request, State},
+    extract::{DefaultBodyLimit, Request, State},
     middleware::Next,
     response::IntoResponse,
     routing::{any, delete, get},
@@ -12,12 +12,16 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tracing::{info, warn};
 
+use crate::echo;
 use crate::logger::TrafficLogger;
 use crate::routes;
 
 #[derive(Clone)]
 struct AppState {
     logger: Arc<dyn TrafficLogger>,
+    /// Body size cap for the `/echo` routes only; every other route keeps
+    /// axum's 2 MB default.
+    echo_max_bytes: usize,
 }
 
 async fn traffic_logger_middleware(
@@ -51,13 +55,14 @@ async fn traffic_logger_middleware(
 
 /// Runs the HTTP SUT. `logger` is either the file-backed logger or the TUI
 /// logger; `shutdown` is `Some` in TUI mode so quitting the TUI stops the
-/// server gracefully.
+/// server gracefully. `echo_max_bytes` caps `/echo` request bodies.
 pub async fn serve(
     port: u16,
     logger: Arc<dyn TrafficLogger>,
+    echo_max_bytes: usize,
     shutdown: Option<oneshot::Receiver<()>>,
 ) {
-    let state = AppState { logger };
+    let state = AppState { logger, echo_max_bytes };
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     info!("ocapi listening on address={addr}");
@@ -85,7 +90,15 @@ fn build_router(state: AppState) -> Router {
         .route("/delay/{delay}", delete(routes::delay))
         .route("/status/{code}", get(routes::status))
         .route("/bytes/{n}", get(routes::bytes))
-        .route("/echo", any(routes::echo))
+        // `/api/echo` matches php-dev-server's path, which hh200's examples use.
+        .route(
+            "/echo",
+            any(echo::echo).layer(DefaultBodyLimit::max(state.echo_max_bytes)),
+        )
+        .route(
+            "/api/echo",
+            any(echo::echo).layer(DefaultBodyLimit::max(state.echo_max_bytes)),
+        )
         .route("/sse", get(routes::sse))
         .fallback(routes::not_found)
         .layer(axum::middleware::from_fn_with_state(
@@ -113,6 +126,7 @@ mod request_harness {
         let path = std::env::temp_dir().join(format!("ocapi-test-{}.dump", uuid::Uuid::new_v4()));
         let state = AppState {
             logger: Arc::new(FileLogger::new(&path)),
+            echo_max_bytes: echo::DEFAULT_MAX_BYTES,
         };
         (state, path)
     }
@@ -206,6 +220,163 @@ mod request_harness {
         assert_eq!(body["query"]["x"], serde_json::json!("1"));
         assert_eq!(body["headers"]["x-test"], serde_json::json!(["hello"]));
         assert_eq!(body["body"], serde_json::json!(""));
+        std::fs::remove_file(path).ok();
+    }
+
+    fn post(uri: &str, content_type: &str, body: impl Into<Body>) -> Request<Body> {
+        Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("content-type", content_type)
+            .body(body.into())
+            .expect("valid request")
+    }
+
+    async fn echo_json(state: AppState, request: Request<Body>) -> (StatusCode, serde_json::Value) {
+        let response = build_router(state).oneshot(request).await.expect("response");
+        let status = response.status();
+        (status, body_json(response).await)
+    }
+
+    const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\xff";
+
+    #[tokio::test]
+    async fn echo_keeps_binary_body_lossless() {
+        use base64::Engine;
+        let (state, path) = temp_state();
+        let (status, body) = echo_json(state, post("/echo", "image/png", PNG.to_vec())).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["body_len"], serde_json::json!(PNG.len()));
+        assert_eq!(body["body_utf8"], serde_json::json!(false));
+        let round_trip = base64::engine::general_purpose::STANDARD
+            .decode(body["body_base64"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(round_trip, PNG);
+        assert_eq!(body["content_type"], serde_json::json!("image/png"));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_sha256_matches_known_vector() {
+        let (state, path) = temp_state();
+        let (_, body) = echo_json(state, post("/echo", "text/plain", "abc")).await;
+        assert_eq!(
+            body["body_sha256"],
+            serde_json::json!("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        );
+        assert_eq!(body["body"], serde_json::json!("abc"));
+        assert_eq!(body["json"], serde_json::Value::Null);
+        assert_eq!(body["base64"], serde_json::Value::Null);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_reports_base64_field_of_json_body() {
+        use base64::Engine;
+        let (state, path) = temp_state();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(PNG);
+        let payload = serde_json::json!({ "image": format!("data:image/png;base64,{encoded}") });
+        let request = post("/echo?b64=/image", "application/json", payload.to_string());
+        let (status, body) = echo_json(state, request).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["json"], payload);
+        let report = &body["base64"];
+        assert_eq!(report["source"], serde_json::json!("/image"));
+        assert_eq!(report["data_uri"]["mime"], serde_json::json!("image/png"));
+        assert_eq!(report["decoded"]["len"], serde_json::json!(PNG.len()));
+        assert_eq!(report["decoded"]["sniffed_type"], serde_json::json!("image/png"));
+        assert_eq!(report["warnings"].as_array().unwrap().len(), 1, "{report}");
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_base64_target_errors_are_reported() {
+        let (state, path) = temp_state();
+        let request = post("/echo?b64=/missing", "application/json", r#"{"image": 1}"#);
+        let (status, body) = echo_json(state, request).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["base64"]["error"], serde_json::json!("no value at /missing"));
+
+        let (state, path2) = temp_state();
+        let request = post("/echo?b64=/image", "application/json", r#"{"image": 1}"#);
+        let (_, body) = echo_json(state, request).await;
+        assert_eq!(body["base64"]["error"], serde_json::json!("value at /image is a number, not a string"));
+        std::fs::remove_file(path).ok();
+        std::fs::remove_file(path2).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_lists_multipart_parts_and_reports_a_part() {
+        use base64::Engine;
+        let (state, path) = temp_state();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(PNG);
+        let mut multipart = Vec::new();
+        multipart.extend_from_slice(
+            b"--XyZ\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.png\"\r\n\
+              Content-Type: image/png\r\n\r\n",
+        );
+        multipart.extend_from_slice(PNG);
+        multipart.extend_from_slice(b"\r\n--XyZ\r\nContent-Disposition: form-data; name=\"image_b64\"\r\n\r\n");
+        multipart.extend_from_slice(encoded.as_bytes());
+        multipart.extend_from_slice(b"\r\n--XyZ--\r\n");
+
+        let request = post("/echo?b64=part:image_b64", "multipart/form-data; boundary=XyZ", multipart);
+        let (status, body) = echo_json(state, request).await;
+
+        assert_eq!(status, StatusCode::OK);
+        let mp = &body["multipart"];
+        assert_eq!(mp["error"], serde_json::Value::Null, "{mp}");
+        let parts = mp["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0]["name"], serde_json::json!("file"));
+        assert_eq!(parts[0]["filename"], serde_json::json!("a.png"));
+        assert_eq!(parts[0]["content_type"], serde_json::json!("image/png"));
+        assert_eq!(parts[0]["len"], serde_json::json!(PNG.len()));
+        assert_eq!(parts[0]["sniffed_type"], serde_json::json!("image/png"));
+        assert_eq!(parts[0]["text"], serde_json::Value::Null);
+        assert_eq!(parts[1]["text"], serde_json::json!(encoded));
+        assert_eq!(body["base64"]["source"], serde_json::json!("part:image_b64"));
+        assert_eq!(body["base64"]["decoded"]["sha256"], parts[0]["sha256"]);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_accepts_bodies_over_axums_2mb_default() {
+        let (state, path) = temp_state();
+        let big = vec![b'A'; 3 * 1024 * 1024];
+        let (status, body) = echo_json(state, post("/echo", "text/plain", big)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["body_len"], serde_json::json!(3 * 1024 * 1024));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_over_limit_returns_json_413() {
+        let (mut state, path) = temp_state();
+        state.echo_max_bytes = 10;
+        let (status, body) = echo_json(state, post("/echo", "text/plain", "0123456789A")).await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(body["error"].as_str().unwrap().contains("length limit"), "{body}");
+        assert!(body["hint"].as_str().unwrap().contains("--echo-max-bytes"));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[tokio::test]
+    async fn echo_keeps_repeated_query_values_and_non_ascii_headers() {
+        let (state, path) = temp_state();
+        let request = Request::builder()
+            .uri("/api/echo?a=1&a=2&b=3")
+            .header("x-name", axum::http::HeaderValue::from_bytes("café".as_bytes()).unwrap())
+            .body(Body::empty())
+            .expect("valid request");
+        let (status, body) = echo_json(state, request).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["query"], serde_json::json!({ "a": "2", "b": "3" }));
+        assert_eq!(body["query_all"], serde_json::json!({ "a": ["1", "2"], "b": ["3"] }));
+        assert_eq!(body["headers"]["x-name"], serde_json::json!(["café"]));
         std::fs::remove_file(path).ok();
     }
 
