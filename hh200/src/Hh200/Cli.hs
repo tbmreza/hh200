@@ -15,10 +15,8 @@ module Hh200.Cli
 
 
 import           Options.Applicative
-import           Control.Exception (finally)
-import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad (forM_, replicateM, when, forever)
+import           Control.Monad (forM_, replicateM, when)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
@@ -38,8 +36,6 @@ import           Database.SQLite.Simple (Connection)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
 
-import           Network.Socket
-import qualified Network.Socket.ByteString as NBS
 
 import qualified Paths_hh200 (version)
 import           Hh200.TokenBucketWorkerPool (RunState(..), courier)
@@ -50,7 +46,8 @@ import           Hh200.Database (HtmlReportData, initDb, insertRun, RunRow(..), 
 import qualified Hh200.Database as AppDb
 import           Hh200.LanguageServer (runTcp, runStdio)
 import           Hh200.McpServer (runMcpStdio)
-import           Hh200.Dashboard (startServer, controlSocketPath)
+import           Hh200.Control (ControlSignal (..), controlSocketPath, parseControlSignal, startControlListener)
+import           Hh200.Dashboard (startServer)
 
 
 data Args = Args
@@ -432,9 +429,10 @@ goMode script args = do
 
     mkRunRow :: IO RunRow
     mkRunRow = do
+        sock <- controlSocketPath
         pure $ RunRow
           { runId = 0
-          , runControlSocket = "/tmp/uds_socket"
+          , runControlSocket = pack sock
           , runStatus = "running"
           , runEndedAt = ETStillRunning
           -- args fields --
@@ -491,16 +489,20 @@ goMode script args = do
                             (CatchOnce $ terminate s)
                             Nothing
 
-        -- Unix Domain Socket listener
-        _ <- forkIO $ do
-            sockPath <- controlSocketPath
-            -- controlSocketListener (runControlSocket rr) $ \msg ->  -- ??: xdg comply
-            controlSocketListener sockPath $ \msg ->
-                case msg of
-                    "pause" ->  atomically $ writeTVar s Paused
-                    "resume" -> atomically $ writeTVar s Running
-                    "stop" ->   terminate s
-                    _        -> putStrLn $ "received: " ++ msg
+        -- Control channel: pause/resume/stop from the dashboard or MCP.
+        sockPath <- controlSocketPath
+        listening <- startControlListener sockPath $ \msg ->
+            case parseControlSignal msg of
+                Just SigPause  -> atomically $ writeTVar s Paused
+                Just SigResume -> atomically $ writeTVar s Running
+                Just SigStop   -> terminate s
+                Nothing        -> hPutStrLn stderr ("hh200: ignoring control message: " ++ show msg)
+        stopListening <- case listening of
+            Right stopL -> pure stopL
+            Left why -> do
+                hPutStrLn stderr ("warning: control socket unavailable (" ++ why
+                    ++ "); pause/resume/stop will not reach this run")
+                pure (pure ())
 
         -- Termination when all workers are done.
         _ <- forkIO $ do
@@ -516,6 +518,7 @@ goMode script args = do
 
         atomically $
             check . (== Stopped) =<< readTVar s
+        stopListening
 
         -- (auto)
         results <- mapM tryReadMVar drawer
@@ -523,30 +526,6 @@ goMode script args = do
             exitWith (ExitFailure 1)
 
 
-controlSocketListener
-    :: FilePath
-    -> (String -> IO ())
-    -> IO ()
-controlSocketListener path handler = do
-    sock <- socket AF_UNIX Stream defaultProtocol
-
-    bind sock (SockAddrUnix path)
-    listen sock 1
-
-    forever $ do
-        (client, _) <- accept sock
-
-        _ <- forkIO $
-            finally
-                (let loop = do
-                        bs <- NBS.recv client 4096
-                        unless (bs == mempty) $ do
-                            handler (C8.unpack bs)
-                            loop
-                 in loop)
-                (close client)
-
-        pure ()
 
 
 -- -- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()

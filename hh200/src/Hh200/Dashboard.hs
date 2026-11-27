@@ -15,16 +15,14 @@ import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Aeson (object, encode, (.=), eitherDecode, Value(..))
-import           Data.Maybe (fromMaybe)
 import           Data.Text (unpack)
 import           Network.HTTP.Types.Status (status404, status400, status409, status422, status500)
-import           Network.Socket
-import qualified Network.Socket.ByteString as NBS
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           System.Environment (lookupEnv)
 import           Web.Scotty (ScottyM, scotty, regex, pathParam)
 import qualified Web.Scotty as Server
 
+import           Hh200.Control (controlSocketPath, controlSocketWriter)
 import           Hh200.Database (initDb, listRuns, getRunById, getLatestRunningRun, listRequestsByRun)
 import           Hh200.Runner (StartError (..), runPlan, startRun)
 
@@ -145,23 +143,10 @@ dashboardRoutes isDev = do
                 frame = "data: " <> encode evt <> "\n\n"
             send (B.lazyByteString frame)
             flush
-            threadDelay 2000000  -- ??: event every 1.5s
+            threadDelay 2000000  -- one event every 2 s
 
     -- Catch-all GET for SvelteKit pages routes.
     Server.get (regex "(.*)") $
         unless isDev (Server.file "min/200.html")
 
 
--- | Path of the Unix domain socket that receives pause/resume/stop signals.
--- Overridable via @HH200_CONTROL_SOCKET@ so tests can point it at a socket
--- they own.
-controlSocketPath :: IO FilePath
-controlSocketPath = fromMaybe "/tmp/uds_socket" <$> lookupEnv "HH200_CONTROL_SOCKET"
-
-
-controlSocketWriter :: FilePath -> BL.ByteString -> IO ()
-controlSocketWriter path msg = do
-    sock <- socket AF_UNIX Stream defaultProtocol
-    connect sock (SockAddrUnix path)
-    _ <- NBS.send sock (BL.toStrict msg)
-    close sock

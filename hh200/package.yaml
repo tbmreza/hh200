@@ -39,6 +39,7 @@ library:
   source-dirs: src
   exposed-modules:
   - Hh200.Cli
+  - Hh200.Control
   - Hh200.Curl
   - Hh200.Dashboard
   - Hh200.Database
@@ -141,6 +142,7 @@ tests:
     - scotty
     - sqlite-simple
     - stm
+    - vector
     - wai
     - warp
     other-modules:
@@ -157,6 +159,7 @@ tests:
     - ExecutionRunSpec
     - ExecutionSpec
     - LspSpec
+    - McpProtocolSpec
     - McpResourceSpec
     - MustacheSpec
     - ReleaseScriptSpec

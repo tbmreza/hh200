@@ -105,7 +105,7 @@ auto-skipped by the parser (unsupported `<server>`/`<features>`/`<command>`).
 stack test --test-arguments "--pattern Script"
 make curl-tests          # build hh200+ocapi, start the replay server, run the curl suite
 make sync-curl-tests     # refresh vendored data from the pinned upstream tag
-npx @modelcontextprotocol/inspector /home/tbmreza/gh/hh200/hh200/.stack-work/install/x86_64-linux/fec37efdeab1d21ab9f47f0ea78c1dd062848e3bc32ad42bcd33e4b02a90d6d2/9.10.3/bin/hh200 --mcp-stdio
+npx @modelcontextprotocol/inspector "$(stack exec -- which hh200)" --mcp-stdio
 ```
 
 ## Features

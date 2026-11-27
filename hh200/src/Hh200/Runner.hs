@@ -29,7 +29,9 @@ import           Database.SQLite.Simple (Connection)
 import           System.Directory (canonicalizePath, doesFileExist, makeAbsolute)
 import           System.Environment (getEnvironment, lookupEnv)
 import           System.FilePath (takeDirectory)
+import           System.IO (hPutStrLn, stderr)
 
+import           Hh200.Control (ControlSignal (..), controlSocketPath, parseControlSignal, startControlListener)
 import           Hh200.Database (initDb, insertRun, updateRunStatus, getLatestRunningRun, RunRow (..), RREndTime (..), insertCapturedRequest, CapturedRequest (..))
 import           Hh200.Execution (CaptureCtx (..))
 import           Hh200.Inputs (RunInputs (..), FilePolicy (..), confinedPath, externalVars)
@@ -139,8 +141,6 @@ planOk nvu duration nCallItems = object
 defaultRunName :: Text
 defaultRunName = "default run name"
 
-defaultControlSocket :: Text
-defaultControlSocket = "/tmp/uds_socket"
 
 -- | Pure input validation, preserving the original checks and messages.
 validateRequest :: RunRequest -> Either StartError ()
@@ -168,13 +168,13 @@ ensureNoActiveRun conn = do
         Nothing -> pure ()
 
 -- | Insert the @runs@ row and return its id.
-insertNewRun :: Connection -> RunRequest -> FilePath -> ExceptT StartError IO Int64
-insertNewRun conn req path =
-    liftEither' StartRejected (insertRun conn (mkRunRow req path))
+insertNewRun :: Connection -> RunRequest -> FilePath -> FilePath -> ExceptT StartError IO Int64
+insertNewRun conn req path sock =
+    liftEither' StartRejected (insertRun conn (mkRunRow req path sock))
 
 -- | Build the run row from the request, applying the default-name rule.
-mkRunRow :: RunRequest -> FilePath -> RunRow
-mkRunRow req path = RunRow
+mkRunRow :: RunRequest -> FilePath -> FilePath -> RunRow
+mkRunRow req path sock = RunRow
     { runId = 0
     , runName = if Text.null (reqName req) then defaultRunName else reqName req
     , runScriptPath = Text.pack path
@@ -183,7 +183,7 @@ mkRunRow req path = RunRow
     , runStatus = "running"
     , runConcurrency = reqNvu req
     , runRateLimit = 0.0
-    , runControlSocket = defaultControlSocket
+    , runControlSocket = Text.pack sock
     }
 
 -- | Lift an @IO (Either e a)@ into the 'ExceptT' pipeline, mapping the error.
@@ -199,9 +199,10 @@ startRun req = runExceptT $ do
     (path, script) <- resolveScript req
     conn <- liftIO initDb
     -- ensureNoActiveRun conn
-    rid <- insertNewRun conn req path
+    sock <- liftIO controlSocketPath
+    rid <- insertNewRun conn req path sock
     inputs <- liftIO (dashboardRunInputs path)
-    liftIO $ launchWorkers conn rid inputs script (reqNvu req) (reqDuration req) (reqRampUp req)
+    liftIO $ launchWorkers conn rid inputs script sock (reqNvu req) (reqDuration req) (reqRampUp req)
     pure rid
 
 -- | Fork one courier per virtual user (staggered by @rampUp@), a duration timer
@@ -219,9 +220,22 @@ dashboardRunInputs path = do
         , riFiles = FilePolicy { fpBaseDir = takeDirectory path, fpRoot = Just root }
         }
 
-launchWorkers :: Connection -> Int64 -> RunInputs -> Script -> Int -> Int -> Int -> IO ()
-launchWorkers conn runId inputs script nvu duration rampUp = do
+launchWorkers :: Connection -> Int64 -> RunInputs -> Script -> FilePath -> Int -> Int -> Int -> IO ()
+launchWorkers conn runId inputs script sock nvu duration rampUp = do
     cue <- newTVarIO Running
+    -- Control channel, so the dashboard's /api/sig and MCP reach this run.
+    listening <- startControlListener sock $ \msg ->
+        case parseControlSignal msg of
+            Just SigPause  -> atomically $ writeTVar cue Paused
+            Just SigResume -> atomically $ writeTVar cue Running
+            Just SigStop   -> atomically $ writeTVar cue Stopped
+            Nothing        -> hPutStrLn stderr ("hh200: ignoring control message: " ++ show msg)
+    stopListening <- case listening of
+        Right stopL -> pure stopL
+        Left why -> do
+            hPutStrLn stderr ("warning: control socket unavailable for run " ++ show runId
+                ++ " (" ++ why ++ "); pause/resume/stop will not reach it")
+            pure (pure ())
     drawer <- replicateM nvu newEmptyMVar
     queue <- newTQueueIO
     seqTv <- newTVarIO 0
@@ -243,6 +257,7 @@ launchWorkers conn runId inputs script nvu duration rampUp = do
         let failed = or results
         atomically $ writeTQueue queue Nothing  -- signal the writer to flush + stop
         takeMVar writerDone
+        stopListening
         _ <- updateRunStatus conn runId (if failed then "failed" else "completed")
         pure ()
 
