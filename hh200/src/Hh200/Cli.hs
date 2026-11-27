@@ -15,10 +15,8 @@ module Hh200.Cli
 
 
 import           Options.Applicative
-import           Control.Exception (finally)
-import           Control.Monad (unless)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad (forM_, replicateM, when, forever)
+import           Control.Monad (forM_, replicateM, when)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
@@ -38,8 +36,6 @@ import           Database.SQLite.Simple (Connection)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
 
-import           Network.Socket
-import qualified Network.Socket.ByteString as NBS
 
 import qualified Paths_hh200 (version)
 import           Hh200.TokenBucketWorkerPool (RunState(..), courier)

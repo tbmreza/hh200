@@ -56,7 +56,7 @@ runMcp hIn hOut = do
         if eof
             then pure ()
             else do
-                line <- BS.hGetLine hIn
+                line <- C8.hGetLine hIn
                 let msg = stripCR line
                 if C8.all (`elem` (" \t" :: String)) msg
                     then pure ()

@@ -13,11 +13,14 @@ yet done. Remove an item when it lands.
 - Use stack 3.x. Ubuntu's apt `haskell-stack` (2.9.3) can't verify Hackage's current root keys, and
   its hpack is older than the one that generated `hh200.cabal`, so it ignores `package.yaml`. Where
   `get.haskellstack.org` is blocked, the release tarball from `github.com/commercialhaskell/stack`
-  works.
-- Building needs a UTF-8 locale (see open fix 13).
-- `ReleaseScriptSpec`, `ExecutionRunSpec`, `CorpusSpec` and the regression section of
-  `DashboardSpec` pin behaviour the fixes below must keep. A fix that changes behaviour on purpose
-  adds its own test.
+  works. Stack 3.7.1 bundles hpack 0.38.1, older than the 0.39.6 that generated `hh200.cabal`, so it
+  also ignores `package.yaml`: when you add a module or dependency, edit both files.
+- If stack can't download the `bel-expr` tarball but `git clone https://github.com/tbmreza/bel-expr`
+  works, check out the pinned commit and build with a copy of `stack.yaml` that lists the checkout's
+  path under `extra-deps` (`stack --stack-yaml COPY build`).
+- `ReleaseScriptSpec`, `ExecutionRunSpec`, `CorpusSpec`, `McpProtocolSpec` and the regression
+  section of `DashboardSpec` pin behaviour the fixes below must keep. A fix that changes behaviour
+  on purpose adds its own test.
 
 ## Open fixes
 
@@ -27,47 +30,49 @@ Found by a shallow read of `hh200/` (Nov 2026); mostly unverified beyond reading
 
 1. **`hh200/package-release.sh` hardcodes `TARGET_ARCH="linux-x86_64"`**, mislabelling arm64 and
    macOS builds. Derive it from `uname -s`/`uname -m`. Guarded by `ReleaseScriptSpec`.
-2. **The control socket path is resolved three ways.** The dashboard honours
-   `HH200_CONTROL_SOCKET` (`controlSocketPath`, `src/Hh200/Dashboard.hs:159`), but `Cli.hs:437` and
-   `Runner.hs:143` hardcode `/tmp/uds_socket`. Use `controlSocketPath` everywhere. Guarded by the
-   `DashboardSpec` control-socket tests.
-3. **Wrong comment at `src/Hh200/Dashboard.hs:148`:** "event every 1.5s", but the code waits 2 s.
-4. **The dashboard serves the SPA through relative paths** (`min/200.html`, `addBase "min"`), so it
+2. **The dashboard serves the SPA through relative paths** (`min/200.html`, `addBase "min"`), so it
    only works when started from `hh200/`. `file-embed` is already a dependency. Guarded by the
    `DashboardSpec` static tests.
-5. **`Char8` still truncates non-Latin-1 text in two places.** `analyze (Snippet ...)` round-trips
+3. **`Char8` still truncates non-Latin-1 text in two places.** `analyze (Snippet ...)` round-trips
    through `L8.pack`/`L8.unpack` (`Scanner.hs`; used by `--call`, the LSP and tests), and expected
    response bodies are compared after `L8.pack (specResponseBody ci)` (`Execution.hs`,
    `userAssertions`).
+4. **Only one run at a time isn't enforced.** `ensureNoActiveRun` in `Runner.hs` is defined but
+   its call in `startRun` is commented out, so the dashboard's `409` never happens. A second run
+   gets no control socket (it warns on stderr) and pause/resume/stop keep reaching the first.
+   Re-enable it with the check and the insert in one transaction.
 
 ### Docs
 
-6. **The README's ADR "For review" table lists two decisions as open that are implemented:** one
-   concurrent run (`409`, `Dashboard.hs`) and `totalRequests` (`Runner.hs`).
-7. **The versions disagree:** `hh200/CHANGELOG.md` has a placeholder `0.1.0.0 - YYYY-MM-DD`,
+5. **The README's ADR "For review" table lists `totalRequests` as open**; it is implemented
+   (`Runner.hs`). Its other entry, one concurrent run, really is open: see the code item above.
+6. **The versions disagree:** `hh200/CHANGELOG.md` has a placeholder `0.1.0.0 - YYYY-MM-DD`,
    `package.yaml` says `0.0.1`, and the README's packaging example uses `v0.1.0`. The CHANGELOG
    claims the PVP, which uses four-part versions.
-8. **The README diagram leaves out the "Dashboard Server"** that the bullet list describes.
-9. **A README command only works on the author's machine:** the `npx
-   @modelcontextprotocol/inspector` line hardcodes `/home/tbmreza/...` and a `.stack-work` hash. Use
-   `$(stack exec -- which hh200)`.
-10. **`stack test --test-arguments "--pattern Script"` in the README** matches no test group.
-11. **The README lists php as a development dependency**; nothing uses it.
-12. **README typos:** "act a the runner"; "distributed as single binary".
+7. **The README diagram leaves out the "Dashboard Server"** that the bullet list describes.
+8. **`stack test --test-arguments "--pattern Script"` in the README** matches no test group.
+9. **The README lists php as a development dependency**; nothing uses it.
+10. **README typos:** "act a the runner"; "distributed as single binary".
 
 ### Repo hygiene
 
-13. **Building needs a UTF-8 locale:** `McpServer.hs` embeds `hhs-grammar.md` with
-    `embedStringFile`, which decodes with the locale, and the file has non-ASCII characters. With
-    `LANG=C` the build fails with `hGetContents: invalid argument`. Make the file ASCII or embed it
-    as bytes and decode UTF-8 explicitly.
-14. **Tracked files that shouldn't be:** `hh200/trash.out` and
-    `experiments/ocapi/target/{.rustc_info.json,.rustdoc_fingerprint.json,CACHEDIR.TAG}`.
-15. **`hh200/next.hhs` isn't a valid script** (`POST` without a URL); `CorpusSpec` only covers
-    `examples/`.
-16. **`hh200/post_json.hhs` duplicates `examples/post_json.hhs`.**
-17. **`hh200/stack.yaml`** sets `compiler: ghc-9.10.3` beside the LTS 24.26 snapshot that already
-    picks it, and its header still says it was generated by `stack init`.
+11. **Tracked files that shouldn't be:** `hh200/trash.out` and
+   `experiments/ocapi/target/{.rustc_info.json,.rustdoc_fingerprint.json,CACHEDIR.TAG}`.
+12. **`hh200/next.hhs` isn't a valid script** (`POST` without a URL); `CorpusSpec` only covers
+   `examples/`.
+13. **`hh200/post_json.hhs` duplicates `examples/post_json.hhs`.**
+14. **`hh200/stack.yaml`** sets `compiler: ghc-9.10.3` beside the LTS 24.26 snapshot that already
+   picks it, and its header still says it was generated by `stack init`.
+
+## Planned: MCP run tools
+
+`hh200 --mcp-stdio` can validate a script and pause/resume/stop a run someone else started (CLI or
+dashboard, through `Hh200.Control`). Next: `run_script` (path or inline script, returns a run id),
+`get_run` (status, timing, pass/fail, a summary of captured requests) and `list_runs`. Scripts run
+from MCP should be confined to `HH200_SCRIPT_ROOT` like dashboard runs, and need code fix 4 first.
+Warn in the tool description, and cap or refuse by default, runs with `duration > 0` or `nvu > 1`,
+which can send real email (see below). The database-level redaction test below belongs with
+`get_run`. `translate_curl` comes after these.
 
 ## Planned: Resend email and the curl front end
 

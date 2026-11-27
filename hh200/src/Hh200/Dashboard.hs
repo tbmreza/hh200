@@ -15,11 +15,8 @@ import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Aeson (object, encode, (.=), eitherDecode, Value(..))
-import           Data.Maybe (fromMaybe)
 import           Data.Text (unpack)
 import           Network.HTTP.Types.Status (status404, status400, status409, status422, status500)
-import           Network.Socket
-import qualified Network.Socket.ByteString as NBS
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
 import           System.Environment (lookupEnv)
 import           Web.Scotty (ScottyM, scotty, regex, pathParam)

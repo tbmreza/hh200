@@ -98,7 +98,9 @@ startControlListener path handler = do
         void (try (removeLink path) :: IO (Either IOException ()))
 
 -- | Make @path@ free to bind: remove a dead socket file, refuse to touch a
--- live one or a non-socket.
+-- live one or a non-socket. (network's 'bind' already retries over a dead
+-- socket file; checking first lets us refuse a regular file at that path and
+-- say which case we hit.)
 clearStaleSocket :: FilePath -> IO (Either String ())
 clearStaleSocket path = do
     exists <- fileExist path

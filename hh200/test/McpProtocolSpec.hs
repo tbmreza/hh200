@@ -18,8 +18,10 @@ import           Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int64)
+import           Data.Maybe (isJust)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -36,7 +38,7 @@ import           Test.Tasty.HUnit
 import qualified Web.Scotty as S
 
 import           DashboardSpec (withScript, withTestDb)
-import           Hh200.Cli (Args (..), go, mkArgs)
+import           Hh200.Cli (Args (duration, source), go, mkArgs)
 import           Hh200.McpServer (runMcp, supportedProtocolVersions)
 import           Hh200.Runner (RunRequest (..), startRun)
 
@@ -97,7 +99,7 @@ send c = sendRaw c . BL.toStrict . encode
 -- | Read one response line, failing the test after 5 s.
 recv :: Client -> IO Value
 recv c = do
-    mLine <- timeout 5000000 (BS.hGetLine (cOut c))
+    mLine <- timeout 5000000 (C8.hGetLine (cOut c))
     case mLine of
         Nothing -> assertFailure "no response within 5 s" >> pure Null
         Just line -> case eitherDecodeStrict line of
@@ -287,12 +289,12 @@ loopScript port = "GET http://127.0.0.1:" ++ show port ++ "/ok\nHTTP 200\n"
 
 -- | Wait until @p@ holds, checking every 50 ms, for up to @secs@ seconds.
 eventually :: Int -> IO Bool -> IO Bool
-eventually secs p = go (secs * 20)
+eventually secs p = poll (secs * 20)
   where
-    go 0 = p
-    go n = do
+    poll 0 = p
+    poll n = do
         ok <- p
-        if ok then pure True else threadDelay 50000 >> go (n - 1 :: Int)
+        if ok then pure True else threadDelay 50000 >> poll (n - 1 :: Int)
 
 -- | Start a 30 s CLI load run in a thread; return a var filled when 'go' ends.
 startCliRun :: FilePath -> IO (MVar (Either SomeException ()))
@@ -307,8 +309,8 @@ awaitSocket sock = do
     up <- eventually 5 (doesPathExist sock)
     unless up $ assertFailure ("run never bound " ++ sock)
 
--- | The listener must clear the socket file the first run leaves behind, so
--- the second run in a row is still controllable.
+-- | Two runs in a row on one socket path: the second must still be
+-- controllable, and each run removes its socket file when it ends.
 testCliStopTwice :: TestTree
 testCliStopTwice = testCase "stop ends a CLI run, twice in a row on the same socket" $
     withSocketPath $ \sock -> withTestDb False $ withCountingServer $ \hits port ->
@@ -347,7 +349,7 @@ testCliPauseResume = testCase "pause holds a CLI run and resume restarts it" $
             assertBool "requests again after resume" moving
             _ <- callTool c 3 "stop" (object [])
             ended <- timeout 5000000 (takeMVar finished)
-            assertBool "run ended after stop" (ended /= Nothing)
+            assertBool "run ended after stop" (isJust ended)
 
 -- | Dashboard runs listen on the control socket too.
 testDashboardRunStop :: TestTree
@@ -380,19 +382,24 @@ testLiveSocketNotStolen = testCase "a second run leaves a live run's socket alon
             threadDelay 200000
             _ <- callTool c 1 "stop" (object [])
             ended <- timeout 5000000 (takeMVar first)
-            assertBool "the first run still got stop" (ended /= Nothing)
+            assertBool "the first run still got stop" (isJust ended)
             status <- runStatus rid
             assertEqual "the second run is unaffected" (Just "running") status
             settled <- eventually 5 ((== Just "completed") <$> runStatus rid)
             assertBool "the second run ends on its own timer" settled
 
--- | A run's status column, read straight from the test database.
+-- | A run's status column, read straight from the test database. The run's
+-- writer thread may hold the lock, so wait on it and treat a still-busy
+-- database as "not known yet" ('eventually' retries).
 runStatus :: Int64 -> IO (Maybe Text)
-runStatus rid = bracket openDb Sqlite.close $ \conn -> do
-    rows <- Sqlite.query conn "SELECT status FROM runs WHERE id = ?" (Sqlite.Only rid)
-    pure $ case rows of
-        [Sqlite.Only s] -> Just s
-        _ -> Nothing
+runStatus rid = do
+    r <- try $ bracket openDb Sqlite.close $ \conn -> do
+        Sqlite.execute_ conn "PRAGMA busy_timeout = 2000"
+        rows <- Sqlite.query conn "SELECT status FROM runs WHERE id = ?" (Sqlite.Only rid)
+        pure $ case rows of
+            [Sqlite.Only s] -> Just s
+            _ -> Nothing
+    pure $ either (\(_ :: Sqlite.SQLError) -> Nothing) id r
   where
     openDb = do
         fp <- maybe (fail "HH200_SQLITE unset") pure =<< lookupEnv "HH200_SQLITE"
