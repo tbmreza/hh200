@@ -6,7 +6,7 @@ pkgdesc="Statically-checked DSL for testing and load testing HTTP servers (prebu
 arch=('x86_64')
 url="https://github.com/tbmreza/hh200"
 license=('MIT')
-# The release binary is a dynamically linked glibc build (stack, not musl).
+# Shared libraries the stack-built release binary links against.
 depends=('glibc' 'gcc-libs' 'gmp' 'zlib')
 provides=('hh200')
 conflicts=('hh200' 'hh200-git')
