@@ -1,0 +1,26 @@
+# Maintainer: Reza Handzalah <REPLACE_WITH_AUR_CONTACT>
+pkgname=hh200-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Statically-checked DSL for testing and load testing HTTP servers (prebuilt binary)"
+arch=('x86_64')
+url="https://github.com/tbmreza/hh200"
+license=('MIT')
+# The release binary is a dynamically linked glibc build (stack, not musl).
+depends=('glibc' 'gcc-libs' 'gmp' 'zlib')
+provides=('hh200')
+conflicts=('hh200' 'hh200-git')
+options=('!strip' '!debug')
+# Release assets carry the tag's "v" prefix. v0.1.0's tarball has no LICENSE,
+# so take it from the tagged source tree instead.
+source=("hh200-v${pkgver}-linux-x86_64.tar.gz::${url}/releases/download/v${pkgver}/hh200-v${pkgver}-linux-x86_64.tar.gz"
+        "LICENSE-v${pkgver}::https://raw.githubusercontent.com/tbmreza/hh200/v${pkgver}/LICENSE")
+sha256sums=('e5b622c9d72fd37be601cb41b21a9526cf3e22e34dee4ecb3940ee4510288e93'
+            'b4f5d0f7985abed43c3849b9735b6f7ab8f6d4f456f54666bd8ee86160c7c10e')
+
+package() {
+  cd "hh200-v${pkgver}-linux-x86_64"
+  install -Dm755 hh200 "${pkgdir}/usr/bin/hh200"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 "${srcdir}/LICENSE-v${pkgver}" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

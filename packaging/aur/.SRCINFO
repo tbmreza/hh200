@@ -1,0 +1,22 @@
+pkgbase = hh200-bin
+	pkgdesc = Statically-checked DSL for testing and load testing HTTP servers (prebuilt binary)
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/tbmreza/hh200
+	arch = x86_64
+	license = MIT
+	depends = glibc
+	depends = gcc-libs
+	depends = gmp
+	depends = zlib
+	provides = hh200
+	conflicts = hh200
+	conflicts = hh200-git
+	options = !strip
+	options = !debug
+	source = hh200-v0.1.0-linux-x86_64.tar.gz::https://github.com/tbmreza/hh200/releases/download/v0.1.0/hh200-v0.1.0-linux-x86_64.tar.gz
+	source = LICENSE-v0.1.0::https://raw.githubusercontent.com/tbmreza/hh200/v0.1.0/LICENSE
+	sha256sums = e5b622c9d72fd37be601cb41b21a9526cf3e22e34dee4ecb3940ee4510288e93
+	sha256sums = b4f5d0f7985abed43c3849b9735b6f7ab8f6d4f456f54666bd8ee86160c7c10e
+
+pkgname = hh200-bin
