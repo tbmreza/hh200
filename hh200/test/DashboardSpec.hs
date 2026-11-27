@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DashboardSpec (spec) where
+module DashboardSpec (spec, withTestDb, withScript) where
 
 import           Control.Concurrent (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception (finally)

@@ -14,7 +14,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Control.Monad (forM_)
-import Data.Aeson (Object, Value, (.=), encode, object)
+import Data.Aeson (Object, (.=), encode, object)
 import Data.Aeson.Key (fromText)
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Char8 as C8
@@ -71,15 +71,15 @@ smokeTest = do
         (C8.pack "# hh200 grammar" `C8.isInfixOf` encoded)
 
 -- | Exercise the @resources\/read@ dispatch directly: a known URI returns the
--- grammar contents, an unknown URI returns empty contents.
+-- grammar contents, an unknown URI is an error.
 readResourceRoutes :: IO ()
 readResourceRoutes = do
     assertEqual "known URI returns the grammar"
-        grammarResourceContents
-        (readResource (reqWithUri grammarResourceUri))
-    assertEqual "unknown URI returns empty contents"
-        (object ["contents" .= ([] :: [Value])])
-        (readResource (reqWithUri "hh200://unknown"))
+        (Just grammarResourceContents)
+        (either (const Nothing) Just (readResource (reqWithUri grammarResourceUri)))
+    -- An unknown URI is a protocol error now; McpProtocolSpec checks its code.
+    assertBool "unknown URI is an error"
+        (either (const True) (const False) (readResource (reqWithUri "hh200://unknown")))
 
 reqWithUri :: Text -> Object
 reqWithUri uri = KM.fromList [(fromText "params", object ["uri" .= uri])]

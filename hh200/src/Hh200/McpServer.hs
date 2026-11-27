@@ -2,13 +2,19 @@
 --
 -- Bridges JSON-RPC 2.0 tool calls to the same Unix domain socket that the CLI
 -- run listener is bound to. It is a transport bridge, not a run controller:
--- it reuses Hh200.Dashboard.controlSocketPath / controlSocketWriter verbatim,
+-- it reuses Hh200.Control.controlSocketPath / controlSocketWriter verbatim,
 -- exactly as the dashboard's POST /api/sig does.
+--
+-- Input is read as bytes and decoded as UTF-8 JSON whatever the locale, and
+-- stdout carries nothing but JSON-RPC messages.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Hh200.McpServer
   ( runMcpStdio
+  , runMcp
+  , handleRequest
+  , supportedProtocolVersions
   , grammarResourceUri
   , grammarResourceText
   , grammarResourceContents
@@ -19,81 +25,85 @@ module Hh200.McpServer
 import           Control.Exception (IOException, try)
 import           Data.Aeson
 import qualified Data.Aeson.KeyMap as KM
-import           Data.FileEmbed (embedStringFile, makeRelativeToProject)
+import           Data.FileEmbed (embedFile, makeRelativeToProject)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BL
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8)
-import           System.IO (BufferMode (LineBuffering), hFlush, hGetLine, hSetBuffering, stdin, stdout)
+import           System.IO (Handle, hFlush, hIsEOF, hSetBinaryMode, stdin, stdout)
+import           System.IO.Error (isDoesNotExistError)
 
-import           Hh200.Dashboard (controlSocketPath, controlSocketWriter)
+import           Hh200.Control (controlSocketPath, controlSocketWriter)
 import           Hh200.Types (SrcSpan (..))
 import qualified Hh200.Validate as Validate
 
 -- | Serve MCP (JSON-RPC 2.0) over newline-delimited stdio.
 runMcpStdio :: IO ()
-runMcpStdio = do
-    hSetBuffering stdin LineBuffering
-    hSetBuffering stdout LineBuffering
+runMcpStdio = runMcp stdin stdout
+
+-- | Serve MCP on a pair of handles: one JSON-RPC message per line in, one per
+-- line out. Returns when the input reaches end of file.
+runMcp :: Handle -> Handle -> IO ()
+runMcp hIn hOut = do
+    hSetBinaryMode hIn True
+    hSetBinaryMode hOut True
     loop
   where
     loop = do
-        lineE <- try (hGetLine stdin) :: IO (Either IOException String)
-        case lineE of
-            Left _ -> pure ()  -- stdin EOF: exit normally
-            Right line -> do
-                processLine line
+        eof <- hIsEOF hIn
+        if eof
+            then pure ()
+            else do
+                line <- BS.hGetLine hIn
+                let msg = stripCR line
+                if C8.all (`elem` (" \t" :: String)) msg
+                    then pure ()
+                    else handleLine msg >>= mapM_ (respond hOut)
                 loop
 
-processLine :: String -> IO ()
-processLine line =
-    case eitherDecode (BL.fromStrict (C8.pack line)) :: Either String Value of
-        Left _ -> respond parseErrorResponse
-        Right val -> handleMessage val
+    stripCR bs
+        | not (BS.null bs) && C8.last bs == '\r' = BS.init bs
+        | otherwise = bs
 
-respond :: Value -> IO ()
-respond v = do
-    BL.hPut stdout (encode v <> "\n")
-    hFlush stdout
+-- | Parse one line and answer it; 'Nothing' for a notification.
+handleLine :: BS.ByteString -> IO (Maybe Value)
+handleLine line =
+    case eitherDecodeStrict line :: Either String Value of
+        Left _ -> pure (Just parseErrorResponse)
+        Right val -> handleRequest val
+
+respond :: Handle -> Value -> IO ()
+respond hOut v = do
+    BL.hPut hOut (encode v <> "\n")
+    hFlush hOut
 
 parseErrorResponse :: Value
-parseErrorResponse = object
-    [ "jsonrpc" .= ("2.0" :: Text)
-    , "id" .= Null
-    , "error" .= object
-        [ "code" .= (-32700 :: Int)
-        , "message" .= ("Parse error" :: Text)
-        ]
-    ]
+parseErrorResponse = mkError Null (-32700) "Parse error"
 
-handleMessage :: Value -> IO ()
-handleMessage (Object obj) =
-    case methodName obj of
-        Just "initialize" -> withId obj $ \i ->
-            respond $ mkResponse i (initializeResult obj)
-        -- Notification: never answered.
-        Just "notifications/initialized" -> pure ()
-        Just "tools/list" -> withId obj $ \i ->
-            respond $ mkResponse i toolsListResult
-        Just "tools/call" -> withId obj $ \i -> do
-            r <- callTool obj
-            respond $ mkResponse i r
-        Just "resources/list" -> withId obj $ \i ->
-            respond $ mkResponse i resourcesListResult
-        Just "resources/read" -> withId obj $ \i ->
-            respond $ mkResponse i (readResource obj)
-        Just "ping" -> withId obj $ \i ->
-            respond $ mkResponse i (object [])
-        _ -> withId obj $ \i ->
-            respond $ mkError i (-32601) "Method not found"
-handleMessage _ = pure ()
-
-withId :: Object -> (Value -> IO ()) -> IO ()
-withId obj k =
+-- | Answer one decoded JSON-RPC message. Notifications (no @id@) get
+-- 'Nothing', whatever their method.
+handleRequest :: Value -> IO (Maybe Value)
+handleRequest (Object obj) =
     case KM.lookup "id" obj of
-        Just i -> k i
-        Nothing -> pure ()  -- notification: no response
+        Nothing -> pure Nothing
+        Just i -> Just <$> answer i
+  where
+    answer i = case methodName obj of
+        Just "initialize" -> pure $ mkResponse i (initializeResult obj)
+        Just "tools/list" -> pure $ mkResponse i toolsListResult
+        Just "tools/call" -> either (errorFrom i) (mkResponse i) <$> callTool obj
+        Just "resources/list" -> pure $ mkResponse i resourcesListResult
+        Just "resources/read" -> pure $ either (errorFrom i) (mkResponse i) (readResource obj)
+        Just "ping" -> pure $ mkResponse i (object [])
+        Just _ -> pure $ mkError i (-32601) "Method not found"
+        Nothing -> pure $ mkError i (-32600) "Invalid Request"
+    errorFrom i (RpcError code msg dat) = mkErrorWith i code msg dat
+handleRequest _ = pure (Just (mkError Null (-32600) "Invalid Request"))
+
+-- | A JSON-RPC error: code, message, optional data.
+data RpcError = RpcError Int Text (Maybe Value)
 
 methodName :: Object -> Maybe String
 methodName obj =
@@ -109,21 +119,33 @@ mkResponse idVal result = object
     ]
 
 mkError :: Value -> Int -> Text -> Value
-mkError idVal code msg = object
+mkError idVal code msg = mkErrorWith idVal code msg Nothing
+
+mkErrorWith :: Value -> Int -> Text -> Maybe Value -> Value
+mkErrorWith idVal code msg dat = object
     [ "jsonrpc" .= ("2.0" :: Text)
     , "id" .= idVal
-    , "error" .= object
+    , "error" .= object (
         [ "code" .= code
         , "message" .= msg
-        ]
+        ] ++ maybe [] (\d -> ["data" .= d]) dat)
     ]
 
+-- | Protocol revisions this server speaks, newest first.
+supportedProtocolVersions :: [Text]
+supportedProtocolVersions = [latestProtocolVersion, "2025-03-26", "2024-11-05"]
+
+latestProtocolVersion :: Text
+latestProtocolVersion = "2025-06-18"
+
+-- | Agree to the client's revision when we speak it; otherwise offer our
+-- newest and let the client decide whether to continue.
 initializeResult :: Object -> Value
 initializeResult obj =
     let params = paramsOf obj
         protocolVersion = case KM.lookup "protocolVersion" params of
-            Just (String s) -> s
-            _ -> "2025-06-18"
+            Just (String v) | v `elem` supportedProtocolVersions -> v
+            _ -> latestProtocolVersion
     in object
         [ "protocolVersion" .= protocolVersion
         , "capabilities" .= object
@@ -193,7 +215,7 @@ grammarResourceUri = "hh200://docs/hhs-grammar"
 -- database access.
 grammarResourceText :: Text
 grammarResourceText =
-    T.pack $(makeRelativeToProject "src/Hh200/hhs-grammar.md" >>= embedStringFile)
+    decodeUtf8 $(makeRelativeToProject "src/Hh200/hhs-grammar.md" >>= embedFile)
 
 -- | The @resources\/read@ result payload for the grammar resource.
 grammarResourceContents :: Value
@@ -219,25 +241,32 @@ resourcesListResult = object
         ]
     ]
 
-readResource :: Object -> Value
+-- | Route a @resources\/read@ request. An unknown URI is the MCP
+-- "Resource not found" error (@-32002@), with the URI as @data@.
+readResource :: Object -> Either RpcError Value
 readResource obj =
     case KM.lookup "uri" (paramsOf obj) of
-        Just (String uri) | uri == grammarResourceUri -> grammarResourceContents
-        _ -> object [ "contents" .= ([] :: [Value]) ]
+        Just (String uri)
+            | uri == grammarResourceUri -> Right grammarResourceContents
+            | otherwise -> Left (RpcError (-32002) "Resource not found" (Just (object ["uri" .= uri])))
+        _ -> Left (RpcError (-32602) "resources/read needs a string `uri`" Nothing)
 
-callTool :: Object -> IO Value
+-- | Route a @tools\/call@ request. An unknown tool is a protocol error
+-- (@-32602@); a failure while running a known tool is a result with
+-- @isError@ set, so the model can read it.
+callTool :: Object -> IO (Either RpcError Value)
 callTool obj =
     case KM.lookup "name" (paramsOf obj) of
         Just (String s) -> dispatch (T.unpack s)
-        _ -> pure $ toolError "" "tool name must be a string"
+        _ -> pure $ Left (RpcError (-32602) "tools/call needs a string `name`" Nothing)
   where
     dispatch verb =
         case verb of
-            "pause" -> exec verb
-            "resume" -> exec verb
-            "stop" -> exec verb
-            "validate_script" -> validateTool obj
-            _ -> pure $ toolError verb ("unknown tool: " ++ verb)
+            "pause" -> Right <$> exec verb
+            "resume" -> Right <$> exec verb
+            "stop" -> Right <$> exec verb
+            "validate_script" -> Right <$> validateTool obj
+            _ -> pure $ Left (RpcError (-32602) (T.pack ("Unknown tool: " ++ verb)) Nothing)
 
     exec verb = do
         path <- controlSocketPath
@@ -245,7 +274,15 @@ callTool obj =
                 :: IO (Either IOException ())
         case r of
             Right () -> pure $ toolSuccess verb
-            Left e -> pure $ toolError verb (show e)
+            Left e
+                | noListener e -> pure $ toolError verb
+                    ("no hh200 run is listening on " ++ path
+                     ++ " (start one with `hh200 --duration N SCRIPT` or from the dashboard)")
+                | otherwise -> pure $ toolError verb (show e)
+
+    -- ENOENT (no socket file) or ECONNREFUSED (a file but no listener).
+    noListener e = isDoesNotExistError e
+        || "refused" `T.isInfixOf` T.toLower (T.pack (show e))
 
 toolSuccess :: String -> Value
 toolSuccess verb = object
