@@ -1,0 +1,34 @@
+# Maintainer: Reza Handzalah <REPLACE_WITH_AUR_CONTACT>
+pkgname=hh200-bin
+pkgver=0.1.0
+_tag=v0.1.0  # release tag; differs from pkgver for pre-releases (v0.2.0-beta.1 -> 0.2.0beta.1)
+pkgrel=1
+pkgdesc="Statically-checked DSL for testing and load testing HTTP servers (prebuilt binary)"
+arch=('x86_64')
+url="https://github.com/tbmreza/hh200"
+license=('MIT')
+# Shared libraries the stack-built release binary links against.
+depends=('glibc' 'gcc-libs' 'gmp' 'zlib')
+provides=('hh200')
+conflicts=('hh200' 'hh200-git')
+options=('!strip' '!debug')
+# v0.1.0's tarball has no LICENSE, so take it from the tagged source tree instead.
+source=("hh200-${_tag}-linux-x86_64.tar.gz::${url}/releases/download/${_tag}/hh200-${_tag}-linux-x86_64.tar.gz"
+        "LICENSE-${_tag}::https://raw.githubusercontent.com/tbmreza/hh200/${_tag}/LICENSE")
+sha256sums=('e5b622c9d72fd37be601cb41b21a9526cf3e22e34dee4ecb3940ee4510288e93'
+            'b4f5d0f7985abed43c3849b9735b6f7ab8f6d4f456f54666bd8ee86160c7c10e')
+
+package() {
+  cd "hh200-${_tag}-linux-x86_64"
+  install -Dm755 hh200 "${pkgdir}/usr/bin/hh200"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 "${srcdir}/LICENSE-${_tag}" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+
+  # optparse-applicative generates the completion scripts.
+  ./hh200 --bash-completion-script /usr/bin/hh200 \
+    | install -Dm644 /dev/stdin "${pkgdir}/usr/share/bash-completion/completions/hh200"
+  ./hh200 --zsh-completion-script /usr/bin/hh200 \
+    | install -Dm644 /dev/stdin "${pkgdir}/usr/share/zsh/site-functions/_hh200"
+  ./hh200 --fish-completion-script /usr/bin/hh200 \
+    | install -Dm644 /dev/stdin "${pkgdir}/usr/share/fish/vendor_completions.d/hh200.fish"
+}

@@ -11,6 +11,7 @@ npm i <path_to_mauikut_tgz>
 Ideally we test releases for every channel where our deps are available.
 
 - [ ] debian (apt)
+- [ ] arch (AUR `hh200-bin`, see `aur/`)
 - [ ] alpine (docker, github & gitlab ci/cd)
 - [ ] nix (macos, windows wsl)
 - [ ] windows (winget, scoop)
