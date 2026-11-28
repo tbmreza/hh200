@@ -16,7 +16,7 @@ module Hh200.Cli
 
 import           Options.Applicative
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad (forM_, replicateM, when)
+import           Control.Monad (forM_, replicateM, void, when)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           System.Posix.Signals (installHandler, sigINT, Handler(CatchOnce))
@@ -25,7 +25,7 @@ import           System.IO (hPutStrLn, stderr, stdout)
 import qualified System.IO (hFlush)
 import           System.Directory (getCurrentDirectory, doesFileExist)
 import           System.Environment (getEnvironment)
-import           System.FilePath (takeDirectory)
+import           System.FilePath (takeDirectory, takeFileName)
 import           Hh200.Inputs (RunInputs (..), FilePolicy (..), externalVars, parseVarArg)
 import           Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Json (encode)
@@ -48,6 +48,7 @@ import           Hh200.LanguageServer (runTcp, runStdio)
 import           Hh200.McpServer (runMcpStdio)
 import           Hh200.Control (ControlSignal (..), controlSocketPath, parseControlSignal, startControlListener)
 import           Hh200.Dashboard (startServer)
+import           Hh200.Runner (ForegroundRun (..), defaultRunName, runForeground)
 
 
 data Args = Args
@@ -414,9 +415,6 @@ runAnalyze (AnalyzeOptions mSrc _fmt _out) =
             exitWith (ExitFailure 1)
         Just path -> undefined path
 
-genName :: Text
-genName = "default run name"
-
 goMode :: Script -> Args -> IO ()
 
 goMode script args = do
@@ -424,26 +422,6 @@ goMode script args = do
     testSimple inputs
 
     where
-    -- terminate :: Flag -> IO ()
-    terminate v = atomically $ writeTVar v Stopped
-
-    mkRunRow :: IO RunRow
-    mkRunRow = do
-        sock <- controlSocketPath
-        pure $ RunRow
-          { runId = 0
-          , runControlSocket = pack sock
-          , runStatus = "running"
-          , runEndedAt = ETStillRunning
-          -- args fields --
-          , runRateLimit = 0.0
-          , runScriptPath = pack $ fromMaybe "" (source args)
-          -- system io --
-          , runName = genName
-          , runStartedAt = 0
-          , runConcurrency = nvu args
-          }
-
     -- Script of single call item, repeatedly fired for duration unless
     -- interrupted.
     -- External variables and the file policy. Files named by a script file
@@ -465,67 +443,26 @@ goMode script args = do
 
     testSimple :: RunInputs -> IO ()
     testSimple inputs = do
-        conn <- initDb
-
-        rr <- mkRunRow
-
-        _mRunId <- insertRun conn rr
-
-        -- Control flag.
-        s <- newTVarIO Running
-
-        -- The loop that fires HTTP requests.
-        -- ??: Automatic 1-second stagger for nvu >= 4. Starting point could be
-        -- to assume sequencing N imperative forkIO $ courier ... statements
-        -- starts N couriers at the same instant.
-        let argsNvu = nvu args
-        drawer <- replicateM argsNvu newEmptyMVar
-        -- forM_ (zip [] drawer) $ \(_, hole) -> do
-        forM_ (drawer) $ \(hole) -> do
-            forkIO $ courier Nothing inputs script (s, duration args) hole
-
-        -- Termination with ctrl+c, which is handled foremostly by worker.
-        _ <- installHandler sigINT
-                            (CatchOnce $ terminate s)
-                            Nothing
-
-        -- Control channel: pause/resume/stop from the dashboard or MCP.
-        sockPath <- controlSocketPath
-        listening <- startControlListener sockPath $ \msg ->
-            case parseControlSignal msg of
-                Just SigPause  -> atomically $ writeTVar s Paused
-                Just SigResume -> atomically $ writeTVar s Running
-                Just SigStop   -> terminate s
-                Nothing        -> hPutStrLn stderr ("hh200: ignoring control message: " ++ show msg)
-        stopListening <- case listening of
-            Right stopL -> pure stopL
-            Left why -> do
-                hPutStrLn stderr ("warning: control socket unavailable (" ++ why
-                    ++ "); pause/resume/stop will not reach this run")
-                pure (pure ())
-
-        -- Termination when all workers are done.
-        _ <- forkIO $ do
-            forM_ drawer readMVar
-            terminate s
-
-        -- Termination based on timer only when duration > 0.
-        when (duration args > 0) $ do
-            _ <- forkIO $ do
-                threadDelay ((duration args) * 1000000)
-                terminate s
-            pure ()
-
-        atomically $
-            check . (== Stopped) =<< readTVar s
-        stopListening
-
-        -- (auto)
-        results <- mapM tryReadMVar drawer
-        when (or [ b | Just b <- results ]) $
+        failed <- runForeground
+            -- Ctrl+C stops the run; a second Ctrl+C kills the process.
+            (\stop -> void $ installHandler sigINT (CatchOnce stop) Nothing)
+            ForegroundRun
+                { frName = cliRunName args
+                , frScriptPath = if call args then "" else pack (fromMaybe "" (source args))
+                , frInputs = inputs
+                , frScript = script
+                , frNvu = nvu args
+                , frDuration = duration args
+                }
+        when failed $
             exitWith (ExitFailure 1)
 
-
+-- | A CLI run is named after its script file; a @--call@ snippet or stdin
+-- gets the default name.
+cliRunName :: Args -> Text
+cliRunName args = case source args of
+    Just path | not (call args), path /= "-", not (null path) -> pack (takeFileName path)
+    _ -> defaultRunName
 
 
 -- -- persistMetrics :: Db.Connection -> TQueue LiveEvent -> Flag -> IO ()

@@ -125,8 +125,10 @@ test-suite hh200-test
       CurlTest.Util
       CurlUnitSpec
       DashboardSpec
+      DatabaseSpec
       ExecutionRunSpec
       ExecutionSpec
+      ForegroundRunSpec
       LspSpec
       McpProtocolSpec
       McpResourceSpec
