@@ -375,18 +375,32 @@ testLiveSocketNotStolen = testCase "a second run leaves a live run's socket alon
             first <- startCliRun script
             awaitSocket sock
             _ <- eventually 5 ((> 0) <$> hits)
-            -- The second run warns and carries on without a listener; it is
-            -- short so it ends on its own.
-            started <- startRun (RunRequest "second" (T.pack script) 1 2 0)
+            -- The second run warns and carries on without a listener, and ends
+            -- on its own timer. Its 12 s must outlast everything before the
+            -- status check: 0.2 s + up to 5 s for the first run to stop + up
+            -- to 2 s to read the status (about 7 s), or "running" could be
+            -- "completed" for reasons that have nothing to do with stop.
+            started <- startRun (RunRequest "second" (T.pack script) 1 12 0)
             rid <- either (\e -> assertFailure ("startRun: " ++ show e) >> pure 0) pure started
             threadDelay 200000
             _ <- callTool c 1 "stop" (object [])
             ended <- timeout 5000000 (takeMVar first)
             assertBool "the first run still got stop" (isJust ended)
-            status <- runStatus rid
+            status <- knownStatus 2 rid
             assertEqual "the second run is unaffected" (Just "running") status
-            settled <- eventually 5 ((== Just "completed") <$> runStatus rid)
+            settled <- eventually 15 ((== Just "completed") <$> runStatus rid)
             assertBool "the second run ends on its own timer" settled
+
+-- | 'runStatus', retried for up to @secs@ seconds until the database answers
+-- (it reads 'Nothing' while the run's writer holds the lock). 'Nothing' only
+-- if it never did.
+knownStatus :: Int -> Int64 -> IO (Maybe Text)
+knownStatus secs rid = do
+    seen <- newEmptyMVar
+    _ <- eventually secs $ do
+        s <- runStatus rid
+        maybe (pure False) (\v -> True <$ tryPutMVar seen v) s
+    tryTakeMVar seen
 
 -- | A run's status column, read straight from the test database. The run's
 -- writer thread may hold the lock, so wait on it and treat a still-busy
