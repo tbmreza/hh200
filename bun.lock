@@ -4,7 +4,7 @@
   "workspaces": {
     "": {
       "name": "@mauikut/hh200",
-      "dependencies": {
+      "devDependencies": {
         "sequelize": "^6.37.8",
         "sequelize-cli": "^6.6.5",
         "sqlite3": "^6.0.1",

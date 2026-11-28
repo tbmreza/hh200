@@ -1,6 +1,6 @@
 {
   "name": "@mauikut/hh200",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Statically-checked DSL for testing HTTP servers",
   "bin": {
     "hh200": "./bin/hh200"
@@ -11,7 +11,7 @@
   "os": ["linux"],
   "cpu": ["x64"],
   "scripts": {
-    "prepublishOnly": "mkdir -p bin && cp $(cd hh200 && stack path --local-install-root)/bin/hh200 ./bin/hh200 && chmod +x ./bin/hh200"
+    "prepack": "sh releases/npm-fetch-release.sh"
   },
   "repository": {
     "type": "git",
@@ -24,7 +24,7 @@
     "url": "https://github.com/tbmreza/hh200/issues"
   },
   "homepage": "https://github.com/tbmreza/hh200#readme",
-  "dependencies": {
+  "devDependencies": {
     "sequelize": "^6.37.8",
     "sequelize-cli": "^6.6.5",
     "sqlite3": "^6.0.1",

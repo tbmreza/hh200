@@ -175,9 +175,7 @@ URL fragments agree with https://hurl.dev/docs/hurl-file.html#special-characters
 
 #### Database seeding
 
-Location of `package.json` manifest isn't set in stone yet, but `releases/README.md` npm packaging was tested on the file being in root.
-
-Whether there's value in using the same manifest for both npm packaging and db development setup is also to be seen.
+The root `package.json` is both the npm package manifest (see `releases/README.md`) and the db development setup: `npm install` in the repository installs the seeding tools, which are `devDependencies` and so never reach users of the published package.
 
 ### Package Build
 Notable aspects:
