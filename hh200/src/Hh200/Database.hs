@@ -109,12 +109,11 @@ initDb = do
             createDirectoryIfMissing True dir
             pure (dir </> "hh200.sqlite")
     conn <- open fp
-    -- While migrating, wait for another process's write (a run's couriers, or
-    -- a concurrent first open) instead of failing at once with SQLITE_BUSY.
-    -- Afterwards restore the default, so queries keep their usual behaviour.
+    -- Several writers share the file: each run's capture writer (CLI and
+    -- dashboard runs at once), the dashboard, a concurrent first open. Wait
+    -- for the lock instead of failing at once with SQLITE_BUSY.
     execute_ conn "PRAGMA busy_timeout = 5000"
     migrate conn `onException` close conn
-    execute_ conn "PRAGMA busy_timeout = 0"
     pure conn
 
 --------------------------------------------------------------------------------
@@ -229,6 +228,18 @@ updateRunStatus conn runId status = do
             pure $ Left (Text.pack (displayException e))
         Right _ ->
             pure $ Right ()
+
+-- | Mark a run finished: set its final status and @ended_at@ (now, in unix
+-- epoch seconds, like @started_at@).
+finishRun :: Connection -> Int64 -> Text -> IO (Either Text ())
+finishRun conn rid status = do
+    result <- try $
+        execute conn
+            "UPDATE runs SET status = ?, ended_at = unixepoch('now') WHERE id = ?"
+            (status, rid)
+    pure $ case result of
+        Left (e :: SomeException) -> Left (Text.pack (displayException e))
+        Right _ -> Right ()
 
 getRunById :: Connection -> Int64 -> IO (Either Text RunRow)
 getRunById conn rid = do

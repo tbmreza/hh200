@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 
@@ -12,27 +13,32 @@ module Hh200.Runner
   , StartError (..)
   , runPlan
   , startRun
+  , ForegroundRun (..)
+  , runForeground
+  , defaultRunName
   ) where
 
 
-import           Control.Concurrent (forkIO, threadDelay, newEmptyMVar, takeMVar, putMVar, MVar)
-import           Control.Concurrent.STM (atomically, newTVarIO, writeTVar, newTQueueIO, readTQueue, writeTQueue, TQueue)
-import           Control.Monad (forM_, when, replicateM)
+import           Control.Concurrent (forkIO, threadDelay, newEmptyMVar, takeMVar, putMVar, readMVar, tryReadMVar, MVar)
+import           Control.Concurrent.STM (atomically, check, newTVarIO, readTVar, writeTVar, newTQueueIO, readTQueue, flushTQueue, writeTQueue, TQueue)
+import           Control.Monad (forM_, when, replicateM, void)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, except, throwE)
 import           Data.Aeson (Value, object, (.=), FromJSON (..), withObject, (.:), (.:?), (.!=))
 import           Data.Int (Int64)
-import           Data.Maybe (fromMaybe)
+import           Control.Exception (SomeException, displayException, try)
+import           Data.Maybe (fromMaybe, isJust, isNothing)
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Database.SQLite.Simple (Connection)
+import           Database.SQLite.Simple (Connection, withTransaction)
 import           System.Directory (canonicalizePath, doesFileExist, makeAbsolute)
 import           System.Environment (getEnvironment, lookupEnv)
 import           System.FilePath (takeDirectory)
 import           System.IO (hPutStrLn, stderr)
+import           System.Timeout (timeout)
 
 import           Hh200.Control (ControlSignal (..), controlSocketPath, parseControlSignal, startControlListener)
-import           Hh200.Database (initDb, insertRun, updateRunStatus, getLatestRunningRun, RunRow (..), RREndTime (..), insertCapturedRequest, CapturedRequest (..))
+import           Hh200.Database (initDb, closeDb, insertRun, finishRun, getLatestRunningRun, RunRow (..), RREndTime (..), insertCapturedRequest, CapturedRequest (..))
 import           Hh200.Execution (CaptureCtx (..))
 import           Hh200.Inputs (RunInputs (..), FilePolicy (..), confinedPath, externalVars)
 import           Hh200.Scanner (analyze, diagnostics)
@@ -237,15 +243,11 @@ launchWorkers conn runId inputs script sock nvu duration rampUp = do
                 ++ " (" ++ why ++ "); pause/resume/stop will not reach it")
             pure (pure ())
     drawer <- replicateM nvu newEmptyMVar
-    queue <- newTQueueIO
-    seqTv <- newTVarIO 0
-    writerDone <- newEmptyMVar
-    _ <- forkIO $ runWriter conn queue writerDone
+    (capCtx, flushCapture) <- startCapture conn runId
     forM_ (zip [0 ..] drawer) $ \(workerId, hole) -> do
-        let capCtx = CaptureCtx { ccQueue = queue, ccRunId = runId, ccWorkerId = workerId, ccSeq = seqTv }
         _ <- forkIO $ do
             when (workerId > 0) $ threadDelay (staggerMicros rampUp nvu workerId)
-            courier (Just capCtx) inputs script (cue, duration) hole
+            courier (Just (capCtx workerId)) inputs script (cue, duration) hole
         pure ()
 
     when (duration > 0) $ do
@@ -255,10 +257,9 @@ launchWorkers conn runId inputs script sock nvu duration rampUp = do
     _ <- forkIO $ do
         results <- mapM takeMVar drawer
         let failed = or results
-        atomically $ writeTQueue queue Nothing  -- signal the writer to flush + stop
-        takeMVar writerDone
+        flushCapture
         stopListening
-        _ <- updateRunStatus conn runId (if failed then "failed" else "completed")
+        _ <- finishRun conn runId (if failed then "failed" else "completed")
         pure ()
 
     pure ()
@@ -270,15 +271,129 @@ staggerMicros rampUp nvu i
     | rampUp <= 0 || nvu <= 1 = 0
     | otherwise = (rampUp * 1000000 * i) `div` (nvu - 1)
 
+-- | Start a run's capture writer. Returns the 'CaptureCtx' for a worker id,
+-- and an action that writes out everything queued so far and stops the
+-- writer.
+startCapture :: Connection -> Int64 -> IO (Int -> CaptureCtx, IO ())
+startCapture conn rid = do
+    queue <- newTQueueIO
+    seqTv <- newTVarIO 0
+    writerDone <- newEmptyMVar
+    _ <- forkIO $ runWriter conn queue writerDone
+    let ctx workerId = CaptureCtx { ccQueue = queue, ccRunId = rid, ccWorkerId = workerId, ccSeq = seqTv }
+        flush = do
+            atomically $ writeTQueue queue Nothing  -- the writer drains, then stops
+            takeMVar writerDone
+    pure (ctx, flush)
+
+-- | A run started from the command line (@hh200 script.hhs@).
+data ForegroundRun = ForegroundRun
+  { frName       :: Text
+  , frScriptPath :: Text     -- ^ as given; empty for a @--call@ snippet
+  , frInputs     :: RunInputs
+  , frScript     :: Script
+  , frNvu        :: Int
+  , frDuration   :: Int      -- ^ seconds; 0 runs the script once per VU
+  }
+
+-- | Run a script in the foreground, recorded like a dashboard run: a @runs@
+-- row, every request captured, and on the way out the row's final status and
+-- @ended_at@. The status is @failed@ if a virtual user failed, @completed@
+-- otherwise, or @cancelled@ when the run was stopped (Ctrl+C, the control
+-- socket) and a request was still in flight after a short grace period.
+--
+-- @onStart@ gets the action that stops the run (the CLI binds it to SIGINT).
+-- Returns 'True' when a virtual user failed. A database that can't take the
+-- run row only costs the recording: the script still runs.
+runForeground :: (IO () -> IO ()) -> ForegroundRun -> IO Bool
+runForeground onStart fr = do
+    conn <- initDb
+    sock <- controlSocketPath
+    inserted <- insertRun conn RunRow
+        { runId = 0
+        , runName = frName fr
+        , runScriptPath = frScriptPath fr
+        , runStartedAt = 0
+        , runEndedAt = ETStillRunning
+        , runStatus = "running"
+        , runConcurrency = frNvu fr
+        , runRateLimit = 0.0
+        , runControlSocket = Text.pack sock
+        }
+    recording <- case inserted of
+        Right rid -> do
+            (capCtx, flushCapture) <- startCapture conn rid
+            pure (Just (rid, capCtx, flushCapture))
+        Left err -> do
+            hPutStrLn stderr ("warning: this run will not be recorded: " ++ Text.unpack err)
+            pure Nothing
+
+    cue <- newTVarIO Running
+    let stop = atomically (writeTVar cue Stopped)
+    drawer <- replicateM (frNvu fr) newEmptyMVar
+    forM_ (zip [0 ..] drawer) $ \(workerId, hole) ->
+        forkIO $ courier (fmap (\(_, capCtx, _) -> capCtx workerId) recording)
+                         (frInputs fr) (frScript fr) (cue, frDuration fr) hole
+    onStart stop
+
+    -- Control channel: pause/resume/stop from the dashboard or MCP.
+    listening <- startControlListener sock $ \msg ->
+        case parseControlSignal msg of
+            Just SigPause  -> atomically $ writeTVar cue Paused
+            Just SigResume -> atomically $ writeTVar cue Running
+            Just SigStop   -> stop
+            Nothing        -> hPutStrLn stderr ("hh200: ignoring control message: " ++ show msg)
+    stopListening <- case listening of
+        Right stopL -> pure stopL
+        Left why -> do
+            hPutStrLn stderr ("warning: control socket unavailable (" ++ why
+                ++ "); pause/resume/stop will not reach this run")
+            pure (pure ())
+
+    -- The run ends when every VU is done, or on its timer (timed runs only).
+    _ <- forkIO $ mapM_ readMVar drawer >> stop
+    when (frDuration fr > 0) $
+        void $ forkIO $ threadDelay (frDuration fr * 1000000) >> stop
+
+    atomically $ check . (== Stopped) =<< readTVar cue
+    stopListening
+
+    -- A stopped VU finishes its current iteration; wait briefly for that so
+    -- its requests and verdict are recorded, but don't hang on a slow server.
+    allDone <- timeout stopGraceMicros (mapM_ readMVar drawer)
+    results <- mapM tryReadMVar drawer
+    let failed = or [ b | Just b <- results ]
+        status | failed            = "failed"
+               | allDone == Nothing = "cancelled"
+               | otherwise         = "completed"
+    forM_ recording $ \(rid, _, flushCapture) -> do
+        flushCapture
+        finished <- finishRun conn rid status
+        either (\e -> hPutStrLn stderr ("warning: could not record the run's end: " ++ Text.unpack e))
+               pure finished
+    closeDb conn
+    pure failed
+
+-- | How long a stopped foreground run waits for in-flight iterations.
+stopGraceMicros :: Int
+stopGraceMicros = 2000000
+
 -- | Drains the capture queue into SQLite on a single thread (a @Connection@ is
--- not safe to share across threads). Terminates on the @Nothing@ sentinel.
+-- not safe to share across threads). Whatever has queued up is written in one
+-- transaction, so a fast run doesn't pay a commit per insert and falls behind.
+-- Terminates on the @Nothing@ sentinel, once everything before it is written.
 runWriter :: Connection -> TQueue (Maybe CapturedRequest) -> MVar () -> IO ()
 runWriter conn queue done = loop
   where
     loop = do
-        mEv <- atomically (readTQueue queue)
-        case mEv of
-            Nothing -> putMVar done ()
-            Just ev -> do
-                _ <- insertCapturedRequest conn ev
-                loop
+        batch <- atomically $ (:) <$> readTQueue queue <*> flushTQueue queue
+        let evs = [ ev | Just ev <- takeWhile isJust batch ]
+            sentinel = any isNothing batch
+        when (not (null evs)) $ do
+            written <- try (withTransaction conn (mapM_ (insertCapturedRequest conn) evs))
+            case written of
+                Left (e :: SomeException) ->
+                    hPutStrLn stderr ("warning: " ++ show (length evs)
+                        ++ " captured requests were not recorded: " ++ displayException e)
+                Right () -> pure ()
+        if sentinel then putMVar done () else loop

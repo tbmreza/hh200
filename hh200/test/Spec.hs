@@ -7,6 +7,7 @@ import qualified ExecutionSpec
 import qualified MustacheSpec
 import qualified DashboardSpec
 import qualified DatabaseSpec
+import qualified ForegroundRunSpec
 import qualified TokenBucketWorkerPoolSpec
 import qualified McpProtocolSpec
 import qualified McpResourceSpec
@@ -29,6 +30,7 @@ main = defaultMain $ localOption (NumThreads 1) $ testGroup "Hh200 Tests"
   , ExecutionSpec.spec
   , DashboardSpec.spec
   , DatabaseSpec.spec
+  , ForegroundRunSpec.spec
   , TokenBucketWorkerPoolSpec.spec
   , McpResourceSpec.spec
   , McpProtocolSpec.spec

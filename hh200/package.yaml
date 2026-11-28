@@ -159,6 +159,7 @@ tests:
     - DatabaseSpec
     - ExecutionRunSpec
     - ExecutionSpec
+    - ForegroundRunSpec
     - LspSpec
     - McpProtocolSpec
     - McpResourceSpec
