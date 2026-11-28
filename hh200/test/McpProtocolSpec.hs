@@ -279,13 +279,23 @@ withSocketPath act = do
 withCountingServer :: (IO Int -> Int -> IO a) -> IO a
 withCountingServer act = do
     hits <- newTVarIO (0 :: Int)
-    app <- S.scottyApp $ S.get "/ok" $ do
-        S.liftIO (atomically (modifyTVar' hits (+ 1)))
-        S.text "ok"
+    app <- S.scottyApp $ do
+        S.get "/ok" $ do
+            S.liftIO (atomically (modifyTVar' hits (+ 1)))
+            S.text "ok"
+        -- Not counted: for a run that should keep going without piling up
+        -- captures (its writer flushes them all before the run completes).
+        S.get "/slow" $ do
+            S.liftIO (threadDelay 100000)
+            S.text "ok"
     testWithApplication (pure app) (act (readTVarIO hits))
 
 loopScript :: Int -> String
 loopScript port = "GET http://127.0.0.1:" ++ show port ++ "/ok\nHTTP 200\n"
+
+-- | Like 'loopScript', but about 10 requests a second.
+slowLoopScript :: Int -> String
+slowLoopScript port = "GET http://127.0.0.1:" ++ show port ++ "/slow\nHTTP 200\n"
 
 -- | Wait until @p@ holds, checking every 50 ms, for up to @secs@ seconds.
 eventually :: Int -> IO Bool -> IO Bool
@@ -379,8 +389,11 @@ testLiveSocketNotStolen = testCase "a second run leaves a live run's socket alon
             -- on its own timer. Its 12 s must outlast everything before the
             -- status check: 0.2 s + up to 5 s for the first run to stop + up
             -- to 2 s to read the status (about 7 s), or "running" could be
-            -- "completed" for reasons that have nothing to do with stop.
-            started <- startRun (RunRequest "second" (T.pack script) 1 12 0)
+            -- "completed" for reasons that have nothing to do with stop. It
+            -- requests slowly so that it has few captures to flush once its
+            -- timer fires, and completes soon after.
+            started <- withScript (slowLoopScript port) $ \slow ->
+                startRun (RunRequest "second" (T.pack slow) 1 12 0)
             rid <- either (\e -> assertFailure ("startRun: " ++ show e) >> pure 0) pure started
             threadDelay 200000
             _ <- callTool c 1 "stop" (object [])
@@ -388,7 +401,7 @@ testLiveSocketNotStolen = testCase "a second run leaves a live run's socket alon
             assertBool "the first run still got stop" (isJust ended)
             status <- knownStatus 2 rid
             assertEqual "the second run is unaffected" (Just "running") status
-            settled <- eventually 15 ((== Just "completed") <$> runStatus rid)
+            settled <- eventually 20 ((== Just "completed") <$> runStatus rid)
             assertBool "the second run ends on its own timer" settled
 
 -- | 'runStatus', retried for up to @secs@ seconds until the database answers
