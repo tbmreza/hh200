@@ -18,6 +18,11 @@ yet done. Remove an item when it lands.
 - If stack can't download the `bel-expr` tarball but `git clone https://github.com/tbmreza/bel-expr`
   works, check out the pinned commit and build with a copy of `stack.yaml` that lists the checkout's
   path under `extra-deps` (`stack --stack-yaml COPY build`).
+- The SQLite schema is owned by the binary: `migrations` in `hh200/src/Hh200/Database.hs`, applied
+  by `initDb` and tracked in `PRAGMA user_version`. To change it, append a migration (never edit an
+  applied one) and mirror it in `live/prisma/schema.prisma`; `DatabaseSpec` checks the two agree.
+- Run tests under a UTF-8 locale (`LANG=C.UTF-8 stack test`); without one, the `ExecutionRunSpec`
+  non-Latin-1 test fails reading its temp script.
 - `ReleaseScriptSpec`, `ExecutionRunSpec`, `CorpusSpec`, `McpProtocolSpec` and the regression
   section of `DashboardSpec` pin behaviour the fixes below must keep. A fix that changes behaviour
   on purpose adds its own test.

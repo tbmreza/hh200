@@ -125,6 +125,7 @@ test-suite hh200-test
       CurlTest.Util
       CurlUnitSpec
       DashboardSpec
+      DatabaseSpec
       ExecutionRunSpec
       ExecutionSpec
       LspSpec

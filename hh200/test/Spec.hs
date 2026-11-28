@@ -6,6 +6,7 @@ import qualified ScannerSpec
 import qualified ExecutionSpec
 import qualified MustacheSpec
 import qualified DashboardSpec
+import qualified DatabaseSpec
 import qualified TokenBucketWorkerPoolSpec
 import qualified McpProtocolSpec
 import qualified McpResourceSpec
@@ -27,6 +28,7 @@ main = defaultMain $ localOption (NumThreads 1) $ testGroup "Hh200 Tests"
   , MustacheSpec.spec
   , ExecutionSpec.spec
   , DashboardSpec.spec
+  , DatabaseSpec.spec
   , TokenBucketWorkerPoolSpec.spec
   , McpResourceSpec.spec
   , McpProtocolSpec.spec

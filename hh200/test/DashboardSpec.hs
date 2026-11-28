@@ -26,6 +26,7 @@ import           Test.Tasty.HUnit
 import           Web.Scotty (scottyApp)
 
 import           Hh200.Dashboard (controlSocketPath, dashboardRoutes)
+import           Hh200.Database (initDb)
 
 --------------------------------------------------------------------------------
 -- Harness
@@ -66,35 +67,15 @@ headerValue name resp = lookup (CI.mk (BSC.pack name)) (HC.responseHeaders resp)
 -- Database fixtures
 --------------------------------------------------------------------------------
 
-schema :: [Sqlite.Query]
-schema =
-    [ "CREATE TABLE IF NOT EXISTS runs ( \
-      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
-      \name TEXT, script_path TEXT, started_at INTEGER, ended_at INTEGER, \
-      \status TEXT, concurrency INTEGER, rate_limit REAL, control_socket TEXT)"
-    , "CREATE TABLE IF NOT EXISTS requests ( \
-      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
-      \run_id INTEGER, seq INTEGER, sent_at INTEGER, duration_ms REAL, \
-      \method TEXT, url TEXT, status_code INTEGER, error TEXT, \
-      \bytes_in INTEGER, bytes_out INTEGER, worker_id INTEGER)"
-    , "CREATE TABLE IF NOT EXISTS request_headers ( \
-      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
-      \request_id INTEGER, direction TEXT, name TEXT, value TEXT)"
-    , "CREATE TABLE IF NOT EXISTS request_bodies ( \
-      \id INTEGER PRIMARY KEY AUTOINCREMENT, \
-      \request_id INTEGER, direction TEXT, content BLOB, truncated INTEGER)"
-    ]
-
--- | Point @HH200_SQLITE@ at a fresh temp file, create the schema, optionally
--- seed a run, run the action, then clean up.
+-- | Point @HH200_SQLITE@ at a fresh temp file, create the schema the way the
+-- binary does ('initDb'), optionally seed a run, run the action, then clean up.
 withTestDb :: Bool -> IO a -> IO a
 withTestDb seeded act = do
     tmp <- getTemporaryDirectory
     (fp, h) <- openTempFile tmp "hh200-db"
     hClose h
     setEnv "HH200_SQLITE" fp
-    conn <- Sqlite.open fp
-    mapM_ (Sqlite.execute_ conn) schema
+    conn <- initDb
     when seeded $ do
         Sqlite.execute conn
             "INSERT INTO runs (name, script_path, started_at, ended_at, status, concurrency, rate_limit, control_socket) \

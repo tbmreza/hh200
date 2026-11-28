@@ -7,8 +7,8 @@ module Hh200.Database
 
 
 import           GHC.Generics (Generic)
-import           Control.Exception (try, SomeException, displayException)
-import           Control.Monad (forM)
+import           Control.Exception (try, SomeException, displayException, onException)
+import           Control.Monad (forM, forM_, when)
 import           Data.Aeson (ToJSON (..), object, (.=))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
@@ -17,12 +17,12 @@ import           Data.Int (Int64)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE
-import           Database.SQLite.Simple (query, Only (..), Connection, ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId)
+import           Database.SQLite.Simple (query, Only (..), Connection, Query (..), ToRow (..), FromRow (..), toRow, fromRow, execute_, execute, close, open, field, query_, lastInsertRowId, withImmediateTransaction)
 import           Network.HTTP.Types.Header (HeaderName)
 import           System.Directory (XdgDirectory (XdgData), getXdgDirectory, createDirectoryIfMissing)
 import           System.Environment (lookupEnv)
 import           System.Exit (exitSuccess)
-import           System.FilePath ((<.>), (</>))
+import           System.FilePath ((<.>), (</>), takeDirectory)
 
 
 data HtmlReportData = HtmlReportData
@@ -94,16 +94,125 @@ instance ToJSON RunRow where
       , "control_socket" .= cs
       ]
 
+-- | Open the database (@$HH200_SQLITE@, else @~/.local/share/hh200/hh200.sqlite@)
+-- and bring its schema up to date. Safe to call any number of times, from any
+-- number of processes.
 initDb :: IO Connection
 initDb = do
     mPath <- lookupEnv "HH200_SQLITE"
     fp <- case mPath of
-        Just fp -> pure fp
+        Just fp -> do
+            createDirectoryIfMissing True (takeDirectory fp)
+            pure fp
         Nothing -> do
             dir <- getXdgDirectory XdgData "hh200"
             createDirectoryIfMissing True dir
             pure (dir </> "hh200.sqlite")
-    open fp
+    conn <- open fp
+    -- While migrating, wait for another process's write (a run's couriers, or
+    -- a concurrent first open) instead of failing at once with SQLITE_BUSY.
+    -- Afterwards restore the default, so queries keep their usual behaviour.
+    execute_ conn "PRAGMA busy_timeout = 5000"
+    migrate conn `onException` close conn
+    execute_ conn "PRAGMA busy_timeout = 0"
+    pure conn
+
+--------------------------------------------------------------------------------
+-- Schema
+--------------------------------------------------------------------------------
+
+-- | One schema step: the statements that take the database from version
+-- @n - 1@ to @n@, where @n@ is the migration's 1-based position in the list.
+type Migration = [Query]
+
+-- | The schema, as ordered migrations. The database records how many have been
+-- applied in @PRAGMA user_version@.
+--
+-- Append new migrations; never edit or reorder applied ones, since user
+-- databases already at that version won't run them again. A migration should
+-- also be mirrored in @live/prisma/schema.prisma@ (and @DatabaseSpec@ checks
+-- the two still agree).
+migrations :: [Migration]
+migrations =
+    [ -- 1: the initial schema. The same DDL as Prisma's
+      -- live/prisma/migrations/20261016072631_init, with IF NOT EXISTS, so a
+      -- database Prisma created (user_version 0, tables present) or one made
+      -- before hh200 owned its schema is adopted as-is.
+      [ "CREATE TABLE IF NOT EXISTS runs ( \
+        \id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \
+        \name TEXT NOT NULL, \
+        \script_path TEXT NOT NULL, \
+        \started_at BIGINT NOT NULL, \
+        \ended_at BIGINT, \
+        \status TEXT NOT NULL, \
+        \concurrency INTEGER NOT NULL, \
+        \rate_limit REAL NOT NULL, \
+        \control_socket TEXT NOT NULL)"
+      , "CREATE TABLE IF NOT EXISTS requests ( \
+        \id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \
+        \run_id INTEGER NOT NULL, \
+        \seq INTEGER NOT NULL, \
+        \sent_at BIGINT NOT NULL, \
+        \duration_ms REAL, \
+        \method TEXT NOT NULL, \
+        \url TEXT NOT NULL, \
+        \status_code INTEGER, \
+        \error TEXT, \
+        \bytes_in INTEGER, \
+        \bytes_out INTEGER, \
+        \worker_id INTEGER, \
+        \CONSTRAINT requests_run_id_fkey FOREIGN KEY (run_id) REFERENCES runs (id) ON DELETE CASCADE ON UPDATE CASCADE)"
+      , "CREATE TABLE IF NOT EXISTS request_headers ( \
+        \id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \
+        \request_id INTEGER NOT NULL, \
+        \direction TEXT NOT NULL, \
+        \name TEXT NOT NULL, \
+        \value TEXT NOT NULL, \
+        \CONSTRAINT request_headers_request_id_fkey FOREIGN KEY (request_id) REFERENCES requests (id) ON DELETE CASCADE ON UPDATE CASCADE)"
+      , "CREATE TABLE IF NOT EXISTS request_bodies ( \
+        \id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \
+        \request_id INTEGER NOT NULL, \
+        \direction TEXT NOT NULL, \
+        \content BLOB, \
+        \truncated BOOLEAN NOT NULL DEFAULT false, \
+        \CONSTRAINT request_bodies_request_id_fkey FOREIGN KEY (request_id) REFERENCES requests (id) ON DELETE CASCADE ON UPDATE CASCADE)"
+      , "CREATE INDEX IF NOT EXISTS requests_run_id_idx ON requests(run_id)"
+      , "CREATE INDEX IF NOT EXISTS request_headers_request_id_idx ON request_headers(request_id)"
+      , "CREATE INDEX IF NOT EXISTS request_bodies_request_id_idx ON request_bodies(request_id)"
+      ]
+    ]
+
+-- | The schema version this binary writes: the number of 'migrations'.
+schemaVersion :: Int
+schemaVersion = length migrations
+
+-- | Apply the pending 'migrations'.
+migrate :: Connection -> IO ()
+migrate = migrateWith migrations
+
+-- | Apply the migrations past the database's @user_version@, each in its own
+-- transaction together with the version bump, so a failed step leaves the
+-- database at the previous version. The version is re-read under the write
+-- lock, so two processes opening a new database at once apply each step once.
+-- A database from a newer hh200 (version past the list) is left alone.
+migrateWith :: [Migration] -> Connection -> IO ()
+migrateWith ms conn = do
+    v <- userVersion conn
+    when (v < length ms) $
+        withImmediateTransaction conn $ do
+            v' <- userVersion conn
+            forM_ (drop v' (zip [1 :: Int ..] ms)) $ \(n, stmts) -> do
+                mapM_ (execute_ conn) stmts
+                -- PRAGMA takes no bound parameters; n is an Int, so this is safe.
+                execute_ conn (Query (Text.pack ("PRAGMA user_version = " ++ show n)))
+
+-- | The database's @PRAGMA user_version@ (0 for a new or Prisma-created file).
+userVersion :: Connection -> IO Int
+userVersion conn = do
+    rows <- query_ conn "PRAGMA user_version"
+    pure $ case rows of
+        [Only v] -> v
+        _        -> 0
 
 closeDb :: Connection -> IO ()
 closeDb = close

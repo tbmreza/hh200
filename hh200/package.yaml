@@ -156,6 +156,7 @@ tests:
     - CurlTest.Util
     - CurlUnitSpec
     - DashboardSpec
+    - DatabaseSpec
     - ExecutionRunSpec
     - ExecutionSpec
     - LspSpec
